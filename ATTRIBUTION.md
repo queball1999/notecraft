@@ -20,4 +20,4 @@ Rust dependencies are tracked in `Cargo.lock`; only crates under MIT, Apache-2.0
 
 | Path | Origin | License | Notes |
 |---|---|---|---|
-| (none) | | | |
+| `xtask/src/` | Command layout, process helpers, and CI step summary adapted from the [GridCraft](https://github.com/storytold/gridcraft) xtask. Copyright (c) 2026 ArtCraft Team and the GridCraft contributors | MIT OR Apache-2.0 | Rewritten for NoteCraft; no code copied verbatim |
