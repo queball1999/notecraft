@@ -2,7 +2,7 @@
 // (notecraft-cli includes this file). Emits NOTECRAFT_BUILD_SHA and NOTECRAFT_BUILD_DATE as
 // compile-time env vars, taken in order from:
 //   1. NOTECRAFT_BUILD_SHA / NOTECRAFT_BUILD_DATE (packaging/env.sh and package.ps1 set them)
-//   2. BUILD_SHA / BUILD_DATE (the shared craft-common-actions release workflow sets them)
+//   2. BUILD_SHA / BUILD_DATE (generic names some CI systems set)
 //   3. `git rev-parse --short HEAD` and today's UTC date
 // Anything that cannot be found becomes "unknown"; a build never fails over version info.
 

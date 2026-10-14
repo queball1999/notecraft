@@ -89,7 +89,7 @@ Commits:
 | Hours | 60-110 |
 | Rows | SH-18 |
 
-Steps: create `apps/notecraft-web` (L7) with eframe web; storage backend over the browser's origin private file system and the File System Access API where available; `packaging/web/package.sh` for the shared release workflow; set `has-web: true` in `release.yml`.
+Steps: create `apps/notecraft-web` (L7) with eframe web; storage backend over the browser's origin private file system and the File System Access API where available; `packaging/web/package.sh`; add a web job to `release.yml` (docs/releasing.md section 3).
 
 Commits:
 

@@ -1,7 +1,7 @@
 //! `cargo xtask version [set X.Y.Z[-pre]]`: the workspace version, its single source of truth.
 //!
 //! The version lives in `[workspace.package] version` in the root Cargo.toml; every crate
-//! inherits it. The shared release workflow (craft-common-actions) calls `version set` for test
+//! inherits it. The release workflow (.github/workflows/release.yml) calls `version set` for test
 //! runs, then builds with `--locked`, so `set` also refreshes the workspace entries in Cargo.lock.
 
 use crate::util::{cargo, run as run_cmd};
