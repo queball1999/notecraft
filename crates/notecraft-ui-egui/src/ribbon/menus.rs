@@ -1,7 +1,9 @@
 //! What opens under a ribbon button: a list of items (with color or stroke previews), a color
-//! picker (swatch grid, "no color", and a full custom color picker), or a table size grid.
+//! picker (swatch grid, "no color", and a custom color editor with hex, rgb(), rgba(), and
+//! R, G, B, A fields), or a table size grid.
 
-use egui::color_picker::{color_picker_color32, Alpha};
+use egui::color_picker::{color_picker_hsva_2d, show_color, Alpha};
+use egui::ecolor::Hsva;
 use egui::{
     Color32, CornerRadius, FontId, Id, Rect, Response, Sense, Stroke, StrokeKind, Ui, WidgetInfo,
     WidgetType,
@@ -10,6 +12,7 @@ use notecraft_engine::cmd::{CommandId, Map, Value};
 
 use super::spec::{ColorMenu, Item, Preview};
 use super::{Clicked, Look};
+use crate::color::{self, Rgba8};
 use crate::themes::{hex, mix};
 
 const ROW_HEIGHT: f32 = 24.0;
@@ -106,10 +109,96 @@ fn swatch(ui: &mut Ui, color: Color32, look: Look<'_>) -> Response {
 }
 
 /// State of the custom color part of a picker, kept in egui memory per menu.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Custom {
     open: bool,
-    color: Color32,
+    /// The color being edited, as HSVA so dragging hue and saturation is lossless.
+    hsva: Hsva,
+    /// The text in the color field; may be half typed.
+    text: String,
+    /// The text could not be read as a color.
+    text_invalid: bool,
+}
+
+impl Custom {
+    fn new(rgba: Rgba8) -> Self {
+        Self {
+            open: false,
+            hsva: Hsva::from_srgba_unmultiplied(rgba),
+            text: color::format_hex(rgba),
+            text_invalid: false,
+        }
+    }
+
+    fn rgba(&self) -> Rgba8 {
+        self.hsva.to_srgba_unmultiplied()
+    }
+
+    /// Set the color from RGBA and show it in the text field.
+    fn set(&mut self, rgba: Rgba8) {
+        self.hsva = Hsva::from_srgba_unmultiplied(rgba);
+        self.text = color::format_hex(rgba);
+        self.text_invalid = false;
+    }
+}
+
+/// The custom color editor: a picker with alpha, a field that takes `#RRGGBB`,
+/// `#RRGGBBAA`, `rgb()`, or `rgba()`, and R, G, B, A number fields. All four stay in sync.
+fn custom_editor(ui: &mut Ui, custom: &mut Custom, look: Look<'_>) {
+    // Inputs need a visible box even in presets whose buttons have none.
+    let t = look.tokens;
+    let visuals = ui.visuals_mut();
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, t.border);
+    visuals.widgets.inactive.weak_bg_fill = t.canvas_bg;
+    visuals.extreme_bg_color = t.canvas_bg;
+    let before = custom.rgba();
+    if color_picker_hsva_2d(ui, &mut custom.hsva, Alpha::OnlyBlend) {
+        custom.text = color::format_hex(custom.rgba());
+        custom.text_invalid = false;
+    }
+
+    ui.horizontal(|ui| {
+        ui.label("Color");
+        let field = ui.add(
+            egui::TextEdit::singleline(&mut custom.text)
+                .desired_width(150.0)
+                .char_limit(color::MAX_INPUT)
+                .hint_text("#RRGGBBAA or rgba(r, g, b, a)"),
+        );
+        if field.changed() {
+            match color::parse(&custom.text) {
+                Some(rgba) => {
+                    custom.hsva = Hsva::from_srgba_unmultiplied(rgba);
+                    custom.text_invalid = false;
+                }
+                None => custom.text_invalid = true,
+            }
+        }
+        if field.lost_focus() && !custom.text_invalid {
+            custom.text = color::format_hex(custom.rgba());
+        }
+    });
+    if custom.text_invalid {
+        ui.label(
+            egui::RichText::new("Not a color: use #RRGGBB, #RRGGBBAA, rgb(), or rgba()")
+                .small()
+                .color(look.tokens.text_muted),
+        );
+    }
+
+    let mut rgba = custom.rgba();
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        for (name, value) in ["R", "G", "B", "A"].iter().zip(rgba.iter_mut()) {
+            ui.label(*name);
+            changed |= ui
+                .add(egui::DragValue::new(value).range(0..=255).speed(1.0))
+                .changed();
+        }
+    });
+    if changed && rgba != before {
+        custom.set(rgba);
+    }
 }
 
 /// A color picker for `command`. Picking a swatch, "no color", or applying a custom color
@@ -151,27 +240,26 @@ pub(super) fn colors(
     }
     ui.separator();
     let id = Id::new(("ribbon_custom_color", command.as_str()));
+    let first = menu.colors.first().map_or([128, 128, 128, 255], |&rgb| {
+        let [_, r, g, b] = rgb.to_be_bytes();
+        [r, g, b, u8::MAX]
+    });
     let mut custom = ui
         .data(|data| data.get_temp::<Custom>(id))
-        .unwrap_or(Custom {
-            open: false,
-            color: menu.colors.first().map_or(Color32::GRAY, |&rgb| hex(rgb)),
-        });
+        .unwrap_or_else(|| Custom::new(first));
     if row(ui, "More Colors", Preview::None, look).clicked() {
         custom.open = !custom.open;
     }
     if custom.open {
-        color_picker_color32(ui, &mut custom.color, Alpha::Opaque);
+        custom_editor(ui, &mut custom, look);
         ui.horizontal(|ui| {
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(24.0, 18.0), Sense::hover());
-            ui.painter()
-                .rect_filled(rect, CornerRadius::same(2), custom.color);
-            ui.label(hex_string(custom.color));
+            show_color(ui, Color32::from(custom.hsva), egui::vec2(32.0, 18.0));
+            ui.label(color::format_hex(custom.rgba()));
             let apply =
                 egui::Button::new(egui::RichText::new("Apply").color(look.tokens.accent_text))
                     .fill(look.tokens.accent);
-            if ui.add(apply).clicked() {
-                run(out, &hex_string(custom.color));
+            if ui.add_enabled(!custom.text_invalid, apply).clicked() {
+                run(out, &color::format_hex(custom.rgba()));
                 custom.open = false;
                 ui.close();
             }

@@ -510,6 +510,43 @@ mod tests {
     }
 
     #[test]
+    fn custom_color_takes_rgba_text_and_number_fields() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Draw").click();
+        harness.run();
+        harness.get_by_label("Color").click();
+        harness.run();
+        harness.get_by_label("More Colors").click();
+        harness.run();
+
+        // Replace the field's text with an rgba() color: the editor shows it as hex.
+        let field = harness.get_by_role(egui::accesskit::Role::TextInput);
+        field.focus();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness
+            .get_by_role(egui::accesskit::Role::TextInput)
+            .type_text("rgba(255, 0, 0, 0.5)");
+        harness.run();
+        let _ = harness.get_by_label("#FF000080");
+
+        // Text that is not a color is flagged and Apply is disabled until it is fixed.
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness
+            .get_by_role(egui::accesskit::Role::TextInput)
+            .type_text("not a color");
+        harness.run();
+        let _ = harness.get_by_label("Not a color: use #RRGGBB, #RRGGBBAA, rgb(), or rgba()");
+        harness.get_by_label("Apply").click();
+        harness.run();
+        assert!(
+            harness.query_by_label("More Colors").is_some(),
+            "Apply does nothing while the text is not a color"
+        );
+    }
+
+    #[test]
     fn page_color_offers_no_color_and_a_grid() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
