@@ -1909,6 +1909,7 @@ dependencies = [
  "egui_kittest",
  "notecraft-core",
  "notecraft-engine",
+ "notecraft-model",
  "serde_json",
  "skrifa",
  "tracing",

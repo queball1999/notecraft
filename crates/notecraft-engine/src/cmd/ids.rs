@@ -276,4 +276,16 @@ command_ids! {
     VIEW_MODE_TOGGLE = "view.mode.toggle";
     /// Use light, dark, or the system color mode.
     VIEW_MODE_SET = "view.mode.set";
+
+    // Navigation: the notebook list, the section tabs, and the page list
+    /// Show a notebook, at its first section's first page.
+    NAV_NOTEBOOK_SELECT = "nav.notebook.select";
+    /// Show a section, at its first page.
+    NAV_SECTION_SELECT = "nav.section.select";
+    /// Show a page.
+    NAV_PAGE_SELECT = "nav.page.select";
+    /// Add a section to the current notebook.
+    SECTION_NEW = "section.new";
+    /// Add a page to the current section.
+    PAGE_NEW = "page.new";
 }

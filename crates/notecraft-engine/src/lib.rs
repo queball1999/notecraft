@@ -13,7 +13,7 @@ pub mod cmd;
 pub mod session;
 pub mod view;
 
-pub use session::Session;
+pub use session::{Selection, Session};
 
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 5;

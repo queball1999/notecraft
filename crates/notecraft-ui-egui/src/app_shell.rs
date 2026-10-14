@@ -1,10 +1,12 @@
 //! The window's top-level layout. PR 0.1 lays out empty, labeled regions where the ribbon,
 //! navigation, canvas, and status bar land in the next Phase 0 PRs (build_plan/02). PR 0.2 adds
-//! command dispatch and toasts; PR 0.3 installs the theme; PR 0.5 adds the ribbon.
+//! command dispatch and toasts; PR 0.3 installs the theme; PR 0.5 adds the ribbon; PR 0.6 adds
+//! the notebook pane, section tabs, and page list on mock notebooks.
 
 use notecraft_engine::cmd::{ids, CommandError, Registry, Value};
 use notecraft_engine::Session;
 
+use crate::nav::{self, NavUi};
 use crate::ribbon::{self, Clicked, Ribbon};
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
@@ -17,7 +19,7 @@ pub const STATUS_HEIGHT: f32 = 24.0;
 pub const SIDE_WIDTH: f32 = 220.0;
 
 /// The labels of the placeholder regions, in drawing order. UI tests look them up by name.
-pub const REGIONS: [&str; 4] = ["Status bar", "Notebooks", "Pages", "Canvas"];
+pub const REGIONS: [&str; 4] = ["Status bar", "Notebooks", "Add Page", "Canvas"];
 
 /// Everything inside the main window.
 #[derive(Debug)]
@@ -26,6 +28,7 @@ pub struct AppShell {
     session: Session,
     toasts: Toasts,
     ribbon: Ribbon,
+    nav: NavUi,
     /// The preset and mode last installed into egui, so it is redone only on a change.
     installed: Option<(Preset, Mode)>,
     /// The OS UI fonts, if the app loaded them (tests run with egui's built-in font).
@@ -42,11 +45,14 @@ impl Default for AppShell {
 
 impl AppShell {
     pub fn new() -> Self {
+        let mut session = Session::new();
+        session.set_notebooks(nav::mock::notebooks());
         Self {
             registry: Registry::builtin(),
-            session: Session::new(),
+            session,
             toasts: Toasts::new(),
             ribbon: Ribbon::new(),
+            nav: NavUi::default(),
             installed: None,
             fonts: OsFonts::default(),
             installed_font: None,
@@ -171,19 +177,47 @@ impl AppShell {
             .exact_size(STATUS_HEIGHT)
             .frame(panel.fill(tokens.ribbon_bg))
             .show(ui, |ui| placeholder(ui, "Status bar"));
+        let session = &self.session;
+        let nav_ui = &mut self.nav;
         egui::Panel::left("notebooks")
             .default_size(SIDE_WIDTH)
             .resizable(true)
             .frame(panel.fill(tokens.sidebar_bg))
-            .show(ui, |ui| placeholder(ui, "Notebooks"));
-        egui::Panel::right("pages")
+            .show(ui, |ui| {
+                nav::notebook_pane(ui, session, nav_ui, &tokens, &mut clicked)
+            });
+        // The page list sits left or right of the page depending on the preset.
+        let pages = if nav::pages_on_left(session.view().theme_preset) {
+            egui::Panel::left("pages")
+        } else {
+            egui::Panel::right("pages")
+        };
+        pages
             .default_size(SIDE_WIDTH)
             .resizable(true)
             .frame(panel.fill(tokens.sidebar_bg))
-            .show(ui, |ui| placeholder(ui, "Pages"));
+            .show(ui, |ui| nav::page_list(ui, session, &tokens, &mut clicked));
         egui::CentralPanel::default()
-            .frame(egui::Frame::central_panel(ui.style()).fill(tokens.canvas_bg))
-            .show(ui, |ui| placeholder(ui, "Canvas"));
+            .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
+            .show(ui, |ui| {
+                let full = ui.max_rect();
+                let strip = egui::Rect::from_min_size(
+                    full.min,
+                    egui::vec2(full.width(), nav::SECTION_STRIP_HEIGHT),
+                );
+                nav::section_tabs(ui, strip, session, &tokens, &mut clicked);
+                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, strip.max.y), full.max);
+                ui.scope_builder(egui::UiBuilder::new().max_rect(page.shrink(24.0)), |ui| {
+                    if let Some(page) = session.current_page() {
+                        ui.label(
+                            egui::RichText::new(page.display_title())
+                                .size(22.0)
+                                .color(tokens.text),
+                        );
+                    }
+                    placeholder(ui, "Canvas");
+                });
+            });
         self.dispatch_all(clicked);
         self.toasts.show(ui.ctx());
     }
@@ -352,6 +386,91 @@ mod tests {
         harness.key_press(egui::Key::Escape);
         harness.run();
         assert!(!harness.state().ribbon().backstage_open());
+    }
+
+    fn selected_ids(shell: &AppShell) -> (String, String, String) {
+        let s = shell.session().selection();
+        let id = |v: &Option<String>| v.clone().unwrap_or_default();
+        (id(&s.notebook), id(&s.section), id(&s.page))
+    }
+
+    #[test]
+    fn navigation_selects_notebooks_sections_and_pages() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let ids = selected_ids(harness.state());
+        assert_eq!(
+            ids,
+            ("nb-personal".into(), "s-quick".into(), "p-welcome".into())
+        );
+
+        harness.get_by_label("Work Notebook").click();
+        harness.run();
+        let ids = selected_ids(harness.state());
+        assert_eq!(
+            ids,
+            ("nb-work".into(), "s-meetings".into(), "p-sync".into())
+        );
+
+        harness.get_by_label("Action items").click();
+        harness.run();
+        assert_eq!(selected_ids(harness.state()).2, "p-actions");
+
+        // Research shows as a section tab and in the notebook pane; either selects it.
+        harness.get_all_by_label("Research").next().unwrap().click();
+        harness.run();
+        let ids = selected_ids(harness.state());
+        assert_eq!(
+            ids,
+            ("nb-work".into(), "s-research".into(), "p-reading".into())
+        );
+        let _ = harness.get_by_label("Interview notes");
+        assert!(harness.state().toasts().is_empty());
+    }
+
+    #[test]
+    fn add_page_and_new_section_are_coming_soon() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Add Page").click();
+        harness.run();
+        harness.get_by_label("New Section").click();
+        harness.run();
+        let texts: Vec<&str> = harness.state().toasts().texts().collect();
+        assert_eq!(texts, ["Coming Soon: Add Page", "Coming Soon: New Section"]);
+    }
+
+    #[test]
+    fn section_groups_collapse_in_the_notebook_pane() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        // Old Projects is a section tab and, inside the expanded Archive group, a pane row.
+        assert_eq!(harness.get_all_by_label("Old Projects").count(), 2);
+        harness.get_by_label("Archive").click();
+        harness.run();
+        assert_eq!(harness.get_all_by_label("Old Projects").count(), 1);
+    }
+
+    #[test]
+    fn section_tabs_overflow_into_a_menu() {
+        let mut harness = harness(AppShell::new(), egui::vec2(640.0, 600.0));
+        harness.run();
+        let _ = harness.get_by_label("More Sections");
+    }
+
+    #[test]
+    fn page_list_side_follows_the_preset() {
+        assert!(!nav::pages_on_left(Preset::OneNote2016));
+        assert!(!nav::pages_on_left(Preset::OneNote2019));
+        assert!(nav::pages_on_left(Preset::OneNote2021));
+        assert!(nav::pages_on_left(Preset::M365));
+        for preset in Preset::ALL {
+            let mut shell = AppShell::new();
+            shell.set_theme(preset, Mode::Light);
+            let mut harness = harness(shell, WINDOW);
+            harness.run();
+            let _ = harness.get_by_label("Grocery list");
+        }
     }
 
     #[test]
