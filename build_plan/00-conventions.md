@@ -150,9 +150,27 @@ A bug on `main` that blocks everyone: branch `fix/<slug>` off `main`, PR into `m
 
 See docs/releasing.md. Release prep is a `chore/release-<version>` PR into `main`; the release itself is a fast-forward of `release` to `main`.
 
+## 9. Working without a remote or `gh`
+
+Until the GitHub repo exists (build_plan/01, section 0), or on a machine without the `gh` CLI, follow the same branch and commit rules locally:
+
+1. Create the work branch off the phase branch and make the planned commits on it.
+2. Run `cargo xtask ci` (or, before it exists, the commands the PR section lists).
+3. Squash-merge into the phase branch with the PR title as the subject and the `Refs:` line in the body:
+   ```sh
+   git checkout phase/<n>-<slug>
+   git merge --squash feat/<slug>
+   git commit -m "feat(<scope>): <subject>" -m "Refs: build_plan/<file>.md PR <n>"
+   ```
+4. Keep the work branch until it has been pushed once, so its individual commits stay visible; delete it after.
+5. When the remote exists: `git remote add origin <url>`, then `git push -u origin main release phase/<n>-<slug>` and push any work branches still around. Open the phase PR on GitHub as section 6 describes.
+
+PR bodies written for each phase file still apply; save them under `.git/PR_BODY-<n>.md` so they can be pasted into GitHub later.
+
 ## Revision history
 
 | Date | Phase | Change |
 |---|---|---|
 | 2026-10-14 | -1 | Created. |
+| 2026-10-14 | -1 | Added section 9: working without a remote or `gh`. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
