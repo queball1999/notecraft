@@ -1,6 +1,6 @@
 //! `cargo xtask ci`: every gate CI runs, in order, stopping at the first failure.
 
-use crate::util::{cargo, run};
+use crate::util::{cargo, root, run};
 
 type Step = (&'static str, fn() -> Result<(), String>);
 
@@ -30,7 +30,14 @@ fn test() -> Result<(), String> {
 }
 
 /// The gates, in the order AGENTS.md section 7 lists them.
-const STEPS: &[Step] = &[("fmt", fmt), ("clippy", clippy), ("test", test)];
+const STEPS: &[Step] = &[
+    ("fmt", fmt),
+    ("clippy", clippy),
+    ("test", test),
+    ("text", || crate::text::run(&root())),
+    ("assets", || crate::assets::run(&root())),
+    ("layers", || crate::layers::run(&root())),
+];
 
 pub fn run_all() -> Result<(), String> {
     let mut done: Vec<&str> = Vec::new();

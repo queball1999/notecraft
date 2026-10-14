@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: section 9 marks which ci steps exist.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: section 9: text, assets, and layers gates implemented.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -118,7 +118,7 @@ Commands always run on the thread that owns the session (the UI thread in the de
 
 ## 9. Quality gates
 
-`cargo xtask ci` (also the CI gate, see `.github/workflows/ci.yml`). Implemented so far: format, lint, test (PR -1.2). The rest land in PRs -1.3 and -1.4.
+`cargo xtask ci` (also the CI gate, see `.github/workflows/ci.yml`). Implemented so far: format, lint, test (PR -1.2); text, assets, layers (PR -1.3). WASM and parity land in PR -1.4.
 
 | Step | Tool |
 |---|---|
@@ -140,3 +140,4 @@ Other workflows mirror the related craft apps: `printing.yml` (craft-print on al
 | 2026-10-14 | -1 | Created. Target layers, crates, data flow, commands, undo, never-crash design, threads, gates. Same day: re-scoped to OneNote parity (no notecraft-mcp crate, no graph, palette, or plugin loader). |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | Section 9 marks which ci steps exist. |
+| 2026-10-14 | -1 | Section 9: text, assets, and layers gates implemented. |

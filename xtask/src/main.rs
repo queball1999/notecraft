@@ -13,7 +13,10 @@
 )]
 #![forbid(unsafe_code)]
 
+mod assets;
 mod ci;
+mod layers;
+mod text;
 mod util;
 
 use std::process::ExitCode;
@@ -23,13 +26,19 @@ usage: cargo xtask <command>
 
 commands:
   ci        every CI gate in order, stopping at the first failure:
-            fmt --check, clippy -D warnings, test
+            fmt --check, clippy -D warnings, test, text, assets, layers
+  text      plain ASCII text outside testdata/ and locales/ (AGENTS.md section 2)
+  assets    every file under assets/ and testdata/ has an ATTRIBUTION.md row
+  layers    crates depend only on lower layers; no UI crates below L6
 ";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("ci") => ci::run_all(),
+        Some("text") => text::run(&util::root()),
+        Some("assets") => assets::run(&util::root()),
+        Some("layers") => layers::run(&util::root()),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

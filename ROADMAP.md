@@ -80,3 +80,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | Project renamed from QNote 2.0 to NoteCraft: crates, binaries, the `.notecraft` page format, the notebook data folder, URL scheme, env vars, app id, and repo name. Docs now state NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | Phase -1 PR -1.1: Cargo workspace with shared never-crash lints, crate skeletons for L0 to L6, notecraft and notecraft-cli apps, placeholder xtask. |
 | 2026-10-14 | Phase -1 PR -1.2: cargo xtask ci runs fmt, clippy -D warnings, and test, with a step summary. |
+| 2026-10-14 | Phase -1 PR -1.3: cargo xtask text, assets, and layers gates, run by cargo xtask ci. |

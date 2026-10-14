@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SC-02 scored P (cargo xtask ci with fmt, clippy, test).
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SC-03, SC-04, SC-05 scored D (text, assets, layers gates).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -17,7 +17,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 <!-- parity:summary:start -->
 | Area | D | P | M | Total | Done % |
 |---|---:|---:|---:|---:|---:|
-| Scaffolding | 1 | 1 | 8 | 10 | 10% |
+| Scaffolding | 4 | 1 | 5 | 10 | 40% |
 | Shell | 0 | 0 | 20 | 20 | 0% |
 | Themes | 0 | 0 | 6 | 6 | 0% |
 | Canvas | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +28,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 1 | 1 | 111 | 113 | 0% |
+| Total | 4 | 1 | 108 | 113 | 3% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -37,9 +37,9 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 |---|---|---|---|---|---|
 | SC-01 | Scaffolding | Cargo workspace with all crates and `xtask` | -1 | D | PR -1.1: workspace, 7 crates, 2 apps, xtask; build, clippy, test pass |
 | SC-02 | Scaffolding | `cargo xtask ci` runs every gate | -1 | P | PR -1.2: cargo xtask ci runs fmt, clippy, test; text, assets, layers, wasm, parity steps pending |
-| SC-03 | Scaffolding | `cargo xtask layers` | -1 | M | |
-| SC-04 | Scaffolding | `cargo xtask assets` | -1 | M | |
-| SC-05 | Scaffolding | `cargo xtask text` | -1 | M | CI shell check exists; xtask version pending |
+| SC-03 | Scaffolding | `cargo xtask layers` | -1 | D | PR -1.3: cargo xtask layers; unit tests plus a failing upward-dependency check |
+| SC-04 | Scaffolding | `cargo xtask assets` | -1 | D | PR -1.3: cargo xtask assets; unit tests plus a failing unattributed-file check |
+| SC-05 | Scaffolding | `cargo xtask text` | -1 | D | PR -1.3: cargo xtask text; unit tests plus a failing em dash check; CI shell step kept |
 | SC-06 | Scaffolding | `cargo xtask parity` and `--check` | -1 | M | |
 | SC-07 | Scaffolding | `cargo xtask version set` (release contract) | -1 | M | |
 | SC-08 | Scaffolding | Packaging scripts for the craft-common-actions contract | -1 | M | |
@@ -207,3 +207,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | SC-01 scored D (workspace and crate skeletons). |
 | 2026-10-14 | -1 | SC-02 scored P (cargo xtask ci with fmt, clippy, test). |
+| 2026-10-14 | -1 | SC-03, SC-04, SC-05 scored D (text, assets, layers gates). |
