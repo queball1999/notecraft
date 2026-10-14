@@ -1,22 +1,23 @@
 //! The window's top-level layout. PR 0.1 lays out empty, labeled regions where the ribbon,
 //! navigation, canvas, and status bar land in the next Phase 0 PRs (build_plan/02). PR 0.2 adds
-//! command dispatch and toasts; PR 0.3 installs the theme.
+//! command dispatch and toasts; PR 0.3 installs the theme; PR 0.5 adds the ribbon.
 
 use notecraft_engine::cmd::{CommandError, Registry, Value};
 use notecraft_engine::Session;
 
+use crate::ribbon::{self, Clicked, Ribbon};
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
 
-/// Height of the ribbon region, in points.
-pub const RIBBON_HEIGHT: f32 = 120.0;
+/// Height of the ribbon region (tab strip and body), in points.
+pub const RIBBON_HEIGHT: f32 = ribbon::HEIGHT;
 /// Height of the status bar, in points.
 pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
 pub const SIDE_WIDTH: f32 = 220.0;
 
 /// The labels of the placeholder regions, in drawing order. UI tests look them up by name.
-pub const REGIONS: [&str; 5] = ["Ribbon", "Status bar", "Notebooks", "Pages", "Canvas"];
+pub const REGIONS: [&str; 4] = ["Status bar", "Notebooks", "Pages", "Canvas"];
 
 /// Everything inside the main window.
 #[derive(Debug)]
@@ -24,6 +25,7 @@ pub struct AppShell {
     registry: Registry,
     session: Session,
     toasts: Toasts,
+    ribbon: Ribbon,
     /// The preset and mode last installed into egui, so it is redone only on a change.
     installed: Option<(Preset, Mode)>,
     /// The OS UI fonts, if the app loaded them (tests run with egui's built-in font).
@@ -44,6 +46,7 @@ impl AppShell {
             registry: Registry::builtin(),
             session: Session::new(),
             toasts: Toasts::new(),
+            ribbon: Ribbon::new(),
             installed: None,
             fonts: OsFonts::default(),
             installed_font: None,
@@ -66,6 +69,14 @@ impl AppShell {
 
     pub fn session(&self) -> &Session {
         &self.session
+    }
+
+    pub fn ribbon(&self) -> &Ribbon {
+        &self.ribbon
+    }
+
+    pub fn ribbon_mut(&mut self) -> &mut Ribbon {
+        &mut self.ribbon
     }
 
     /// Set the theme without a command, for restoring saved settings at startup.
@@ -119,11 +130,16 @@ impl AppShell {
     /// Draw the window contents (eframe `ui`).
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let tokens = self.tokens(ui.ctx());
+        let look = ribbon::Look {
+            tokens: &tokens,
+            registry: &self.registry,
+        };
         let panel = egui::Frame::side_top_panel(ui.style());
-        egui::Panel::top("ribbon")
+        let clicked = egui::Panel::top("ribbon")
             .exact_size(RIBBON_HEIGHT)
-            .frame(panel.fill(tokens.ribbon_bg))
-            .show(ui, |ui| placeholder(ui, "Ribbon"));
+            .frame(egui::Frame::NONE.fill(tokens.ribbon_bg))
+            .show(ui, |ui| self.ribbon.show(ui, look))
+            .inner;
         egui::Panel::bottom("status_bar")
             .exact_size(STATUS_HEIGHT)
             .frame(panel.fill(tokens.ribbon_bg))
@@ -141,7 +157,14 @@ impl AppShell {
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(ui.style()).fill(tokens.canvas_bg))
             .show(ui, |ui| placeholder(ui, "Canvas"));
+        self.dispatch_all(clicked);
         self.toasts.show(ui.ctx());
+    }
+
+    fn dispatch_all(&mut self, clicked: Vec<Clicked>) {
+        for Clicked { command, args } in clicked {
+            self.dispatch(command.as_str(), args);
+        }
     }
 }
 
@@ -179,6 +202,36 @@ mod tests {
         harness.run();
         for region in REGIONS {
             let _ = harness.get_by_label(region);
+        }
+    }
+
+    #[test]
+    fn ribbon_buttons_dispatch_their_commands() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        assert_eq!(harness.state().ribbon().selected(), "Home");
+        harness.get_by_label("Bold").click();
+        harness.run();
+        let texts: Vec<String> = harness
+            .state()
+            .toasts()
+            .texts()
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(texts, ["Coming Soon: Bold"]);
+    }
+
+    #[test]
+    fn every_preset_draws_the_ribbon() {
+        for preset in Preset::ALL {
+            for mode in [Mode::Light, Mode::Dark] {
+                let mut shell = AppShell::new();
+                shell.set_theme(preset, mode);
+                let mut harness = harness(shell, WINDOW);
+                harness.run();
+                let _ = harness.get_by_label("Paste");
+                let _ = harness.get_by_label("Meeting Details");
+            }
         }
     }
 
