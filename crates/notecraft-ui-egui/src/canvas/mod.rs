@@ -1,10 +1,11 @@
 //! The page canvas: the page the user pans and zooms, below the section tabs. Phase 0 draws
-//! an empty page; content and ink arrive in Phase 1.
+//! the paper and the page title area; content and ink arrive in Phase 1.
 //!
 //! The zoom lives in the session (`view.zoom` and friends), so every zoom, including Ctrl+wheel
 //! and pinch, is a command. The scroll position is front-end state kept here.
 
 mod paper;
+mod title;
 mod widget;
 
 use notecraft_canvas::viewport::{self, Viewport};

@@ -7,7 +7,8 @@ use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::Session;
 
-use super::{paper, CanvasUi, PageToScreen};
+use super::{paper, title, CanvasUi, PageToScreen};
+use crate::nav::mock;
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -61,6 +62,9 @@ pub fn show(
                 };
                 let screen = visible.translate(content.min.to_vec2());
                 paper::draw(ui.painter(), screen, map, style, tokens);
+                if let Some(page) = session.current_page() {
+                    title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
+                }
                 response
             })
         })

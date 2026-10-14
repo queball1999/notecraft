@@ -3,6 +3,10 @@
 
 use notecraft_model::{Notebook, PageRef, Section, SectionGroup, SectionNode};
 
+/// The date and time every mock page shows under its title. Phase 1 reads the real ones
+/// from the page file.
+pub const CREATED: (&str, &str) = ("Wednesday, October 14, 2026", "3:27 PM");
+
 fn section(id: &str, name: &str, color: u32, pages: &[(&str, &str, u8)]) -> SectionNode {
     SectionNode::Section(Section {
         id: id.to_owned(),
