@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 8 narrowed to the four presets; rank 6 adds verifying system dark mode.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 8 (theme presets) removed; rank 6 adds verifying the OS UI font.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -10,8 +10,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
-| 6 | Window launch and following the system dark mode not yet verified on macOS and Linux (Windows done) | SH-01, TH-06 | 1-2 | build_plan/02, PR 0.1, 0.3 |
-| 8 | No theme presets: the token system, theme commands, and saved settings are in, but every preset uses the Microsoft 365 palette | TH-01 to TH-05 | 24-40 | build_plan/02, PR 0.4 |
+| 6 | Window launch, system dark mode, and the OS UI font not yet verified on macOS and Linux (Windows done) | SH-01, TH-06 | 1-2 | build_plan/02, PR 0.1, 0.3, 0.4 |
 | 9 | No ribbon or original icon set; command ids exist but no button is bound to them and there is no Coming Soon badge | SH-02 to SH-05 | 60-100 | build_plan/02, PR 0.5 |
 | 10 | No notebook list, section tabs, page list | SH-06 to SH-08 | 24-40 | build_plan/02, PR 0.6 |
 | 11 | No canvas pan, zoom, rule lines | CV-01 to CV-03 | 24-40 | build_plan/02, PR 0.7 |
@@ -84,3 +83,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-14 | -1 | Rank 6 narrowed to verifying the window on macOS and Linux. |
 | 2026-10-14 | 0 | Rank 7 (command registry) removed; rank 9 now covers binding buttons and the badge. |
 | 2026-10-14 | 0 | Rank 8 narrowed to the four presets (PR 0.3 landed the token system); rank 6 adds verifying system dark mode on macOS and Linux. |
+| 2026-10-14 | 0 | Rank 8 (theme presets) removed; rank 6 adds verifying the OS UI font on macOS and Linux. |
