@@ -50,6 +50,11 @@ impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.shell.logic(ctx);
 
+        // Remember the theme; commands change it in the session.
+        let view = *self.shell.session().view();
+        self.store
+            .update(|p| p.theme.observe(view.theme_preset, view.theme_mode));
+
         // Remember the window geometry; update() only marks the store dirty on a real change.
         let info = ctx.input(|i| i.viewport().clone());
         self.store.update(|p| p.window.observe(&info));
@@ -144,6 +149,7 @@ fn main() -> eframe::Result<()> {
 
     let store = open_settings();
     let window = store.get().window.clone();
+    let theme = store.get().theme.clone();
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
         .with_app_id(APP_ID)
@@ -175,8 +181,10 @@ fn main() -> eframe::Result<()> {
                 tracing::warn!(error = %e, "macOS app menu not installed; Cmd+Q quits without asking");
             }
             let store = pending.take().ok_or("the app was already created")?;
+            let mut shell = AppShell::new();
+            shell.set_theme(theme.preset(), theme.mode());
             Ok(Box::new(App {
-                shell: AppShell::new(),
+                shell,
                 store,
                 logged_save_error: None,
             }))

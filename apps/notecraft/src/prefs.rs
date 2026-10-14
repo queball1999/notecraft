@@ -1,7 +1,9 @@
-//! User settings, stored in `config.toml` by craft-settings. Phase 0 starts with the window
-//! geometry; theme and recent files join in later PRs. Every section uses `#[serde(default)]`,
-//! so a missing or damaged key falls back to its default instead of failing the load.
+//! User settings, stored in `config.toml` by craft-settings: window geometry and the theme
+//! (docs/themes.md section 5); recent files join in a later PR. Every section uses
+//! `#[serde(default)]`, so a missing or damaged key falls back to its default instead of
+//! failing the load.
 
+use notecraft_ui_egui::themes::{Mode, Preset};
 use serde::{Deserialize, Serialize};
 
 /// Smallest window, in points (build_plan/02 PR 0.1).
@@ -13,6 +15,7 @@ const MAX_COORD: f32 = 16_384.0;
 #[serde(default)]
 pub struct Prefs {
     pub window: WindowPrefs,
+    pub theme: ThemePrefs,
 }
 
 impl craft_settings::Settings for Prefs {
@@ -90,6 +93,44 @@ impl WindowPrefs {
     }
 }
 
+/// `theme.preset` and `theme.mode`. Kept as strings so an unknown value (a newer version's
+/// preset, a typo) falls back to the default instead of failing the whole file.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct ThemePrefs {
+    pub preset: String,
+    pub mode: String,
+}
+
+impl Default for ThemePrefs {
+    fn default() -> Self {
+        Self {
+            preset: Preset::default().id().to_owned(),
+            mode: Mode::default().id().to_owned(),
+        }
+    }
+}
+
+impl ThemePrefs {
+    pub fn preset(&self) -> Preset {
+        Preset::from_id(&self.preset).unwrap_or_default()
+    }
+
+    pub fn mode(&self) -> Mode {
+        Mode::from_id(&self.mode).unwrap_or_default()
+    }
+
+    /// Record the current theme; leaves the strings alone when nothing changed.
+    pub fn observe(&mut self, preset: Preset, mode: Mode) {
+        if self.preset != preset.id() {
+            preset.id().clone_into(&mut self.preset);
+        }
+        if self.mode != mode.id() {
+            mode.id().clone_into(&mut self.mode);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +200,32 @@ mod tests {
         assert_eq!(p.window.height, 800.0);
         let empty: Prefs = serde_json::from_str("{}").unwrap();
         assert_eq!(empty, Prefs::default());
+    }
+
+    #[test]
+    fn theme_defaults_and_bad_values() {
+        let t = ThemePrefs::default();
+        assert_eq!((t.preset.as_str(), t.mode.as_str()), ("m365", "system"));
+        let p: Prefs =
+            serde_json::from_str(r#"{"theme":{"preset":"neon","mode":"sepia"}}"#).unwrap();
+        assert_eq!(p.theme.preset(), Preset::M365);
+        assert_eq!(p.theme.mode(), Mode::System);
+        let odd = ThemePrefs {
+            preset: "onenote2019".into(),
+            mode: "sepia".into(),
+        };
+        assert_eq!(
+            (odd.preset(), odd.mode()),
+            (Preset::OneNote2019, Mode::System)
+        );
+    }
+
+    #[test]
+    fn theme_round_trips() {
+        let mut t = ThemePrefs::default();
+        t.observe(Preset::OneNote2016, Mode::Dark);
+        assert_eq!((t.preset(), t.mode()), (Preset::OneNote2016, Mode::Dark));
+        assert_eq!(t.preset, "onenote2016");
+        assert_eq!(t.mode, "dark");
     }
 }

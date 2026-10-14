@@ -204,6 +204,23 @@ mod tests {
     }
 
     #[test]
+    fn system_mode_follows_the_os_live() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.input_mut().system_theme = Some(egui::Theme::Dark);
+        harness.run();
+        assert_eq!(harness.ctx.theme(), egui::Theme::Dark);
+        assert!(harness.state().session().view().system_dark);
+        assert!(harness.state().tokens(&harness.ctx).dark);
+
+        // The OS switches to light while the app runs.
+        harness.input_mut().system_theme = Some(egui::Theme::Light);
+        harness.run();
+        assert_eq!(harness.ctx.theme(), egui::Theme::Light);
+        assert!(!harness.state().session().view().system_dark);
+        assert!(!harness.state().tokens(&harness.ctx).dark);
+    }
+
+    #[test]
     fn survives_a_tiny_window() {
         let mut harness = harness(AppShell::new(), egui::vec2(1.0, 1.0));
 
