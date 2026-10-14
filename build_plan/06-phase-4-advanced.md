@@ -1,6 +1,6 @@
 # Phase 4: advanced (post-1.0)
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
 
 Goal: the remaining OneNote features, which are large and independent of each other: handwriting recognition and ink search, OneNote `.one` import, a browser build (OneNote has a web version), sync research, docked window, right-to-left layout, translations, OCR (copy text from picture), audio and video recording, and password-protected sections. Together with v1.0.0 these complete full OneNote parity. Order by user demand.
 

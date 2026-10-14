@@ -1,6 +1,6 @@
 # Conventions: branches, commits, PRs, reviews
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: approval rule and gh workflow match the applied GitHub settings.
 
 These conventions match the related craft apps, plus NoteCraft's plain-text rule. AGENTS.md section 9 is the short version.
 
@@ -108,7 +108,7 @@ Write the body to `.git/PR_BODY.md` first (inside `.git/`, so it is never commit
 - Work PRs into a phase branch: squash merge. The squash commit message is the PR title plus the `Refs:` line.
 - Phase-close PRs into `main`: merge commit (no squash), so the phase history stays visible.
 - Never force-push a phase branch, `main`, or `release`.
-- Required: CI green, one approving review (maintainer, or a second agent session when the maintainer allows it), conversations resolved.
+- Required: CI green and conversations resolved. GitHub does not let a PR's author approve it, so with a single maintainer the protection rules require 0 approvals; a review is still expected whenever a second person or a second agent session is available. Repository admins can bypass the `phase/*` ruleset, which is for emergencies only.
 
 ## 4. Reviews
 
@@ -152,7 +152,7 @@ See docs/releasing.md. Release prep is a `chore/release-<version>` PR into `main
 
 ## 9. Working without a remote or `gh`
 
-Until the GitHub repo exists (build_plan/01, section 0), or on a machine without the `gh` CLI, follow the same branch and commit rules locally:
+The repo now exists (`github.com/queball1999/notecraft`) and `gh` is the normal path (section 3). On a machine without `gh` or network access, follow the same branch and commit rules locally:
 
 1. Create the work branch off the phase branch and make the planned commits on it.
 2. Run `cargo xtask ci` (or, before it exists, the commands the PR section lists).
@@ -174,3 +174,4 @@ PR bodies written for each phase file still apply; save them under `.git/PR_BODY
 | 2026-10-14 | -1 | Created. |
 | 2026-10-14 | -1 | Added section 9: working without a remote or `gh`. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | Approval rule and gh workflow match the applied GitHub settings. |

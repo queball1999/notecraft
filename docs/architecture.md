@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: section 8: logging implemented in apps/notecraft/src/logging.rs.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: section 8: logging implemented in apps/notecraft/src/logging.rs.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 

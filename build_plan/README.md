@@ -1,6 +1,6 @@
 # Build plan
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: Phase -1 marked done, Phase 0 next.
 
 This folder is the execution plan for NoteCraft. It is written so an agent or a new contributor can pick up any phase cold and know exactly which branch to create, which files to touch, which commits to make, and how to open each PR.
 
@@ -11,8 +11,8 @@ The spec is [SCRD.md](../SCRD.md). The rules are [AGENTS.md](../AGENTS.md). Prog
 | File | Phase | Hours | Status |
 |---|---|---|---|
 | [00-conventions.md](00-conventions.md) | all | n/a | branch, commit, PR, and review rules |
-| [01-phase-minus-1-scaffolding.md](01-phase-minus-1-scaffolding.md) | -1 | 55-98 | next, waiting for maintainer approval |
-| [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 214-360 | not started |
+| [01-phase-minus-1-scaffolding.md](01-phase-minus-1-scaffolding.md) | -1 | 55-98 | done 2026-10-14 |
+| [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 214-360 | next |
 | [03-phase-1-core-engine.md](03-phase-1-core-engine.md) | 1 | 444-756 | not started |
 | [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 130-222 | not started |
 | [05-phase-3-polish-parity.md](05-phase-3-polish-parity.md) | 3, plus beta-to-1.0 hardening | 356-606, plus 80-160 | not started |
@@ -53,3 +53,4 @@ The build plan covers OneNote parity only. Features OneNote does not have (backl
 |---|---|---|
 | 2026-10-14 | -1 | Created. Same day: scope narrowed to OneNote parity, Phase 2 replaced, hours re-assessed bottom-up. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | Phase -1 marked done, Phase 0 next. |
