@@ -1,6 +1,6 @@
 # Phase -1: scaffolding and CI/CD
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: repo and app ID moved off the ArtCraft namespace.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: phase closed; release workflow change and GitHub settings recorded.
 
 Goal: an empty but complete workspace. Every crate exists and builds, `cargo xtask ci` runs every gate, CI matches the related craft apps, and the release workflow can build packages from the `release` branch. No features.
 
@@ -403,6 +403,12 @@ Done once, right after section 0. Uses `gh` with admin rights.
 | Section 6 GitHub settings | 2-4 |
 | Total | 55-98 |
 
+## Phase close notes (2026-10-14)
+
+- Release workflow: replaced the shared craft-common-actions release workflow with NoteCraft's own (PR #1), because the shared one builds macOS on a paid `macos-15-xlarge` runner and has no license to copy. The dry run (0.0.0-test.2) produced all 20 artifacts on free standard runners; its draft release was deleted.
+- GitHub settings as applied: `main` requires a PR and the `cargo xtask ci` check with 0 approvals (a single maintainer cannot approve their own PRs); `release` is linear history only, no force pushes or deletion; a `phase/*` ruleset requires a PR and the CI check, with repository admins allowed to bypass. Labels, Discussions, and an empty `release` environment exist; signing secrets are still to be added.
+- The repo is `github.com/queball1999/notecraft` (GitHub lowercases the owner; links with `Queball1999` resolve to it).
+
 ## Exit criteria
 
 - SC-01 to SC-10 scored D.
@@ -418,3 +424,4 @@ Done once, right after section 0. Uses `gh` with admin rights.
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | PR -1.1 landed; sample Cargo.toml now lists members explicitly. |
 | 2026-10-14 | -1 | Repo and app ID moved off the ArtCraft namespace. |
+| 2026-10-14 | -1 | Phase closed; release workflow change and GitHub settings recorded. |

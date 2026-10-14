@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed from QNote 2.0 to NoteCraft (related to, but independent of, the ArtCraft apps). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed from QNote 2.0 to NoteCraft (related to, but independent of, the ArtCraft apps). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -43,12 +43,12 @@ Hours are summed bottom-up from every PR in `build_plan/` (each PR carries a gen
 | Localization | 0% | 30-50 | 80-160 | 110-210 | [gaps](docs/gaps.md#localization) |
 | Performance and 1.0 hardening | 0% | 110-210 | 0 | 110-210 | [roadmap](docs/roadmap.md) |
 | Browser build and sync research | 0% | 0 | 100-190 | 100-190 | [Phase 4](build_plan/06-phase-4-advanced.md) |
-| Scaffolding, CI, release | 0% | 87-156 | 8-14 | 95-170 | [Phase -1](build_plan/01-phase-minus-1-scaffolding.md) |
+| Scaffolding, CI, release | 100% | 87-156 | 8-14 | 95-170 | [Phase -1](build_plan/01-phase-minus-1-scaffolding.md) |
 | Total | 0% | 1,279-2,202 | 644-1,228 | 1,923-3,430 | |
 
 Calendar, at about 30 focused hours a week: v1.0 in 43-74 weeks; full parity in 64-115 weeks.
 
-**Overall: 0% ready.** No code yet. Every feature is "Coming Soon" until Phase 0 (UI shell) and Phase 1 (core engine) land.
+**Overall: 0% ready for users.** Phase -1 is closed: the workspace, the eight `cargo xtask ci` gates, packaging, and logging exist, and CI runs on GitHub. Every feature is "Coming Soon" until Phase 0 (UI shell) and Phase 1 (core engine) land.
 
 ## By phase
 
@@ -86,3 +86,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | App ID changed from ai.storyteller.notecraft to io.github.queball1999.notecraft and the repo moved to github.com/Queball1999/notecraft; NoteCraft no longer uses the ArtCraft namespace or links. |
 | 2026-10-14 | Phase -1 PR -1.6: desktop app logging (stderr plus rotated, size-capped notecraft.log; NOTECRAFT_NO_PREFS), --version on both binaries, build SHA refreshed when git HEAD moves. |
 | 2026-10-14 | Release workflow is now NoteCraft's own (free standard runners only; the shared one used a paid macOS runner and has no license). |
+| 2026-10-14 | Phase -1 closed. Repo on GitHub (queball1999/notecraft); CI, Printing, FreeBSD, and packaging lint green; release dry run built 20 artifacts on free runners; branch protection, phase ruleset, labels, Discussions, and the release environment set up. Phase 0 (UI shell) is next. |

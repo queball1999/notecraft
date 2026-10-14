@@ -1,6 +1,6 @@
 # Post-parity optional features
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
 
 The build plan covers OneNote parity only. Everything in this doc is something OneNote does not do. None of it is scheduled. Each item is optional and is considered only after full parity (v1.0.0 and the parity items in Phase 4) is reached, and only if users ask for it.
 

@@ -1,6 +1,6 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: the release workflow, not the shared one, packages the CLI.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: the release workflow, not the shared one, packages the CLI.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 

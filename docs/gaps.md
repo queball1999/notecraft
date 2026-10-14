@@ -1,19 +1,12 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 4 (logging) removed.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: ranks 3 (release dry run) and 5 (GitHub settings) removed.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
 Ranking rule: blockers first (things other work waits on), then alpha gate items, then by user impact per hour. Hour ranges match the build plan PRs. Optional features OneNote does not have are not gaps; they are in [post-parity.md](post-parity.md).
 
-## Now (Phase -1: scaffolding)
-
-| Rank | Gap | Rows | Hours | Plan |
-|---:|---|---|---|---|
-| 3 | Release workflow not yet dry-run on GitHub (needs the remote and secrets) | SC-08 | 2-4 | build_plan/01, PR -1.5 step 5 |
-| 5 | GitHub repo settings (branch protection, labels, `release` branch, secrets) not configured | SC-10 | 2-4 | build_plan/01, section 6 |
-
-## Next (Phase 0: UI shell)
+## Now (Phase 0: UI shell)
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
@@ -27,7 +20,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | 13 | No status bar, full page view, shortcut map | SH-09, SH-13, SH-14 | 12-20 | build_plan/02, PR 0.9 |
 | 14 | No accessibility labels | SH-15 | 10-16 | build_plan/02, PR 0.10 |
 
-## Then (Phase 1: core engine, rest of alpha gate)
+## Next (Phase 1: core engine, rest of alpha gate)
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
@@ -88,3 +81,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-14 | -1 | Rank 2 (xtask gates) removed. |
 | 2026-10-14 | -1 | Rank 3 narrowed to the GitHub release dry run. |
 | 2026-10-14 | -1 | Rank 4 (logging) removed. |
+| 2026-10-14 | -1 | Ranks 3 (release dry run) and 5 (GitHub settings) removed. |
