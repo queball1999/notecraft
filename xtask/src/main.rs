@@ -16,8 +16,10 @@
 mod assets;
 mod ci;
 mod layers;
+mod parity;
 mod text;
 mod util;
+mod wasm;
 
 use std::process::ExitCode;
 
@@ -26,10 +28,15 @@ usage: cargo xtask <command>
 
 commands:
   ci        every CI gate in order, stopping at the first failure:
-            fmt --check, clippy -D warnings, test, text, assets, layers
+            fmt --check, clippy -D warnings, test, text, assets, layers,
+            wasm, parity --check
   text      plain ASCII text outside testdata/ and locales/ (AGENTS.md section 2)
   assets    every file under assets/ and testdata/ has an ATTRIBUTION.md row
   layers    crates depend only on lower layers; no UI crates below L6
+  wasm      L0 to L5 crates build for wasm32-unknown-unknown
+  parity [--check]
+            regenerate the parity checklist summary (--check: fail if stale) and
+            check build plan hour totals against ROADMAP.md
 ";
 
 fn main() -> ExitCode {
@@ -39,6 +46,11 @@ fn main() -> ExitCode {
         Some("text") => text::run(&util::root()),
         Some("assets") => assets::run(&util::root()),
         Some("layers") => layers::run(&util::root()),
+        Some("wasm") => wasm::run_check(&util::root()),
+        Some("parity") => {
+            let rest: Vec<&str> = args.iter().skip(1).map(String::as_str).collect();
+            parity::run(&util::root(), &rest)
+        }
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

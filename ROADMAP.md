@@ -68,7 +68,7 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 
 ## How estimates are maintained
 
-- Each PR in `build_plan/` has an hour range; phase totals are the sum of their PRs, and the tables above are the sum of the phases. A script check (moving into `cargo xtask parity` in Phase -1) keeps them in step.
+- Each PR in `build_plan/` has an hour range; phase totals are the sum of their PRs, and the tables above are the sum of the phases. `cargo xtask parity --check` (part of `cargo xtask ci`) fails if a phase total or a By phase row drifts.
 - At each phase close, replace estimates for finished work with actual hours and re-estimate the remaining phases.
 
 ## Progress log
@@ -81,3 +81,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | Phase -1 PR -1.1: Cargo workspace with shared never-crash lints, crate skeletons for L0 to L6, notecraft and notecraft-cli apps, placeholder xtask. |
 | 2026-10-14 | Phase -1 PR -1.2: cargo xtask ci runs fmt, clippy -D warnings, and test, with a step summary. |
 | 2026-10-14 | Phase -1 PR -1.3: cargo xtask text, assets, and layers gates, run by cargo xtask ci. |
+| 2026-10-14 | Phase -1 PR -1.4: cargo xtask wasm (L0 to L5 on wasm32) and cargo xtask parity (checklist summary and build plan hour totals); cargo xtask ci now runs all 8 gates. |

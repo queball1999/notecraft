@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 2 narrowed to the wasm and parity gates.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 2 (xtask gates) removed.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -10,7 +10,6 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
-| 2 | No `xtask wasm` or `xtask parity` gate | SC-02, SC-06 | 8-14 | build_plan/01, PR -1.4 |
 | 3 | No `xtask version set` or packaging scripts for the shared release workflow | SC-07, SC-08 | 16-30 | build_plan/01, PR -1.5 |
 | 4 | No logging setup | SC-09 | 4-8 | build_plan/01, PR -1.6 |
 | 5 | GitHub repo settings (branch protection, labels, `release` branch, secrets) not configured | SC-10 | 2-4 | build_plan/01, section 6 |
@@ -87,3 +86,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | Rank 1 (no workspace) removed. |
 | 2026-10-14 | -1 | Rank 2 narrowed to the wasm and parity gates. |
+| 2026-10-14 | -1 | Rank 2 (xtask gates) removed. |

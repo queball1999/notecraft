@@ -37,6 +37,8 @@ const STEPS: &[Step] = &[
     ("text", || crate::text::run(&root())),
     ("assets", || crate::assets::run(&root())),
     ("layers", || crate::layers::run(&root())),
+    ("wasm", || crate::wasm::run_check(&root())),
+    ("parity", || crate::parity::run(&root(), &["--check"])),
 ];
 
 pub fn run_all() -> Result<(), String> {
