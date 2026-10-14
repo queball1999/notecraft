@@ -6,6 +6,8 @@ mod builtin;
 mod guard;
 pub mod ids;
 mod registry;
+#[cfg(test)]
+mod tests;
 
 use std::fmt;
 
