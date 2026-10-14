@@ -1910,6 +1910,7 @@ dependencies = [
  "notecraft-core",
  "notecraft-engine",
  "serde_json",
+ "skrifa",
  "tracing",
 ]
 

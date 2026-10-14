@@ -3,7 +3,7 @@
 
 use egui::Color32;
 
-use super::{Mode, Preset};
+use super::{m365, onenote2016, onenote2019, onenote2021, Mode, Preset};
 
 /// How strongly floating surfaces (menus, popups) cast a shadow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -113,16 +113,14 @@ pub(super) struct Shape {
 
 impl ThemeTokens {
     /// The tokens for `preset` in light (`dark` false) or dark mode.
-    ///
-    /// Until PR 0.4 encodes each preset's palette, every preset uses the Microsoft 365
-    /// values from docs/themes.md section 4 (the default preset).
     pub fn for_variant(preset: Preset, dark: bool) -> Self {
-        let (palette, shape) = match preset {
-            Preset::OneNote2016 | Preset::OneNote2019 | Preset::OneNote2021 | Preset::M365 => {
-                (BASE_PALETTE, BASE_SHAPE)
-            }
+        let (light_palette, dark_palette, shape) = match preset {
+            Preset::OneNote2016 => (onenote2016::LIGHT, onenote2016::DARK, onenote2016::SHAPE),
+            Preset::OneNote2019 => (onenote2019::LIGHT, onenote2019::DARK, onenote2019::SHAPE),
+            Preset::OneNote2021 => (onenote2021::LIGHT, onenote2021::DARK, onenote2021::SHAPE),
+            Preset::M365 => (m365::LIGHT, m365::DARK, m365::SHAPE),
         };
-        let palette = if dark { palette.1 } else { palette.0 };
+        let palette = if dark { dark_palette } else { light_palette };
         Self::derive(palette, shape, dark)
     }
 
@@ -167,45 +165,6 @@ impl ThemeTokens {
         }
     }
 }
-
-/// Microsoft 365 preset, light and dark (docs/themes.md section 4).
-const BASE_PALETTE: (Palette, Palette) = (
-    Palette {
-        accent: 0x8250B8,
-        accent_text: 0xFFFFFF,
-        ribbon_bg: 0xF6F4F8,
-        ribbon_tab_bg: 0xEFEBF3,
-        ribbon_text: 0x242424,
-        sidebar_bg: 0xF1EEF5,
-        sidebar_text: 0x242424,
-        sidebar_selected: 0xE3D8F0,
-        canvas_bg: 0xFFFFFF,
-        canvas_rule: 0xD5E2EF,
-        text: 0x1C1C1C,
-        border: 0xE2DDE8,
-    },
-    Palette {
-        accent: 0xB48EDB,
-        accent_text: 0x161616,
-        ribbon_bg: 0x2A2830,
-        ribbon_tab_bg: 0x24222A,
-        ribbon_text: 0xEEEEEE,
-        sidebar_bg: 0x211F26,
-        sidebar_text: 0xE6E6E6,
-        sidebar_selected: 0x3F3550,
-        canvas_bg: 0x1A1A1C,
-        canvas_rule: 0x2F3640,
-        text: 0xEDEDED,
-        border: 0x3B3842,
-    },
-);
-
-const BASE_SHAPE: Shape = Shape {
-    radius: 6,
-    spacing: 6.0,
-    shadow: ShadowStyle::Soft,
-    button_style: ButtonStyle::Filled,
-};
 
 #[cfg(test)]
 mod tests {

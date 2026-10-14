@@ -1,6 +1,6 @@
 # Shared craft libraries
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: craft-ui theme::WidgetPalette used by the theme system.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: craft-fonts not adopted (PR 0.4 font decision).
 
 NoteCraft uses the shared crates in [storytold/craft-libs](https://github.com/storytold/craft-libs) instead of writing its own versions. This doc says which ones, where, and how to update them. For each crate's API, read its docs at the pinned commit; this doc does not repeat them.
 
@@ -50,7 +50,7 @@ Notes:
 | Repo | Used for |
 |---|---|
 | [storytold/craft-common-actions](https://github.com/storytold/craft-common-actions) | Reusable GitHub workflows called by `freebsd.yml`, `windows-arm64.yml`, and `packaging-lint.yml`. Not used for releases: `release.yml` is NoteCraft's own, on free runners (docs/releasing.md) |
-| [storytold/craft-fonts](https://github.com/storytold/craft-fonts) | Openly licensed fonts the related craft apps embed. Decision point in Phase 0 (PR 0.4, build_plan/02-phase-0-ui-shell.md): if NoteCraft bundles a UI font, take it from craft-fonts and pass `craft-fonts-ref` in the workflows, as DeckCraft and GridCraft do |
+| [storytold/craft-fonts](https://github.com/storytold/craft-fonts) | Openly licensed fonts the related craft apps embed. Not used. Decided in PR 0.4: NoteCraft uses the OS UI font and falls back to egui's built-in fonts, so it bundles no font (docs/themes.md section 2). If that changes, take the font from craft-fonts and pass `craft-fonts-ref` in the workflows, as DeckCraft and GridCraft do |
 | [storytold/craftrules](https://github.com/storytold/craftrules) | Shared engineering, never-crash, licensing, and progress-docs standards |
 
 ## 5. Updating the pinned commit
@@ -77,3 +77,4 @@ Do not fork the code into NoteCraft. Open an issue or PR on craft-libs, and if N
 | 2026-10-14 | -1 | Craft-common-actions now covers FreeBSD tests, Windows ARM64 checks, and packaging lint only. |
 | 2026-10-14 | -1 | Craft-libs pinned at 457a0788; craft-ui, craft-quit, craft-settings adopted. |
 | 2026-10-14 | 0 | craft-ui `theme::WidgetPalette` used by the theme system (PR 0.3). |
+| 2026-10-14 | 0 | craft-fonts not adopted: NoteCraft uses the OS UI font with egui's built-in fallback (PR 0.4). |

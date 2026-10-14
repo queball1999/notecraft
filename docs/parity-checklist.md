@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: TH-05 and TH-06 scored P (theme tokens, commands, persistence, system mode).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: TH-01 to TH-05 scored D (four presets, PR 0.4).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -19,7 +19,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 |---|---:|---:|---:|---:|---:|
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
 | Shell | 0 | 3 | 17 | 20 | 0% |
-| Themes | 0 | 2 | 4 | 6 | 0% |
+| Themes | 5 | 1 | 0 | 6 | 83% |
 | Canvas | 0 | 0 | 12 | 12 | 0% |
 | Ink | 0 | 0 | 12 | 12 | 0% |
 | Text | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +28,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 10 | 5 | 98 | 113 | 8% |
+| Total | 15 | 4 | 94 | 113 | 13% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -75,11 +75,11 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| TH-01 | Themes | OneNote 2016 preset, light and dark | 0 | M | |
-| TH-02 | Themes | OneNote 2019 preset, light and dark | 0 | M | |
-| TH-03 | Themes | OneNote 2021 preset, light and dark | 0 | M | |
-| TH-04 | Themes | Microsoft 365 preset, light and dark | 0 | M | |
-| TH-05 | Themes | Switch theme and mode live, persisted in settings | 0 | P | PR 0.3: view.theme.set, view.mode.toggle, view.mode.set are Ready and switch the window live (egui_kittest test); theme.preset and theme.mode saved with craft-settings (unit tests); every preset still uses the Microsoft 365 palette until PR 0.4, and no button reaches the commands until PR 0.5 |
+| TH-01 | Themes | OneNote 2016 preset, light and dark | 0 | D | PR 0.4: light and dark palettes match docs/themes.md section 4 and pass WCAG AA (unit tests); selected with view.theme.set; screenshots on Windows 11. The accent and tab strip first show on the ribbon (PR 0.5) |
+| TH-02 | Themes | OneNote 2019 preset, light and dark | 0 | D | PR 0.4: light and dark palettes match docs/themes.md section 4 and pass WCAG AA (unit tests); selected with view.theme.set; screenshots on Windows 11. The accent and tab strip first show on the ribbon (PR 0.5) |
+| TH-03 | Themes | OneNote 2021 preset, light and dark | 0 | D | PR 0.4: light and dark palettes match docs/themes.md section 4 and pass WCAG AA (unit tests); selected with view.theme.set; screenshots on Windows 11. The accent and tab strip first show on the ribbon (PR 0.5) |
+| TH-04 | Themes | Microsoft 365 preset, light and dark | 0 | D | PR 0.4: light and dark palettes match docs/themes.md section 4 and pass WCAG AA (unit tests); selected with view.theme.set; screenshots on Windows 11. The accent and tab strip first show on the ribbon (PR 0.5) |
+| TH-05 | Themes | Switch theme and mode live, persisted in settings | 0 | D | PR 0.3 and 0.4: view.theme.set, view.mode.toggle, view.mode.set switch between four distinct presets and three modes live (egui_kittest test); theme.preset and theme.mode saved with craft-settings (unit tests). Ribbon buttons for them come in PR 0.5 |
 | TH-06 | Themes | Follow system dark mode | 0 | P | PR 0.3: system is the default mode and follows the OS live (egui_kittest test switching the OS theme); verified on Windows 11 (dark); macOS and Linux to verify |
 
 ## Canvas
@@ -215,3 +215,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | -1 | SH-01 scored P (window opens; Windows verified). |
 | 2026-10-14 | 0 | SH-03 and SH-04 scored P (command registry and Coming Soon toast). |
 | 2026-10-14 | 0 | TH-05 and TH-06 scored P (theme tokens, commands, persistence, system mode). |
+| 2026-10-14 | 0 | TH-01 to TH-05 scored D (four presets, PR 0.4). |

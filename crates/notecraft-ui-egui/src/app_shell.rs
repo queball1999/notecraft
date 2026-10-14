@@ -5,7 +5,7 @@
 use notecraft_engine::cmd::{CommandError, Registry, Value};
 use notecraft_engine::Session;
 
-use crate::themes::{self, Mode, Preset, ThemeTokens};
+use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
 
 /// Height of the ribbon region, in points.
@@ -26,6 +26,10 @@ pub struct AppShell {
     toasts: Toasts,
     /// The preset and mode last installed into egui, so it is redone only on a change.
     installed: Option<(Preset, Mode)>,
+    /// The OS UI fonts, if the app loaded them (tests run with egui's built-in font).
+    fonts: OsFonts,
+    /// The font choice last installed (see [`OsFonts::choice`]).
+    installed_font: Option<Option<bool>>,
 }
 
 impl Default for AppShell {
@@ -41,7 +45,15 @@ impl AppShell {
             session: Session::new(),
             toasts: Toasts::new(),
             installed: None,
+            fonts: OsFonts::default(),
+            installed_font: None,
         }
+    }
+
+    /// Use the OS UI font (docs/themes.md section 2).
+    pub fn with_fonts(mut self, fonts: OsFonts) -> Self {
+        self.fonts = fonts;
+        self
     }
 
     pub fn registry(&self) -> &Registry {
@@ -93,6 +105,15 @@ impl AppShell {
             self.installed = Some(wanted);
             ctx.request_repaint();
         }
+        // Only the Microsoft 365 preset can pick a different font, so fonts are rebuilt
+        // rarely; with no OS font egui keeps its built-in one.
+        let font = self.fonts.choice(wanted.0);
+        if self.installed_font != Some(font) {
+            if font.is_some() || self.installed_font.is_some() {
+                ctx.set_fonts(self.fonts.definitions(wanted.0));
+            }
+            self.installed_font = Some(font);
+        }
     }
 
     /// Draw the window contents (eframe `ui`).
@@ -105,7 +126,7 @@ impl AppShell {
             .show(ui, |ui| placeholder(ui, "Ribbon"));
         egui::Panel::bottom("status_bar")
             .exact_size(STATUS_HEIGHT)
-            .frame(panel.fill(tokens.ribbon_tab_bg))
+            .frame(panel.fill(tokens.ribbon_bg))
             .show(ui, |ui| placeholder(ui, "Status bar"));
         egui::Panel::left("notebooks")
             .default_size(SIDE_WIDTH)
