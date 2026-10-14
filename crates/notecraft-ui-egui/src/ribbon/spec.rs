@@ -438,3 +438,123 @@ pub static TABS: &[Tab] = &[
         kind: TabKind::Groups(&[CLIPBOARD, BASIC_TEXT, STYLES, TAGS, EMAIL, MEETINGS]),
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use notecraft_engine::cmd::{ArgKind, CommandSpec, Registry};
+
+    use super::*;
+
+    /// What a click sends: the commands of buttons that run their own command, and of
+    /// every menu item and backstage entry. A dropdown button only opens its menu.
+    fn dispatched() -> Vec<(&'static str, CommandId, &'static [Arg])> {
+        let mut out = Vec::new();
+        for tab in TABS {
+            match tab.kind {
+                TabKind::Backstage(items) => {
+                    out.extend(items.iter().map(|i| (i.label, i.command, i.args)));
+                }
+                TabKind::Groups(groups) => {
+                    for group in groups {
+                        for button in group.buttons() {
+                            if !matches!(button.menu, Menu::Dropdown(_)) {
+                                out.push((button.label, button.command, button.args));
+                            }
+                            let items = button.menu.items();
+                            out.extend(items.iter().map(|i| (i.label, i.command, i.args)));
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    fn accepts(kind: ArgKind, value: ArgValue) -> bool {
+        matches!(
+            (kind, value),
+            (ArgKind::String, ArgValue::Str(_))
+                | (ArgKind::Integer, ArgValue::Int(_))
+                | (ArgKind::Number, ArgValue::Int(_) | ArgValue::Num(_))
+        )
+    }
+
+    fn check_args(label: &str, spec: &CommandSpec, args: &[Arg]) {
+        for arg in args {
+            let declared = spec.args_schema.iter().find(|a| a.name == arg.name);
+            let declared = declared
+                .unwrap_or_else(|| panic!("{label}: {} has no argument {}", spec.id, arg.name));
+            assert!(
+                accepts(declared.kind, arg.value),
+                "{label}: {} type",
+                arg.name
+            );
+        }
+        for required in spec.args_schema.iter().filter(|a| a.required) {
+            assert!(
+                args.iter().any(|a| a.name == required.name),
+                "{label}: {} needs {}",
+                spec.id,
+                required.name
+            );
+        }
+    }
+
+    #[test]
+    fn every_ribbon_button_maps_to_a_registered_command() {
+        let registry = Registry::builtin();
+        for (label, command, _) in all_commands() {
+            assert!(!label.trim().is_empty(), "{command} has an empty label");
+            assert!(
+                registry.get(command.as_str()).is_some(),
+                "{label}: {command} is not registered"
+            );
+        }
+    }
+
+    #[test]
+    fn every_click_sends_arguments_the_command_accepts() {
+        let registry = Registry::builtin();
+        for (label, command, args) in dispatched() {
+            let spec = registry.get(command.as_str()).unwrap();
+            check_args(label, spec, args);
+        }
+    }
+
+    #[test]
+    fn tabs_follow_onenote_and_labels_are_unique_per_group() {
+        let names: Vec<&str> = TABS.iter().map(|tab| tab.name).collect();
+        let onenote = [
+            "File", "Home", "Insert", "Draw", "History", "Review", "View",
+        ];
+        assert!(names.iter().all(|name| onenote.contains(name)));
+        assert_eq!(names.first(), Some(&"File"));
+        for tab in TABS {
+            if let TabKind::Groups(groups) = tab.kind {
+                for group in groups {
+                    let mut seen = BTreeSet::new();
+                    for button in group.buttons() {
+                        assert!(
+                            seen.insert(button.label),
+                            "{} twice in {}",
+                            button.label,
+                            group.name
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn args_become_a_json_object() {
+        assert_eq!(args_value(&[]), Value::Null);
+        let value = args_value(&[str_arg("style", "heading1"), num_arg("points", 11.0)]);
+        assert_eq!(
+            value,
+            serde_json::json!({ "style": "heading1", "points": 11.0 })
+        );
+    }
+}
