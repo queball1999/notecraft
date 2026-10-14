@@ -6,6 +6,7 @@ mod builtin;
 mod guard;
 pub mod ids;
 mod layout;
+mod nav;
 mod registry;
 #[cfg(test)]
 mod tests;

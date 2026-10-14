@@ -2,8 +2,13 @@
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
-use super::{ids, layout, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler};
+use super::{ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler};
 
+const NAV_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "id",
+    ArgKind::String,
+    "The notebook, section, or page id.",
+)];
 const FONT_FAMILY_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "name",
     ArgKind::String,
@@ -728,6 +733,38 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .args(MODE_ARGS)
     .ready(),
+    // Navigation: the notebook list, the section tabs, and the page list
+    CommandSpec::new(
+        ids::NAV_NOTEBOOK_SELECT,
+        "Select Notebook",
+        "Show a notebook, at its first section's first page.",
+    )
+    .args(NAV_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::NAV_SECTION_SELECT,
+        "Select Section",
+        "Show a section, at its first page.",
+    )
+    .args(NAV_ARGS)
+    .ready(),
+    CommandSpec::new(ids::NAV_PAGE_SELECT, "Select Page", "Show a page.")
+        .args(NAV_ARGS)
+        .ready(),
+    CommandSpec::new(
+        ids::SECTION_NEW,
+        "New Section",
+        "Add a section to the current notebook.",
+    )
+    .undoable()
+    .shortcut("Ctrl+T"),
+    CommandSpec::new(
+        ids::PAGE_NEW,
+        "Add Page",
+        "Add a page to the current section.",
+    )
+    .undoable()
+    .shortcut("Ctrl+N"),
 ];
 
 /// The handler of every Ready command.
@@ -736,6 +773,9 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
     (ids::VIEW_RIBBON_TOGGLE, layout::ribbon_toggle),
+    (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
+    (ids::NAV_SECTION_SELECT, nav::section_select),
+    (ids::NAV_PAGE_SELECT, nav::page_select),
 ];
 
 /// The handler for `id`, if it has one.
