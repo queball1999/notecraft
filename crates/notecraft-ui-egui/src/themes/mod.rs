@@ -5,7 +5,9 @@
 //! (`view.theme.set`, `view.mode.toggle`, `view.mode.set`) can change them; this module turns
 //! them into colors.
 
+mod apply;
 mod tokens;
 
+pub use apply::{install, style};
 pub use notecraft_engine::view::{ThemeMode as Mode, ThemePreset as Preset};
 pub use tokens::{hex, mix, ButtonStyle, ShadowStyle, ThemeTokens};
