@@ -1,5 +1,11 @@
 //! The window's top-level layout. PR 0.1 lays out empty, labeled regions where the ribbon,
-//! navigation, canvas, and status bar land in the next Phase 0 PRs (build_plan/02).
+//! navigation, canvas, and status bar land in the next Phase 0 PRs (build_plan/02). PR 0.2 adds
+//! command dispatch and toasts.
+
+use notecraft_engine::cmd::{CommandError, Registry, Value};
+use notecraft_engine::Session;
+
+use crate::toast::{self, Toasts};
 
 /// Height of the ribbon region, in points.
 pub const RIBBON_HEIGHT: f32 = 120.0;
@@ -12,12 +18,46 @@ pub const SIDE_WIDTH: f32 = 220.0;
 pub const REGIONS: [&str; 5] = ["Ribbon", "Status bar", "Notebooks", "Pages", "Canvas"];
 
 /// Everything inside the main window.
-#[derive(Debug, Default)]
-pub struct AppShell {}
+#[derive(Debug)]
+pub struct AppShell {
+    registry: Registry,
+    session: Session,
+    toasts: Toasts,
+}
+
+impl Default for AppShell {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl AppShell {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            registry: Registry::builtin(),
+            session: Session::new(),
+            toasts: Toasts::new(),
+        }
+    }
+
+    pub fn registry(&self) -> &Registry {
+        &self.registry
+    }
+
+    pub fn toasts(&self) -> &Toasts {
+        &self.toasts
+    }
+
+    /// Run a command by id, as a ribbon button or shortcut does. A command that does not
+    /// run (Coming Soon, unknown, bad arguments, or caught panic) shows a toast instead.
+    pub fn dispatch(&mut self, id: &str, args: Value) {
+        if let Err(err) = self.registry.run(&mut self.session, id, args) {
+            match err {
+                CommandError::ComingSoon { .. } => tracing::debug!("{err}"),
+                _ => tracing::warn!("{err}"),
+            }
+            self.toasts.push(toast::error_text(&self.registry, &err));
+        }
     }
 
     /// Per-frame work that must run even when the window is hidden (eframe `logic`).
@@ -40,6 +80,7 @@ impl AppShell {
             .resizable(true)
             .show(ui, |ui| placeholder(ui, "Pages"));
         egui::CentralPanel::default().show(ui, |ui| placeholder(ui, "Canvas"));
+        self.toasts.show(ui.ctx());
     }
 }
 
@@ -53,6 +94,7 @@ fn placeholder(ui: &mut egui::Ui, name: &str) {
 mod tests {
     use super::*;
     use egui_kittest::kittest::Queryable;
+    use notecraft_engine::cmd::ids;
 
     #[test]
     fn renders_a_frame_with_every_region() {
@@ -63,6 +105,30 @@ mod tests {
         for region in REGIONS {
             let _ = harness.get_by_label(region);
         }
+    }
+
+    #[test]
+    fn coming_soon_command_shows_a_toast_for_three_seconds() {
+        let mut shell = AppShell::new();
+        shell.dispatch(ids::EDIT_PASTE.as_str(), Value::Null);
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .build_ui_state(|ui, shell: &mut AppShell| shell.ui(ui), shell);
+        harness.run();
+        let _ = harness.get_by_label("Coming Soon: Paste");
+
+        // egui's clock advances one predicted frame (1/60 s) per step without real input.
+        harness.run_steps(200);
+        assert!(harness.query_by_label("Coming Soon: Paste").is_none());
+        assert!(harness.state().toasts().is_empty());
+    }
+
+    #[test]
+    fn unknown_command_shows_a_toast() {
+        let mut shell = AppShell::new();
+        shell.dispatch("no.such_command", Value::Null);
+        let texts: Vec<&str> = shell.toasts().texts().collect();
+        assert_eq!(texts, ["Unknown command: no.such_command"]);
     }
 
     #[test]
