@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 3 narrowed to the GitHub release dry run.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 4 (logging) removed.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -11,7 +11,6 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
 | 3 | Release workflow not yet dry-run on GitHub (needs the remote and secrets) | SC-08 | 2-4 | build_plan/01, PR -1.5 step 5 |
-| 4 | No logging setup | SC-09 | 4-8 | build_plan/01, PR -1.6 |
 | 5 | GitHub repo settings (branch protection, labels, `release` branch, secrets) not configured | SC-10 | 2-4 | build_plan/01, section 6 |
 
 ## Next (Phase 0: UI shell)
@@ -88,3 +87,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-14 | -1 | Rank 2 narrowed to the wasm and parity gates. |
 | 2026-10-14 | -1 | Rank 2 (xtask gates) removed. |
 | 2026-10-14 | -1 | Rank 3 narrowed to the GitHub release dry run. |
+| 2026-10-14 | -1 | Rank 4 (logging) removed. |

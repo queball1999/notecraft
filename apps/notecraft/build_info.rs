@@ -43,7 +43,22 @@ fn utc_today() -> Option<String> {
     Some(format!("{year:04}-{month:02}-{day:02}"))
 }
 
+/// Re-run when the checked-out commit changes, so a dev build never reports a stale SHA.
+/// Both build scripts sit two levels below the repo root. Skipped outside a git checkout.
+fn watch_git_head() {
+    let git = std::path::Path::new("../../.git");
+    if git.join("HEAD").is_file() {
+        println!("cargo:rerun-if-changed=../../.git/HEAD");
+        for extra in ["refs/heads", "packed-refs"] {
+            if git.join(extra).exists() {
+                println!("cargo:rerun-if-changed=../../.git/{extra}");
+            }
+        }
+    }
+}
+
 fn emit_build_info() {
+    watch_git_head();
     let sha = first_env(&["NOTECRAFT_BUILD_SHA", "BUILD_SHA"])
         .map(|s| s.chars().take(12).collect::<String>())
         .or_else(git_short_sha)

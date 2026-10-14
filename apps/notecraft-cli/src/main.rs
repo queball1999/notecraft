@@ -1,4 +1,4 @@
-//! NoteCraft command line. Skeleton only: prints its name, version, and build info.
+//! NoteCraft command line. Before full parity it only reports its version (docs/cli.md).
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -10,6 +10,10 @@
 #![forbid(unsafe_code)]
 
 use std::io::Write;
+use std::process::ExitCode;
+
+const USAGE: &str =
+    "usage: notecraft-cli --version\n\nOther commands are post-parity options (docs/cli.md).\n";
 
 /// "notecraft-cli <version> (<sha>, <date>)", as printed by --version.
 fn version_line() -> String {
@@ -21,7 +25,22 @@ fn version_line() -> String {
     )
 }
 
-fn main() {
-    // A closed stdout is not an error worth crashing over.
-    let _ = writeln!(std::io::stdout(), "{}", version_line());
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    // Write errors (a closed pipe) are not worth crashing over; exit codes still tell the story.
+    match args.first().map(String::as_str) {
+        Some("--version" | "-V") => {
+            let _ = writeln!(std::io::stdout(), "{}", version_line());
+            ExitCode::SUCCESS
+        }
+        Some("--help" | "-h") | None => {
+            let _ = write!(std::io::stdout(), "{USAGE}");
+            ExitCode::SUCCESS
+        }
+        Some(other) => {
+            let _ = write!(std::io::stderr(), "unknown argument `{other}`\n\n{USAGE}");
+            // Exit code 2: bad arguments (docs/cli.md).
+            ExitCode::from(2)
+        }
+    }
 }

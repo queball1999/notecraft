@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: section 9: every cargo xtask ci gate implemented.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: section 8: logging implemented in apps/notecraft/src/logging.rs.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -114,7 +114,7 @@ Commands always run on the thread that owns the session (the UI thread in the de
 ## 8. Settings and logging
 
 - Settings live in `config.toml`, read and written through `craft-settings`, in the platform settings folder (`%APPDATA%\NoteCraft`, `~/Library/Application Support/NoteCraft`, `$XDG_CONFIG_HOME/notecraft`).
-- Logs follow SCRD section 12: `logs/notecraft.log`, rotated each launch, 16 MiB cap, `RUST_LOG` override, `NOTECRAFT_NO_PREFS=1` disables file logging and settings writes. Note content is never logged.
+- Logs follow SCRD section 12: `logs/notecraft.log`, rotated each launch, 16 MiB cap, `RUST_LOG` override, `NOTECRAFT_NO_PREFS=1` disables file logging and settings writes. Note content is never logged. Implemented in `apps/notecraft/src/logging.rs` (PR -1.6); the settings folder is computed there until `craft-settings` arrives in Phase 0.
 
 ## 9. Quality gates
 
@@ -142,3 +142,4 @@ Other workflows mirror the related craft apps: `printing.yml` (craft-print on al
 | 2026-10-14 | -1 | Section 9 marks which ci steps exist. |
 | 2026-10-14 | -1 | Section 9: text, assets, and layers gates implemented. |
 | 2026-10-14 | -1 | Section 9: every cargo xtask ci gate implemented. |
+| 2026-10-14 | -1 | Section 8: logging implemented in apps/notecraft/src/logging.rs. |

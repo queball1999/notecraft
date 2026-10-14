@@ -1,4 +1,4 @@
-//! NoteCraft desktop app. Skeleton only: prints its name, version, and build info.
+//! NoteCraft desktop app. Phase -1 skeleton: `--version`, logging, and startup facts.
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -15,6 +15,8 @@
     windows_subsystem = "windows"
 )]
 
+mod logging;
+
 use std::io::Write;
 
 /// "NoteCraft <version> (<sha>, <date>)", as printed by --version.
@@ -28,6 +30,27 @@ fn version_line() -> String {
 }
 
 fn main() {
-    // A closed stdout is not an error worth crashing over.
-    let _ = writeln!(std::io::stdout(), "{}", version_line());
+    if std::env::args()
+        .skip(1)
+        .any(|a| a == "--version" || a == "-V")
+    {
+        // A closed stdout is not an error worth crashing over.
+        let _ = writeln!(std::io::stdout(), "{}", version_line());
+        return;
+    }
+    let log_path = logging::init();
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        build_sha = env!("NOTECRAFT_BUILD_SHA"),
+        build_date = env!("NOTECRAFT_BUILD_DATE"),
+        os = std::env::consts::OS,
+        arch = std::env::consts::ARCH,
+        "NoteCraft starting"
+    );
+    match &log_path {
+        Some(p) => tracing::info!(log = %p.display(), "file logging on"),
+        None => tracing::info!("file logging off (NOTECRAFT_NO_PREFS or no settings folder)"),
+    }
+    // Phase 0 (build_plan/02, PR 0.1) opens the window here and logs the GPU backend.
+    tracing::info!("no window yet: the UI shell lands in Phase 0");
 }
