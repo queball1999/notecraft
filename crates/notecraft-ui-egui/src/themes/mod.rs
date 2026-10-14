@@ -7,6 +7,7 @@
 
 mod apply;
 pub mod contrast;
+mod fonts;
 mod m365;
 mod onenote2016;
 mod onenote2019;
@@ -14,5 +15,6 @@ mod onenote2021;
 mod tokens;
 
 pub use apply::{install, style};
+pub use fonts::{is_usable, OsFonts};
 pub use notecraft_engine::view::{ThemeMode as Mode, ThemePreset as Preset};
 pub use tokens::{hex, mix, ButtonStyle, ShadowStyle, ThemeTokens};

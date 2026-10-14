@@ -21,6 +21,7 @@ mod logging;
 mod prefs;
 
 use craft_settings::{Location, SaveStatus, SettingsStore};
+use notecraft_ui_egui::themes::OsFonts;
 use notecraft_ui_egui::AppShell;
 use prefs::Prefs;
 use std::io::Write;
@@ -181,7 +182,7 @@ fn main() -> eframe::Result<()> {
                 tracing::warn!(error = %e, "macOS app menu not installed; Cmd+Q quits without asking");
             }
             let store = pending.take().ok_or("the app was already created")?;
-            let mut shell = AppShell::new();
+            let mut shell = AppShell::new().with_fonts(OsFonts::load());
             shell.set_theme(theme.preset(), theme.mode());
             Ok(Box::new(App {
                 shell,
