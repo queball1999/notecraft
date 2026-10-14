@@ -204,6 +204,37 @@ mod tests {
     }
 
     #[test]
+    fn theme_commands_switch_the_theme_live() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.input_mut().system_theme = Some(egui::Theme::Light);
+        harness.run();
+        assert_eq!(harness.ctx.theme(), egui::Theme::Light);
+
+        let dark = serde_json::json!({ "mode": "dark" });
+        harness
+            .state_mut()
+            .dispatch(ids::VIEW_MODE_SET.as_str(), dark);
+        harness.run();
+        assert_eq!(harness.ctx.theme(), egui::Theme::Dark);
+
+        harness
+            .state_mut()
+            .dispatch(ids::VIEW_MODE_TOGGLE.as_str(), Value::Null);
+        let preset = serde_json::json!({ "preset": "onenote2016" });
+        harness
+            .state_mut()
+            .dispatch(ids::VIEW_THEME_SET.as_str(), preset);
+        harness.run();
+        assert_eq!(harness.ctx.theme(), egui::Theme::Light);
+        let view = harness.state().session().view();
+        assert_eq!(view.theme_preset, Preset::OneNote2016);
+        assert!(
+            harness.state().toasts().is_empty(),
+            "ready commands show no toast"
+        );
+    }
+
+    #[test]
     fn system_mode_follows_the_os_live() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.input_mut().system_theme = Some(egui::Theme::Dark);

@@ -8,6 +8,7 @@ pub mod ids;
 mod registry;
 #[cfg(test)]
 mod tests;
+mod theme;
 
 use std::fmt;
 

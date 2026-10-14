@@ -52,6 +52,18 @@ fn every_spec_has_a_label_and_description() {
 }
 
 #[test]
+fn ready_commands_and_handlers_match() {
+    let ready: BTreeSet<&str> = builtin::SPECS
+        .iter()
+        .filter(|spec| spec.status == Status::Ready)
+        .map(|spec| spec.id.as_str())
+        .collect();
+    let handled: BTreeSet<&str> = builtin::handled_ids().map(CommandId::as_str).collect();
+    assert_eq!(ready, handled);
+    assert!(ready.contains("view.theme.set"));
+}
+
+#[test]
 fn default_shortcuts_do_not_clash() {
     let mut seen = BTreeSet::new();
     for spec in builtin::SPECS {
@@ -212,7 +224,10 @@ fn unknown_id_is_truncated_in_the_error() {
 fn coming_soon_is_an_error_with_the_label() {
     let registry = test_registry();
     let mut session = Session::new();
-    for spec in builtin::SPECS {
+    let coming_soon = builtin::SPECS
+        .iter()
+        .filter(|spec| spec.status == Status::ComingSoon);
+    for spec in coming_soon {
         let err = registry.run(&mut session, spec.id.as_str(), Value::Null);
         assert_eq!(
             err,
