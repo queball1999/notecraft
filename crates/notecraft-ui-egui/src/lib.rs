@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 mod app_shell;
+pub mod icons;
 pub mod themes;
 pub mod toast;
 
