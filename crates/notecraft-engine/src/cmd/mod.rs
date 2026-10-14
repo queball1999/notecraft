@@ -3,6 +3,7 @@
 //! all dispatch by id through [`Registry::run`].
 
 mod builtin;
+mod canvas;
 mod guard;
 pub mod ids;
 mod layout;

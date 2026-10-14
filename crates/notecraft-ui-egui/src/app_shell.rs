@@ -555,9 +555,44 @@ mod tests {
         harness.get_by_label("Page Color").click();
         harness.run();
         let _ = harness.get_by_label("#DCEBF7");
+        harness.get_by_label("#DCEBF7").click();
+        harness.run();
+        let style = harness.state().session().page_style();
+        assert_eq!(style.color, Some([0xDC, 0xEB, 0xF7, 0xFF]));
+        harness.get_by_label("Page Color").click();
+        harness.run();
         harness.get_by_label("No Color").click();
         harness.run();
-        assert_eq!(toasts(&harness), ["Coming Soon: Page Color"]);
+        assert_eq!(harness.state().session().page_style().color, None);
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn every_page_setup_and_zoom_menu_item_runs() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("View").click();
+        harness.run();
+        let menus = [
+            ("Rule Lines", crate::ribbon::spec::RULE_LINES),
+            ("Paper Size", crate::ribbon::spec::PAPER_SIZES),
+            ("Zoom", crate::ribbon::spec::ZOOM_LEVELS),
+        ];
+        for (button, items) in menus {
+            for item in items {
+                harness.get_by_label(button).click();
+                harness.run();
+                // The 100% item shares its label with the 100% button; the menu is drawn last.
+                let found = harness.get_all_by_label(item.label).last();
+                found.unwrap().click();
+                harness.run();
+                assert!(toasts(&harness).is_empty(), "{button}: {}", item.label);
+            }
+        }
+        let view = harness.state().session();
+        assert_eq!(view.view().zoom_percent, 200);
+        assert_eq!(view.page_style().paper_size.id(), "a5");
+        assert_eq!(view.page_style().rule_lines.id(), "grid_xlarge");
     }
 
     #[test]

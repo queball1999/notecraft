@@ -1,10 +1,13 @@
 //! The editing session: the state commands read and change. Phase 0 holds the view state,
-//! the open notebooks (mock data until Phase 1 reads them from disk), and which notebook,
-//! section, and page are shown; page content and undo history land in Phase 1.
+//! the open notebooks (mock data until Phase 1 reads them from disk), which notebook,
+//! section, and page are shown, and each page's style; page content and undo history land
+//! in Phase 1.
+
+use std::collections::BTreeMap;
 
 use notecraft_model::{Notebook, PageRef, Section};
 
-use crate::view::ViewState;
+use crate::view::{PageStyle, ViewState};
 
 /// Which notebook, section, and page are shown, by id.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -21,6 +24,8 @@ pub struct Session {
     view: ViewState,
     notebooks: Vec<Notebook>,
     selection: Selection,
+    /// Page styles by page id; pages missing here use the default style.
+    page_styles: BTreeMap<String, PageStyle>,
 }
 
 impl Session {
@@ -86,5 +91,29 @@ impl Session {
     pub fn current_page(&self) -> Option<&PageRef> {
         let id = self.selection.page.as_deref()?;
         self.current_section()?.page(id)
+    }
+
+    /// The style of the page shown now (the default style when no page is shown).
+    pub fn page_style(&self) -> PageStyle {
+        self.selection
+            .page
+            .as_deref()
+            .and_then(|id| self.page_styles.get(id))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Set the style of the page shown now. Returns false, changing nothing, when no page
+    /// is shown.
+    pub(crate) fn set_page_style(&mut self, style: PageStyle) -> bool {
+        let Some(id) = self.selection.page.clone() else {
+            return false;
+        };
+        if style == PageStyle::default() {
+            self.page_styles.remove(&id);
+        } else {
+            self.page_styles.insert(id, style);
+        }
+        true
     }
 }
