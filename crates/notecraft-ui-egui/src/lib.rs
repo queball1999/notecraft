@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 mod app_shell;
+pub mod color;
 pub mod icons;
 pub mod nav;
 pub mod ribbon;

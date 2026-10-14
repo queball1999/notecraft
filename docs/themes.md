@@ -1,6 +1,6 @@
 # Themes
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: four presets and the OS UI font implemented (PR 0.4); two dark accents tuned for contrast.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: ribbon buttons have no fill at rest in every preset.
 
 NoteCraft ships four theme presets that evoke each era of OneNote, each in a light and a dark mode, for eight variants. Themes change colors, spacing, corner radius, and control style. They never change layout or behavior.
 
@@ -45,7 +45,7 @@ Every preset defines the same tokens. Widgets read tokens only; no widget hard-c
 | `radius` | corner radius in px |
 | `spacing` | base spacing unit in px |
 | `shadow` | `none`, `subtle`, or `soft` |
-| `button_style` | `flat`, `raised`, or `filled` |
+| `button_style` | `flat`, `raised`, or `filled`. Ribbon buttons have no fill at rest in every preset, so they sit on the ribbon background; `raised` keeps a border at rest |
 
 ## 4. Proposed palettes
 
@@ -168,3 +168,4 @@ Every preset must pass WCAG AA (4.5:1) for `text` on `canvas_bg`, `ribbon_text` 
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | 0 | Token system, theme commands, settings, and system mode implemented (PR 0.3); presets still share the Microsoft 365 palette. |
 | 2026-10-14 | 0 | Four presets and the OS UI font implemented (PR 0.4). OneNote 2016 and 2019 dark accents darkened to pass WCAG AA. Font decision: no bundled fallback; egui's built-in fonts are the fallback. |
+| 2026-10-14 | 0 | Ribbon buttons have no fill at rest in every preset; `raised` keeps its border (fix after PR 0.5). |

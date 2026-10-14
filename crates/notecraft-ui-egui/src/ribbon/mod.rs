@@ -11,6 +11,7 @@ mod backstage;
 mod button;
 mod group;
 pub(crate) mod keytips;
+mod menus;
 pub mod spec;
 mod tab;
 

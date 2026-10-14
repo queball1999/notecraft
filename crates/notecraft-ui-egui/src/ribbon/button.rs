@@ -2,12 +2,15 @@
 //! and a tooltip that says when its command is Coming Soon.
 
 use craft_ui::buttons::{ButtonVisuals, IconButton, IconButtonStyle};
-use egui::{Color32, CornerRadius, FontId, Galley, Popup, Rect, SetOpenCommand, Stroke, Ui, Vec2};
+use egui::{
+    Color32, CornerRadius, FontId, Galley, Popup, PopupCloseBehavior, Rect, SetOpenCommand, Stroke,
+    Ui, Vec2,
+};
 use notecraft_engine::cmd::Status;
 use std::sync::Arc;
 
 use super::spec::{Button, Menu, Size};
-use super::{keytips, Clicked, KeyFrame, Look};
+use super::{keytips, menus, Clicked, KeyFrame, Look};
 use crate::icons::{self, IconColors};
 use crate::themes::{mix, ButtonStyle, ThemeTokens};
 
@@ -19,15 +22,14 @@ const LABEL_SIZE: f32 = 12.0;
 /// Large labels wrap onto a second line beyond this width.
 const LARGE_WRAP: f32 = 72.0;
 
-/// Button colors for the ribbon, from the theme tokens.
+/// Button colors for the ribbon, from the theme tokens. At rest a button has no fill of its
+/// own, so it sits on the ribbon background; hover and press fill it. Raised buttons keep a
+/// border at rest.
 pub(crate) fn style(t: &ThemeTokens) -> IconButtonStyle {
-    let (rest_fill, rest_stroke) = match t.button_style {
-        ButtonStyle::Flat => (Color32::TRANSPARENT, Stroke::NONE),
-        ButtonStyle::Raised => (
-            mix(t.ribbon_bg, t.ribbon_text, 0.04),
-            Stroke::new(1.0, t.border),
-        ),
-        ButtonStyle::Filled => (mix(t.ribbon_bg, t.ribbon_text, 0.04), Stroke::NONE),
+    let rest_fill = Color32::TRANSPARENT;
+    let rest_stroke = match t.button_style {
+        ButtonStyle::Raised => Stroke::new(1.0, t.border),
+        ButtonStyle::Flat | ButtonStyle::Filled => Stroke::NONE,
     };
     let visuals = |fill, stroke| ButtonVisuals {
         fill,
@@ -56,7 +58,7 @@ pub(super) fn show(
     let tokens = look.tokens;
     let spec = look.registry.get(button.command.as_str());
     let coming_soon = spec.is_none_or(|spec| spec.status == Status::ComingSoon);
-    let has_menu = !matches!(button.menu, Menu::None);
+    let has_menu = !button.menu.is_none();
     let font = FontId::proportional(LABEL_SIZE);
 
     let (size, galley) = match button.size {
@@ -98,27 +100,31 @@ pub(super) fn show(
     // A key tip code presses the button like a click on its main part.
     let by_key = keys.pressed(button);
     let clicked = response.clicked() || by_key;
-    let opens_menu = clicked
-        && match button.menu {
-            Menu::None => false,
-            Menu::Split(_) => on_arrow && !by_key,
-            Menu::Dropdown(_) => true,
-        };
+    let opens_menu = clicked && has_menu && (!button.menu.is_split() || (on_arrow && !by_key));
     if let Some(code) = keys.tip(button) {
         keytips::paint_tip(ui, response.rect.center_bottom(), code, look);
     }
     if clicked && !opens_menu {
         out.push(Clicked::new(button.command, button.args));
     }
-    if has_menu {
-        let toggle = opens_menu.then_some(SetOpenCommand::Toggle);
-        Popup::menu(&response).open_memory(toggle).show(|ui| {
-            for item in button.menu.items() {
-                if ui.button(item.label).clicked() {
-                    out.push(Clicked::new(item.command, item.args));
-                }
-            }
-        });
+    let toggle = opens_menu.then_some(SetOpenCommand::Toggle);
+    // Pickers stay open while the user works in them and close themselves on a choice.
+    let picker = Popup::menu(&response)
+        .open_memory(toggle)
+        .close_behavior(PopupCloseBehavior::CloseOnClickOutside);
+    match button.menu {
+        Menu::None => {}
+        Menu::Split(items) | Menu::Dropdown(items) => {
+            Popup::menu(&response)
+                .open_memory(toggle)
+                .show(|ui| menus::items(ui, items, look, out));
+        }
+        Menu::Colors(colors) => {
+            picker.show(|ui| menus::colors(ui, button.command, &colors, look, out));
+        }
+        Menu::TableGrid => {
+            picker.show(|ui| menus::table_grid(ui, button.command, look, out));
+        }
     }
 
     let mut tip = spec.map_or_else(String::new, |spec| spec.description.to_owned());
@@ -160,13 +166,21 @@ fn paint_contents(
                 Vec2::splat(32.0),
             );
             icons::paint(painter, icon, button.icon, colors);
+            let mut arrow = egui::pos2(rect.center().x, rect.max.y - 7.0);
             if let Some(galley) = galley {
                 let size = galley.size();
                 let pos = egui::pos2(rect.center().x - size.x / 2.0, icon.max.y + 4.0);
+                // A two-line label leaves no room under it: the arrow follows the last line.
+                if galley.rows.len() > 1 {
+                    if let Some(last) = galley.rows.last() {
+                        let line = last.rect().translate(pos.to_vec2());
+                        arrow = egui::pos2(line.max.x + 7.0, line.center().y);
+                    }
+                }
                 painter.galley(pos, galley, colors.fg);
             }
             if has_menu {
-                chevron(ui, egui::pos2(rect.center().x, rect.max.y - 7.0), colors.fg);
+                chevron(ui, arrow, colors.fg);
             }
         }
         Size::Small => {

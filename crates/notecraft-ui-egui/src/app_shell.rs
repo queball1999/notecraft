@@ -473,6 +473,117 @@ mod tests {
         }
     }
 
+    fn toasts(harness: &egui_kittest::Harness<'_, AppShell>) -> Vec<String> {
+        harness
+            .state()
+            .toasts()
+            .texts()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    #[test]
+    fn color_picker_swatches_and_custom_color_run_the_command() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Draw").click();
+        harness.run();
+
+        harness.get_by_label("Color").click();
+        harness.run();
+        harness.get_by_label("#C62828").click();
+        harness.run();
+        assert_eq!(toasts(&harness), ["Coming Soon: Color"]);
+        assert!(harness.query_by_label("#C62828").is_none(), "picker closes");
+
+        // More Colors opens a full picker; Apply runs the command with the custom color.
+        harness.get_by_label("Color").click();
+        harness.run();
+        harness.get_by_label("More Colors").click();
+        harness.run();
+        harness.get_by_label("Apply").click();
+        harness.run();
+        assert!(
+            harness.query_by_label("More Colors").is_none(),
+            "picker closes"
+        );
+    }
+
+    #[test]
+    fn custom_color_takes_rgba_text_and_number_fields() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Draw").click();
+        harness.run();
+        harness.get_by_label("Color").click();
+        harness.run();
+        harness.get_by_label("More Colors").click();
+        harness.run();
+
+        // Replace the field's text with an rgba() color: the editor shows it as hex.
+        let field = harness.get_by_role(egui::accesskit::Role::TextInput);
+        field.focus();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness
+            .get_by_role(egui::accesskit::Role::TextInput)
+            .type_text("rgba(255, 0, 0, 0.5)");
+        harness.run();
+        let _ = harness.get_by_label("#FF000080");
+
+        // Text that is not a color is flagged and Apply is disabled until it is fixed.
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness
+            .get_by_role(egui::accesskit::Role::TextInput)
+            .type_text("not a color");
+        harness.run();
+        let _ = harness.get_by_label("Not a color: use #RRGGBB, #RRGGBBAA, rgb(), or rgba()");
+        harness.get_by_label("Apply").click();
+        harness.run();
+        assert!(
+            harness.query_by_label("More Colors").is_some(),
+            "Apply does nothing while the text is not a color"
+        );
+    }
+
+    #[test]
+    fn page_color_offers_no_color_and_a_grid() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("View").click();
+        harness.run();
+        harness.get_by_label("Page Color").click();
+        harness.run();
+        let _ = harness.get_by_label("#DCEBF7");
+        harness.get_by_label("No Color").click();
+        harness.run();
+        assert_eq!(toasts(&harness), ["Coming Soon: Page Color"]);
+    }
+
+    #[test]
+    fn table_grid_and_width_previews_open() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Insert").click();
+        harness.run();
+        harness.get_by_label("Table").click();
+        harness.run();
+        let _ = harness.get_by_label("Table size");
+        harness.get_by_label("Insert Table").click();
+        harness.run();
+        assert_eq!(toasts(&harness), ["Coming Soon: Table"]);
+
+        harness.get_by_label("Draw").click();
+        harness.run();
+        harness.get_by_label("Thickness").click();
+        harness.run();
+        harness.get_by_label("2 pt").click();
+        harness.run();
+        assert!(toasts(&harness)
+            .iter()
+            .any(|t| t == "Coming Soon: Thickness"));
+    }
+
     #[test]
     fn file_opens_the_backstage_and_back_closes_it() {
         let mut harness = harness(AppShell::new(), WINDOW);

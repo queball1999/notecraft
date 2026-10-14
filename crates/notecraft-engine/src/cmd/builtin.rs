@@ -22,7 +22,7 @@ const FONT_SIZE_ARGS: &[ArgSpec] = &[ArgSpec::required(
 const COLOR_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "color",
     ArgKind::String,
-    "Color as #rrggbb; the last used color when omitted.",
+    "Color as #RRGGBB or #RRGGBBAA; the last used color when omitted.",
 )];
 const STYLE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "style",
@@ -49,7 +49,7 @@ const SYMBOL_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "The symbol to insert; opens the symbol picker when omitted.",
 )];
 const PEN_ARGS: &[ArgSpec] = &[
-    ArgSpec::optional("color", ArgKind::String, "Color as #rrggbb."),
+    ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
 ];
 const ERASER_ARGS: &[ArgSpec] = &[ArgSpec::optional(
@@ -60,7 +60,7 @@ const ERASER_ARGS: &[ArgSpec] = &[ArgSpec::optional(
 const REQUIRED_COLOR_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "color",
     ArgKind::String,
-    "Color as #rrggbb, or none.",
+    "Color as #RRGGBB or #RRGGBBAA, or none.",
 )];
 const PEN_WIDTH_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "width",
