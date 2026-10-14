@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use super::{
-    builtin, CommandError, CommandId, CommandOutput, CommandSpec, Handler, Map, Status, Value,
+    builtin, guard, CommandError, CommandId, CommandOutput, CommandSpec, Handler, Map, Status,
+    Value,
 };
 use crate::session::Session;
 
@@ -109,7 +110,8 @@ impl Registry {
     }
 
     /// Run a command. `args` is a JSON object (or null for no arguments). Unknown ids, Coming
-    /// Soon commands, and bad arguments are errors; nothing here panics.
+    /// Soon commands, and bad arguments are errors. The handler runs inside the command
+    /// guard, so a panic or failure leaves `session` as it was.
     pub fn run(
         &self,
         session: &mut Session,
@@ -132,7 +134,7 @@ impl Registry {
             }
         };
         let args = check_args(spec, args)?;
-        handler(session, &args)
+        guard::run_guarded(spec.id, session, |session| handler(session, &args))
     }
 }
 

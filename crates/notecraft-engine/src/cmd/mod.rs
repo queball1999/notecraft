@@ -3,6 +3,7 @@
 //! all dispatch by id through [`Registry::run`].
 
 mod builtin;
+mod guard;
 pub mod ids;
 mod registry;
 
