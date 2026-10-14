@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: Phase 0 PR 0.2 landed the command registry and the Coming Soon toast. Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: Phase 0 PR 0.3 landed the theme token system. Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -89,3 +89,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | Phase -1 closed. Repo on GitHub (queball1999/notecraft); CI, Printing, FreeBSD, and packaging lint green; release dry run built 20 artifacts on free runners; branch protection, phase ruleset, labels, Discussions, and the release environment set up. Phase 0 (UI shell) is next. |
 | 2026-10-14 | Phase 0 PR 0.1: the main window opens on wgpu with an empty app shell (ribbon, notebooks, pages, canvas, status regions); window geometry saved with craft-settings; craft-quit close handling; egui 0.36 and craft-libs pinned at 457a0788. |
 | 2026-10-14 | Phase 0 PR 0.2: command registry in notecraft-engine (118 Coming Soon ids for every Phase 0 ribbon and shortcut command, argument checks, panic guard that leaves the session unchanged) and the "Coming Soon: <label>" toast (PR #6). |
+| 2026-10-14 | Phase 0 PR 0.3: theme token system (tokens, egui style mapping through craft-ui, WCAG AA contrast check), Ready theme commands (view.theme.set, view.mode.toggle, view.mode.set), theme saved with craft-settings, and system dark mode followed live (PR #7). |

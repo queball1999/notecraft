@@ -1,10 +1,10 @@
 # Themes
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: token system, theme commands, settings, and system mode implemented (PR 0.3).
 
 NoteCraft ships four theme presets that evoke each era of OneNote, each in a light and a dark mode, for eight variants. Themes change colors, spacing, corner radius, and control style. They never change layout or behavior.
 
-Status: planned for Phase 0 (build_plan/02-phase-0-ui-shell.md, PRs 0.3 and 0.4).
+Status: the token system, theme commands, saved settings, and system mode landed in PR 0.3 (`crates/notecraft-ui-egui/src/themes/`). Every preset uses the Microsoft 365 palette until PR 0.4 encodes the other three (build_plan/02-phase-0-ui-shell.md).
 
 ## 1. Clean-room rule
 
@@ -152,7 +152,7 @@ Fluent-style: soft surfaces, rounded corners, light blur feel (simulated with la
 | `theme.preset` | `onenote2016`, `onenote2019`, `onenote2021`, `m365` | `m365` |
 | `theme.mode` | `light`, `dark`, `system` | `system` |
 
-Commands: `view.theme.set` (args: `preset`), `view.mode.toggle`, `view.mode.set`.
+Commands: `view.theme.set` (args: `preset`), `view.mode.toggle`, `view.mode.set`. The preset and mode are view state in the engine session (`notecraft-engine/src/view.rs`), so the commands need no colors; the egui crate turns them into a style. In `system` mode, `view.mode.toggle` switches to the opposite of what the OS shows. Unknown setting values fall back to the defaults.
 
 ## 6. Contrast
 
@@ -164,3 +164,4 @@ Every preset must pass WCAG AA (4.5:1) for `text` on `canvas_bg`, `ribbon_text` 
 |---|---|---|
 | 2026-10-14 | -1 | Created. Clean-room rule, fonts, tokens, proposed palettes for four presets in light and dark, contrast test. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | 0 | Token system, theme commands, settings, and system mode implemented (PR 0.3); presets still share the Microsoft 365 palette. |
