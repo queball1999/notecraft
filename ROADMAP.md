@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: Phase 0 PR 0.5b completed the ribbon: every tab, collapse, and key tips. Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: Phase 0 PR 0.6 landed notebook, section, and page navigation. Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -93,3 +93,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | Phase 0 PR 0.4: the four theme presets (OneNote 2016, 2019, 2021, Microsoft 365) in light and dark, checked against docs/themes.md and WCAG AA; two dark accents tuned for contrast; OS UI font loaded with egui's built-in fonts as the fallback (no bundled font) (PR #8). |
 | 2026-10-14 | Phase 0 PR 0.5a: data-driven ribbon (spec table, craft-ui buttons and tabs, Coming Soon in tooltips; the per-button badge was dropped), original vector icons drawn in code, the File backstage, and the Home tab; every button bound to a registered command (PR #9). |
 | 2026-10-14 | Phase 0 PR 0.5b: Insert, Draw, History, Review, and View tabs with original icons (every OneNote ribbon tab now present); ribbon collapse (Ctrl+F1, chevron, double-click, saved across runs) and key tips; the View tab's Theme and Dark Mode buttons switch the theme live (PR #10). |
+| 2026-10-14 | Phase 0 PR 0.6: notebook pane, colored section tabs, and page list on mock notebooks (two notebooks, five sections, a section group, twenty pages); nav.notebook.select, nav.section.select, and nav.page.select; the page list follows the preset's side (PR #11). |

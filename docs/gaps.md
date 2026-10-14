@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 9 narrowed to a keyboard check of key tips and the SH-04 badge decision (PR 0.5b landed).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 10 (navigation) removed.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -12,7 +12,6 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 |---:|---|---|---|---|
 | 6 | Window launch, system dark mode, and the OS UI font not yet verified on macOS and Linux (Windows done) | SH-01, TH-06 | 1-2 | build_plan/02, PR 0.1, 0.3, 0.4 |
 | 9 | Ribbon key tips not yet tried with a physical keyboard (a lone Alt tap on Windows can enter menu mode); SH-04 needs a decision now that the per-button badge is gone | SH-04, SH-05 | 1-2 | build_plan/02, PR 0.5 |
-| 10 | No notebook list, section tabs, page list | SH-06 to SH-08 | 24-40 | build_plan/02, PR 0.6 |
 | 11 | No canvas pan, zoom, rule lines | CV-01 to CV-03 | 24-40 | build_plan/02, PR 0.7 |
 | 12 | No File backstage, recents, open dialog | SH-11, SH-12 | 12-20 | build_plan/02, PR 0.8 |
 | 13 | No status bar, full page view, shortcut map | SH-09, SH-13, SH-14 | 12-20 | build_plan/02, PR 0.9 |
@@ -86,3 +85,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-14 | 0 | Rank 8 (theme presets) removed; rank 6 adds verifying the OS UI font on macOS and Linux. |
 | 2026-10-14 | 0 | Rank 9 narrowed: the ribbon widget, icons, File backstage, and Home tab landed (PR 0.5a); the other tabs, collapse, and key tips remain (PR 0.5b). |
 | 2026-10-14 | 0 | Rank 9 narrowed: all ribbon tabs, collapse, and key tips landed (PR 0.5b); a physical keyboard check and the SH-04 badge decision remain. |
+| 2026-10-14 | 0 | Rank 10 (notebook list, section tabs, page list) removed (PR 0.6). |
