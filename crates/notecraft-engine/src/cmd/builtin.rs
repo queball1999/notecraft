@@ -1,8 +1,8 @@
 //! The built-in command table: label, description, arguments, and default shortcut for
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
-//! feature PR flips its command to Ready and registers a handler.
+//! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
-use super::{ids, ArgKind, ArgSpec, CommandSpec};
+use super::{ids, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler};
 
 const FONT_FAMILY_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "name",
@@ -712,16 +712,40 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Theme",
         "Switch to another theme preset.",
     )
-    .args(THEME_ARGS),
+    .args(THEME_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::VIEW_MODE_TOGGLE,
         "Dark Mode",
         "Switch between light and dark mode.",
-    ),
+    )
+    .ready(),
     CommandSpec::new(
         ids::VIEW_MODE_SET,
         "Color Mode",
         "Use light, dark, or the system color mode.",
     )
-    .args(MODE_ARGS),
+    .args(MODE_ARGS)
+    .ready(),
 ];
+
+/// The handler of every Ready command.
+static HANDLERS: &[(CommandId, Handler)] = &[
+    (ids::VIEW_THEME_SET, theme::theme_set),
+    (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
+    (ids::VIEW_MODE_SET, theme::mode_set),
+];
+
+/// The handler for `id`, if it has one.
+pub(super) fn handler(id: CommandId) -> Option<Handler> {
+    HANDLERS
+        .iter()
+        .find(|(handled, _)| *handled == id)
+        .map(|(_, handler)| *handler)
+}
+
+/// Every id with a handler, for tests.
+#[cfg(test)]
+pub(super) fn handled_ids() -> impl Iterator<Item = CommandId> {
+    HANDLERS.iter().map(|(id, _)| *id)
+}

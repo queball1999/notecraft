@@ -1,11 +1,14 @@
 //! The editing session: the state commands read and change. Phase 0 has no notes yet, so
-//! the session only counts changes; open notebooks, the current page, and undo history land
-//! in Phase 1.
+//! the session holds the view state and counts changes; open notebooks, the current page, and
+//! undo history land in Phase 1.
+
+use crate::view::ViewState;
 
 /// Everything a command can see and change. Commands run on the thread that owns it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Session {
     revision: u64,
+    view: ViewState,
 }
 
 impl Session {
@@ -21,5 +24,14 @@ impl Session {
     /// Record that a command changed the session.
     pub fn mark_changed(&mut self) {
         self.revision = self.revision.wrapping_add(1);
+    }
+
+    pub fn view(&self) -> &ViewState {
+        &self.view
+    }
+
+    /// For commands, and for the front end to restore settings and report the OS dark mode.
+    pub fn view_mut(&mut self) -> &mut ViewState {
+        &mut self.view
     }
 }

@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 mod app_shell;
+pub mod themes;
 pub mod toast;
 
 pub use app_shell::{AppShell, REGIONS};

@@ -60,7 +60,7 @@ impl Registry {
     pub fn builtin() -> Self {
         let mut registry = Self::new();
         for spec in builtin::SPECS {
-            if let Err(err) = registry.register(*spec, None) {
+            if let Err(err) = registry.register(*spec, builtin::handler(spec.id)) {
                 tracing::error!("built-in command skipped: {err}");
             }
         }

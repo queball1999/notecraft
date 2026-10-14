@@ -11,6 +11,7 @@
 
 pub mod cmd;
 pub mod session;
+pub mod view;
 
 pub use session::Session;
 
