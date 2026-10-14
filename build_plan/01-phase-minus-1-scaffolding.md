@@ -1,6 +1,6 @@
 # Phase -1: scaffolding and CI/CD
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR -1.1 landed; sample Cargo.toml now lists members explicitly.
 
 Goal: an empty but complete workspace. Every crate exists and builds, `cargo xtask ci` runs every gate, CI matches the related craft apps, and the shared release workflow can build packages from the `release` branch. No features.
 
@@ -80,8 +80,20 @@ Steps:
    ```toml
    [workspace]
    resolver = "2"
-   members = ["crates/*", "apps/notecraft", "apps/notecraft-cli", "xtask"]
-   default-members = ["apps/notecraft", "apps/notecraft-cli"]
+   # Members are listed explicitly: an empty glob such as "crates/*" is an error,
+   # and an explicit list lets each early commit build with only the crates it has.
+   members = [
+       "crates/notecraft-core",
+       "crates/notecraft-storage",
+       "crates/notecraft-model",
+       "crates/notecraft-markdown",
+       "crates/notecraft-canvas",
+       "crates/notecraft-engine",
+       "crates/notecraft-ui-egui",
+       "apps/notecraft",
+       "apps/notecraft-cli",
+       "xtask",
+   ]
 
    [workspace.package]
    version = "0.0.0"
@@ -404,3 +416,4 @@ Done once, right after section 0. Uses `gh` with admin rights.
 |---|---|---|
 | 2026-10-14 | -1 | Created. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | PR -1.1 landed; sample Cargo.toml now lists members explicitly. |

@@ -1,0 +1,16 @@
+[package]
+name = "notecraft-markdown"
+description = "NoteCraft L3: markdown parse and write, page links, note tags, equations"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+notecraft-core.workspace = true
+notecraft-model.workspace = true

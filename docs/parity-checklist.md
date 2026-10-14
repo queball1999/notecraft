@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SC-01 scored D (workspace and crate skeletons).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -17,7 +17,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 <!-- parity:summary:start -->
 | Area | D | P | M | Total | Done % |
 |---|---:|---:|---:|---:|---:|
-| Scaffolding | 0 | 0 | 10 | 10 | 0% |
+| Scaffolding | 1 | 0 | 9 | 10 | 10% |
 | Shell | 0 | 0 | 20 | 20 | 0% |
 | Themes | 0 | 0 | 6 | 6 | 0% |
 | Canvas | 0 | 0 | 12 | 12 | 0% |
@@ -28,14 +28,14 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 0 | 0 | 113 | 113 | 0% |
+| Total | 1 | 0 | 112 | 113 | 0% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| SC-01 | Scaffolding | Cargo workspace with all crates and `xtask` | -1 | M | |
+| SC-01 | Scaffolding | Cargo workspace with all crates and `xtask` | -1 | D | PR -1.1: workspace, 7 crates, 2 apps, xtask; build, clippy, test pass |
 | SC-02 | Scaffolding | `cargo xtask ci` runs every gate | -1 | M | |
 | SC-03 | Scaffolding | `cargo xtask layers` | -1 | M | |
 | SC-04 | Scaffolding | `cargo xtask assets` | -1 | M | |
@@ -205,3 +205,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 |---|---|---|
 | 2026-10-14 | -1 | Created. Re-scoped the same day to OneNote features only: graph, automation, and plugin rows removed (docs/post-parity.md); Phase 4 parity rows added. 113 rows, all M. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | SC-01 scored D (workspace and crate skeletons). |

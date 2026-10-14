@@ -1,0 +1,51 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/notecraft-core",
+    "crates/notecraft-storage",
+    "crates/notecraft-model",
+    "crates/notecraft-markdown",
+    "crates/notecraft-canvas",
+    "crates/notecraft-engine",
+    "crates/notecraft-ui-egui",
+    "apps/notecraft",
+    "apps/notecraft-cli",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/storytold/notecraft"
+authors = ["The NoteCraft Contributors"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unimplemented = "deny"
+todo = "deny"
+unreachable = "deny"
+indexing_slicing = "warn"
+
+[workspace.dependencies]
+notecraft-core = { path = "crates/notecraft-core" }
+notecraft-storage = { path = "crates/notecraft-storage" }
+notecraft-model = { path = "crates/notecraft-model" }
+notecraft-markdown = { path = "crates/notecraft-markdown" }
+notecraft-canvas = { path = "crates/notecraft-canvas" }
+notecraft-engine = { path = "crates/notecraft-engine" }
+notecraft-ui-egui = { path = "crates/notecraft-ui-egui" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

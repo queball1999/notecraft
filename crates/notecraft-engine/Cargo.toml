@@ -1,0 +1,19 @@
+[package]
+name = "notecraft-engine"
+description = "NoteCraft L5: session, command registry, undo and redo, clipboard, export"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+notecraft-core.workspace = true
+notecraft-storage.workspace = true
+notecraft-model.workspace = true
+notecraft-markdown.workspace = true
+notecraft-canvas.workspace = true
