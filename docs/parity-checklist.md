@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SC-08 and SC-10 scored D; Phase -1 closed.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-01 scored P (window opens; Windows verified).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -18,7 +18,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Area | D | P | M | Total | Done % |
 |---|---:|---:|---:|---:|---:|
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
-| Shell | 0 | 0 | 20 | 20 | 0% |
+| Shell | 0 | 1 | 19 | 20 | 0% |
 | Themes | 0 | 0 | 6 | 6 | 0% |
 | Canvas | 0 | 0 | 12 | 12 | 0% |
 | Ink | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +28,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 10 | 0 | 103 | 113 | 8% |
+| Total | 10 | 1 | 102 | 113 | 8% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -50,7 +50,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| SH-01 | Shell | Window opens on wgpu (DX12, Metal, Vulkan) | 0 | M | |
+| SH-01 | Shell | Window opens on wgpu (DX12, Metal, Vulkan) | 0 | P | PR 0.1: window opens on wgpu (Windows DX12 verified; macOS and Linux launches to verify); geometry saved through craft-settings |
 | SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | M | |
 | SH-03 | Shell | Every ribbon button bound to a command id | 0 | M | |
 | SH-04 | Shell | "Coming Soon" badge and toast for unimplemented commands | 0 | M | |
@@ -212,3 +212,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | -1 | SC-07 scored D and SC-08 scored P (release contract). |
 | 2026-10-14 | -1 | SC-09 scored D (logging). |
 | 2026-10-14 | -1 | SC-08 and SC-10 scored D; Phase -1 closed. |
+| 2026-10-14 | -1 | SH-01 scored P (window opens; Windows verified). |

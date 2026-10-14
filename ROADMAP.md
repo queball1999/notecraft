@@ -87,3 +87,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | Phase -1 PR -1.6: desktop app logging (stderr plus rotated, size-capped notecraft.log; NOTECRAFT_NO_PREFS), --version on both binaries, build SHA refreshed when git HEAD moves. |
 | 2026-10-14 | Release workflow is now NoteCraft's own (free standard runners only; the shared one used a paid macOS runner and has no license). |
 | 2026-10-14 | Phase -1 closed. Repo on GitHub (queball1999/notecraft); CI, Printing, FreeBSD, and packaging lint green; release dry run built 20 artifacts on free runners; branch protection, phase ruleset, labels, Discussions, and the release environment set up. Phase 0 (UI shell) is next. |
+| 2026-10-14 | Phase 0 PR 0.1: the main window opens on wgpu with an empty app shell (ribbon, notebooks, pages, canvas, status regions); window geometry saved with craft-settings; craft-quit close handling; egui 0.36 and craft-libs pinned at 457a0788. |
