@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- shared-mime-info for NoteCraft pages. A .notecraft file is markdown with a canvas block at
+     the end (docs/markdown.md), so it is a subclass of text/markdown: any markdown editor is a
+     valid fallback. text/markdown itself ships with shared-mime-info and is not redefined. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-notecraft">
+    <comment>NoteCraft page</comment>
+    <sub-class-of type="text/markdown"/>
+    <generic-icon name="text-x-generic"/>
+    <glob pattern="*.notecraft"/>
+  </mime-type>
+</mime-info>

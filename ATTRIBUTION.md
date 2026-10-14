@@ -12,7 +12,7 @@ Rules (from [AGENTS.md](AGENTS.md) section 1):
 
 | Path | Author | Source | License | Notes |
 |---|---|---|---|---|
-| (none yet) | | | | Rows are added as assets land, starting in Phase 0 |
+| `assets/app-icon/` | The NoteCraft Contributors | Original; every file is rendered from `notecraft.svg` by `packaging/icons.sh` | MIT OR Apache-2.0 | App icon (README in the folder) |
 
 ## Third-party code
 
@@ -20,4 +20,5 @@ Rust dependencies are tracked in `Cargo.lock`; only crates under MIT, Apache-2.0
 
 | Path | Origin | License | Notes |
 |---|---|---|---|
+| `packaging/` | Scripts, WiX installer, Linux and macOS metadata adapted from [GridCraft](https://github.com/storytold/gridcraft) `packaging/`. Copyright (c) 2026 ArtCraft Team and the GridCraft contributors | MIT OR Apache-2.0 | Renamed for NoteCraft; new MSI GUIDs; file types, descriptions, and links rewritten; GridCraft DMG artwork not included |
 | `xtask/src/` | Command layout, process helpers, and CI step summary adapted from the [GridCraft](https://github.com/storytold/gridcraft) xtask. Copyright (c) 2026 ArtCraft Team and the GridCraft contributors | MIT OR Apache-2.0 | Rewritten for NoteCraft; no code copied verbatim |

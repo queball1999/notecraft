@@ -1,6 +1,6 @@
 # Releasing
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: contract implemented; version info, MSI identity, file types, and DMG notes recorded.
 
 NoteCraft releases exactly the way DeckCraft, GridCraft, and WordCraft do: pushing to the `release` branch runs the shared release workflow in [storytold/craft-common-actions](https://github.com/storytold/craft-common-actions), which builds, signs, notarizes, packages, and drafts a GitHub Release. NoteCraft's own `.github/workflows/release.yml` is a thin caller.
 
@@ -64,9 +64,16 @@ The shared workflow expects these in every craft app. Phase -1 creates them (bui
 | Binaries `notecraft` and `notecraft-cli` | names the workflow copies and checks |
 | Output in `dist/release/` | what the workflow uploads |
 
-Copy the scripts from GridCraft or DeckCraft and change names, ids, and paths; do not write them from scratch. `packaging-lint.yml` runs shellcheck, PowerShell analysis, and AppStream checks on them.
+The scripts are adapted from GridCraft (ATTRIBUTION.md). `packaging-lint.yml` runs shellcheck, PowerShell analysis, and AppStream checks on them.
 
-Version strings: the shared workflow exports generic `VERSION`, `BUILD_DATE`, and `BUILD_SHA`, plus app-prefixed copies for apps it lists. NoteCraft is not listed yet, so `notecraft`'s `build.rs` reads the generic names. Optionally, open a PR on craft-common-actions to add `NOTECRAFT_*` entries; that is a change to a shared repo and needs the maintainer's go-ahead.
+Version strings: `packaging/env.sh` and `package.ps1` export `NOTECRAFT_BUILD_SHA` and `NOTECRAFT_BUILD_DATE` themselves, so the shared workflow does not need a NoteCraft entry. `apps/notecraft/build_info.rs` (used by both binaries) reads those, then the workflow's generic `BUILD_SHA` and `BUILD_DATE`, then `git` and the clock, and embeds them; `--version` prints `NoteCraft <version> (<sha>, <date>)`.
+
+NoteCraft-specific choices in the adapted files:
+
+- MSI: new `UpgradeCode` (27ECD2DC-C5B0-4E04-987E-7A24F50DB30A) and component GUIDs, never shared with another app. Manufacturer is The NoteCraft Contributors. `.notecraft` opens in NoteCraft by default; `.md` is only offered under Open with.
+- Linux: MIME type `application/x-notecraft` (a subclass of `text/markdown`) for `*.notecraft`; the desktop entry also lists `text/markdown`. The deb/rpm maintainer defaults to the placeholder `maintainers@notecraft.invalid`; set `NOTECRAFT_MAINTAINER` to a real address before publishing packages.
+- macOS: exported type `ai.storyteller.notecraft.page` (rank Owner) and markdown (rank Alternate). The DMG is a plain window with the app and an Applications link; GridCraft's DMG background and layout were not reused, and the script picks up `packaging/macos/dmg/background.tiff` and `dmg-layout.DS_Store` if NoteCraft ever adds its own.
+- Icons: original artwork in `assets/app-icon/` (README there); `packaging/icons.sh` renders every size with resvg and packs the `.ico` and `.icns` with `cargo xtask ico` and `cargo xtask icns`, so it runs on any OS.
 
 ## 5. Secrets
 
@@ -100,3 +107,4 @@ Set in the repo's `release` environment, same names as the related craft apps:
 |---|---|---|
 | 2026-10-14 | -1 | Created. Release branch flow, shared workflow outputs, packaging contract, secrets, app identity. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | Contract implemented; version info, MSI identity, file types, and DMG notes recorded. |

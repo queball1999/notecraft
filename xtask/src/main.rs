@@ -15,10 +15,12 @@
 
 mod assets;
 mod ci;
+mod icons;
 mod layers;
 mod parity;
 mod text;
 mod util;
+mod version;
 mod wasm;
 
 use std::process::ExitCode;
@@ -37,6 +39,11 @@ commands:
   parity [--check]
             regenerate the parity checklist summary (--check: fail if stale) and
             check build plan hour totals against ROADMAP.md
+  version [set X.Y.Z[-pre]]
+            print or set the workspace version (also refreshes Cargo.lock)
+  ico <out.ico> <in.png>...
+  icns <out.icns> <in.png>...
+            pack rendered PNGs into app icons (see packaging/icons.sh)
 ";
 
 fn main() -> ExitCode {
@@ -50,6 +57,13 @@ fn main() -> ExitCode {
         Some("parity") => {
             let rest: Vec<&str> = args.iter().skip(1).map(String::as_str).collect();
             parity::run(&util::root(), &rest)
+        }
+        Some(cmd @ ("version" | "ico" | "icns")) => {
+            let rest: Vec<&str> = args.iter().skip(1).map(String::as_str).collect();
+            match cmd {
+                "version" => version::run(&util::root(), &rest),
+                kind => icons::run(kind, &rest),
+            }
         }
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");

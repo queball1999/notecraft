@@ -14,3 +14,7 @@ workspace = true
 
 [dependencies]
 notecraft-ui-egui.workspace = true
+
+[build-dependencies]
+# Icon and VERSIONINFO for notecraft.exe; build.rs only uses it when the target is Windows.
+winresource = "0.1"
