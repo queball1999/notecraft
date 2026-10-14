@@ -565,6 +565,147 @@ const INSERT_GROUPS: &[Group] = &[
     },
 ];
 
+// Draw tab
+
+const PENS: &[Item] = &[
+    Item::new("Black Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 1.0)]),
+    Item::new("Blue Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)]),
+    Item::new("Red Pen", ids::DRAW_PEN).args(&[str_arg("color", "#C62828"), num_arg("width", 1.0)]),
+    Item::new("Green Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#2E7D32"), num_arg("width", 1.0)]),
+    Item::new("Thick Black Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 3.5)]),
+];
+
+const HIGHLIGHTERS: &[Item] = &[
+    Item::new("Yellow Highlighter", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#FFF176"), num_arg("width", 8.0)]),
+    Item::new("Green Highlighter", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#A5D6A7"), num_arg("width", 8.0)]),
+    Item::new("Pink Highlighter", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#F48FB1"), num_arg("width", 8.0)]),
+    Item::new("Turquoise Highlighter", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#80DEEA"), num_arg("width", 8.0)]),
+];
+
+const ERASERS: &[Item] = &[
+    Item::new("Stroke Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "stroke")]),
+    Item::new("Point Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "point")]),
+];
+
+const INK_COLORS: &[Item] = &[
+    Item::new("Black", ids::DRAW_COLOR).args(&[str_arg("color", "#1F1F1F")]),
+    Item::new("Blue", ids::DRAW_COLOR).args(&[str_arg("color", "#1565C0")]),
+    Item::new("Red", ids::DRAW_COLOR).args(&[str_arg("color", "#C62828")]),
+    Item::new("Green", ids::DRAW_COLOR).args(&[str_arg("color", "#2E7D32")]),
+    Item::new("Orange", ids::DRAW_COLOR).args(&[str_arg("color", "#EF6C00")]),
+    Item::new("Purple", ids::DRAW_COLOR).args(&[str_arg("color", "#6A1B9A")]),
+];
+
+const INK_WIDTHS: &[Item] = &[
+    Item::new("0.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 0.5)]),
+    Item::new("1 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 1.0)]),
+    Item::new("2 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 2.0)]),
+    Item::new("3.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 3.5)]),
+    Item::new("5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 5.0)]),
+];
+
+const SHAPE_KINDS: &[Item] = &[
+    Item::new("Line", ids::DRAW_SHAPE).args(&[str_arg("kind", "line")]),
+    Item::new("Arrow", ids::DRAW_SHAPE).args(&[str_arg("kind", "arrow")]),
+    Item::new("Double Arrow", ids::DRAW_SHAPE).args(&[str_arg("kind", "double_arrow")]),
+    Item::new("Rectangle", ids::DRAW_SHAPE).args(&[str_arg("kind", "rectangle")]),
+    Item::new("Ellipse", ids::DRAW_SHAPE).args(&[str_arg("kind", "ellipse")]),
+    Item::new("Triangle", ids::DRAW_SHAPE).args(&[str_arg("kind", "triangle")]),
+    Item::new("Diamond", ids::DRAW_SHAPE).args(&[str_arg("kind", "diamond")]),
+    Item::new("Parallelogram", ids::DRAW_SHAPE).args(&[str_arg("kind", "parallelogram")]),
+    Item::new("Graph Axes", ids::DRAW_SHAPE).args(&[str_arg("kind", "graph_axes")]),
+];
+
+const ARRANGE: &[Item] = &[
+    Item::new("Bring to Front", ids::DRAW_BRING_TO_FRONT),
+    Item::new("Bring Forward", ids::DRAW_BRING_FORWARD),
+    Item::new("Send Backward", ids::DRAW_SEND_BACKWARD),
+    Item::new("Send to Back", ids::DRAW_SEND_TO_BACK),
+];
+
+const ROTATE: &[Item] = &[
+    Item::new("Rotate Right 90", ids::DRAW_ROTATE_RIGHT),
+    Item::new("Rotate Left 90", ids::DRAW_ROTATE_LEFT),
+    Item::new("Flip Horizontal", ids::DRAW_FLIP_HORIZONTAL),
+    Item::new("Flip Vertical", ids::DRAW_FLIP_VERTICAL),
+];
+
+const DRAW_GROUPS: &[Group] = &[
+    Group {
+        name: "Tools",
+        columns: &[
+            Column::Stack(&[
+                Button::small("Type", Icon::TypeTool, ids::DRAW_TYPE),
+                Button::small("Lasso Select", Icon::Lasso, ids::DRAW_LASSO),
+                Button::small("Panning Hand", Icon::PanHand, ids::DRAW_PAN),
+            ]),
+            Column::Large(Button::large("Eraser", Icon::Eraser, ids::DRAW_ERASER).split(ERASERS)),
+            Column::Large(Button::large("Pen", Icon::Pen, ids::DRAW_PEN).split(PENS)),
+            Column::Large(
+                Button::large("Highlighter", Icon::Highlighter, ids::DRAW_HIGHLIGHTER)
+                    .split(HIGHLIGHTERS),
+            ),
+            Column::Stack(&[
+                Button::small("Color", Icon::Color, ids::DRAW_COLOR).dropdown(INK_COLORS),
+                Button::small("Thickness", Icon::Thickness, ids::DRAW_THICKNESS)
+                    .dropdown(INK_WIDTHS),
+                Button::small("Ruler", Icon::Ruler, ids::DRAW_RULER),
+            ]),
+        ],
+    },
+    Group {
+        name: "Shapes",
+        columns: &[Column::Large(
+            Button::large("Shapes", Icon::Shapes, ids::DRAW_SHAPE).dropdown(SHAPE_KINDS),
+        )],
+    },
+    Group {
+        name: "Edit",
+        columns: &[
+            Column::Large(Button::large(
+                "Insert Space",
+                Icon::InsertSpace,
+                ids::INSERT_SPACE,
+            )),
+            Column::Large(Button::large("Delete", Icon::Delete, ids::EDIT_DELETE)),
+            Column::Large(
+                Button::large("Arrange", Icon::Arrange, ids::DRAW_BRING_TO_FRONT).dropdown(ARRANGE),
+            ),
+            Column::Large(
+                Button::large("Rotate", Icon::Rotate, ids::DRAW_ROTATE_RIGHT).dropdown(ROTATE),
+            ),
+        ],
+    },
+    Group {
+        name: "Convert",
+        columns: &[
+            Column::Large(Button::large(
+                "Ink to Shape",
+                Icon::InkToShape,
+                ids::DRAW_INK_TO_SHAPE,
+            )),
+            Column::Large(Button::large(
+                "Ink to Text",
+                Icon::InkToText,
+                ids::DRAW_INK_TO_TEXT,
+            )),
+            Column::Large(Button::large(
+                "Ink to Math",
+                Icon::InkToMath,
+                ids::DRAW_INK_TO_MATH,
+            )),
+        ],
+    },
+];
+
 /// Every ribbon tab, in OneNote order.
 pub static TABS: &[Tab] = &[
     Tab {
@@ -578,6 +719,10 @@ pub static TABS: &[Tab] = &[
     Tab {
         name: "Insert",
         kind: TabKind::Groups(INSERT_GROUPS),
+    },
+    Tab {
+        name: "Draw",
+        kind: TabKind::Groups(DRAW_GROUPS),
     },
 ];
 

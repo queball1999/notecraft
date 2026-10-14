@@ -5,6 +5,7 @@
 
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke};
 
+mod draw;
 mod home;
 mod insert;
 
@@ -87,6 +88,23 @@ icons! {
     PageTemplate => |p, _| insert::page_template(p);
     Equation => |p, _| insert::equation(p);
     Symbol => |p, _| insert::symbol(p);
+    // Draw
+    TypeTool => |p, _| draw::type_tool(p);
+    Lasso => |p, _| draw::lasso(p);
+    PanHand => |p, _| draw::pan_hand(p);
+    Pen => |p, c| draw::pen(p, c.accent);
+    Highlighter => |p, c| draw::highlighter(p, c.accent);
+    Eraser => |p, _| draw::eraser(p);
+    Color => |p, c| draw::color(p, c.accent);
+    Thickness => |p, _| draw::thickness(p);
+    Ruler => |p, _| draw::ruler(p);
+    Shapes => |p, _| draw::shapes(p);
+    Delete => |p, _| draw::delete(p);
+    Arrange => |p, _| draw::arrange(p);
+    Rotate => |p, _| draw::rotate(p);
+    InkToShape => |p, _| draw::ink_to_shape(p);
+    InkToText => |p, _| draw::ink_to_text(p);
+    InkToMath => |p, _| draw::ink_to_math(p);
 }
 
 /// Colors an icon may use besides its main color.
