@@ -9,5 +9,13 @@
 )]
 #![forbid(unsafe_code)]
 
+pub mod notebook;
+pub mod page;
+pub mod section;
+
+pub use notebook::Notebook;
+pub use page::PageRef;
+pub use section::{Section, SectionGroup, SectionNode};
+
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 2;
