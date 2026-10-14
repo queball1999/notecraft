@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.5 split into 0.5a and 0.5b.
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
 
@@ -197,6 +197,8 @@ PR title: `feat(ui): add the ribbon with every tab and button`. Screenshots: eac
 
 If the diff passes 1,000 lines, split into 0.5a (widget, icons, File, Home) and 0.5b (other tabs).
 
+Split applied: PR 0.5a (PR #9, about 1,800 lines) landed commits 1 to 4 and 9 for the File and Home tabs, with the icons and the widget in one commit each. PR 0.5b covers commits 5 to 8 (Insert, Draw, History, Review, and View tabs with their icons, collapse, and key tips) and extends the command-mapping test to the new tabs. The 60-100 hour estimate covers both. Step 5 (the Coming Soon badge) was dropped at the maintainer's request: with almost every command Coming Soon, a pill on each button was noise. The tooltip and the toast say Coming Soon instead.
+
 ## PR 0.6: sidebar, section tabs, page list
 
 | | |
@@ -375,3 +377,4 @@ Follow 00-conventions.md section 6. Also:
 |---|---|---|
 | 2026-10-14 | -1 | Created. Command palette and the Graph and Plugins tabs moved to docs/post-parity.md. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | 0 | PR 0.5 split into 0.5a (widget, icons, File, Home) and 0.5b (other tabs, collapse, key tips). |
