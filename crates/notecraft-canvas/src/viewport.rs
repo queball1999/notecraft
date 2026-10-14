@@ -151,10 +151,10 @@ impl Viewport {
     }
 
     /// The page area on screen for a canvas of `size` screen points: top-left and
-    /// bottom-right corners, in page units.
+    /// bottom-right corners, in page units. Sizes are clamped to [0, `MAX_COORD`].
     pub fn visible_page(&self, size: Vec2) -> (Vec2, Vec2) {
         let size = size.finite_or_zero();
-        let size = Vec2::new(size.x.max(0.0), size.y.max(0.0));
+        let size = Vec2::new(size.x.clamp(0.0, MAX_COORD), size.y.clamp(0.0, MAX_COORD));
         (self.origin, self.screen_to_page(size))
     }
 }
