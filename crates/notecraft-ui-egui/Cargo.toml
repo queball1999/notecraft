@@ -14,3 +14,8 @@ workspace = true
 [dependencies]
 notecraft-core.workspace = true
 notecraft-engine.workspace = true
+egui.workspace = true
+craft-ui.workspace = true
+
+[dev-dependencies]
+egui_kittest.workspace = true
