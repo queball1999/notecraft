@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-01 scored P (window opens; Windows verified).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-03 and SH-04 scored P (command registry and Coming Soon toast).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -18,7 +18,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Area | D | P | M | Total | Done % |
 |---|---:|---:|---:|---:|---:|
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
-| Shell | 0 | 1 | 19 | 20 | 0% |
+| Shell | 0 | 3 | 17 | 20 | 0% |
 | Themes | 0 | 0 | 6 | 6 | 0% |
 | Canvas | 0 | 0 | 12 | 12 | 0% |
 | Ink | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +28,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 10 | 1 | 102 | 113 | 8% |
+| Total | 10 | 3 | 100 | 113 | 8% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -52,8 +52,8 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 |---|---|---|---|---|---|
 | SH-01 | Shell | Window opens on wgpu (DX12, Metal, Vulkan) | 0 | P | PR 0.1: window opens on wgpu (Windows DX12 verified; macOS and Linux launches to verify); geometry saved through craft-settings |
 | SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | M | |
-| SH-03 | Shell | Every ribbon button bound to a command id | 0 | M | |
-| SH-04 | Shell | "Coming Soon" badge and toast for unimplemented commands | 0 | M | |
+| SH-03 | Shell | Every ribbon button bound to a command id | 0 | P | PR 0.2: command registry with ids, labels, argument schemas, and shortcuts for all 118 Phase 0 ribbon and shortcut commands (Coming Soon); ids unit-tested (unique, pattern, labels); buttons bind to them in PR 0.5 |
+| SH-04 | Shell | "Coming Soon" badge and toast for unimplemented commands | 0 | P | PR 0.2: Registry::run returns a coming_soon error and AppShell::dispatch shows "Coming Soon: <label>" for 3 s (egui_kittest test); the badge on ribbon buttons lands in PR 0.5 |
 | SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | M | |
 | SH-06 | Shell | Navigation: notebook list | 0 | M | |
 | SH-07 | Shell | Section tabs with colors | 0 | M | |
@@ -213,3 +213,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | -1 | SC-09 scored D (logging). |
 | 2026-10-14 | -1 | SC-08 and SC-10 scored D; Phase -1 closed. |
 | 2026-10-14 | -1 | SH-01 scored P (window opens; Windows verified). |
+| 2026-10-14 | 0 | SH-03 and SH-04 scored P (command registry and Coming Soon toast). |

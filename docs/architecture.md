@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: section 8: logging implemented in apps/notecraft/src/logging.rs.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: sections 4 and 6: command registry and panic guard implemented.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -88,6 +88,7 @@ The watcher (`notify`) reports a changed page. If NoteCraft has no unsaved edits
 - Each command declares: id, label, description, argument schema (serde), whether it is undoable, whether it is destructive, and its default shortcut.
 - A command not implemented yet is registered with `status = ComingSoon`. The UI shows the badge and a toast; the control channel returns a clear "not implemented" error.
 - Every action being a command is what keeps post-parity options (command palette, CLI, MCP) cheap to add later without touching features.
+- Implemented in `crates/notecraft-engine/src/cmd/` (PR 0.2): `ids.rs` declares every id, `builtin.rs` holds the specs, and `Registry::run(&mut Session, id, args)` checks the JSON arguments and returns errors with stable codes (`not_found`, `coming_soon`, `invalid_args`, `internal`). The egui shell's `AppShell::dispatch` turns an error into a toast.
 
 ## 5. Undo and redo
 
@@ -98,6 +99,7 @@ Each command produces a transaction: a list of reversible model operations. Undo
 - Lints: every `lib.rs` denies `unwrap_used`, `expect_used`, `panic`, `unimplemented`, `todo`, `unreachable`. `unsafe` is forbidden workspace-wide, so OS integrations (pen pressure, spell check, camera) go through safe wrapper crates.
 - Parsers are lenient and bounded (limits in docs/markdown.md section 9). Fuzz targets for the markdown, frontmatter, canvas, and toml parsers land in Phase 1.
 - The command guard wraps each command in `std::panic::catch_unwind`. If a dependency panics anyway, the guard rolls back the transaction, logs the error, and shows a toast. The document stays as it was before the command.
+- Today (PR 0.2) the guard rolls back by restoring a snapshot of the session taken before the command, which is cheap while the session holds no notes. Phase 1 replaces the snapshot with transaction rollback (section 5). A command that returns an error is rolled back the same way.
 - All writes use `craft-atomic`. A crash mid-save leaves the old file intact.
 
 ## 7. Threads
@@ -143,3 +145,4 @@ Other workflows mirror the related craft apps: `printing.yml` (craft-print on al
 | 2026-10-14 | -1 | Section 9: text, assets, and layers gates implemented. |
 | 2026-10-14 | -1 | Section 9: every cargo xtask ci gate implemented. |
 | 2026-10-14 | -1 | Section 8: logging implemented in apps/notecraft/src/logging.rs. |
+| 2026-10-14 | 0 | Sections 4 and 6: command registry and panic guard implemented (PR 0.2). |

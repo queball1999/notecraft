@@ -10,8 +10,10 @@
 #![forbid(unsafe_code)]
 
 mod app_shell;
+pub mod toast;
 
 pub use app_shell::{AppShell, REGIONS};
+pub use toast::Toasts;
 
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 6;
