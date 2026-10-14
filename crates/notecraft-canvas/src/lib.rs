@@ -9,8 +9,10 @@
 )]
 #![forbid(unsafe_code)]
 
+pub mod paper;
 pub mod viewport;
 
+pub use paper::{PaperSize, RuleKind, RuleLines};
 pub use viewport::Viewport;
 
 /// Layer number, read by `cargo xtask layers`.
