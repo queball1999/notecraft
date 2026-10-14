@@ -2,7 +2,7 @@
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
-use super::{ids, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler};
+use super::{ids, layout, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler};
 
 const FONT_FAMILY_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "name",
@@ -658,7 +658,8 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Collapse the Ribbon",
         "Show only the ribbon tab names.",
     )
-    .shortcut("Ctrl+F1"),
+    .shortcut("Ctrl+F1")
+    .ready(),
     CommandSpec::new(
         ids::VIEW_PAGE_COLOR,
         "Page Color",
@@ -734,6 +735,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_THEME_SET, theme::theme_set),
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
+    (ids::VIEW_RIBBON_TOGGLE, layout::ribbon_toggle),
 ];
 
 /// The handler for `id`, if it has one.
