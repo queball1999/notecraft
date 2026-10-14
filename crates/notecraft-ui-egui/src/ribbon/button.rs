@@ -19,15 +19,14 @@ const LABEL_SIZE: f32 = 12.0;
 /// Large labels wrap onto a second line beyond this width.
 const LARGE_WRAP: f32 = 72.0;
 
-/// Button colors for the ribbon, from the theme tokens.
+/// Button colors for the ribbon, from the theme tokens. At rest a button has no fill of its
+/// own, so it sits on the ribbon background; hover and press fill it. Raised buttons keep a
+/// border at rest.
 pub(crate) fn style(t: &ThemeTokens) -> IconButtonStyle {
-    let (rest_fill, rest_stroke) = match t.button_style {
-        ButtonStyle::Flat => (Color32::TRANSPARENT, Stroke::NONE),
-        ButtonStyle::Raised => (
-            mix(t.ribbon_bg, t.ribbon_text, 0.04),
-            Stroke::new(1.0, t.border),
-        ),
-        ButtonStyle::Filled => (mix(t.ribbon_bg, t.ribbon_text, 0.04), Stroke::NONE),
+    let rest_fill = Color32::TRANSPARENT;
+    let rest_stroke = match t.button_style {
+        ButtonStyle::Raised => Stroke::new(1.0, t.border),
+        ButtonStyle::Flat | ButtonStyle::Filled => Stroke::NONE,
     };
     let visuals = |fill, stroke| ButtonVisuals {
         fill,
@@ -160,13 +159,21 @@ fn paint_contents(
                 Vec2::splat(32.0),
             );
             icons::paint(painter, icon, button.icon, colors);
+            let mut arrow = egui::pos2(rect.center().x, rect.max.y - 7.0);
             if let Some(galley) = galley {
                 let size = galley.size();
                 let pos = egui::pos2(rect.center().x - size.x / 2.0, icon.max.y + 4.0);
+                // A two-line label leaves no room under it: the arrow follows the last line.
+                if galley.rows.len() > 1 {
+                    if let Some(last) = galley.rows.last() {
+                        let line = last.rect().translate(pos.to_vec2());
+                        arrow = egui::pos2(line.max.x + 7.0, line.center().y);
+                    }
+                }
                 painter.galley(pos, galley, colors.fg);
             }
             if has_menu {
-                chevron(ui, egui::pos2(rect.center().x, rect.max.y - 7.0), colors.fg);
+                chevron(ui, arrow, colors.fg);
             }
         }
         Size::Small => {
