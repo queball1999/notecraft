@@ -57,7 +57,7 @@ Flat purple ribbon with white text, light gray navigation, square corners, no sh
 
 | Token | Light | Dark |
 |---|---|---|
-| `accent` | `#7B3FA6` | `#9A64C4` |
+| `accent` | `#7B3FA6` | `#915EB8` |
 | `accent_text` | `#FFFFFF` | `#FFFFFF` |
 | `ribbon_bg` | `#F4F1F7` | `#2B2730` |
 | `ribbon_tab_bg` | `#7B3FA6` | `#3A2F45` |

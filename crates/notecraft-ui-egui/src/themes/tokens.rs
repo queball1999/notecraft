@@ -3,7 +3,7 @@
 
 use egui::Color32;
 
-use super::{Mode, Preset};
+use super::{onenote2016, Mode, Preset};
 
 /// How strongly floating surfaces (menus, popups) cast a shadow.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -114,15 +114,15 @@ pub(super) struct Shape {
 impl ThemeTokens {
     /// The tokens for `preset` in light (`dark` false) or dark mode.
     ///
-    /// Until PR 0.4 encodes each preset's palette, every preset uses the Microsoft 365
-    /// values from docs/themes.md section 4 (the default preset).
+    /// Presets without their own module yet (onenote2019, onenote2021, m365) use the Microsoft 365 values.
     pub fn for_variant(preset: Preset, dark: bool) -> Self {
-        let (palette, shape) = match preset {
-            Preset::OneNote2016 | Preset::OneNote2019 | Preset::OneNote2021 | Preset::M365 => {
-                (BASE_PALETTE, BASE_SHAPE)
+        let (light_palette, dark_palette, shape) = match preset {
+            Preset::OneNote2016 => (onenote2016::LIGHT, onenote2016::DARK, onenote2016::SHAPE),
+            Preset::OneNote2019 | Preset::OneNote2021 | Preset::M365 => {
+                (BASE_PALETTE.0, BASE_PALETTE.1, BASE_SHAPE)
             }
         };
-        let palette = if dark { palette.1 } else { palette.0 };
+        let palette = if dark { dark_palette } else { light_palette };
         Self::derive(palette, shape, dark)
     }
 

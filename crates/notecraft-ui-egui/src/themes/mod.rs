@@ -7,6 +7,7 @@
 
 mod apply;
 pub mod contrast;
+mod onenote2016;
 mod tokens;
 
 pub use apply::{install, style};

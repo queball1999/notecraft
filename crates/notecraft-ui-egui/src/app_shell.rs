@@ -105,7 +105,7 @@ impl AppShell {
             .show(ui, |ui| placeholder(ui, "Ribbon"));
         egui::Panel::bottom("status_bar")
             .exact_size(STATUS_HEIGHT)
-            .frame(panel.fill(tokens.ribbon_tab_bg))
+            .frame(panel.fill(tokens.ribbon_bg))
             .show(ui, |ui| placeholder(ui, "Status bar"));
         egui::Panel::left("notebooks")
             .default_size(SIDE_WIDTH)
