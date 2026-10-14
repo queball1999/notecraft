@@ -2,12 +2,15 @@
 //! and a tooltip that says when its command is Coming Soon.
 
 use craft_ui::buttons::{ButtonVisuals, IconButton, IconButtonStyle};
-use egui::{Color32, CornerRadius, FontId, Galley, Popup, Rect, SetOpenCommand, Stroke, Ui, Vec2};
+use egui::{
+    Color32, CornerRadius, FontId, Galley, Popup, PopupCloseBehavior, Rect, SetOpenCommand, Stroke,
+    Ui, Vec2,
+};
 use notecraft_engine::cmd::Status;
 use std::sync::Arc;
 
 use super::spec::{Button, Menu, Size};
-use super::{keytips, Clicked, KeyFrame, Look};
+use super::{keytips, menus, Clicked, KeyFrame, Look};
 use crate::icons::{self, IconColors};
 use crate::themes::{mix, ButtonStyle, ThemeTokens};
 
@@ -55,7 +58,7 @@ pub(super) fn show(
     let tokens = look.tokens;
     let spec = look.registry.get(button.command.as_str());
     let coming_soon = spec.is_none_or(|spec| spec.status == Status::ComingSoon);
-    let has_menu = !matches!(button.menu, Menu::None);
+    let has_menu = !button.menu.is_none();
     let font = FontId::proportional(LABEL_SIZE);
 
     let (size, galley) = match button.size {
@@ -97,27 +100,31 @@ pub(super) fn show(
     // A key tip code presses the button like a click on its main part.
     let by_key = keys.pressed(button);
     let clicked = response.clicked() || by_key;
-    let opens_menu = clicked
-        && match button.menu {
-            Menu::None => false,
-            Menu::Split(_) => on_arrow && !by_key,
-            Menu::Dropdown(_) => true,
-        };
+    let opens_menu = clicked && has_menu && (!button.menu.is_split() || (on_arrow && !by_key));
     if let Some(code) = keys.tip(button) {
         keytips::paint_tip(ui, response.rect.center_bottom(), code, look);
     }
     if clicked && !opens_menu {
         out.push(Clicked::new(button.command, button.args));
     }
-    if has_menu {
-        let toggle = opens_menu.then_some(SetOpenCommand::Toggle);
-        Popup::menu(&response).open_memory(toggle).show(|ui| {
-            for item in button.menu.items() {
-                if ui.button(item.label).clicked() {
-                    out.push(Clicked::new(item.command, item.args));
-                }
-            }
-        });
+    let toggle = opens_menu.then_some(SetOpenCommand::Toggle);
+    // Pickers stay open while the user works in them and close themselves on a choice.
+    let picker = Popup::menu(&response)
+        .open_memory(toggle)
+        .close_behavior(PopupCloseBehavior::CloseOnClickOutside);
+    match button.menu {
+        Menu::None => {}
+        Menu::Split(items) | Menu::Dropdown(items) => {
+            Popup::menu(&response)
+                .open_memory(toggle)
+                .show(|ui| menus::items(ui, items, look, out));
+        }
+        Menu::Colors(colors) => {
+            picker.show(|ui| menus::colors(ui, button.command, &colors, look, out));
+        }
+        Menu::TableGrid => {
+            picker.show(|ui| menus::table_grid(ui, button.command, look, out));
+        }
     }
 
     let mut tip = spec.map_or_else(String::new, |spec| spec.description.to_owned());

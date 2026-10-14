@@ -65,6 +65,17 @@ pub struct Item {
     pub label: &'static str,
     pub command: CommandId,
     pub args: &'static [Arg],
+    pub preview: Preview,
+}
+
+/// What a menu item shows in front of its label.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Preview {
+    None,
+    /// A color swatch, 0xRRGGBB.
+    Color(u32),
+    /// A stroke of this width in points.
+    Width(f32),
 }
 
 impl Item {
@@ -73,6 +84,7 @@ impl Item {
             label,
             command,
             args: &[],
+            preview: Preview::None,
         }
     }
 
@@ -80,6 +92,32 @@ impl Item {
         self.args = args;
         self
     }
+
+    pub const fn color(mut self, rgb: u32) -> Self {
+        self.preview = Preview::Color(rgb);
+        self
+    }
+
+    pub const fn width(mut self, points: f32) -> Self {
+        self.preview = Preview::Width(points);
+        self
+    }
+}
+
+/// A color picker menu: a grid of swatches, an optional "no color" entry, and an optional
+/// custom color. The chosen color goes to the button's command as `arg` = `#RRGGBB`.
+#[derive(Clone, Copy, Debug)]
+pub struct ColorMenu {
+    /// The button runs its command with no color (the last one used) and its arrow opens the
+    /// picker; otherwise the whole button opens the picker.
+    pub split: bool,
+    pub arg: &'static str,
+    pub colors: &'static [u32],
+    pub columns: usize,
+    /// Label and argument value of the "no color" entry, if the command has one.
+    pub none: Option<(&'static str, &'static str)>,
+    /// Offer "More Colors" with a full color picker.
+    pub custom: bool,
 }
 
 /// How a button is drawn.
@@ -101,14 +139,33 @@ pub enum Menu {
     Split(&'static [Item]),
     /// The whole button opens the menu.
     Dropdown(&'static [Item]),
+    /// A color picker.
+    Colors(ColorMenu),
+    /// A grid to pick a table size; runs the button's command with `rows` and `columns`.
+    TableGrid,
 }
 
 impl Menu {
+    /// The fixed menu items; color pickers and the table grid build theirs at run time.
     pub fn items(&self) -> &'static [Item] {
         match self {
-            Self::None => &[],
             Self::Split(items) | Self::Dropdown(items) => items,
+            Self::None | Self::Colors(_) | Self::TableGrid => &[],
         }
+    }
+
+    /// Whether clicking the button's main part runs its command (rather than opening the
+    /// menu).
+    pub fn is_split(&self) -> bool {
+        match self {
+            Self::Split(_) => true,
+            Self::Colors(colors) => colors.split,
+            Self::None | Self::Dropdown(_) | Self::TableGrid => false,
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
     }
 }
 
@@ -161,7 +218,40 @@ impl Button {
         self.menu = Menu::Dropdown(items);
         self
     }
+
+    pub const fn colors(mut self, menu: ColorMenu) -> Self {
+        self.menu = Menu::Colors(menu);
+        self
+    }
+
+    pub const fn table_grid(mut self) -> Self {
+        self.menu = Menu::TableGrid;
+        self
+    }
 }
+
+/// The main color grid: ten hues in five rows (the hue, three lighter tints, and a darker
+/// shade). Original values.
+pub const COLOR_GRID: &[u32] = &[
+    0x1F1F1F, 0x6B6B6B, 0xC62828, 0xE65100, 0xF9A825, 0x2E7D32, 0x00838F, 0x1565C0, 0x4527A0,
+    0xAD1457, 0xD2D2D2, 0xE1E1E1, 0xF4D4D4, 0xFADCCC, 0xFEEED3, 0xD5E5D6, 0xCCE6E9, 0xD0E0F2,
+    0xDAD4EC, 0xEFD0DD, 0xA5A5A5, 0xC4C4C4, 0xE8A9A9, 0xF5B999, 0xFDDCA8, 0xABCBAD, 0x99CDD2,
+    0xA1C1E6, 0xB5A9D9, 0xDEA1BC, 0x6D6D6D, 0x9F9F9F, 0xDA7373, 0xEF8E59, 0xFBC671, 0x77AA7A,
+    0x59AEB6, 0x679BD6, 0x8673C1, 0xCA6692, 0x141414, 0x464646, 0x811A1A, 0x963500, 0xA26D18,
+    0x1E5120, 0x00555D, 0x0E427D, 0x2D1968, 0x700D39,
+];
+
+/// Highlighter colors: light enough to read text through.
+pub const HIGHLIGHT_GRID: &[u32] = &[
+    0xFFF176, 0xA5D6A7, 0x80DEEA, 0xF48FB1, 0x90CAF9, 0xFFCC80, 0xCE93D8, 0xC5E1A5, 0xBCAAA4,
+    0xE0E0E0,
+];
+
+/// Page background colors: soft enough for any ink color on top.
+pub const PAGE_COLOR_GRID: &[u32] = &[
+    0xDCEBF7, 0xE2F0D9, 0xFFF8DC, 0xFBE3EC, 0xECE3F5, 0xFDE9D9, 0xE0F7FA, 0xF1F8E9, 0xFFF3E0,
+    0xEEEEEE,
+];
 
 /// One column of a group.
 #[derive(Clone, Copy, Debug)]
@@ -297,23 +387,6 @@ const FONT_SIZES: &[Item] = &[
     Item::new("72", ids::FORMAT_FONT_SIZE).args(&[num_arg("points", 72.0)]),
 ];
 
-const HIGHLIGHT_COLORS: &[Item] = &[
-    Item::new("Yellow", ids::FORMAT_HIGHLIGHT).args(&[str_arg("color", "#FFF176")]),
-    Item::new("Green", ids::FORMAT_HIGHLIGHT).args(&[str_arg("color", "#A5D6A7")]),
-    Item::new("Turquoise", ids::FORMAT_HIGHLIGHT).args(&[str_arg("color", "#80DEEA")]),
-    Item::new("Pink", ids::FORMAT_HIGHLIGHT).args(&[str_arg("color", "#F48FB1")]),
-    Item::new("No Color", ids::FORMAT_HIGHLIGHT).args(&[str_arg("color", "none")]),
-];
-
-const FONT_COLORS: &[Item] = &[
-    Item::new("Automatic", ids::FORMAT_FONT_COLOR).args(&[str_arg("color", "none")]),
-    Item::new("Red", ids::FORMAT_FONT_COLOR).args(&[str_arg("color", "#C62828")]),
-    Item::new("Orange", ids::FORMAT_FONT_COLOR).args(&[str_arg("color", "#EF6C00")]),
-    Item::new("Green", ids::FORMAT_FONT_COLOR).args(&[str_arg("color", "#2E7D32")]),
-    Item::new("Blue", ids::FORMAT_FONT_COLOR).args(&[str_arg("color", "#1565C0")]),
-    Item::new("Purple", ids::FORMAT_FONT_COLOR).args(&[str_arg("color", "#6A1B9A")]),
-];
-
 const BASIC_TEXT: Group = Group {
     name: "Basic Text",
     columns: &[Column::Rows(&[
@@ -346,8 +419,22 @@ const BASIC_TEXT: Group = Group {
                 Icon::Highlight,
                 ids::FORMAT_HIGHLIGHT,
             )
-            .split(HIGHLIGHT_COLORS),
-            Button::icon("Font Color", Icon::FontColor, ids::FORMAT_FONT_COLOR).split(FONT_COLORS),
+            .colors(ColorMenu {
+                split: true,
+                arg: "color",
+                colors: HIGHLIGHT_GRID,
+                columns: 5,
+                none: Some(("No Color", "none")),
+                custom: true,
+            }),
+            Button::icon("Font Color", Icon::FontColor, ids::FORMAT_FONT_COLOR).colors(ColorMenu {
+                split: true,
+                arg: "color",
+                colors: COLOR_GRID,
+                columns: 10,
+                none: Some(("Automatic", "none")),
+                custom: true,
+            }),
         ],
         &[
             Button::icon("Align Left", Icon::AlignLeft, ids::FORMAT_ALIGN_LEFT),
@@ -437,14 +524,6 @@ const MEETINGS: Group = Group {
 
 // Insert tab
 
-const TABLE_SIZES: &[Item] = &[
-    Item::new("2 x 2 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 2), int_arg("columns", 2)]),
-    Item::new("3 x 3 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 3), int_arg("columns", 3)]),
-    Item::new("4 x 4 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 4), int_arg("columns", 4)]),
-    Item::new("5 x 5 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 5), int_arg("columns", 5)]),
-    Item::new("Insert Table", ids::INSERT_TABLE),
-];
-
 /// Page templates. These are NoteCraft's own templates, named by purpose.
 const TEMPLATES: &[Item] = &[
     Item::new("Blank", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "blank")]),
@@ -479,7 +558,7 @@ const INSERT_GROUPS: &[Group] = &[
     Group {
         name: "Tables",
         columns: &[Column::Large(
-            Button::large("Table", Icon::Table, ids::INSERT_TABLE).dropdown(TABLE_SIZES),
+            Button::large("Table", Icon::Table, ids::INSERT_TABLE).table_grid(),
         )],
     },
     Group {
@@ -571,25 +650,35 @@ const INSERT_GROUPS: &[Group] = &[
 
 const PENS: &[Item] = &[
     Item::new("Black Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 1.0)]),
+        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 1.0)])
+        .color(0x1F1F1F),
     Item::new("Blue Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)]),
-    Item::new("Red Pen", ids::DRAW_PEN).args(&[str_arg("color", "#C62828"), num_arg("width", 1.0)]),
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)])
+        .color(0x1565C0),
+    Item::new("Red Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#C62828"), num_arg("width", 1.0)])
+        .color(0xC62828),
     Item::new("Green Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#2E7D32"), num_arg("width", 1.0)]),
+        .args(&[str_arg("color", "#2E7D32"), num_arg("width", 1.0)])
+        .color(0x2E7D32),
     Item::new("Thick Black Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 3.5)]),
+        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 3.5)])
+        .color(0x1F1F1F),
 ];
 
 const HIGHLIGHTERS: &[Item] = &[
     Item::new("Yellow Highlighter", ids::DRAW_HIGHLIGHTER)
-        .args(&[str_arg("color", "#FFF176"), num_arg("width", 8.0)]),
+        .args(&[str_arg("color", "#FFF176"), num_arg("width", 8.0)])
+        .color(0xFFF176),
     Item::new("Green Highlighter", ids::DRAW_HIGHLIGHTER)
-        .args(&[str_arg("color", "#A5D6A7"), num_arg("width", 8.0)]),
+        .args(&[str_arg("color", "#A5D6A7"), num_arg("width", 8.0)])
+        .color(0xA5D6A7),
     Item::new("Pink Highlighter", ids::DRAW_HIGHLIGHTER)
-        .args(&[str_arg("color", "#F48FB1"), num_arg("width", 8.0)]),
+        .args(&[str_arg("color", "#F48FB1"), num_arg("width", 8.0)])
+        .color(0xF48FB1),
     Item::new("Turquoise Highlighter", ids::DRAW_HIGHLIGHTER)
-        .args(&[str_arg("color", "#80DEEA"), num_arg("width", 8.0)]),
+        .args(&[str_arg("color", "#80DEEA"), num_arg("width", 8.0)])
+        .color(0x80DEEA),
 ];
 
 const ERASERS: &[Item] = &[
@@ -597,21 +686,22 @@ const ERASERS: &[Item] = &[
     Item::new("Point Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "point")]),
 ];
 
-const INK_COLORS: &[Item] = &[
-    Item::new("Black", ids::DRAW_COLOR).args(&[str_arg("color", "#1F1F1F")]),
-    Item::new("Blue", ids::DRAW_COLOR).args(&[str_arg("color", "#1565C0")]),
-    Item::new("Red", ids::DRAW_COLOR).args(&[str_arg("color", "#C62828")]),
-    Item::new("Green", ids::DRAW_COLOR).args(&[str_arg("color", "#2E7D32")]),
-    Item::new("Orange", ids::DRAW_COLOR).args(&[str_arg("color", "#EF6C00")]),
-    Item::new("Purple", ids::DRAW_COLOR).args(&[str_arg("color", "#6A1B9A")]),
-];
-
 const INK_WIDTHS: &[Item] = &[
-    Item::new("0.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 0.5)]),
-    Item::new("1 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 1.0)]),
-    Item::new("2 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 2.0)]),
-    Item::new("3.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 3.5)]),
-    Item::new("5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 5.0)]),
+    Item::new("0.5 pt", ids::DRAW_THICKNESS)
+        .args(&[num_arg("width", 0.5)])
+        .width(0.5),
+    Item::new("1 pt", ids::DRAW_THICKNESS)
+        .args(&[num_arg("width", 1.0)])
+        .width(1.0),
+    Item::new("2 pt", ids::DRAW_THICKNESS)
+        .args(&[num_arg("width", 2.0)])
+        .width(2.0),
+    Item::new("3.5 pt", ids::DRAW_THICKNESS)
+        .args(&[num_arg("width", 3.5)])
+        .width(3.5),
+    Item::new("5 pt", ids::DRAW_THICKNESS)
+        .args(&[num_arg("width", 5.0)])
+        .width(5.0),
 ];
 
 const SHAPE_KINDS: &[Item] = &[
@@ -656,7 +746,14 @@ const DRAW_GROUPS: &[Group] = &[
                     .split(HIGHLIGHTERS),
             ),
             Column::Stack(&[
-                Button::small("Color", Icon::Color, ids::DRAW_COLOR).dropdown(INK_COLORS),
+                Button::small("Color", Icon::Color, ids::DRAW_COLOR).colors(ColorMenu {
+                    split: false,
+                    arg: "color",
+                    colors: COLOR_GRID,
+                    columns: 10,
+                    none: None,
+                    custom: true,
+                }),
                 Button::small("Thickness", Icon::Thickness, ids::DRAW_THICKNESS)
                     .dropdown(INK_WIDTHS),
                 Button::small("Ruler", Icon::Ruler, ids::DRAW_RULER),
@@ -819,16 +916,6 @@ const REVIEW_GROUPS: &[Group] = &[
 
 // View tab
 
-const PAGE_COLORS: &[Item] = &[
-    Item::new("No Color", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "none")]),
-    Item::new("Blue", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#DCEBF7")]),
-    Item::new("Green", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#E2F0D9")]),
-    Item::new("Yellow", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#FFF8DC")]),
-    Item::new("Pink", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#FBE3EC")]),
-    Item::new("Purple", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#ECE3F5")]),
-    Item::new("Gray", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#EEEEEE")]),
-];
-
 const RULE_LINES: &[Item] = &[
     Item::new("None", ids::VIEW_RULE_LINES).args(&[str_arg("style", "none")]),
     Item::new("Narrow Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "narrow")]),
@@ -896,8 +983,16 @@ const VIEW_GROUPS: &[Group] = &[
         name: "Page Setup",
         columns: &[
             Column::Large(
-                Button::large("Page Color", Icon::PageColor, ids::VIEW_PAGE_COLOR)
-                    .dropdown(PAGE_COLORS),
+                Button::large("Page Color", Icon::PageColor, ids::VIEW_PAGE_COLOR).colors(
+                    ColorMenu {
+                        split: false,
+                        arg: "color",
+                        colors: PAGE_COLOR_GRID,
+                        columns: 5,
+                        none: Some(("No Color", "none")),
+                        custom: true,
+                    },
+                ),
             ),
             Column::Large(
                 Button::large("Rule Lines", Icon::RuleLines, ids::VIEW_RULE_LINES)
@@ -1001,21 +1096,50 @@ mod tests {
 
     /// What a click sends: the commands of buttons that run their own command, and of
     /// every menu item and backstage entry. A dropdown button only opens its menu.
-    fn dispatched() -> Vec<(&'static str, CommandId, &'static [Arg])> {
+    fn dispatched() -> Vec<(&'static str, CommandId, Vec<Arg>)> {
         let mut out = Vec::new();
         for tab in TABS {
             match tab.kind {
                 TabKind::Backstage(items) => {
-                    out.extend(items.iter().map(|i| (i.label, i.command, i.args)));
+                    out.extend(items.iter().map(|i| (i.label, i.command, i.args.to_vec())));
                 }
                 TabKind::Groups(groups) => {
                     for group in groups {
                         for button in group.buttons() {
-                            if !matches!(button.menu, Menu::Dropdown(_)) {
-                                out.push((button.label, button.command, button.args));
+                            if button.menu.is_none() || button.menu.is_split() {
+                                out.push((button.label, button.command, button.args.to_vec()));
                             }
                             let items = button.menu.items();
-                            out.extend(items.iter().map(|i| (i.label, i.command, i.args)));
+                            out.extend(items.iter().map(|i| (i.label, i.command, i.args.to_vec())));
+                            match button.menu {
+                                Menu::Colors(colors) => {
+                                    for &rgb in colors.colors {
+                                        let value: &'static str =
+                                            Box::leak(format!("#{rgb:06X}").into_boxed_str());
+                                        out.push((
+                                            button.label,
+                                            button.command,
+                                            vec![str_arg(colors.arg, value)],
+                                        ));
+                                    }
+                                    if let Some((_, none)) = colors.none {
+                                        out.push((
+                                            button.label,
+                                            button.command,
+                                            vec![str_arg(colors.arg, none)],
+                                        ));
+                                    }
+                                }
+                                Menu::TableGrid => {
+                                    out.push((
+                                        button.label,
+                                        button.command,
+                                        vec![int_arg("rows", 3), int_arg("columns", 4)],
+                                    ));
+                                    out.push((button.label, button.command, Vec::new()));
+                                }
+                                Menu::None | Menu::Split(_) | Menu::Dropdown(_) => {}
+                            }
                         }
                     }
                 }
@@ -1071,7 +1195,7 @@ mod tests {
         let registry = Registry::builtin();
         for (label, command, args) in dispatched() {
             let spec = registry.get(command.as_str()).unwrap();
-            check_args(label, spec, args);
+            check_args(label, spec, &args);
         }
     }
 
@@ -1097,6 +1221,16 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn color_grids_are_full_and_distinct() {
+        assert_eq!(COLOR_GRID.len(), 50);
+        for grid in [COLOR_GRID, HIGHLIGHT_GRID, PAGE_COLOR_GRID] {
+            let unique: BTreeSet<u32> = grid.iter().copied().collect();
+            assert_eq!(unique.len(), grid.len());
+            assert!(grid.iter().all(|&rgb| rgb <= 0xFF_FF_FF));
         }
     }
 
