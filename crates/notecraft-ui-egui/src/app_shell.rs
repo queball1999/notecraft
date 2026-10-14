@@ -228,6 +228,37 @@ mod tests {
     }
 
     #[test]
+    fn view_tab_switches_the_theme_with_no_toast() {
+        let mut shell = AppShell::new();
+        shell.set_theme(Preset::M365, Mode::Light);
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("View").click();
+        harness.run();
+        assert_eq!(harness.state().ribbon().selected(), "View");
+        harness.get_by_label("Dark Mode").click();
+        harness.run();
+        assert_eq!(harness.ctx.theme(), egui::Theme::Dark);
+        assert_eq!(harness.state().session().view().theme_mode, Mode::Dark);
+        assert!(harness.state().toasts().is_empty());
+    }
+
+    #[test]
+    fn every_tab_draws_in_every_preset() {
+        for preset in Preset::ALL {
+            let mut shell = AppShell::new();
+            shell.set_theme(preset, Mode::Dark);
+            let mut harness = harness(shell, WINDOW);
+            harness.run();
+            for tab in ["Home", "Insert", "Draw", "History", "Review", "View"] {
+                harness.get_by_label(tab).click();
+                harness.run();
+                assert_eq!(harness.state().ribbon().selected(), tab);
+            }
+        }
+    }
+
+    #[test]
     fn file_opens_the_backstage_and_back_closes_it() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();

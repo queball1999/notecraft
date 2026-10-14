@@ -8,6 +8,8 @@ use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke};
 mod draw;
 mod home;
 mod insert;
+mod review;
+mod view;
 
 /// Declares [`Icon`], [`Icon::ALL`], and the dispatch from each icon to its drawing.
 macro_rules! icons {
@@ -105,6 +107,40 @@ icons! {
     InkToShape => |p, _| draw::ink_to_shape(p);
     InkToText => |p, _| draw::ink_to_text(p);
     InkToMath => |p, _| draw::ink_to_math(p);
+    // History
+    NextUnread => |p, c| review::next_unread(p, c.accent);
+    MarkRead => |p, _| review::mark_read(p);
+    ShowUnread => |p, c| review::show_unread(p, c.accent);
+    FindByAuthor => |p, _| review::find_by_author(p);
+    HideAuthors => |p, _| review::hide_authors(p);
+    PageVersions => |p, _| review::page_versions(p);
+    RecycleBin => |p, _| review::recycle_bin(p);
+    RecentEdits => |p, _| review::recent_edits(p);
+    // Review
+    Spelling => |p, _| review::spelling(p);
+    Thesaurus => |p, _| review::thesaurus(p);
+    Language => |p, _| review::language(p);
+    Password => |p, _| review::password(p);
+    LockAll => |p, _| review::lock_all(p);
+    LinkedNotes => |p, _| review::linked_notes(p);
+    // View
+    NormalView => |p, _| view::normal_view(p);
+    FullPage => |p, _| view::full_page(p);
+    Dock => |p, _| view::dock(p);
+    Navigation => |p, _| view::navigation(p);
+    PageColor => |p, c| view::page_color(p, c.accent);
+    RuleLines => |p, _| view::rule_lines(p);
+    HideTitle => |p, _| view::hide_title(p);
+    PaperSize => |p, _| view::paper_size(p);
+    ZoomIn => |p, _| view::zoom_in(p);
+    ZoomOut => |p, _| view::zoom_out(p);
+    Zoom => |p, _| view::zoom(p);
+    ZoomActual => |p, _| view::zoom_actual(p);
+    PageWidth => |p, _| view::page_width(p);
+    NewWindow => |p, _| view::new_window(p);
+    NewDockedWindow => |p, _| view::new_docked_window(p);
+    Theme => |p, c| view::theme(p, c.accent);
+    DarkMode => |p, _| view::dark_mode(p);
 }
 
 /// Colors an icon may use besides its main color.

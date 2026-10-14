@@ -706,6 +706,250 @@ const DRAW_GROUPS: &[Group] = &[
     },
 ];
 
+// History tab
+
+const HISTORY_GROUPS: &[Group] = &[
+    Group {
+        name: "Unread",
+        columns: &[
+            Column::Large(Button::large(
+                "Next Unread",
+                Icon::NextUnread,
+                ids::HISTORY_NEXT_UNREAD,
+            )),
+            Column::Stack(&[
+                Button::small("Mark as Read", Icon::MarkRead, ids::HISTORY_MARK_READ),
+                Button::small(
+                    "Show Unread Changes",
+                    Icon::ShowUnread,
+                    ids::HISTORY_SHOW_UNREAD,
+                ),
+            ]),
+        ],
+    },
+    Group {
+        name: "Authors",
+        columns: &[
+            Column::Large(Button::large(
+                "Find by Author",
+                Icon::FindByAuthor,
+                ids::HISTORY_FIND_BY_AUTHOR,
+            )),
+            Column::Large(Button::large(
+                "Hide Authors",
+                Icon::HideAuthors,
+                ids::HISTORY_HIDE_AUTHORS,
+            )),
+        ],
+    },
+    Group {
+        name: "History",
+        columns: &[
+            Column::Large(Button::large(
+                "Page Versions",
+                Icon::PageVersions,
+                ids::HISTORY_PAGE_VERSIONS,
+            )),
+            Column::Large(Button::large(
+                "Notebook Recycle Bin",
+                Icon::RecycleBin,
+                ids::HISTORY_RECYCLE_BIN,
+            )),
+            Column::Large(Button::large(
+                "Recent Edits",
+                Icon::RecentEdits,
+                ids::HISTORY_RECENT_EDITS,
+            )),
+        ],
+    },
+];
+
+// Review tab
+
+const REVIEW_GROUPS: &[Group] = &[
+    Group {
+        name: "Spelling",
+        columns: &[
+            Column::Large(Button::large(
+                "Spelling",
+                Icon::Spelling,
+                ids::REVIEW_SPELLING,
+            )),
+            Column::Stack(&[Button::small(
+                "Thesaurus",
+                Icon::Thesaurus,
+                ids::REVIEW_THESAURUS,
+            )]),
+        ],
+    },
+    Group {
+        name: "Language",
+        columns: &[Column::Large(Button::large(
+            "Language",
+            Icon::Language,
+            ids::REVIEW_LANGUAGE,
+        ))],
+    },
+    Group {
+        name: "Section",
+        columns: &[
+            Column::Large(Button::large(
+                "Password",
+                Icon::Password,
+                ids::REVIEW_PASSWORD,
+            )),
+            Column::Stack(&[Button::small(
+                "Lock All",
+                Icon::LockAll,
+                ids::REVIEW_LOCK_ALL,
+            )]),
+        ],
+    },
+    Group {
+        name: "Notes",
+        columns: &[Column::Large(Button::large(
+            "Linked Notes",
+            Icon::LinkedNotes,
+            ids::REVIEW_LINKED_NOTES,
+        ))],
+    },
+];
+
+// View tab
+
+const PAGE_COLORS: &[Item] = &[
+    Item::new("No Color", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "none")]),
+    Item::new("Blue", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#DCEBF7")]),
+    Item::new("Green", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#E2F0D9")]),
+    Item::new("Yellow", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#FFF8DC")]),
+    Item::new("Pink", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#FBE3EC")]),
+    Item::new("Purple", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#ECE3F5")]),
+    Item::new("Gray", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#EEEEEE")]),
+];
+
+const RULE_LINES: &[Item] = &[
+    Item::new("None", ids::VIEW_RULE_LINES).args(&[str_arg("style", "none")]),
+    Item::new("Narrow Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "narrow")]),
+    Item::new("College Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "college")]),
+    Item::new("Standard Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "standard")]),
+    Item::new("Wide Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "wide")]),
+    Item::new("Small Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_small")]),
+    Item::new("Medium Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_medium")]),
+    Item::new("Large Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_large")]),
+];
+
+const PAPER_SIZES: &[Item] = &[
+    Item::new("Auto", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "auto")]),
+    Item::new("Letter", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "letter")]),
+    Item::new("Legal", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "legal")]),
+    Item::new("A4", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "a4")]),
+    Item::new("A5", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "a5")]),
+];
+
+const ZOOM_LEVELS: &[Item] = &[
+    Item::new("50%", ids::VIEW_ZOOM).args(&[int_arg("percent", 50)]),
+    Item::new("75%", ids::VIEW_ZOOM).args(&[int_arg("percent", 75)]),
+    Item::new("100%", ids::VIEW_ZOOM).args(&[int_arg("percent", 100)]),
+    Item::new("125%", ids::VIEW_ZOOM).args(&[int_arg("percent", 125)]),
+    Item::new("150%", ids::VIEW_ZOOM).args(&[int_arg("percent", 150)]),
+    Item::new("200%", ids::VIEW_ZOOM).args(&[int_arg("percent", 200)]),
+];
+
+const THEMES: &[Item] = &[
+    Item::new("OneNote 2016", ids::VIEW_THEME_SET).args(&[str_arg("preset", "onenote2016")]),
+    Item::new("OneNote 2019", ids::VIEW_THEME_SET).args(&[str_arg("preset", "onenote2019")]),
+    Item::new("OneNote 2021", ids::VIEW_THEME_SET).args(&[str_arg("preset", "onenote2021")]),
+    Item::new("Microsoft 365", ids::VIEW_THEME_SET).args(&[str_arg("preset", "m365")]),
+];
+
+const MODES: &[Item] = &[
+    Item::new("Light", ids::VIEW_MODE_SET).args(&[str_arg("mode", "light")]),
+    Item::new("Dark", ids::VIEW_MODE_SET).args(&[str_arg("mode", "dark")]),
+    Item::new("Use System Setting", ids::VIEW_MODE_SET).args(&[str_arg("mode", "system")]),
+];
+
+const VIEW_GROUPS: &[Group] = &[
+    Group {
+        name: "Views",
+        columns: &[
+            Column::Large(Button::large(
+                "Normal View",
+                Icon::NormalView,
+                ids::VIEW_NORMAL,
+            )),
+            Column::Large(Button::large(
+                "Full Page View",
+                Icon::FullPage,
+                ids::VIEW_FULL_PAGE,
+            )),
+            Column::Large(Button::large("Dock to Desktop", Icon::Dock, ids::VIEW_DOCK)),
+            Column::Large(Button::large(
+                "Navigation Panes",
+                Icon::Navigation,
+                ids::VIEW_NAVIGATION_TOGGLE,
+            )),
+        ],
+    },
+    Group {
+        name: "Page Setup",
+        columns: &[
+            Column::Large(
+                Button::large("Page Color", Icon::PageColor, ids::VIEW_PAGE_COLOR)
+                    .dropdown(PAGE_COLORS),
+            ),
+            Column::Large(
+                Button::large("Rule Lines", Icon::RuleLines, ids::VIEW_RULE_LINES)
+                    .dropdown(RULE_LINES),
+            ),
+            Column::Stack(&[
+                Button::small("Hide Page Title", Icon::HideTitle, ids::VIEW_HIDE_TITLE),
+                Button::small("Paper Size", Icon::PaperSize, ids::VIEW_PAPER_SIZE)
+                    .dropdown(PAPER_SIZES),
+            ]),
+        ],
+    },
+    Group {
+        name: "Zoom",
+        columns: &[
+            Column::Stack(&[
+                Button::small("Zoom Out", Icon::ZoomOut, ids::VIEW_ZOOM_OUT),
+                Button::small("Zoom In", Icon::ZoomIn, ids::VIEW_ZOOM_IN),
+            ]),
+            Column::Large(Button::large("Zoom", Icon::Zoom, ids::VIEW_ZOOM).dropdown(ZOOM_LEVELS)),
+            Column::Stack(&[
+                Button::small("100%", Icon::ZoomActual, ids::VIEW_ZOOM_ACTUAL),
+                Button::small("Page Width", Icon::PageWidth, ids::VIEW_ZOOM_PAGE_WIDTH),
+            ]),
+        ],
+    },
+    Group {
+        name: "Window",
+        columns: &[
+            Column::Large(Button::large(
+                "New Window",
+                Icon::NewWindow,
+                ids::VIEW_NEW_WINDOW,
+            )),
+            Column::Large(Button::large(
+                "New Docked Window",
+                Icon::NewDockedWindow,
+                ids::VIEW_NEW_DOCKED_WINDOW,
+            )),
+        ],
+    },
+    Group {
+        name: "Theme",
+        columns: &[
+            Column::Large(
+                Button::large("Theme", Icon::Theme, ids::VIEW_THEME_SET).dropdown(THEMES),
+            ),
+            Column::Large(
+                Button::large("Dark Mode", Icon::DarkMode, ids::VIEW_MODE_TOGGLE).split(MODES),
+            ),
+        ],
+    },
+];
+
 /// Every ribbon tab, in OneNote order.
 pub static TABS: &[Tab] = &[
     Tab {
@@ -723,6 +967,18 @@ pub static TABS: &[Tab] = &[
     Tab {
         name: "Draw",
         kind: TabKind::Groups(DRAW_GROUPS),
+    },
+    Tab {
+        name: "History",
+        kind: TabKind::Groups(HISTORY_GROUPS),
+    },
+    Tab {
+        name: "Review",
+        kind: TabKind::Groups(REVIEW_GROUPS),
+    },
+    Tab {
+        name: "View",
+        kind: TabKind::Groups(VIEW_GROUPS),
     },
 ];
 
