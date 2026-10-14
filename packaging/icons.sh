@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIR="$ROOT/assets/app-icon"
 SVG="$DIR/notecraft.svg"
-ID="ai.storyteller.notecraft"
+ID="io.github.queball1999.notecraft"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 

@@ -83,3 +83,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | Phase -1 PR -1.3: cargo xtask text, assets, and layers gates, run by cargo xtask ci. |
 | 2026-10-14 | Phase -1 PR -1.4: cargo xtask wasm (L0 to L5 on wasm32) and cargo xtask parity (checklist summary and build plan hour totals); cargo xtask ci now runs all 8 gates. |
 | 2026-10-14 | Phase -1 PR -1.5: release contract for craft-common-actions: cargo xtask version, ico, and icns; packaging scripts adapted from GridCraft with new MSI GUIDs and NoteCraft file types; original app icon; build SHA and date embedded in both binaries. |
+| 2026-10-14 | App ID changed from ai.storyteller.notecraft to io.github.queball1999.notecraft and the repo moved to github.com/Queball1999/notecraft; NoteCraft no longer uses the ArtCraft namespace or links. |

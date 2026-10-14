@@ -32,9 +32,9 @@
 
     <Icon Id="NotecraftIcon.ico" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="NotecraftIcon.ico" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/storytold/notecraft" />
-    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/storytold/notecraft/releases" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/storytold/notecraft/discussions" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Queball1999/notecraft" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/Queball1999/notecraft/releases" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/Queball1999/notecraft/discussions" />
 
     <!-- An explicit command-line value wins. Otherwise retain the previous installation's
          choice, defaulting to off for a fresh install. Run only in the first sequence so the

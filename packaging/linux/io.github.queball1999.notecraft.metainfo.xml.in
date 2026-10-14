@@ -2,12 +2,12 @@
 <!-- AppStream metadata (software centers, Flathub). Template: package.sh and the Flatpak
      manifest substitute @VERSION@ and @DATE@ from Cargo.toml and the build date. -->
 <component type="desktop-application">
-  <id>ai.storyteller.notecraft</id>
+  <id>io.github.queball1999.notecraft</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT OR Apache-2.0</project_license>
   <name>NoteCraft</name>
   <summary>Take notes on a freeform canvas with ink, stored as markdown</summary>
-  <developer id="ai.storyteller.notecraft">
+  <developer id="io.github.queball1999">
     <name>The NoteCraft Contributors</name>
   </developer>
   <description>
@@ -21,12 +21,12 @@
       any text editor and synced with any folder sync tool.
     </p>
   </description>
-  <launchable type="desktop-id">ai.storyteller.notecraft.desktop</launchable>
-  <icon type="stock">ai.storyteller.notecraft</icon>
+  <launchable type="desktop-id">io.github.queball1999.notecraft.desktop</launchable>
+  <icon type="stock">io.github.queball1999.notecraft</icon>
   <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
-  <url type="homepage">https://github.com/storytold/notecraft</url>
-  <url type="bugtracker">https://github.com/storytold/notecraft/issues</url>
-  <url type="help">https://github.com/storytold/notecraft/discussions</url>
+  <url type="homepage">https://github.com/Queball1999/notecraft</url>
+  <url type="bugtracker">https://github.com/Queball1999/notecraft/issues</url>
+  <url type="help">https://github.com/Queball1999/notecraft/discussions</url>
   <categories>
     <category>Office</category>
     <category>Utility</category>

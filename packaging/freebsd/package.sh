@@ -12,7 +12,7 @@
 set -euo pipefail
 # shellcheck source=../env.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
-APP_ID=ai.storyteller.notecraft
+APP_ID=io.github.queball1999.notecraft
 LINUX="$ROOT/packaging/linux"
 
 SKIP_BUILD=0

@@ -1,6 +1,6 @@
 # Releasing
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: contract implemented; version info, MSI identity, file types, and DMG notes recorded.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: app ID is now io.github.queball1999.notecraft and the repo is github.com/Queball1999/notecraft.
 
 NoteCraft releases exactly the way DeckCraft, GridCraft, and WordCraft do: pushing to the `release` branch runs the shared release workflow in [storytold/craft-common-actions](https://github.com/storytold/craft-common-actions), which builds, signs, notarizes, packages, and drafts a GitHub Release. NoteCraft's own `.github/workflows/release.yml` is a thin caller.
 
@@ -58,7 +58,7 @@ The shared workflow expects these in every craft app. Phase -1 creates them (bui
 | `packaging/windows/package.ps1 -Arch <x64\|arm64>` | Windows build, sign, `.msi` |
 | `packaging/linux/package.sh [--formats "deb rpm tar"]` | Linux packages |
 | `packaging/linux/flatpak-bundle.sh <tarball>` | Flatpak |
-| `packaging/linux/ai.storyteller.notecraft.desktop` | desktop entry (also copied into the FreeBSD tarball) |
+| `packaging/linux/io.github.queball1999.notecraft.desktop` | desktop entry (also copied into the FreeBSD tarball) |
 | `packaging/freebsd/package.sh` | FreeBSD tarball (optional; the workflow has a fallback) |
 | `assets/app-icon/hicolor/` | icons for Linux and FreeBSD |
 | Binaries `notecraft` and `notecraft-cli` | names the workflow copies and checks |
@@ -72,7 +72,7 @@ NoteCraft-specific choices in the adapted files:
 
 - MSI: new `UpgradeCode` (27ECD2DC-C5B0-4E04-987E-7A24F50DB30A) and component GUIDs, never shared with another app. Manufacturer is The NoteCraft Contributors. `.notecraft` opens in NoteCraft by default; `.md` is only offered under Open with.
 - Linux: MIME type `application/x-notecraft` (a subclass of `text/markdown`) for `*.notecraft`; the desktop entry also lists `text/markdown`. The deb/rpm maintainer defaults to the placeholder `maintainers@notecraft.invalid`; set `NOTECRAFT_MAINTAINER` to a real address before publishing packages.
-- macOS: exported type `ai.storyteller.notecraft.page` (rank Owner) and markdown (rank Alternate). The DMG is a plain window with the app and an Applications link; GridCraft's DMG background and layout were not reused, and the script picks up `packaging/macos/dmg/background.tiff` and `dmg-layout.DS_Store` if NoteCraft ever adds its own.
+- macOS: exported type `io.github.queball1999.notecraft.page` (rank Owner) and markdown (rank Alternate). The DMG is a plain window with the app and an Applications link; GridCraft's DMG background and layout were not reused, and the script picks up `packaging/macos/dmg/background.tiff` and `dmg-layout.DS_Store` if NoteCraft ever adds its own.
 - Icons: original artwork in `assets/app-icon/` (README there); `packaging/icons.sh` renders every size with resvg and packs the `.ico` and `.icns` with `cargo xtask ico` and `cargo xtask icns`, so it runs on any OS.
 
 ## 5. Secrets
@@ -90,7 +90,7 @@ Set in the repo's `release` environment, same names as the related craft apps:
 
 | Field | Value |
 |---|---|
-| App id (reverse DNS) | `ai.storyteller.notecraft` |
+| App id (reverse DNS) | `io.github.queball1999.notecraft` (Flathub convention for a GitHub-hosted app; NoteCraft does not use the ArtCraft `ai.storyteller` namespace) |
 | Display name | NoteCraft |
 | Windows install folder | `NoteCraft` (`app-dir` in windows-arm64.yml) |
 | URL scheme | `notecraft://` (registered by installers from Phase 3) |
@@ -108,3 +108,4 @@ Set in the repo's `release` environment, same names as the related craft apps:
 | 2026-10-14 | -1 | Created. Release branch flow, shared workflow outputs, packaging contract, secrets, app identity. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | Contract implemented; version info, MSI identity, file types, and DMG notes recorded. |
+| 2026-10-14 | -1 | App ID is now io.github.queball1999.notecraft and the repo is github.com/Queball1999/notecraft. |

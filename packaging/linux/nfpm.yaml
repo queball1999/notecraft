@@ -14,7 +14,7 @@ section: misc
 priority: optional
 maintainer: ${NOTECRAFT_MAINTAINER}
 vendor: The NoteCraft Contributors
-homepage: https://github.com/storytold/notecraft
+homepage: https://github.com/Queball1999/notecraft
 license: MIT OR Apache-2.0
 description: |-
   Open-source note-taking app with a freeform canvas and ink.

@@ -4,7 +4,7 @@ Context for Claude when working in this repo. [AGENTS.md](AGENTS.md) is binding 
 
 ## The project in one paragraph
 
-NoteCraft is a clean-room remake of the OneNote experience (freeform canvas, ink, ribbon, four theme presets) on top of NoteCraft's own markdown-first, folder-based file format. Pure Rust, egui, wgpu. Windows, macOS, Linux. Dual-licensed MIT OR Apache-2.0. Related to, but independent of, the ArtCraft apps (WordCraft, DeckCraft, GridCraft): same patterns, shared craft-libs and CI workflows, separate project. Say "related craft apps", never "part of the ArtCraft family".
+NoteCraft is a clean-room remake of the OneNote experience (freeform canvas, ink, ribbon, four theme presets) on top of NoteCraft's own markdown-first, folder-based file format. Pure Rust, egui, wgpu. Windows, macOS, Linux. Dual-licensed MIT OR Apache-2.0. Related to, but independent of, the ArtCraft apps (WordCraft, DeckCraft, GridCraft): same patterns, shared craft-libs and CI workflows, separate project. Say "related craft apps", never "part of the ArtCraft family". NoteCraft's own identity is separate: app ID `io.github.queball1999.notecraft`, repo `github.com/Queball1999/notecraft`, manufacturer "The NoteCraft Contributors". Never use the `ai.storyteller` namespace, ArtCraft websites, or ArtCraft company names for NoteCraft; links to the shared craft-libs, craft-common-actions, craftrules, craft-fonts, and the related apps are fine.
 
 ## Hard rules to keep in mind
 

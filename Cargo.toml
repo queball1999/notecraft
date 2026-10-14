@@ -18,7 +18,7 @@ version = "0.0.0"
 edition = "2021"
 rust-version = "1.95"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/storytold/notecraft"
+repository = "https://github.com/Queball1999/notecraft"
 authors = ["The NoteCraft Contributors"]
 
 [workspace.lints.rust]

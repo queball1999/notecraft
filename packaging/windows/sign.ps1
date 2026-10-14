@@ -55,7 +55,7 @@ if (-not $haveCert -and -not $haveAzure) {
 }
 
 $script:SignTool = Find-SignTool
-$common = @('sign', '/v', '/fd', 'SHA256', '/td', 'SHA256', '/d', 'NoteCraft', '/du', 'https://github.com/storytold/notecraft')
+$common = @('sign', '/v', '/fd', 'SHA256', '/td', 'SHA256', '/d', 'NoteCraft', '/du', 'https://github.com/Queball1999/notecraft')
 $tmp = Join-Path ([IO.Path]::GetTempPath()) "notecraft-sign-$PID"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 

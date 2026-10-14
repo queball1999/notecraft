@@ -13,7 +13,7 @@
   <key>CFBundleExecutable</key>
   <string>NoteCraft</string>
   <key>CFBundleIdentifier</key>
-  <string>ai.storyteller.notecraft</string>
+  <string>io.github.queball1999.notecraft</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundlePackageType</key>
@@ -58,7 +58,7 @@
       <string>Owner</string>
       <key>LSItemContentTypes</key>
       <array>
-        <string>ai.storyteller.notecraft.page</string>
+        <string>io.github.queball1999.notecraft.page</string>
       </array>
     </dict>
     <dict>
@@ -84,7 +84,7 @@
   <array>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>ai.storyteller.notecraft.page</string>
+      <string>io.github.queball1999.notecraft.page</string>
       <key>UTTypeDescription</key>
       <string>NoteCraft Page</string>
       <key>UTTypeConformsTo</key>
