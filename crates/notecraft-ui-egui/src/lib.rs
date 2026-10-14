@@ -11,6 +11,7 @@
 
 mod app_shell;
 pub mod icons;
+pub mod nav;
 pub mod ribbon;
 pub mod themes;
 pub mod toast;
