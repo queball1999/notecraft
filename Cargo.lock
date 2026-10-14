@@ -1907,6 +1907,7 @@ dependencies = [
  "craft-ui",
  "egui",
  "egui_kittest",
+ "notecraft-canvas",
  "notecraft-core",
  "notecraft-engine",
  "notecraft-model",
