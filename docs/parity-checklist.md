@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-02 scored P and SH-03, SH-04 evidence updated (ribbon File and Home tabs, PR 0.5a).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-02 and SH-03 scored D; SH-05 scored P (ribbon tabs, collapse, key tips, PR 0.5b).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -18,7 +18,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Area | D | P | M | Total | Done % |
 |---|---:|---:|---:|---:|---:|
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
-| Shell | 0 | 4 | 16 | 20 | 0% |
+| Shell | 2 | 3 | 15 | 20 | 10% |
 | Themes | 5 | 1 | 0 | 6 | 83% |
 | Canvas | 0 | 0 | 12 | 12 | 0% |
 | Ink | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +28,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 15 | 5 | 93 | 113 | 13% |
+| Total | 17 | 4 | 92 | 113 | 15% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -51,10 +51,10 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
 | SH-01 | Shell | Window opens on wgpu (DX12, Metal, Vulkan) | 0 | P | PR 0.1: window opens on wgpu (Windows DX12 verified; macOS and Linux launches to verify); geometry saved through craft-settings |
-| SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | P | PR 0.5a: data-driven ribbon with original icons; File backstage and Home tab (Clipboard, Basic Text, Styles, Tags, Email, Meetings) work in all eight theme variants (egui_kittest tests); Insert, Draw, History, Review, and View come in PR 0.5b |
-| SH-03 | Shell | Every ribbon button bound to a command id | 0 | P | PR 0.2 and 0.5a: every File and Home button, menu item, and backstage entry runs a registered command with arguments its schema accepts (unit test), and clicks dispatch through the registry (egui_kittest test); the other five tabs come in PR 0.5b |
-| SH-04 | Shell | "Coming Soon" badge and toast for unimplemented commands | 0 | P | PR 0.2 and 0.5a: clicking a Coming Soon button shows "Coming Soon: <label>" for 3 s (egui_kittest tests); File and Home buttons say Coming Soon in their tooltip. The badge on each button was dropped at the maintainer's request (too noisy while almost every command is Coming Soon); the other tabs come in PR 0.5b |
-| SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | M | |
+| SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | D | PR 0.5a and 0.5b: data-driven ribbon with original icons drawn in code; File backstage and all seven OneNote tabs with their groups; egui_kittest tests click every tab in every preset |
+| SH-03 | Shell | Every ribbon button bound to a command id | 0 | D | PR 0.2, 0.5a, 0.5b: every button, menu item, and backstage entry on all tabs runs a registered command with arguments its schema accepts (unit test); clicks dispatch through the registry (egui_kittest tests) |
+| SH-04 | Shell | "Coming Soon" badge and toast for unimplemented commands | 0 | P | PR 0.2 and 0.5: clicking a Coming Soon button shows "Coming Soon: <label>" for 3 s and its tooltip says Coming Soon (egui_kittest tests). The per-button badge was dropped at the maintainer's request; decide whether this row still needs one |
+| SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | P | PR 0.5b: view.ribbon.toggle (Ctrl+F1, chevron, double-click a tab), peek while collapsed, collapsed state saved; key tips on tabs and buttons (Alt, F10, Alt plus letter, Esc); egui_kittest tests. Not yet tried with a physical keyboard: Windows can claim a lone Alt tap for its menu mode |
 | SH-06 | Shell | Navigation: notebook list | 0 | M | |
 | SH-07 | Shell | Section tabs with colors | 0 | M | |
 | SH-08 | Shell | Page list with subpage indent | 0 | M | |
@@ -217,3 +217,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | 0 | TH-05 and TH-06 scored P (theme tokens, commands, persistence, system mode). |
 | 2026-10-14 | 0 | TH-01 to TH-05 scored D (four presets, PR 0.4). |
 | 2026-10-14 | 0 | SH-02 scored P; SH-03 and SH-04 evidence updated (ribbon File and Home tabs, PR 0.5a). |
+| 2026-10-14 | 0 | SH-02 and SH-03 scored D; SH-05 scored P; SH-04 evidence updated (PR 0.5b). |

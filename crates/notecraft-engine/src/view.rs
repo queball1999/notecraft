@@ -1,5 +1,6 @@
 //! View state that commands change and the front end draws: the theme preset and color mode
-//! (docs/themes.md section 5). The colors themselves live in the front end.
+//! (docs/themes.md section 5) and whether the ribbon is collapsed. The colors themselves live
+//! in the front end.
 
 /// One of the four theme presets. Ids are the `theme.preset` setting values.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -78,6 +79,8 @@ pub struct ViewState {
     /// Whether the OS is in dark mode, as last reported by the front end. Only used to
     /// resolve [`ThemeMode::System`].
     pub system_dark: bool,
+    /// The ribbon shows only its tab names (`view.ribbon.toggle`, Ctrl+F1).
+    pub ribbon_collapsed: bool,
 }
 
 impl ViewState {

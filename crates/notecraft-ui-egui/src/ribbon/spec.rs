@@ -28,6 +28,13 @@ pub const fn str_arg(name: &'static str, value: &'static str) -> Arg {
     }
 }
 
+pub const fn int_arg(name: &'static str, value: i64) -> Arg {
+    Arg {
+        name,
+        value: ArgValue::Int(value),
+    }
+}
+
 pub const fn num_arg(name: &'static str, value: f64) -> Arg {
     Arg {
         name,
@@ -183,6 +190,8 @@ pub enum TabKind {
 #[derive(Clone, Copy, Debug)]
 pub struct Tab {
     pub name: &'static str,
+    /// The key tip letter (Alt, then this letter).
+    pub key: &'static str,
     pub kind: TabKind,
 }
 
@@ -426,16 +435,559 @@ const MEETINGS: Group = Group {
     ))],
 };
 
-/// Every ribbon tab, in OneNote order. Insert, Draw, History, Review, and View follow in
-/// PR 0.5b.
+// Insert tab
+
+const TABLE_SIZES: &[Item] = &[
+    Item::new("2 x 2 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 2), int_arg("columns", 2)]),
+    Item::new("3 x 3 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 3), int_arg("columns", 3)]),
+    Item::new("4 x 4 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 4), int_arg("columns", 4)]),
+    Item::new("5 x 5 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 5), int_arg("columns", 5)]),
+    Item::new("Insert Table", ids::INSERT_TABLE),
+];
+
+/// Page templates. These are NoteCraft's own templates, named by purpose.
+const TEMPLATES: &[Item] = &[
+    Item::new("Blank", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "blank")]),
+    Item::new("Meeting Notes", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "meeting")]),
+    Item::new("To Do List", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "todo")]),
+    Item::new("Lecture Notes", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "lecture")]),
+    Item::new("Project Overview", ids::INSERT_PAGE_TEMPLATE)
+        .args(&[str_arg("template", "project")]),
+];
+
+/// Common symbols. The values are escapes so the source stays ASCII.
+const SYMBOLS: &[Item] = &[
+    Item::new("Degree", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00B0}")]),
+    Item::new("Plus-Minus", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00B1}")]),
+    Item::new("Multiplication", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00D7}")]),
+    Item::new("Division", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00F7}")]),
+    Item::new("Pi", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{03C0}")]),
+    Item::new("Euro", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{20AC}")]),
+    Item::new("Copyright", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00A9}")]),
+    Item::new("Check Mark", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{2713}")]),
+];
+
+const INSERT_GROUPS: &[Group] = &[
+    Group {
+        name: "Insert",
+        columns: &[Column::Large(Button::large(
+            "Insert Space",
+            Icon::InsertSpace,
+            ids::INSERT_SPACE,
+        ))],
+    },
+    Group {
+        name: "Tables",
+        columns: &[Column::Large(
+            Button::large("Table", Icon::Table, ids::INSERT_TABLE).dropdown(TABLE_SIZES),
+        )],
+    },
+    Group {
+        name: "Files",
+        columns: &[
+            Column::Large(Button::large(
+                "File Printout",
+                Icon::FilePrintout,
+                ids::INSERT_FILE_PRINTOUT,
+            )),
+            Column::Large(Button::large(
+                "File Attachment",
+                Icon::FileAttachment,
+                ids::INSERT_FILE_ATTACHMENT,
+            )),
+        ],
+    },
+    Group {
+        name: "Images",
+        columns: &[
+            Column::Large(Button::large(
+                "Pictures",
+                Icon::Picture,
+                ids::INSERT_PICTURE,
+            )),
+            Column::Large(Button::large(
+                "Screen Clipping",
+                Icon::ScreenClipping,
+                ids::INSERT_SCREEN_CLIPPING,
+            )),
+        ],
+    },
+    Group {
+        name: "Links",
+        columns: &[Column::Large(Button::large(
+            "Link",
+            Icon::Link,
+            ids::INSERT_LINK,
+        ))],
+    },
+    Group {
+        name: "Recording",
+        columns: &[
+            Column::Large(Button::large(
+                "Record Audio",
+                Icon::Audio,
+                ids::INSERT_AUDIO,
+            )),
+            Column::Large(Button::large(
+                "Record Video",
+                Icon::Video,
+                ids::INSERT_VIDEO,
+            )),
+        ],
+    },
+    Group {
+        name: "Time Stamp",
+        columns: &[Column::Stack(&[
+            Button::small("Date", Icon::Date, ids::INSERT_DATE),
+            Button::small("Time", Icon::Time, ids::INSERT_TIME),
+            Button::small("Date & Time", Icon::DateTime, ids::INSERT_DATE_TIME),
+        ])],
+    },
+    Group {
+        name: "Pages",
+        columns: &[Column::Large(
+            Button::large(
+                "Page Templates",
+                Icon::PageTemplate,
+                ids::INSERT_PAGE_TEMPLATE,
+            )
+            .split(TEMPLATES),
+        )],
+    },
+    Group {
+        name: "Symbols",
+        columns: &[
+            Column::Large(Button::large(
+                "Equation",
+                Icon::Equation,
+                ids::INSERT_EQUATION,
+            )),
+            Column::Large(Button::large("Symbol", Icon::Symbol, ids::INSERT_SYMBOL).split(SYMBOLS)),
+        ],
+    },
+];
+
+// Draw tab
+
+const PENS: &[Item] = &[
+    Item::new("Black Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 1.0)]),
+    Item::new("Blue Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)]),
+    Item::new("Red Pen", ids::DRAW_PEN).args(&[str_arg("color", "#C62828"), num_arg("width", 1.0)]),
+    Item::new("Green Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#2E7D32"), num_arg("width", 1.0)]),
+    Item::new("Thick Black Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 3.5)]),
+];
+
+const HIGHLIGHTERS: &[Item] = &[
+    Item::new("Yellow Highlighter", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#FFF176"), num_arg("width", 8.0)]),
+    Item::new("Green Highlighter", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#A5D6A7"), num_arg("width", 8.0)]),
+    Item::new("Pink Highlighter", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#F48FB1"), num_arg("width", 8.0)]),
+    Item::new("Turquoise Highlighter", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#80DEEA"), num_arg("width", 8.0)]),
+];
+
+const ERASERS: &[Item] = &[
+    Item::new("Stroke Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "stroke")]),
+    Item::new("Point Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "point")]),
+];
+
+const INK_COLORS: &[Item] = &[
+    Item::new("Black", ids::DRAW_COLOR).args(&[str_arg("color", "#1F1F1F")]),
+    Item::new("Blue", ids::DRAW_COLOR).args(&[str_arg("color", "#1565C0")]),
+    Item::new("Red", ids::DRAW_COLOR).args(&[str_arg("color", "#C62828")]),
+    Item::new("Green", ids::DRAW_COLOR).args(&[str_arg("color", "#2E7D32")]),
+    Item::new("Orange", ids::DRAW_COLOR).args(&[str_arg("color", "#EF6C00")]),
+    Item::new("Purple", ids::DRAW_COLOR).args(&[str_arg("color", "#6A1B9A")]),
+];
+
+const INK_WIDTHS: &[Item] = &[
+    Item::new("0.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 0.5)]),
+    Item::new("1 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 1.0)]),
+    Item::new("2 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 2.0)]),
+    Item::new("3.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 3.5)]),
+    Item::new("5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 5.0)]),
+];
+
+const SHAPE_KINDS: &[Item] = &[
+    Item::new("Line", ids::DRAW_SHAPE).args(&[str_arg("kind", "line")]),
+    Item::new("Arrow", ids::DRAW_SHAPE).args(&[str_arg("kind", "arrow")]),
+    Item::new("Double Arrow", ids::DRAW_SHAPE).args(&[str_arg("kind", "double_arrow")]),
+    Item::new("Rectangle", ids::DRAW_SHAPE).args(&[str_arg("kind", "rectangle")]),
+    Item::new("Ellipse", ids::DRAW_SHAPE).args(&[str_arg("kind", "ellipse")]),
+    Item::new("Triangle", ids::DRAW_SHAPE).args(&[str_arg("kind", "triangle")]),
+    Item::new("Diamond", ids::DRAW_SHAPE).args(&[str_arg("kind", "diamond")]),
+    Item::new("Parallelogram", ids::DRAW_SHAPE).args(&[str_arg("kind", "parallelogram")]),
+    Item::new("Graph Axes", ids::DRAW_SHAPE).args(&[str_arg("kind", "graph_axes")]),
+];
+
+const ARRANGE: &[Item] = &[
+    Item::new("Bring to Front", ids::DRAW_BRING_TO_FRONT),
+    Item::new("Bring Forward", ids::DRAW_BRING_FORWARD),
+    Item::new("Send Backward", ids::DRAW_SEND_BACKWARD),
+    Item::new("Send to Back", ids::DRAW_SEND_TO_BACK),
+];
+
+const ROTATE: &[Item] = &[
+    Item::new("Rotate Right 90", ids::DRAW_ROTATE_RIGHT),
+    Item::new("Rotate Left 90", ids::DRAW_ROTATE_LEFT),
+    Item::new("Flip Horizontal", ids::DRAW_FLIP_HORIZONTAL),
+    Item::new("Flip Vertical", ids::DRAW_FLIP_VERTICAL),
+];
+
+const DRAW_GROUPS: &[Group] = &[
+    Group {
+        name: "Tools",
+        columns: &[
+            Column::Stack(&[
+                Button::small("Type", Icon::TypeTool, ids::DRAW_TYPE),
+                Button::small("Lasso Select", Icon::Lasso, ids::DRAW_LASSO),
+                Button::small("Panning Hand", Icon::PanHand, ids::DRAW_PAN),
+            ]),
+            Column::Large(Button::large("Eraser", Icon::Eraser, ids::DRAW_ERASER).split(ERASERS)),
+            Column::Large(Button::large("Pen", Icon::Pen, ids::DRAW_PEN).split(PENS)),
+            Column::Large(
+                Button::large("Highlighter", Icon::Highlighter, ids::DRAW_HIGHLIGHTER)
+                    .split(HIGHLIGHTERS),
+            ),
+            Column::Stack(&[
+                Button::small("Color", Icon::Color, ids::DRAW_COLOR).dropdown(INK_COLORS),
+                Button::small("Thickness", Icon::Thickness, ids::DRAW_THICKNESS)
+                    .dropdown(INK_WIDTHS),
+                Button::small("Ruler", Icon::Ruler, ids::DRAW_RULER),
+            ]),
+        ],
+    },
+    Group {
+        name: "Shapes",
+        columns: &[Column::Large(
+            Button::large("Shapes", Icon::Shapes, ids::DRAW_SHAPE).dropdown(SHAPE_KINDS),
+        )],
+    },
+    Group {
+        name: "Edit",
+        columns: &[
+            Column::Large(Button::large(
+                "Insert Space",
+                Icon::InsertSpace,
+                ids::INSERT_SPACE,
+            )),
+            Column::Large(Button::large("Delete", Icon::Delete, ids::EDIT_DELETE)),
+            Column::Large(
+                Button::large("Arrange", Icon::Arrange, ids::DRAW_BRING_TO_FRONT).dropdown(ARRANGE),
+            ),
+            Column::Large(
+                Button::large("Rotate", Icon::Rotate, ids::DRAW_ROTATE_RIGHT).dropdown(ROTATE),
+            ),
+        ],
+    },
+    Group {
+        name: "Convert",
+        columns: &[
+            Column::Large(Button::large(
+                "Ink to Shape",
+                Icon::InkToShape,
+                ids::DRAW_INK_TO_SHAPE,
+            )),
+            Column::Large(Button::large(
+                "Ink to Text",
+                Icon::InkToText,
+                ids::DRAW_INK_TO_TEXT,
+            )),
+            Column::Large(Button::large(
+                "Ink to Math",
+                Icon::InkToMath,
+                ids::DRAW_INK_TO_MATH,
+            )),
+        ],
+    },
+];
+
+// History tab
+
+const HISTORY_GROUPS: &[Group] = &[
+    Group {
+        name: "Unread",
+        columns: &[
+            Column::Large(Button::large(
+                "Next Unread",
+                Icon::NextUnread,
+                ids::HISTORY_NEXT_UNREAD,
+            )),
+            Column::Stack(&[
+                Button::small("Mark as Read", Icon::MarkRead, ids::HISTORY_MARK_READ),
+                Button::small(
+                    "Show Unread Changes",
+                    Icon::ShowUnread,
+                    ids::HISTORY_SHOW_UNREAD,
+                ),
+            ]),
+        ],
+    },
+    Group {
+        name: "Authors",
+        columns: &[
+            Column::Large(Button::large(
+                "Find by Author",
+                Icon::FindByAuthor,
+                ids::HISTORY_FIND_BY_AUTHOR,
+            )),
+            Column::Large(Button::large(
+                "Hide Authors",
+                Icon::HideAuthors,
+                ids::HISTORY_HIDE_AUTHORS,
+            )),
+        ],
+    },
+    Group {
+        name: "History",
+        columns: &[
+            Column::Large(Button::large(
+                "Page Versions",
+                Icon::PageVersions,
+                ids::HISTORY_PAGE_VERSIONS,
+            )),
+            Column::Large(Button::large(
+                "Notebook Recycle Bin",
+                Icon::RecycleBin,
+                ids::HISTORY_RECYCLE_BIN,
+            )),
+            Column::Large(Button::large(
+                "Recent Edits",
+                Icon::RecentEdits,
+                ids::HISTORY_RECENT_EDITS,
+            )),
+        ],
+    },
+];
+
+// Review tab
+
+const REVIEW_GROUPS: &[Group] = &[
+    Group {
+        name: "Spelling",
+        columns: &[
+            Column::Large(Button::large(
+                "Spelling",
+                Icon::Spelling,
+                ids::REVIEW_SPELLING,
+            )),
+            Column::Stack(&[Button::small(
+                "Thesaurus",
+                Icon::Thesaurus,
+                ids::REVIEW_THESAURUS,
+            )]),
+        ],
+    },
+    Group {
+        name: "Language",
+        columns: &[Column::Large(Button::large(
+            "Language",
+            Icon::Language,
+            ids::REVIEW_LANGUAGE,
+        ))],
+    },
+    Group {
+        name: "Section",
+        columns: &[
+            Column::Large(Button::large(
+                "Password",
+                Icon::Password,
+                ids::REVIEW_PASSWORD,
+            )),
+            Column::Stack(&[Button::small(
+                "Lock All",
+                Icon::LockAll,
+                ids::REVIEW_LOCK_ALL,
+            )]),
+        ],
+    },
+    Group {
+        name: "Notes",
+        columns: &[Column::Large(Button::large(
+            "Linked Notes",
+            Icon::LinkedNotes,
+            ids::REVIEW_LINKED_NOTES,
+        ))],
+    },
+];
+
+// View tab
+
+const PAGE_COLORS: &[Item] = &[
+    Item::new("No Color", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "none")]),
+    Item::new("Blue", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#DCEBF7")]),
+    Item::new("Green", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#E2F0D9")]),
+    Item::new("Yellow", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#FFF8DC")]),
+    Item::new("Pink", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#FBE3EC")]),
+    Item::new("Purple", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#ECE3F5")]),
+    Item::new("Gray", ids::VIEW_PAGE_COLOR).args(&[str_arg("color", "#EEEEEE")]),
+];
+
+const RULE_LINES: &[Item] = &[
+    Item::new("None", ids::VIEW_RULE_LINES).args(&[str_arg("style", "none")]),
+    Item::new("Narrow Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "narrow")]),
+    Item::new("College Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "college")]),
+    Item::new("Standard Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "standard")]),
+    Item::new("Wide Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "wide")]),
+    Item::new("Small Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_small")]),
+    Item::new("Medium Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_medium")]),
+    Item::new("Large Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_large")]),
+];
+
+const PAPER_SIZES: &[Item] = &[
+    Item::new("Auto", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "auto")]),
+    Item::new("Letter", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "letter")]),
+    Item::new("Legal", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "legal")]),
+    Item::new("A4", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "a4")]),
+    Item::new("A5", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "a5")]),
+];
+
+const ZOOM_LEVELS: &[Item] = &[
+    Item::new("50%", ids::VIEW_ZOOM).args(&[int_arg("percent", 50)]),
+    Item::new("75%", ids::VIEW_ZOOM).args(&[int_arg("percent", 75)]),
+    Item::new("100%", ids::VIEW_ZOOM).args(&[int_arg("percent", 100)]),
+    Item::new("125%", ids::VIEW_ZOOM).args(&[int_arg("percent", 125)]),
+    Item::new("150%", ids::VIEW_ZOOM).args(&[int_arg("percent", 150)]),
+    Item::new("200%", ids::VIEW_ZOOM).args(&[int_arg("percent", 200)]),
+];
+
+const THEMES: &[Item] = &[
+    Item::new("OneNote 2016", ids::VIEW_THEME_SET).args(&[str_arg("preset", "onenote2016")]),
+    Item::new("OneNote 2019", ids::VIEW_THEME_SET).args(&[str_arg("preset", "onenote2019")]),
+    Item::new("OneNote 2021", ids::VIEW_THEME_SET).args(&[str_arg("preset", "onenote2021")]),
+    Item::new("Microsoft 365", ids::VIEW_THEME_SET).args(&[str_arg("preset", "m365")]),
+];
+
+const MODES: &[Item] = &[
+    Item::new("Light", ids::VIEW_MODE_SET).args(&[str_arg("mode", "light")]),
+    Item::new("Dark", ids::VIEW_MODE_SET).args(&[str_arg("mode", "dark")]),
+    Item::new("Use System Setting", ids::VIEW_MODE_SET).args(&[str_arg("mode", "system")]),
+];
+
+const VIEW_GROUPS: &[Group] = &[
+    Group {
+        name: "Views",
+        columns: &[
+            Column::Large(Button::large(
+                "Normal View",
+                Icon::NormalView,
+                ids::VIEW_NORMAL,
+            )),
+            Column::Large(Button::large(
+                "Full Page View",
+                Icon::FullPage,
+                ids::VIEW_FULL_PAGE,
+            )),
+            Column::Large(Button::large("Dock to Desktop", Icon::Dock, ids::VIEW_DOCK)),
+            Column::Large(Button::large(
+                "Navigation Panes",
+                Icon::Navigation,
+                ids::VIEW_NAVIGATION_TOGGLE,
+            )),
+        ],
+    },
+    Group {
+        name: "Page Setup",
+        columns: &[
+            Column::Large(
+                Button::large("Page Color", Icon::PageColor, ids::VIEW_PAGE_COLOR)
+                    .dropdown(PAGE_COLORS),
+            ),
+            Column::Large(
+                Button::large("Rule Lines", Icon::RuleLines, ids::VIEW_RULE_LINES)
+                    .dropdown(RULE_LINES),
+            ),
+            Column::Stack(&[
+                Button::small("Hide Page Title", Icon::HideTitle, ids::VIEW_HIDE_TITLE),
+                Button::small("Paper Size", Icon::PaperSize, ids::VIEW_PAPER_SIZE)
+                    .dropdown(PAPER_SIZES),
+            ]),
+        ],
+    },
+    Group {
+        name: "Zoom",
+        columns: &[
+            Column::Stack(&[
+                Button::small("Zoom Out", Icon::ZoomOut, ids::VIEW_ZOOM_OUT),
+                Button::small("Zoom In", Icon::ZoomIn, ids::VIEW_ZOOM_IN),
+            ]),
+            Column::Large(Button::large("Zoom", Icon::Zoom, ids::VIEW_ZOOM).dropdown(ZOOM_LEVELS)),
+            Column::Stack(&[
+                Button::small("100%", Icon::ZoomActual, ids::VIEW_ZOOM_ACTUAL),
+                Button::small("Page Width", Icon::PageWidth, ids::VIEW_ZOOM_PAGE_WIDTH),
+            ]),
+        ],
+    },
+    Group {
+        name: "Window",
+        columns: &[
+            Column::Large(Button::large(
+                "New Window",
+                Icon::NewWindow,
+                ids::VIEW_NEW_WINDOW,
+            )),
+            Column::Large(Button::large(
+                "New Docked Window",
+                Icon::NewDockedWindow,
+                ids::VIEW_NEW_DOCKED_WINDOW,
+            )),
+        ],
+    },
+    Group {
+        name: "Theme",
+        columns: &[
+            Column::Large(
+                Button::large("Theme", Icon::Theme, ids::VIEW_THEME_SET).dropdown(THEMES),
+            ),
+            Column::Large(
+                Button::large("Dark Mode", Icon::DarkMode, ids::VIEW_MODE_TOGGLE).split(MODES),
+            ),
+        ],
+    },
+];
+
+/// Every ribbon tab, in OneNote order.
 pub static TABS: &[Tab] = &[
     Tab {
         name: "File",
+        key: "F",
         kind: TabKind::Backstage(BACKSTAGE),
     },
     Tab {
         name: "Home",
+        key: "H",
         kind: TabKind::Groups(&[CLIPBOARD, BASIC_TEXT, STYLES, TAGS, EMAIL, MEETINGS]),
+    },
+    Tab {
+        name: "Insert",
+        key: "N",
+        kind: TabKind::Groups(INSERT_GROUPS),
+    },
+    Tab {
+        name: "Draw",
+        key: "D",
+        kind: TabKind::Groups(DRAW_GROUPS),
+    },
+    Tab {
+        name: "History",
+        key: "S",
+        kind: TabKind::Groups(HISTORY_GROUPS),
+    },
+    Tab {
+        name: "Review",
+        key: "R",
+        kind: TabKind::Groups(REVIEW_GROUPS),
+    },
+    Tab {
+        name: "View",
+        key: "W",
+        kind: TabKind::Groups(VIEW_GROUPS),
     },
 ];
 

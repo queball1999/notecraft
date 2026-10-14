@@ -7,7 +7,7 @@ use notecraft_engine::cmd::Status;
 use std::sync::Arc;
 
 use super::spec::{Button, Menu, Size};
-use super::{Clicked, Look};
+use super::{keytips, Clicked, KeyFrame, Look};
 use crate::icons::{self, IconColors};
 use crate::themes::{mix, ButtonStyle, ThemeTokens};
 
@@ -47,8 +47,9 @@ pub(super) fn style(t: &ThemeTokens) -> IconButtonStyle {
 /// Draw `button` and record a click. `large_height` is the height of a large button.
 pub(super) fn show(
     ui: &mut Ui,
-    button: &Button,
+    button: &'static Button,
     look: Look<'_>,
+    keys: &KeyFrame,
     large_height: f32,
     out: &mut Vec<Clicked>,
 ) {
@@ -94,13 +95,19 @@ pub(super) fn show(
     let on_arrow = response
         .interact_pointer_pos()
         .is_some_and(|pos| arrow.contains(pos));
-    let opens_menu = response.clicked()
+    // A key tip code presses the button like a click on its main part.
+    let by_key = keys.pressed(button);
+    let clicked = response.clicked() || by_key;
+    let opens_menu = clicked
         && match button.menu {
             Menu::None => false,
-            Menu::Split(_) => on_arrow,
+            Menu::Split(_) => on_arrow && !by_key,
             Menu::Dropdown(_) => true,
         };
-    if response.clicked() && !opens_menu {
+    if let Some(code) = keys.tip(button) {
+        keytips::paint_tip(ui, response.rect.center_bottom(), code, look);
+    }
+    if clicked && !opens_menu {
         out.push(Clicked::new(button.command, button.args));
     }
     if has_menu {
