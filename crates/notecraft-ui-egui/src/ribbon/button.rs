@@ -1,5 +1,5 @@
 //! One ribbon button: large, small, or icon-only, with an optional split or dropdown menu
-//! and a Coming Soon badge.
+//! and a tooltip that says when its command is Coming Soon.
 
 use craft_ui::buttons::{ButtonVisuals, IconButton, IconButtonStyle};
 use egui::{Color32, CornerRadius, FontId, Galley, Popup, Rect, SetOpenCommand, Stroke, Ui, Vec2};
@@ -85,13 +85,9 @@ pub(super) fn show(
 
     let style = style(tokens);
     let accent = tokens.accent;
-    let badge = (tokens.badge_bg, coming_soon);
     let response = IconButton::new(button.label, size, &style).show(ui, |ui, rect, color| {
         let colors = IconColors { fg: color, accent };
         paint_contents(ui, rect, button, galley, colors, has_menu);
-        if badge.1 {
-            paint_badge(ui, rect, badge.0);
-        }
     });
 
     let arrow = arrow_rect(response.rect, button.size);
@@ -206,13 +202,4 @@ fn chevron(ui: &Ui, center: egui::Pos2, color: Color32) {
     ];
     ui.painter()
         .add(egui::Shape::line(points, Stroke::new(1.0, color)));
-}
-
-/// The Coming Soon badge: a small pill in the top right corner (build_plan/02 PR 0.5).
-fn paint_badge(ui: &Ui, rect: Rect, color: Color32) {
-    let pill = Rect::from_min_size(
-        egui::pos2(rect.max.x - 9.0, rect.min.y + 1.0),
-        egui::vec2(7.0, 3.0),
-    );
-    ui.painter().rect_filled(pill, 1.5, color);
 }

@@ -1,6 +1,7 @@
 //! The ribbon: a tab strip over a body of groups, rendered from the data in [`spec`]. Every
 //! button runs a command by id; the ribbon returns what was clicked and the shell dispatches
-//! it (AGENTS.md section 4). Buttons whose command is Coming Soon carry a badge.
+//! it (AGENTS.md section 4). A button whose command is Coming Soon says so in its tooltip, and clicking it shows the
+//! Coming Soon toast.
 
 mod backstage;
 mod button;
