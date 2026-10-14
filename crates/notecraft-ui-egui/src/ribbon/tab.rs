@@ -4,13 +4,28 @@ use craft_ui::tabs::Tab;
 use egui::{Color32, CornerRadius, FontId, Rect, Stroke, Ui};
 
 use super::spec::{TabKind, TABS};
-use super::{Look, Ribbon};
+use super::{keytips, Look};
 use crate::themes::contrast::{contrast_ratio, AA_NORMAL_TEXT};
 use crate::themes::mix;
 
 const TAB_PADDING: f32 = 12.0;
 
-pub(super) fn show_strip(ui: &mut Ui, strip: Rect, ribbon: &mut Ribbon, look: Look<'_>) {
+/// A click on a tab.
+pub(super) struct TabEvent {
+    pub(super) index: usize,
+    pub(super) file: bool,
+    pub(super) double_clicked: bool,
+}
+
+/// Draw the tab strip. `selected` is the tab drawn as open, if any; `tips` shows each tab's
+/// key tip letter.
+pub(super) fn show_strip(
+    ui: &mut Ui,
+    strip: Rect,
+    selected: Option<usize>,
+    tips: bool,
+    look: Look<'_>,
+) -> Option<TabEvent> {
     let t = look.tokens;
     ui.painter().rect_filled(strip, 0.0, t.ribbon_tab_bg);
     // On a colored strip (OneNote 2016 and 2019) the tab names use the accent text color.
@@ -28,6 +43,7 @@ pub(super) fn show_strip(ui: &mut Ui, strip: Rect, ribbon: &mut Ribbon, look: Lo
         se: 0,
     };
 
+    let mut event = None;
     let mut x = strip.min.x + 4.0;
     for (index, tab) in TABS.iter().enumerate() {
         let galley = ui.painter().layout_no_wrap(
@@ -43,7 +59,7 @@ pub(super) fn show_strip(ui: &mut Ui, strip: Rect, ribbon: &mut Ribbon, look: Lo
         x += width + 2.0;
 
         let is_file = matches!(tab.kind, TabKind::Backstage(_));
-        let selected = !is_file && index == ribbon.selected;
+        let selected = !is_file && selected == Some(index);
         let id = ui.id().with(("ribbon_tab", index));
         let response = Tab::new(id, tab.name, selected)
             .focus_stroke(Stroke::new(1.5, t.accent))
@@ -72,12 +88,22 @@ pub(super) fn show_strip(ui: &mut Ui, strip: Rect, ribbon: &mut Ribbon, look: Lo
                     );
                 }
             });
-        if response.clicked() {
-            if is_file {
-                ribbon.open_backstage();
-            } else {
-                ribbon.selected = index;
-            }
+        if tips {
+            keytips::paint_tip(ui, rect.center_bottom(), tab.key, look);
+        }
+        if response.double_clicked() && !is_file {
+            event = Some(TabEvent {
+                index,
+                file: false,
+                double_clicked: true,
+            });
+        } else if response.clicked() {
+            event = Some(TabEvent {
+                index,
+                file: is_file,
+                double_clicked: false,
+            });
         }
     }
+    event
 }

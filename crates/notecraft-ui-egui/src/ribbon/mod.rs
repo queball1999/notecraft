@@ -1,19 +1,26 @@
 //! The ribbon: a tab strip over a body of groups, rendered from the data in [`spec`]. Every
 //! button runs a command by id; the ribbon returns what was clicked and the shell dispatches
-//! it (AGENTS.md section 4). A button whose command is Coming Soon says so in its tooltip, and clicking it shows the
-//! Coming Soon toast.
+//! it (AGENTS.md section 4). A button whose command is Coming Soon says so in its tooltip, and
+//! clicking it shows the Coming Soon toast.
+//!
+//! The ribbon collapses to its tab strip (`view.ribbon.toggle`: Ctrl+F1, the chevron, or a
+//! double click on a tab). While collapsed, clicking a tab shows its groups over the page
+//! until a button is used or the user clicks elsewhere. Key tips are in [`keytips`].
 
 mod backstage;
 mod button;
 mod group;
+pub(crate) mod keytips;
 pub mod spec;
 mod tab;
 
-use egui::{Align, Layout, Rect, Ui, UiBuilder};
-use notecraft_engine::cmd::{CommandId, Registry, Value};
+use craft_ui::buttons::IconButton;
+use egui::{Align, Id, Key, Layout, Order, Rect, Sense, Stroke, Ui, UiBuilder};
+use notecraft_engine::cmd::{ids, CommandId, Registry, Value};
 
 use crate::themes::ThemeTokens;
-use spec::{Arg, TabKind, TABS};
+use keytips::{Action, KeyTips, Mode};
+use spec::{Arg, Button, TabKind, TABS};
 
 /// Height of the tab strip, in points.
 pub const TAB_STRIP_HEIGHT: f32 = 26.0;
@@ -21,6 +28,8 @@ pub const TAB_STRIP_HEIGHT: f32 = 26.0;
 pub const BODY_HEIGHT: f32 = 96.0;
 /// Total ribbon height.
 pub const HEIGHT: f32 = TAB_STRIP_HEIGHT + BODY_HEIGHT;
+/// Room kept at the right of the body for the collapse chevron.
+const CHEVRON_WIDTH: f32 = 28.0;
 
 /// What the ribbon needs to draw itself.
 #[derive(Clone, Copy)]
@@ -45,13 +54,36 @@ impl Clicked {
     }
 }
 
-/// Ribbon state: which tab is selected and whether the File backstage is open.
+/// Key tip state for one frame of the body: the codes to draw and a button a code pressed.
+struct KeyFrame {
+    tips: Vec<(&'static Button, String)>,
+    press: Option<&'static Button>,
+}
+
+impl KeyFrame {
+    fn tip(&self, button: &'static Button) -> Option<&str> {
+        self.tips
+            .iter()
+            .find(|(b, _)| std::ptr::eq(*b, button))
+            .map(|(_, code)| code.as_str())
+    }
+
+    fn pressed(&self, button: &'static Button) -> bool {
+        self.press.is_some_and(|b| std::ptr::eq(b, button))
+    }
+}
+
+/// Ribbon state: the selected tab, the File backstage, the collapsed-ribbon peek, and key
+/// tips.
 #[derive(Debug)]
 pub struct Ribbon {
     /// Index into [`TABS`] of the selected group tab.
     selected: usize,
     /// The highlighted backstage entry while the File backstage is open.
     backstage: Option<usize>,
+    /// While collapsed: the selected tab's groups show over the page.
+    peek: bool,
+    keytips: KeyTips,
 }
 
 impl Default for Ribbon {
@@ -63,6 +95,8 @@ impl Default for Ribbon {
         Self {
             selected: home,
             backstage: None,
+            peek: false,
+            keytips: KeyTips::default(),
         }
     }
 }
@@ -97,33 +131,120 @@ impl Ribbon {
 
     pub fn open_backstage(&mut self) {
         self.backstage = Some(0);
+        self.peek = false;
     }
 
     pub fn close_backstage(&mut self) {
         self.backstage = None;
     }
 
-    /// Draw the tab strip and the selected tab's groups into `ui`, which should be
-    /// [`HEIGHT`] tall. Returns the commands clicked this frame.
-    pub fn show(&mut self, ui: &mut Ui, look: Look<'_>) -> Vec<Clicked> {
+    /// Whether the groups show over the page while the ribbon is collapsed.
+    pub fn peeking(&self) -> bool {
+        self.peek
+    }
+
+    /// Whether key tips are showing.
+    pub fn key_tips_showing(&self) -> bool {
+        self.keytips.mode != Mode::Off
+    }
+
+    /// Draw the ribbon into `ui`: [`HEIGHT`] tall, or [`TAB_STRIP_HEIGHT`] when `collapsed`.
+    /// Returns the commands clicked this frame.
+    pub fn show(&mut self, ui: &mut Ui, look: Look<'_>, collapsed: bool) -> Vec<Clicked> {
         let mut out = Vec::new();
+        let ctx = ui.ctx().clone();
+        if !collapsed {
+            self.peek = false;
+        }
+        let mut press = None;
+        match self.keytips.update(&ctx, self.selected) {
+            Some(Action::OpenBackstage) => self.open_backstage(),
+            Some(Action::SelectTab(index)) => {
+                self.selected = index;
+                self.peek = collapsed;
+            }
+            Some(Action::Press(button)) => press = Some(button),
+            None => {}
+        }
+
         let full = ui.max_rect();
         let strip = Rect::from_min_size(full.min, egui::vec2(full.width(), TAB_STRIP_HEIGHT));
-        tab::show_strip(ui, strip, self, look);
+        let selected = (!collapsed || self.peek).then_some(self.selected);
+        let tab_tips = self.keytips.mode == Mode::Tabs;
+        if let Some(event) = tab::show_strip(ui, strip, selected, tab_tips, look) {
+            if event.double_clicked {
+                out.push(Clicked::new(ids::VIEW_RIBBON_TOGGLE, &[]));
+                self.peek = false;
+            } else if event.file {
+                self.open_backstage();
+            } else {
+                // Clicking the open tab of a collapsed ribbon closes the peek.
+                self.peek = collapsed && !(self.peek && event.index == self.selected);
+                self.selected = event.index;
+            }
+        }
 
-        let body = Rect::from_min_max(egui::pos2(full.min.x, strip.max.y), full.max);
+        let keys = KeyFrame {
+            tips: match self.keytips.mode {
+                Mode::Buttons(_) => keytips::tips_for_tab(self.selected),
+                _ => Vec::new(),
+            },
+            press,
+        };
+        if !collapsed {
+            let body = Rect::from_min_max(egui::pos2(full.min.x, strip.max.y), full.max);
+            self.body(ui, body, look, &keys, &mut out);
+        } else if self.peek {
+            let area = egui::Area::new(Id::new("ribbon_peek"))
+                .order(Order::Foreground)
+                .fixed_pos(strip.left_bottom())
+                .show(&ctx, |ui| {
+                    let body = Rect::from_min_size(
+                        ui.max_rect().min,
+                        egui::vec2(strip.width(), BODY_HEIGHT),
+                    );
+                    self.body(ui, body, look, &keys, &mut out);
+                    ui.allocate_rect(body, Sense::hover());
+                });
+            let inside = area.response.rect.union(strip);
+            let clicked_outside = ctx.input(|input| {
+                input.pointer.any_pressed()
+                    && input
+                        .pointer
+                        .interact_pos()
+                        .is_some_and(|pos| !inside.contains(pos))
+            });
+            let escape = ctx.input(|input| input.key_pressed(Key::Escape));
+            if !out.is_empty() || clicked_outside || escape {
+                self.peek = false;
+            }
+        }
+        ui.advance_cursor_after_rect(if collapsed { strip } else { full });
+        out
+    }
+
+    /// The selected tab's groups and the collapse chevron, drawn into `body`.
+    fn body(
+        &mut self,
+        ui: &mut Ui,
+        body: Rect,
+        look: Look<'_>,
+        keys: &KeyFrame,
+        out: &mut Vec<Clicked>,
+    ) {
         let tokens = look.tokens;
         ui.painter().rect_filled(body, 0.0, tokens.ribbon_bg);
         ui.painter().hline(
             body.x_range(),
             body.max.y - 0.5,
-            egui::Stroke::new(1.0, tokens.border),
+            Stroke::new(1.0, tokens.border),
         );
         let groups = match TABS.get(self.selected).map(|tab| tab.kind) {
             Some(TabKind::Groups(groups)) => groups,
             _ => &[],
         };
-        let inner = body.shrink2(egui::vec2(6.0, 3.0));
+        let mut inner = body.shrink2(egui::vec2(6.0, 3.0));
+        inner.max.x -= CHEVRON_WIDTH;
         ui.scope_builder(
             UiBuilder::new()
                 .max_rect(inner)
@@ -134,14 +255,56 @@ impl Ribbon {
                     .show(ui, |ui| {
                         ui.horizontal_top(|ui| {
                             for group in groups {
-                                group::show(ui, group, look, &mut out);
+                                group::show(ui, group, look, keys, out);
                             }
                         });
                     });
             },
         );
-        ui.advance_cursor_after_rect(full);
-        out
+
+        // Collapse the ribbon, or pin it open again while peeking.
+        let label = if self.peek {
+            "Pin the Ribbon"
+        } else {
+            "Collapse the Ribbon"
+        };
+        let chevron = Rect::from_min_size(
+            egui::pos2(body.max.x - CHEVRON_WIDTH + 2.0, body.max.y - 24.0),
+            egui::vec2(22.0, 20.0),
+        );
+        let style = button::style(tokens);
+        let peeking = self.peek;
+        let response = ui
+            .scope_builder(UiBuilder::new().max_rect(chevron), |ui| {
+                IconButton::new(label, chevron.size(), &style).show(ui, |ui, rect, color| {
+                    let c = rect.center();
+                    let points = if peeking {
+                        // A pin: head and point.
+                        vec![
+                            c + egui::vec2(-4.0, -2.0),
+                            c + egui::vec2(4.0, -2.0),
+                            c + egui::vec2(0.0, -2.0),
+                            c + egui::vec2(0.0, 5.0),
+                        ]
+                    } else {
+                        vec![
+                            c + egui::vec2(-4.0, 2.0),
+                            c + egui::vec2(0.0, -2.0),
+                            c + egui::vec2(4.0, 2.0),
+                        ]
+                    };
+                    ui.painter()
+                        .add(egui::Shape::line(points, Stroke::new(1.5, color)));
+                })
+            })
+            .inner;
+        if response
+            .on_hover_text(format!("{label} (Ctrl+F1)"))
+            .clicked()
+        {
+            out.push(Clicked::new(ids::VIEW_RIBBON_TOGGLE, &[]));
+            self.peek = false;
+        }
     }
 
     /// Draw the File backstage over the whole window. Returns the commands clicked.

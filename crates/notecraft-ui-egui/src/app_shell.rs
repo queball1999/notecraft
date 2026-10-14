@@ -2,7 +2,7 @@
 //! navigation, canvas, and status bar land in the next Phase 0 PRs (build_plan/02). PR 0.2 adds
 //! command dispatch and toasts; PR 0.3 installs the theme; PR 0.5 adds the ribbon.
 
-use notecraft_engine::cmd::{CommandError, Registry, Value};
+use notecraft_engine::cmd::{ids, CommandError, Registry, Value};
 use notecraft_engine::Session;
 
 use crate::ribbon::{self, Clicked, Ribbon};
@@ -86,6 +86,11 @@ impl AppShell {
         view.theme_mode = mode;
     }
 
+    /// Collapse or expand the ribbon without a command, for restoring saved settings.
+    pub fn set_ribbon_collapsed(&mut self, collapsed: bool) {
+        self.session.view_mut().ribbon_collapsed = collapsed;
+    }
+
     /// The tokens of the theme egui is showing now.
     pub fn tokens(&self, ctx: &egui::Context) -> ThemeTokens {
         ThemeTokens::for_variant(
@@ -140,12 +145,28 @@ impl AppShell {
             self.toasts.show(ui.ctx());
             return;
         }
+        // Ctrl+F1 collapses or expands the ribbon, as in OneNote. The full shortcut map
+        // arrives in PR 0.9.
+        let toggle_ribbon =
+            ui.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::F1));
+        let collapsed = self.session.view().ribbon_collapsed;
         let panel = egui::Frame::side_top_panel(ui.style());
-        let clicked = egui::Panel::top("ribbon")
-            .exact_size(RIBBON_HEIGHT)
+        let height = if collapsed {
+            ribbon::TAB_STRIP_HEIGHT
+        } else {
+            RIBBON_HEIGHT
+        };
+        let mut clicked = egui::Panel::top("ribbon")
+            .exact_size(height)
             .frame(egui::Frame::NONE.fill(tokens.ribbon_bg))
-            .show(ui, |ui| self.ribbon.show(ui, look))
+            .show(ui, |ui| self.ribbon.show(ui, look, collapsed))
             .inner;
+        if toggle_ribbon {
+            clicked.push(Clicked {
+                command: ids::VIEW_RIBBON_TOGGLE,
+                args: Value::Null,
+            });
+        }
         egui::Panel::bottom("status_bar")
             .exact_size(STATUS_HEIGHT)
             .frame(panel.fill(tokens.ribbon_bg))
@@ -256,6 +277,81 @@ mod tests {
                 assert_eq!(harness.state().ribbon().selected(), tab);
             }
         }
+    }
+
+    #[test]
+    fn ribbon_collapses_with_ctrl_f1_and_the_chevron() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::CTRL, egui::Key::F1);
+        harness.run();
+        assert!(harness.state().session().view().ribbon_collapsed);
+        assert!(harness.query_by_label("Paste").is_none());
+
+        // While collapsed, clicking a tab shows its groups until a button is used.
+        harness.get_by_label("Home").click();
+        harness.run();
+        assert!(harness.state().ribbon().peeking());
+        harness.get_by_label("Bold").click();
+        harness.run();
+        assert!(!harness.state().ribbon().peeking());
+        assert!(harness
+            .state()
+            .toasts()
+            .texts()
+            .any(|t| t == "Coming Soon: Bold"));
+
+        harness.key_press_modifiers(egui::Modifiers::CTRL, egui::Key::F1);
+        harness.run();
+        assert!(!harness.state().session().view().ribbon_collapsed);
+        harness.get_by_label("Collapse the Ribbon").click();
+        harness.run();
+        assert!(harness.state().session().view().ribbon_collapsed);
+    }
+
+    #[test]
+    fn key_tips_reach_tabs_and_buttons() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        // Tap Alt on its own.
+        harness.event(egui::Event::ModifiersChanged(egui::Modifiers::ALT));
+        harness.event(egui::Event::ModifiersChanged(egui::Modifiers::NONE));
+        harness.run();
+        assert!(harness.state().ribbon().key_tips_showing());
+
+        // N opens Insert; then the code for Pictures presses it.
+        harness.key_press(egui::Key::N);
+        harness.run();
+        assert_eq!(harness.state().ribbon().selected(), "Insert");
+        let insert = crate::ribbon::spec::TABS
+            .iter()
+            .position(|tab| tab.name == "Insert")
+            .unwrap();
+        let tips = crate::ribbon::keytips::tips_for_tab(insert);
+        let code = tips
+            .iter()
+            .find(|(button, _)| button.label == "Pictures")
+            .map(|(_, code)| code.clone())
+            .unwrap();
+        for c in code.chars() {
+            harness.key_press(egui::Key::from_name(&c.to_string()).unwrap());
+        }
+        harness.run();
+        assert!(!harness.state().ribbon().key_tips_showing());
+        assert!(harness
+            .state()
+            .toasts()
+            .texts()
+            .any(|t| t == "Coming Soon: Pictures"));
+
+        // F10, then F, opens the backstage; Esc closes it.
+        harness.key_press(egui::Key::F10);
+        harness.key_press(egui::Key::F);
+        harness.run();
+        assert!(harness.state().ribbon().backstage_open());
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert!(!harness.state().ribbon().backstage_open());
     }
 
     #[test]

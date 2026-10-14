@@ -53,8 +53,10 @@ impl eframe::App for App {
 
         // Remember the theme; commands change it in the session.
         let view = *self.shell.session().view();
-        self.store
-            .update(|p| p.theme.observe(view.theme_preset, view.theme_mode));
+        self.store.update(|p| {
+            p.theme.observe(view.theme_preset, view.theme_mode);
+            p.ribbon.collapsed = view.ribbon_collapsed;
+        });
 
         // Remember the window geometry; update() only marks the store dirty on a real change.
         let info = ctx.input(|i| i.viewport().clone());
@@ -151,6 +153,7 @@ fn main() -> eframe::Result<()> {
     let store = open_settings();
     let window = store.get().window.clone();
     let theme = store.get().theme.clone();
+    let ribbon_collapsed = store.get().ribbon.collapsed;
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
         .with_app_id(APP_ID)
@@ -184,6 +187,7 @@ fn main() -> eframe::Result<()> {
             let store = pending.take().ok_or("the app was already created")?;
             let mut shell = AppShell::new().with_fonts(OsFonts::load());
             shell.set_theme(theme.preset(), theme.mode());
+            shell.set_ribbon_collapsed(ribbon_collapsed);
             Ok(Box::new(App {
                 shell,
                 store,

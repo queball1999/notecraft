@@ -190,6 +190,8 @@ pub enum TabKind {
 #[derive(Clone, Copy, Debug)]
 pub struct Tab {
     pub name: &'static str,
+    /// The key tip letter (Alt, then this letter).
+    pub key: &'static str,
     pub kind: TabKind,
 }
 
@@ -954,30 +956,37 @@ const VIEW_GROUPS: &[Group] = &[
 pub static TABS: &[Tab] = &[
     Tab {
         name: "File",
+        key: "F",
         kind: TabKind::Backstage(BACKSTAGE),
     },
     Tab {
         name: "Home",
+        key: "H",
         kind: TabKind::Groups(&[CLIPBOARD, BASIC_TEXT, STYLES, TAGS, EMAIL, MEETINGS]),
     },
     Tab {
         name: "Insert",
+        key: "N",
         kind: TabKind::Groups(INSERT_GROUPS),
     },
     Tab {
         name: "Draw",
+        key: "D",
         kind: TabKind::Groups(DRAW_GROUPS),
     },
     Tab {
         name: "History",
+        key: "S",
         kind: TabKind::Groups(HISTORY_GROUPS),
     },
     Tab {
         name: "Review",
+        key: "R",
         kind: TabKind::Groups(REVIEW_GROUPS),
     },
     Tab {
         name: "View",
+        key: "W",
         kind: TabKind::Groups(VIEW_GROUPS),
     },
 ];

@@ -16,6 +16,14 @@ const MAX_COORD: f32 = 16_384.0;
 pub struct Prefs {
     pub window: WindowPrefs,
     pub theme: ThemePrefs,
+    pub ribbon: RibbonPrefs,
+}
+
+/// The ribbon's collapsed state (`view.ribbon.toggle`), kept across runs as in OneNote.
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct RibbonPrefs {
+    pub collapsed: bool,
 }
 
 impl craft_settings::Settings for Prefs {
