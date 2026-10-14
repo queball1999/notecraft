@@ -1,6 +1,6 @@
 # Shared craft libraries
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: craft-common-actions now covers FreeBSD tests, Windows ARM64 checks, and packaging lint only.
 
 NoteCraft uses the shared crates in [storytold/craft-libs](https://github.com/storytold/craft-libs) instead of writing its own versions. This doc says which ones, where, and how to update them. For each crate's API, read its docs at the pinned commit; this doc does not repeat them.
 
@@ -47,7 +47,7 @@ Notes:
 
 | Repo | Used for |
 |---|---|
-| [storytold/craft-common-actions](https://github.com/storytold/craft-common-actions) | Reusable GitHub workflows called by `release.yml`, `freebsd.yml`, `windows-arm64.yml`, and `packaging-lint.yml` (docs/releasing.md) |
+| [storytold/craft-common-actions](https://github.com/storytold/craft-common-actions) | Reusable GitHub workflows called by `freebsd.yml`, `windows-arm64.yml`, and `packaging-lint.yml`. Not used for releases: `release.yml` is NoteCraft's own, on free runners (docs/releasing.md) |
 | [storytold/craft-fonts](https://github.com/storytold/craft-fonts) | Openly licensed fonts the related craft apps embed. Decision point in Phase 0 (PR 0.4, build_plan/02-phase-0-ui-shell.md): if NoteCraft bundles a UI font, take it from craft-fonts and pass `craft-fonts-ref` in the workflows, as DeckCraft and GridCraft do |
 | [storytold/craftrules](https://github.com/storytold/craftrules) | Shared engineering, never-crash, licensing, and progress-docs standards |
 
@@ -72,3 +72,4 @@ Do not fork the code into NoteCraft. Open an issue or PR on craft-libs, and if N
 |---|---|---|
 | 2026-10-14 | -1 | Created. Crate mapping, pinning, bump procedure, related shared repos. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | Craft-common-actions now covers FreeBSD tests, Windows ARM64 checks, and packaging lint only. |

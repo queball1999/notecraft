@@ -2,7 +2,7 @@
 
 > Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: repo and app ID moved off the ArtCraft namespace.
 
-Goal: an empty but complete workspace. Every crate exists and builds, `cargo xtask ci` runs every gate, CI matches the related craft apps, and the shared release workflow can build packages from the `release` branch. No features.
+Goal: an empty but complete workspace. Every crate exists and builds, `cargo xtask ci` runs every gate, CI matches the related craft apps, and the release workflow can build packages from the `release` branch. No features.
 
 | | |
 |---|---|

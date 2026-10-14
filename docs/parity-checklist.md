@@ -42,7 +42,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | SC-05 | Scaffolding | `cargo xtask text` | -1 | D | PR -1.3: cargo xtask text; unit tests plus a failing em dash check; CI shell step kept |
 | SC-06 | Scaffolding | `cargo xtask parity` and `--check` | -1 | D | PR -1.4: cargo xtask parity and --check; also checks build plan hour totals |
 | SC-07 | Scaffolding | `cargo xtask version set` (release contract) | -1 | D | PR -1.5: cargo xtask version set; validates semver and refreshes Cargo.lock for --locked builds |
-| SC-08 | Scaffolding | Packaging scripts for the craft-common-actions contract | -1 | P | PR -1.5: packaging/ scripts, WiX, Linux and macOS metadata, icons; release dry run on GitHub pending (needs the remote) |
+| SC-08 | Scaffolding | Packaging scripts and the release workflow | -1 | P | PR -1.5: packaging/ scripts, WiX, Linux and macOS metadata, icons; release dry run on GitHub pending (needs the remote) |
 | SC-09 | Scaffolding | Logging to file with rotation and 16 MiB cap | -1 | D | PR -1.6: stderr and file logging, rotation to .1 and .2, 16 MiB cap, RUST_LOG, NOTECRAFT_NO_PREFS; unit tests |
 | SC-10 | Scaffolding | Branch protection and labels on GitHub | -1 | M | |
 
