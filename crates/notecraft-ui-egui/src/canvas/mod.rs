@@ -4,6 +4,7 @@
 //! The zoom lives in the session (`view.zoom` and friends), so every zoom, including Ctrl+wheel
 //! and pinch, is a command. The scroll position is front-end state kept here.
 
+mod paper;
 mod widget;
 
 use notecraft_canvas::viewport::{self, Viewport};
@@ -70,6 +71,30 @@ impl CanvasUi {
     }
 }
 
+/// Where page units land on screen this frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PageToScreen {
+    /// Screen position of page point (0, 0).
+    pub origin: egui::Pos2,
+    pub zoom: f32,
+}
+
+impl PageToScreen {
+    pub fn pos(self, page: Vec2) -> egui::Pos2 {
+        self.origin + egui::vec2(page.x, page.y) * self.zoom
+    }
+
+    pub fn page(self, screen: egui::Pos2) -> Vec2 {
+        let v = (screen - self.origin) / self.zoom;
+        Vec2::new(v.x, v.y)
+    }
+
+    /// The page area inside `screen`, as top-left and bottom-right page points.
+    pub fn page_rect(self, screen: egui::Rect) -> (Vec2, Vec2) {
+        (self.page(screen.min), self.page(screen.max))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,5 +123,16 @@ mod tests {
         assert_eq!(canvas.zoom_gesture(Vec2::ZERO, f32::NAN), None);
         assert_eq!(canvas.zoom_gesture(Vec2::ZERO, -2.0), None);
         assert_eq!(canvas.viewport().percent(), 10);
+    }
+
+    #[test]
+    fn page_to_screen_round_trips() {
+        let map = PageToScreen {
+            origin: egui::pos2(100.0, 40.0),
+            zoom: 2.0,
+        };
+        let page = Vec2::new(12.0, 30.0);
+        assert_eq!(map.pos(page), egui::pos2(124.0, 100.0));
+        assert_eq!(map.page(map.pos(page)), page);
     }
 }

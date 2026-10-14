@@ -7,7 +7,7 @@ use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::Session;
 
-use super::CanvasUi;
+use super::{paper, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -30,8 +30,8 @@ pub fn show(
     let zoom = state.viewport.zoom();
     let origin = state.viewport.origin();
     let view_size = Vec2::new(rect.width(), rect.height()) / zoom;
-    let paper = session.page_style().paper_size.size();
-    let extent = content_extent(origin, view_size, paper) * zoom;
+    let style = session.page_style();
+    let extent = content_extent(origin, view_size, style.paper_size.size()) * zoom;
 
     let mut area = ScrollArea::both()
         .id_salt("canvas")
@@ -55,8 +55,12 @@ pub fn show(
                 response.widget_info(|| {
                     egui::WidgetInfo::labeled(egui::WidgetType::Other, true, LABEL)
                 });
+                let map = PageToScreen {
+                    origin: content.min,
+                    zoom,
+                };
                 let screen = visible.translate(content.min.to_vec2());
-                ui.painter().rect_filled(screen, 0.0, tokens.canvas_bg);
+                paper::draw(ui.painter(), screen, map, style, tokens);
                 response
             })
         })
