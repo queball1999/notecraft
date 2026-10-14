@@ -80,7 +80,7 @@ Slightly deeper purple, cleaner spacing, 2 px corners.
 
 | Token | Light | Dark |
 |---|---|---|
-| `accent` | `#6E3196` | `#9461BD` |
+| `accent` | `#6E3196` | `#915FB9` |
 | `accent_text` | `#FFFFFF` | `#FFFFFF` |
 | `ribbon_bg` | `#F7F5F9` | `#29252E` |
 | `ribbon_tab_bg` | `#6E3196` | `#372C42` |
