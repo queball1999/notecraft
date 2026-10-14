@@ -1,0 +1,19 @@
+# NoteCraft addition (SCRD section 6 asks for it; the related craft apps have none). Cargo only:
+# GitHub Actions are SHA-pinned to match the related craft apps or tracked at craft-common-actions@main,
+# so they are bumped by hand, never by Dependabot. craft-libs crates are git deps pinned to a
+# commit and are bumped by hand too (docs/craft-libs.md).
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      egui-stack:
+        patterns: ["egui*", "eframe", "wgpu*", "winit"]
+    ignore:
+      - dependency-name: "craft-*"

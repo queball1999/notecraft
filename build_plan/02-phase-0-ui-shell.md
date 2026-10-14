@@ -1,0 +1,377 @@
+# Phase 0: UI shell
+
+> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+
+Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
+
+| | |
+|---|---|
+| Phase branch | `phase/0-ui-shell` |
+| Hours | see "Estimate" at the end |
+| Checklist rows | SH-01 to SH-09, SH-11 to SH-15, TH-01 to TH-06, CV-01 to CV-03 |
+| Gaps | ranks 6 to 15 |
+
+## Entry criteria
+
+- Phase -1 exit criteria met; `phase/0-ui-shell` created from `main`.
+
+## Layout target
+
+```text
++-----------------------------------------------------------------------------+
+| [QAT]  NoteCraft - Meeting notes - Work                         [_] [ ] [X] |
++-----------------------------------------------------------------------------+
+| File | Home | Insert | Draw | History | Review | View                       |
++-----------------------------------------------------------------------------+
+|  ribbon groups: [Clipboard] [Basic Text] [Styles] [Tags] [Email] ...        |
++-----------------+-----------------------------------------------------------+
+| Notebooks     v | [Work] [Personal] [Projects] [+]       <- section tabs    |
+|  My Notebook    +------------------------------------+----------------------+
+|  Work Notebook  |  Meeting notes                     | Pages         [+]    |
+|                 |  Tuesday, October 14, 2026 9:30 AM |  Meeting notes       |
+|                 |                                    |    Action items      |
+|                 |   (canvas: lined paper, pan/zoom)  |  Reading list        |
+|                 |                                    |                      |
++-----------------+------------------------------------+----------------------+
+| Zoom 100% | Page 1 of 3 | Saved                                             |
++-----------------------------------------------------------------------------+
+```
+
+The page list sits on the right of the canvas in the 2016 and 2019 presets, and next to the section list on the left in the 2021 and Microsoft 365 presets, matching where each era put it. This is a layout option driven by the theme, not separate code paths.
+
+## PR 0.1: egui app scaffold
+
+| | |
+|---|---|
+| Branch | `feat/app-scaffold` off `phase/0-ui-shell` |
+| Hours | 8-14 |
+| Rows | SH-01 |
+
+Files: `apps/notecraft/src/{main.rs,app.rs}`, `crates/notecraft-ui-egui/src/{lib.rs,app_shell.rs}`, workspace deps `egui`, `eframe` (wgpu feature), `craft-ui`, `craft-quit` (macOS), `craft-settings`.
+
+Steps:
+
+1. Add `egui`, `eframe` (features `wgpu`, `accesskit`), and the pinned craft-libs `rev` to `[workspace.dependencies]` (docs/craft-libs.md section 1).
+2. `notecraft-ui-egui::AppShell` implements `eframe::App` and owns empty panels (top, left, right, bottom, central).
+3. `apps/notecraft` builds `NativeOptions` with the wgpu renderer, window title "NoteCraft", minimum size 800 x 600, restores window size and position from `craft-settings`.
+4. macOS: hook `craft-quit` for the app menu and Cmd+Q.
+5. UI test: launch `AppShell` headless with `egui_kittest` (or what WordCraft uses), render one frame, assert no panic.
+
+Commits:
+
+1. `build(deps): add egui, eframe, and pinned craft-libs`
+2. `feat(ui): add app shell with empty panels`
+3. `feat(app): open main window on wgpu and restore geometry`
+4. `feat(app): wire craft-quit on macos`
+5. `test(ui): render one frame of the app shell headless`
+
+PR title: `feat(app): open the main window with an empty shell`. Screenshot required (empty window on each OS).
+
+Acceptance: window opens on Windows (DX12), macOS (Metal), Linux (Vulkan); `cargo xtask layers` still passes (egui only in L6 and L7).
+
+## PR 0.2: command registry
+
+| | |
+|---|---|
+| Branch | `feat/command-registry` off `phase/0-ui-shell` |
+| Hours | 12-20 |
+| Rows | SH-03, SH-04 |
+
+Files: `crates/notecraft-engine/src/cmd/{mod.rs,registry.rs,guard.rs,ids.rs}`, `crates/notecraft-engine/src/session.rs`, `crates/notecraft-ui-egui/src/toast.rs`, `apps/notecraft-cli/src/commands.rs`.
+
+Steps:
+
+1. `CommandId` newtype over `&'static str`; `ids.rs` lists every id as a constant, grouped by area, with a doc comment each. Start with the full list for every ribbon button in PR 0.5 (about 150 ids), most with `Status::ComingSoon`.
+2. `CommandSpec { id, label, description, args_schema, undoable, destructive, default_shortcut, status }`.
+3. `Registry::run(&mut Session, id, args) -> Result<CommandOutput, CommandError>`; unknown id and Coming Soon are errors, not panics.
+4. `guard.rs`: wrap execution in `catch_unwind`; on panic, log, return `CommandError::Internal`, leave the session as it was.
+5. Toast widget in `notecraft-ui-egui`: "Coming Soon: <label>" for 3 seconds.
+6. Tests: every id is unique, matches `^[a-z]+(\.[a-z_]+)+$`, and has a label; a test command that panics is caught by the guard.
+
+Commits:
+
+1. `feat(engine): add command spec, ids, and registry`
+2. `feat(engine): add panic guard around command execution`
+3. `feat(engine): register all phase 0 ribbon command ids`
+4. `feat(ui): add toast for coming soon commands`
+5. `test(engine): cover registry ids and panic guard`
+
+PR title: `feat(engine): add the command registry and coming soon flow`.
+
+## PR 0.3: theme system and tokens
+
+| | |
+|---|---|
+| Branch | `feat/theme-tokens` off `phase/0-ui-shell` |
+| Hours | 16-28 |
+| Rows | TH-05, TH-06 |
+
+Files: `crates/notecraft-ui-egui/src/themes/{mod.rs,tokens.rs,apply.rs}`.
+
+Steps:
+
+1. `ThemeTokens` struct with every token in docs/themes.md section 3. `Preset` enum and `Mode` enum.
+2. `apply.rs`: map tokens onto `egui::Style` and `Visuals`, using `craft-ui` theme helpers where they exist.
+3. Settings `theme.preset` and `theme.mode` through `craft-settings`; `system` mode follows the OS dark setting (eframe exposes it).
+4. Commands `view.theme.set`, `view.mode.toggle`, `view.mode.set` (now Status::Ready).
+5. WCAG AA contrast test helper (docs/themes.md section 6).
+
+Commits:
+
+1. `feat(ui): add theme tokens, presets, and modes`
+2. `feat(ui): apply theme tokens to egui style`
+3. `feat(ui): persist theme and follow system dark mode`
+4. `feat(engine): implement theme commands`
+5. `test(ui): add contrast check helper`
+
+PR title: `feat(ui): add the theme token system`.
+
+## PR 0.4: four theme presets
+
+| | |
+|---|---|
+| Branch | `feat/theme-presets` off `phase/0-ui-shell` |
+| Hours | 24-40 |
+| Rows | TH-01 to TH-04 |
+
+Files: `crates/notecraft-ui-egui/src/themes/{onenote2016.rs,onenote2019.rs,onenote2021.rs,m365.rs}`; possibly `assets/fonts/` and ATTRIBUTION.md.
+
+Steps:
+
+1. Encode the palettes from docs/themes.md section 4. Tune by eye against the running shell; record any change in docs/themes.md.
+2. Font decision: use the OS UI font (docs/themes.md section 2). Decide whether to bundle a fallback from storytold/craft-fonts. If yes: add it, add the ATTRIBUTION.md row, and add `craft-fonts-ref` to `release.yml` and `freebsd.yml` like DeckCraft. Record the decision in docs/craft-libs.md.
+3. Contrast test runs over all eight variants.
+4. Screenshots of all eight variants go in the PR.
+
+Commits:
+
+1. `feat(ui): add onenote 2016 preset`
+2. `feat(ui): add onenote 2019 preset`
+3. `feat(ui): add onenote 2021 preset`
+4. `feat(ui): add microsoft 365 preset`
+5. `feat(ui): load os ui font with bundled fallback` (if bundling)
+6. `test(ui): check contrast for all eight theme variants`
+7. `docs: record theme tuning and font decision`
+
+PR title: `feat(ui): add the four OneNote theme presets`.
+
+## PR 0.5: ribbon
+
+| | |
+|---|---|
+| Branch | `feat/ribbon` off `phase/0-ui-shell` |
+| Hours | 60-100 |
+| Rows | SH-02, SH-05 |
+
+Files: `crates/notecraft-ui-egui/src/ribbon/{mod.rs,tab.rs,group.rs,button.rs,spec.rs}`, `crates/notecraft-ui-egui/src/icons/` (original vector icons drawn in code), ATTRIBUTION.md rows for any icon files.
+
+Steps:
+
+1. Ribbon is data: `spec.rs` declares tabs, groups, and buttons (label, icon id, command id, size large or small, dropdown items). The ribbon widget renders the spec.
+2. Tabs and groups (mirror OneNote 2016 to 2021 in names and order; no tabs OneNote does not have):
+   - File: backstage view with New, Open, Info, Print, Export, Settings, About.
+   - Home: Clipboard, Basic Text, Styles, Tags, Email (email shows Coming Soon), Meetings (Coming Soon).
+   - Insert: Insert Space, Tables, Files (attachment, printout), Images (pictures, screenshot), Links, Recording (Coming Soon), Time Stamp, Pages (templates), Symbols (equation, symbol).
+   - Draw: Tools (select, lasso, panning hand, pens gallery, highlighter, eraser), Shapes, Edit (insert space, delete, arrange, rotate), Convert (ink to shape, ink to text).
+   - History: Unread, Authors (Coming Soon), Page Versions, Notebook Recycle Bin.
+   - Review: Spelling, Language, Section (password, Coming Soon), Notes.
+   - View: Views (normal, full page, dock), Page Setup (paper color, rule lines, hide title), Zoom, Window (new window), Theme (preset, dark mode).
+3. Icons: original, simple vector drawings using `egui::Painter`, one function per icon, 16 and 32 px. Never trace or copy Microsoft icons.
+4. Collapse and expand with Ctrl+F1 and a chevron; double-click a tab toggles collapse.
+5. Coming Soon badge: small pill in the top right of a button, color `badge_bg`.
+6. Keyboard access: Alt shows key tips (letters) on tabs and buttons.
+
+Commits (one per tab keeps review manageable):
+
+1. `feat(ui): add data-driven ribbon widget`
+2. `feat(ui): add original vector icon set for the ribbon`
+3. `feat(ui): add file backstage view`
+4. `feat(ui): add home tab`
+5. `feat(ui): add insert tab`
+6. `feat(ui): add draw tab`
+7. `feat(ui): add history, review, and view tabs`
+8. `feat(ui): add ribbon collapse and key tips`
+9. `test(ui): every ribbon button maps to a registered command`
+
+PR title: `feat(ui): add the ribbon with every tab and button`. Screenshots: each tab in two presets.
+
+If the diff passes 1,000 lines, split into 0.5a (widget, icons, File, Home) and 0.5b (other tabs).
+
+## PR 0.6: sidebar, section tabs, page list
+
+| | |
+|---|---|
+| Branch | `feat/navigation` off `phase/0-ui-shell` |
+| Hours | 24-40 |
+| Rows | SH-06, SH-07, SH-08 |
+
+Files: `crates/notecraft-ui-egui/src/nav/{notebooks.rs,sections.rs,pages.rs,mock.rs}`, `crates/notecraft-model/src/{notebook.rs,section.rs,page.rs}` (types only).
+
+Steps:
+
+1. Model types in `notecraft-model`: `Notebook`, `SectionNode` (section or group), `PageRef` (title, level, id). No I/O.
+2. `mock.rs`: two notebooks, five sections (one group), twenty pages with subpages.
+3. Notebook pane: collapsible list with color swatches.
+4. Section tabs: colored tabs across the top of the canvas, overflow menu, "+" tab.
+5. Page list: titles with indent for subpages, "+ Add page", selection highlight.
+6. Clicking changes the session's current page (mock). Commands `nav.page.select`, `nav.section.select`, `nav.notebook.select`.
+7. Placement follows the theme (see Layout target).
+
+Commits:
+
+1. `feat(model): add notebook, section, and page reference types`
+2. `feat(ui): add mock notebook data`
+3. `feat(ui): add notebook pane`
+4. `feat(ui): add colored section tabs`
+5. `feat(ui): add page list with subpage indent`
+6. `feat(engine): add navigation commands`
+
+PR title: `feat(ui): add notebook, section, and page navigation`.
+
+## PR 0.7: canvas pan, zoom, paper
+
+| | |
+|---|---|
+| Branch | `feat/canvas-viewport` off `phase/0-ui-shell` |
+| Hours | 24-40 |
+| Rows | CV-01, CV-02, CV-03 |
+
+Files: `crates/notecraft-canvas/src/{viewport.rs,paper.rs}`, `crates/notecraft-ui-egui/src/canvas/{mod.rs,widget.rs}`.
+
+Steps:
+
+1. `Viewport` in `notecraft-canvas` (no egui): offset, zoom (0.1 to 4.0), screen-to-page and page-to-screen transforms, zoom about a point. Property tests for round trips.
+2. Canvas widget: scroll to pan, middle-drag and Space+drag to pan, Ctrl+wheel and pinch to zoom about the pointer, scroll bars.
+3. Paper: blank, lined (rule spacing 0.25 inch), grid (0.25 inch), dotted; color from `canvas_rule`. Drawn only for the visible area.
+4. Page title area and date line (mock data).
+5. Commands: `view.zoom_in`, `view.zoom_out`, `view.zoom_100`, `view.zoom_fit_width`, `view.paper.set`.
+
+Commits:
+
+1. `feat(canvas): add viewport transforms and zoom limits`
+2. `test(canvas): property-test viewport round trips`
+3. `feat(ui): add canvas widget with pan and zoom`
+4. `feat(ui): draw paper styles for the visible area`
+5. `feat(ui): draw page title and date area`
+6. `feat(engine): add zoom and paper commands`
+
+PR title: `feat(canvas): add pan, zoom, and paper styles`.
+
+## PR 0.8: start page, recent files, file picker
+
+| | |
+|---|---|
+| Branch | `feat/start-page` off `phase/0-ui-shell` |
+| Hours | 12-20 |
+| Rows | SH-11, SH-12 |
+
+Steps:
+
+1. Start page shown when nothing is open: New notebook, Open notebook, Open file, recent list (last 10 notebooks and pages, from `craft-settings`).
+2. File picker through `rfd` (only in L6 and L7): folders for notebooks, `.md` and `.notecraft` for files. Phase 0 records the choice in recents and shows the mock notebook; Phase 1 loads it for real.
+3. Commands: `file.new_notebook`, `file.open_notebook`, `file.open`, `file.recent.clear`.
+
+Commits:
+
+1. `feat(ui): add start page`
+2. `feat(ui): add recent files list backed by settings`
+3. `feat(ui): add open dialogs for notebooks and pages`
+
+PR title: `feat(ui): add the start page, recents, and file picker`.
+
+## PR 0.9: status bar, full page view, shortcut map
+
+| | |
+|---|---|
+| Branch | `feat/status-shortcuts` off `phase/0-ui-shell` |
+| Hours | 12-20 |
+| Rows | SH-09, SH-13, SH-14 |
+
+Steps:
+
+1. Status bar: zoom percent (click for zoom menu), page n of m, save state.
+2. Full page view (F11): hide ribbon and navigation; Esc or F11 to leave.
+3. Shortcut map in `notecraft-engine/src/cmd/shortcuts.rs`: OneNote defaults where they do not clash with the OS (Ctrl+N new page, Ctrl+T new section, Ctrl+E search, Ctrl+1 to Ctrl+9 tags, Ctrl+Alt+D dock, Ctrl+F1 ribbon, Alt+Shift+D date, Alt+Shift+T time). macOS maps Ctrl to Cmd.
+4. Test: no two commands share a shortcut in the same context.
+
+Commits:
+
+1. `feat(ui): add status bar`
+2. `feat(ui): add full page view`
+3. `feat(engine): add onenote default shortcut map`
+4. `test(engine): reject duplicate shortcuts`
+
+PR title: `feat(ui): add status bar, full page view, and shortcuts`.
+
+## PR 0.10: accessibility
+
+| | |
+|---|---|
+| Branch | `feat/accessibility` off `phase/0-ui-shell` |
+| Hours | 10-16 |
+| Rows | SH-15 |
+
+Steps: AccessKit labels on every ribbon button, tab, and navigation item; logical Tab order through ribbon, navigation, canvas; visible focus ring with `accent`; test with Narrator (Windows) and VoiceOver (macOS) and record the results in the PR.
+
+Commits:
+
+1. `feat(ui): label every control for screen readers`
+2. `feat(ui): add keyboard focus order and focus ring`
+
+PR title: `feat(ui): add keyboard navigation and screen reader labels`.
+
+## PR 0.11: minimal control channel for UI tests
+
+| | |
+|---|---|
+| Branch | `feat/control-minimal` off `phase/0-ui-shell` |
+| Hours | 8-14 |
+| Rows | none (enables testing; full protocol is Phase 3) |
+
+Steps: `notecraft --control <port>` with token auth, `auth`, `command.run`, `screenshot`, `wait.idle` only (docs/control-protocol.md). An integration test starts the app with `--control`, switches all four themes, and saves screenshots as CI artifacts.
+
+Commits:
+
+1. `feat(app): add minimal control channel with token auth`
+2. `test(app): screenshot every theme through the control channel`
+
+PR title: `feat(app): add a minimal control channel for UI tests`.
+
+## PR 0.12: close Phase 0
+
+Follow 00-conventions.md section 6. Also:
+
+- Fill the alpha gate Evidence column in docs/roadmap.md for the Phase 0 rows.
+- Cut internal test release 0.0.1 (docs/releasing.md section 2) to prove the pipeline end to end with real UI.
+- Re-estimate Phases 1 to 4 from actual Phase 0 hours.
+
+## Estimate
+
+| PR | Hours |
+|---|---|
+| 0.1 app scaffold | 8-14 |
+| 0.2 command registry | 12-20 |
+| 0.3 theme tokens | 16-28 |
+| 0.4 presets | 24-40 |
+| 0.5 ribbon | 60-100 |
+| 0.6 navigation | 24-40 |
+| 0.7 canvas viewport | 24-40 |
+| 0.8 start page | 12-20 |
+| 0.9 status and shortcuts | 12-20 |
+| 0.10 accessibility | 10-16 |
+| 0.11 control minimal | 8-14 |
+| 0.12 close and 0.0.1 | 4-8 |
+| Total | 214-360 |
+
+## Exit criteria
+
+- SH-01 to SH-09 and SH-11 to SH-15, TH-01 to TH-06, CV-01 to CV-03 scored D.
+- Internal release 0.0.1 built from `release`.
+- Every ribbon button runs a command or shows Coming Soon; none does nothing.
+
+## Revision history
+
+| Date | Phase | Change |
+|---|---|---|
+| 2026-10-14 | -1 | Created. Command palette and the Graph and Plugins tabs moved to docs/post-parity.md. |
+| 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |

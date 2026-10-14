@@ -1,0 +1,16 @@
+NoteCraft
+Copyright 2026 The NoteCraft Contributors
+
+This product is dual-licensed under the MIT license and the Apache License,
+Version 2.0, at your option. See LICENSE-MIT and LICENSE-APACHE.
+
+Bundled assets and their licenses are listed in ATTRIBUTION.md.
+
+NoteCraft is a related but independent project. It follows the patterns of the
+ArtCraft apps and uses their shared libraries and CI workflows, but it is
+developed separately and is not an official ArtCraft app.
+
+Microsoft, OneNote, and Microsoft 365 are trademarks of Microsoft Corporation.
+NoteCraft is an independent project and is not affiliated with, sponsored by, or
+endorsed by Microsoft Corporation. These names are used only to describe the
+workflow NoteCraft is compatible with.

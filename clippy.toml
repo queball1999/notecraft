@@ -1,0 +1,20 @@
+# Workspace clippy configuration.
+#
+# The never-crash lints (unwrap_used, expect_used, panic, unimplemented, todo,
+# unreachable) are denied in every crate's lib.rs and in [workspace.lints].
+# Tests may unwrap and panic: a failing test is supposed to stop.
+
+msrv = "1.95"
+
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-dbg-in-tests = true
+
+# Keep functions reviewable.
+too-many-arguments-threshold = 8
+too-many-lines-threshold = 150
+cognitive-complexity-threshold = 30
+
+# Types that are cheap to pass by value in this codebase.
+trivial-copy-size-limit = 16

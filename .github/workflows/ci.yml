@@ -1,0 +1,69 @@
+# The AGENTS.md quality gate (`cargo xtask ci`: fmt, clippy -D warnings, tests, text, assets,
+# layers, wasm, parity --check) on every pull request and every push to main, so a merge burst
+# can't land a red tree that only the next agent session discovers.
+#
+# Mirrors the GridCraft and DeckCraft ci.yml. Two NoteCraft additions:
+# - The plain-text check (AGENTS.md section 2) runs as plain shell before Rust is
+#   installed, so it gates even before the Cargo workspace exists.
+# - The Rust steps skip themselves until Phase -1 lands Cargo.toml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: cargo xtask ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      NOTECRAFT_NO_PREFS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Plain ASCII text (AGENTS.md section 2)
+        run: |
+          set -euo pipefail
+          hits=$(git ls-files -z -- . ':!:testdata/**' ':!:locales/**' \
+            | xargs -0 grep -nIP '[^\x00-\x7F]' || true)
+          if [ -n "$hits" ]; then
+            echo "Non-ASCII characters found. Use plain ASCII (AGENTS.md section 2):"
+            echo "$hits"
+            exit 1
+          fi
+
+      - name: Install Linux build dependencies (winit, wgpu, rfd)
+        if: hashFiles('Cargo.toml') != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev \
+            libxi-dev libgtk-3-dev libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers
+
+      - name: Install Rust (stable + clippy, rustfmt, wasm32)
+        if: hashFiles('Cargo.toml') != ''
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt \
+            --target wasm32-unknown-unknown
+          rustup default stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: hashFiles('Cargo.toml') != ''
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Quality gate
+        if: hashFiles('Cargo.toml') != ''
+        run: cargo xtask ci

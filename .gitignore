@@ -1,0 +1,57 @@
+# Rust build output
+/target/
+**/target/
+*.rs.bk
+
+# Debug symbols and native libraries
+*.pdb
+*.dll
+*.so
+*.dylib
+*.exp
+*.lib
+*.ilk
+
+# Local cargo state (never commit a vendored registry)
+.cargo/registry/
+.cargo/git/
+.cargo/credentials.toml
+
+# Packaging output
+/dist/
+/packaging/out/
+*.msi
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+SHA256SUMS.txt
+
+# WASM build output
+/apps/notecraft-web/pkg/
+/apps/notecraft-web/dist/
+
+# Test and benchmark output
+/testdata/out/
+*.profraw
+*.profdata
+/criterion/
+
+# Local app data created by dev runs
+/.notecraft-dev/
+*.notecraft-lock
+
+# Logs
+*.log
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Agent scratch space
+/.claude/settings.local.json

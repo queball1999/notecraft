@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/storytold/notecraft/discussions
+    about: Usage questions and ideas
+  - name: Security issue
+    url: https://github.com/storytold/notecraft/security/advisories/new
+    about: Report security problems privately, not as a public issue
