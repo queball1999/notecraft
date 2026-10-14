@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 8 (theme presets) removed; rank 6 adds verifying the OS UI font.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: rank 9 narrowed to the ribbon tabs after Home, collapse, and key tips (PR 0.5a landed).
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -11,7 +11,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
 | 6 | Window launch, system dark mode, and the OS UI font not yet verified on macOS and Linux (Windows done) | SH-01, TH-06 | 1-2 | build_plan/02, PR 0.1, 0.3, 0.4 |
-| 9 | No ribbon or original icon set; command ids exist but no button is bound to them and there is no Coming Soon badge | SH-02 to SH-05 | 60-100 | build_plan/02, PR 0.5 |
+| 9 | Ribbon has only the File backstage and the Home tab: Insert, Draw, History, Review, and View tabs, their icons, ribbon collapse (Ctrl+F1), and key tips are missing | SH-02 to SH-05 | 35-60 | build_plan/02, PR 0.5b |
 | 10 | No notebook list, section tabs, page list | SH-06 to SH-08 | 24-40 | build_plan/02, PR 0.6 |
 | 11 | No canvas pan, zoom, rule lines | CV-01 to CV-03 | 24-40 | build_plan/02, PR 0.7 |
 | 12 | No File backstage, recents, open dialog | SH-11, SH-12 | 12-20 | build_plan/02, PR 0.8 |
@@ -84,3 +84,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-14 | 0 | Rank 7 (command registry) removed; rank 9 now covers binding buttons and the badge. |
 | 2026-10-14 | 0 | Rank 8 narrowed to the four presets (PR 0.3 landed the token system); rank 6 adds verifying system dark mode on macOS and Linux. |
 | 2026-10-14 | 0 | Rank 8 (theme presets) removed; rank 6 adds verifying the OS UI font on macOS and Linux. |
+| 2026-10-14 | 0 | Rank 9 narrowed: the ribbon widget, icons, File backstage, and Home tab landed (PR 0.5a); the other tabs, collapse, and key tips remain (PR 0.5b). |
