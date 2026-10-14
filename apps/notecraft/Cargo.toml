@@ -16,6 +16,15 @@ workspace = true
 notecraft-ui-egui.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
+egui.workspace = true
+image.workspace = true
+serde.workspace = true
+craft-settings.workspace = true
+craft-quit = { workspace = true, features = ["egui", "menu"] }
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [build-dependencies]
 # Icon and VERSIONINFO for notecraft.exe; build.rs only uses it when the target is Windows.

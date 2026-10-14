@@ -1,6 +1,6 @@
 # Shared craft libraries
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: craft-common-actions now covers FreeBSD tests, Windows ARM64 checks, and packaging lint only.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: craft-libs pinned at 457a0788; craft-ui, craft-quit, craft-settings adopted.
 
 NoteCraft uses the shared crates in [storytold/craft-libs](https://github.com/storytold/craft-libs) instead of writing its own versions. This doc says which ones, where, and how to update them. For each crate's API, read its docs at the pinned commit; this doc does not repeat them.
 
@@ -19,6 +19,8 @@ craft-cms      = { git = "https://github.com/storytold/craft-libs", rev = "<comm
 ```
 
 Member crates then use `craft-atomic = { workspace = true }`. All craft crates share one `rev`, so they always come from the same commit.
+
+Currently pinned: `457a078809690994b22debdffb703ff36d3129df` (2026-10-14). In use: `craft-ui` (notecraft-ui-egui), `craft-quit` with the `egui` and `menu` features and `craft-settings` (the notecraft app). craft-libs uses egui 0.36, so NoteCraft does too.
 
 ## 2. Which crate goes where
 
@@ -73,3 +75,4 @@ Do not fork the code into NoteCraft. Open an issue or PR on craft-libs, and if N
 | 2026-10-14 | -1 | Created. Crate mapping, pinning, bump procedure, related shared repos. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | Craft-common-actions now covers FreeBSD tests, Windows ARM64 checks, and packaging lint only. |
+| 2026-10-14 | -1 | Craft-libs pinned at 457a0788; craft-ui, craft-quit, craft-settings adopted. |

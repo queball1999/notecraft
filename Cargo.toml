@@ -44,6 +44,15 @@ notecraft-ui-egui = { path = "crates/notecraft-ui-egui" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
+# UI stack. Same egui release as craft-libs (egui 0.36).
+egui = "0.36"
+eframe = { version = "0.36", default-features = false }
+egui_kittest = "0.36"
+image = { version = "0.25", default-features = false, features = ["png"] }
+# craft-libs: every crate from one pinned commit (docs/craft-libs.md section 5).
+craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
+craft-quit = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
+craft-settings = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std", "ansi", "registry"] }
 
 [profile.release]
