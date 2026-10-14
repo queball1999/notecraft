@@ -1,8 +1,8 @@
 //! The ribbon: a tab strip over a body of groups, rendered from the data in [`spec`]. Every
 //! button runs a command by id; the ribbon returns what was clicked and the shell dispatches
-//! it (AGENTS.md section 4). Buttons whose command is Coming Soon carry a badge. The File tab is listed but its
-//! backstage view comes in the next commit.
+//! it (AGENTS.md section 4). Buttons whose command is Coming Soon carry a badge.
 
+mod backstage;
 mod button;
 mod group;
 pub mod spec;
@@ -140,6 +140,13 @@ impl Ribbon {
             },
         );
         ui.advance_cursor_after_rect(full);
+        out
+    }
+
+    /// Draw the File backstage over the whole window. Returns the commands clicked.
+    pub fn show_backstage(&mut self, ui: &mut Ui, look: Look<'_>) -> Vec<Clicked> {
+        let mut out = Vec::new();
+        backstage::show(self, ui, look, &mut out);
         out
     }
 }

@@ -222,6 +222,19 @@ pub fn all_commands() -> Vec<(&'static str, CommandId, &'static [Arg])> {
     out
 }
 
+// File tab
+
+const BACKSTAGE: &[Item] = &[
+    Item::new("Info", ids::FILE_INFO),
+    Item::new("New", ids::FILE_NEW_NOTEBOOK),
+    Item::new("Open", ids::FILE_OPEN),
+    Item::new("Print", ids::FILE_PRINT),
+    Item::new("Export", ids::FILE_EXPORT),
+    Item::new("Close", ids::FILE_CLOSE_NOTEBOOK),
+    Item::new("Options", ids::FILE_OPTIONS),
+    Item::new("About", ids::FILE_ABOUT),
+];
+
 // Home tab
 
 const PASTE_OPTIONS: &[Item] = &[
@@ -415,7 +428,13 @@ const MEETINGS: Group = Group {
 
 /// Every ribbon tab, in OneNote order. Insert, Draw, History, Review, and View follow in
 /// PR 0.5b.
-pub static TABS: &[Tab] = &[Tab {
-    name: "Home",
-    kind: TabKind::Groups(&[CLIPBOARD, BASIC_TEXT, STYLES, TAGS, EMAIL, MEETINGS]),
-}];
+pub static TABS: &[Tab] = &[
+    Tab {
+        name: "File",
+        kind: TabKind::Backstage(BACKSTAGE),
+    },
+    Tab {
+        name: "Home",
+        kind: TabKind::Groups(&[CLIPBOARD, BASIC_TEXT, STYLES, TAGS, EMAIL, MEETINGS]),
+    },
+];

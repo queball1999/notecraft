@@ -134,6 +134,12 @@ impl AppShell {
             tokens: &tokens,
             registry: &self.registry,
         };
+        if self.ribbon.backstage_open() {
+            let clicked = self.ribbon.show_backstage(ui, look);
+            self.dispatch_all(clicked);
+            self.toasts.show(ui.ctx());
+            return;
+        }
         let panel = egui::Frame::side_top_panel(ui.style());
         let clicked = egui::Panel::top("ribbon")
             .exact_size(RIBBON_HEIGHT)
@@ -219,6 +225,26 @@ mod tests {
             .map(str::to_owned)
             .collect();
         assert_eq!(texts, ["Coming Soon: Bold"]);
+    }
+
+    #[test]
+    fn file_opens_the_backstage_and_back_closes_it() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("File").click();
+        harness.run();
+        assert!(harness.state().ribbon().backstage_open());
+        harness.get_by_label("Export").click();
+        harness.run();
+        assert!(harness
+            .state()
+            .toasts()
+            .texts()
+            .any(|t| t == "Coming Soon: Export"));
+        harness.get_by_label("Back").click();
+        harness.run();
+        assert!(!harness.state().ribbon().backstage_open());
+        let _ = harness.get_by_label("Canvas");
     }
 
     #[test]
