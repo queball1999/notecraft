@@ -6,84 +6,87 @@
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke};
 
 mod home;
+mod insert;
 
-/// Every icon the ribbon uses.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Icon {
-    // Backstage
-    Back,
-    // Clipboard
-    Paste,
-    Cut,
-    Copy,
-    FormatPainter,
-    // Basic Text
-    Font,
-    FontSize,
-    Bullets,
-    Numbering,
-    Outdent,
-    Indent,
-    ClearFormatting,
-    Bold,
-    Italic,
-    Underline,
-    Strikethrough,
-    Subscript,
-    Superscript,
-    Highlight,
-    FontColor,
-    AlignLeft,
-    AlignCenter,
-    AlignRight,
-    // Styles
-    Style,
-    // Tags
-    TodoTag,
-    Important,
-    Question,
-    Tag,
-    FindTags,
-    // Email and Meetings
-    Email,
-    Meeting,
+/// Declares [`Icon`], [`Icon::ALL`], and the dispatch from each icon to its drawing.
+macro_rules! icons {
+    ($($name:ident => $draw:expr;)*) => {
+        /// Every icon the ribbon uses.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub enum Icon {
+            $($name,)*
+        }
+
+        impl Icon {
+            /// Every icon, for tests.
+            pub const ALL: &'static [Self] = &[$(Self::$name),*];
+        }
+
+        fn draw(icon: Icon, p: &Pen, c: IconColors) {
+            match icon {
+                $(Icon::$name => {
+                    let draw: fn(&Pen, IconColors) = $draw;
+                    draw(p, c);
+                })*
+            }
+        }
+    };
 }
 
-impl Icon {
-    /// Every icon, for tests.
-    pub const ALL: [Self; 31] = [
-        Self::Back,
-        Self::Paste,
-        Self::Cut,
-        Self::Copy,
-        Self::FormatPainter,
-        Self::Font,
-        Self::FontSize,
-        Self::Bullets,
-        Self::Numbering,
-        Self::Outdent,
-        Self::Indent,
-        Self::ClearFormatting,
-        Self::Bold,
-        Self::Italic,
-        Self::Underline,
-        Self::Strikethrough,
-        Self::Subscript,
-        Self::Superscript,
-        Self::Highlight,
-        Self::FontColor,
-        Self::AlignLeft,
-        Self::AlignCenter,
-        Self::AlignRight,
-        Self::Style,
-        Self::TodoTag,
-        Self::Important,
-        Self::Question,
-        Self::Tag,
-        Self::FindTags,
-        Self::Email,
-        Self::Meeting,
-    ];
+icons! {
+    // Backstage
+    Back => |p, _| home::back(p);
+    // Home: Clipboard
+    Paste => |p, _| home::paste(p);
+    Cut => |p, _| home::cut(p);
+    Copy => |p, _| home::copy(p);
+    FormatPainter => |p, _| home::format_painter(p);
+    // Home: Basic Text
+    Font => |p, _| home::font(p);
+    FontSize => |p, _| home::font_size(p);
+    Bullets => |p, _| home::bullets(p);
+    Numbering => |p, _| home::numbering(p);
+    Outdent => |p, _| home::outdent(p);
+    Indent => |p, _| home::indent(p);
+    ClearFormatting => |p, c| home::clear_formatting(p, c.accent);
+    Bold => |p, _| home::bold(p);
+    Italic => |p, _| home::italic(p);
+    Underline => |p, _| home::underline(p);
+    Strikethrough => |p, _| home::strikethrough(p);
+    Subscript => |p, _| home::subscript(p);
+    Superscript => |p, _| home::superscript(p);
+    Highlight => |p, c| home::highlight(p, c.accent);
+    FontColor => |p, c| home::font_color(p, c.accent);
+    AlignLeft => |p, _| home::align(p, home::Align::Left);
+    AlignCenter => |p, _| home::align(p, home::Align::Center);
+    AlignRight => |p, _| home::align(p, home::Align::Right);
+    // Home: Styles
+    Style => |p, _| home::style(p);
+    // Home: Tags
+    TodoTag => |p, _| home::todo_tag(p);
+    Important => |p, c| home::important(p, c.accent);
+    Question => |p, _| home::question(p);
+    Tag => |p, _| home::tag(p);
+    FindTags => |p, _| home::find_tags(p);
+    // Home: Email and Meetings
+    Email => |p, _| home::email(p);
+    Meeting => |p, _| home::meeting(p);
+    // Insert
+    InsertSpace => |p, _| insert::insert_space(p);
+    Table => |p, _| insert::table(p);
+    FileAttachment => |p, _| insert::file_attachment(p);
+    FilePrintout => |p, _| insert::file_printout(p);
+    Picture => |p, _| insert::picture(p);
+    ScreenClipping => |p, _| insert::screen_clipping(p);
+    Link => |p, _| insert::link(p);
+    Audio => |p, _| insert::audio(p);
+    Video => |p, _| insert::video(p);
+    Date => |p, _| insert::date(p);
+    Time => |p, _| insert::time(p);
+    DateTime => |p, _| insert::date_time(p);
+    PageTemplate => |p, _| insert::page_template(p);
+    Equation => |p, _| insert::equation(p);
+    Symbol => |p, _| insert::symbol(p);
 }
 
 /// Colors an icon may use besides its main color.
@@ -109,39 +112,7 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, colors: IconColors) {
         unit: side / 16.0,
         fg: colors.fg,
     };
-    match icon {
-        Icon::Back => home::back(&pen),
-        Icon::Paste => home::paste(&pen),
-        Icon::Cut => home::cut(&pen),
-        Icon::Copy => home::copy(&pen),
-        Icon::FormatPainter => home::format_painter(&pen),
-        Icon::Font => home::font(&pen),
-        Icon::FontSize => home::font_size(&pen),
-        Icon::Bullets => home::bullets(&pen),
-        Icon::Numbering => home::numbering(&pen),
-        Icon::Outdent => home::outdent(&pen),
-        Icon::Indent => home::indent(&pen),
-        Icon::ClearFormatting => home::clear_formatting(&pen, colors.accent),
-        Icon::Bold => home::bold(&pen),
-        Icon::Italic => home::italic(&pen),
-        Icon::Underline => home::underline(&pen),
-        Icon::Strikethrough => home::strikethrough(&pen),
-        Icon::Subscript => home::subscript(&pen),
-        Icon::Superscript => home::superscript(&pen),
-        Icon::Highlight => home::highlight(&pen, colors.accent),
-        Icon::FontColor => home::font_color(&pen, colors.accent),
-        Icon::AlignLeft => home::align(&pen, home::Align::Left),
-        Icon::AlignCenter => home::align(&pen, home::Align::Center),
-        Icon::AlignRight => home::align(&pen, home::Align::Right),
-        Icon::Style => home::style(&pen),
-        Icon::TodoTag => home::todo_tag(&pen),
-        Icon::Important => home::important(&pen, colors.accent),
-        Icon::Question => home::question(&pen),
-        Icon::Tag => home::tag(&pen),
-        Icon::FindTags => home::find_tags(&pen),
-        Icon::Email => home::email(&pen),
-        Icon::Meeting => home::meeting(&pen),
-    }
+    draw(icon, &pen, colors);
 }
 
 /// Drawing helpers in 16-unit grid coordinates.
@@ -226,6 +197,32 @@ impl Pen<'_> {
             .add(Shape::convex_polygon(points, fill, Stroke::NONE));
     }
 
+    /// An arc around (x, y) from `from` to `to` degrees; 0 points right and angles grow
+    /// clockwise (screen coordinates).
+    pub(super) fn arc(&self, x: f32, y: f32, r: f32, from: f32, to: f32) {
+        let steps = 16;
+        let points: Vec<(f32, f32)> = (0..=steps)
+            .map(|i| {
+                let t = from + (to - from) * (i as f32) / (steps as f32);
+                let (sin, cos) = t.to_radians().sin_cos();
+                (x + r * cos, y + r * sin)
+            })
+            .collect();
+        self.line(&points);
+    }
+
+    /// A dashed polyline.
+    pub(super) fn dashed(&self, points: &[(f32, f32)]) {
+        let points: Vec<Pos2> = points.iter().map(|&(x, y)| self.at(x, y)).collect();
+        let dash = 2.0 * self.unit;
+        self.painter.extend(Shape::dashed_line(
+            &points,
+            self.stroke(1.0, self.fg),
+            dash,
+            dash,
+        ));
+    }
+
     /// Short text lines, as on a page.
     pub(super) fn text_lines(&self, x0: f32, x1: f32, ys: &[f32]) {
         for &y in ys {
@@ -246,7 +243,7 @@ mod tests {
                 fg: Color32::BLACK,
                 accent: Color32::RED,
             };
-            for icon in Icon::ALL {
+            for &icon in Icon::ALL {
                 for side in [16.0, 32.0] {
                     let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(side, side));
                     paint(ui.painter(), rect, icon, colors);

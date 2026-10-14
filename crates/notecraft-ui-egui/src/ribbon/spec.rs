@@ -28,6 +28,13 @@ pub const fn str_arg(name: &'static str, value: &'static str) -> Arg {
     }
 }
 
+pub const fn int_arg(name: &'static str, value: i64) -> Arg {
+    Arg {
+        name,
+        value: ArgValue::Int(value),
+    }
+}
+
 pub const fn num_arg(name: &'static str, value: f64) -> Arg {
     Arg {
         name,
@@ -426,8 +433,139 @@ const MEETINGS: Group = Group {
     ))],
 };
 
-/// Every ribbon tab, in OneNote order. Insert, Draw, History, Review, and View follow in
-/// PR 0.5b.
+// Insert tab
+
+const TABLE_SIZES: &[Item] = &[
+    Item::new("2 x 2 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 2), int_arg("columns", 2)]),
+    Item::new("3 x 3 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 3), int_arg("columns", 3)]),
+    Item::new("4 x 4 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 4), int_arg("columns", 4)]),
+    Item::new("5 x 5 Table", ids::INSERT_TABLE).args(&[int_arg("rows", 5), int_arg("columns", 5)]),
+    Item::new("Insert Table", ids::INSERT_TABLE),
+];
+
+/// Page templates. These are NoteCraft's own templates, named by purpose.
+const TEMPLATES: &[Item] = &[
+    Item::new("Blank", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "blank")]),
+    Item::new("Meeting Notes", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "meeting")]),
+    Item::new("To Do List", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "todo")]),
+    Item::new("Lecture Notes", ids::INSERT_PAGE_TEMPLATE).args(&[str_arg("template", "lecture")]),
+    Item::new("Project Overview", ids::INSERT_PAGE_TEMPLATE)
+        .args(&[str_arg("template", "project")]),
+];
+
+/// Common symbols. The values are escapes so the source stays ASCII.
+const SYMBOLS: &[Item] = &[
+    Item::new("Degree", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00B0}")]),
+    Item::new("Plus-Minus", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00B1}")]),
+    Item::new("Multiplication", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00D7}")]),
+    Item::new("Division", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00F7}")]),
+    Item::new("Pi", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{03C0}")]),
+    Item::new("Euro", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{20AC}")]),
+    Item::new("Copyright", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{00A9}")]),
+    Item::new("Check Mark", ids::INSERT_SYMBOL).args(&[str_arg("symbol", "\u{2713}")]),
+];
+
+const INSERT_GROUPS: &[Group] = &[
+    Group {
+        name: "Insert",
+        columns: &[Column::Large(Button::large(
+            "Insert Space",
+            Icon::InsertSpace,
+            ids::INSERT_SPACE,
+        ))],
+    },
+    Group {
+        name: "Tables",
+        columns: &[Column::Large(
+            Button::large("Table", Icon::Table, ids::INSERT_TABLE).dropdown(TABLE_SIZES),
+        )],
+    },
+    Group {
+        name: "Files",
+        columns: &[
+            Column::Large(Button::large(
+                "File Printout",
+                Icon::FilePrintout,
+                ids::INSERT_FILE_PRINTOUT,
+            )),
+            Column::Large(Button::large(
+                "File Attachment",
+                Icon::FileAttachment,
+                ids::INSERT_FILE_ATTACHMENT,
+            )),
+        ],
+    },
+    Group {
+        name: "Images",
+        columns: &[
+            Column::Large(Button::large(
+                "Pictures",
+                Icon::Picture,
+                ids::INSERT_PICTURE,
+            )),
+            Column::Large(Button::large(
+                "Screen Clipping",
+                Icon::ScreenClipping,
+                ids::INSERT_SCREEN_CLIPPING,
+            )),
+        ],
+    },
+    Group {
+        name: "Links",
+        columns: &[Column::Large(Button::large(
+            "Link",
+            Icon::Link,
+            ids::INSERT_LINK,
+        ))],
+    },
+    Group {
+        name: "Recording",
+        columns: &[
+            Column::Large(Button::large(
+                "Record Audio",
+                Icon::Audio,
+                ids::INSERT_AUDIO,
+            )),
+            Column::Large(Button::large(
+                "Record Video",
+                Icon::Video,
+                ids::INSERT_VIDEO,
+            )),
+        ],
+    },
+    Group {
+        name: "Time Stamp",
+        columns: &[Column::Stack(&[
+            Button::small("Date", Icon::Date, ids::INSERT_DATE),
+            Button::small("Time", Icon::Time, ids::INSERT_TIME),
+            Button::small("Date & Time", Icon::DateTime, ids::INSERT_DATE_TIME),
+        ])],
+    },
+    Group {
+        name: "Pages",
+        columns: &[Column::Large(
+            Button::large(
+                "Page Templates",
+                Icon::PageTemplate,
+                ids::INSERT_PAGE_TEMPLATE,
+            )
+            .split(TEMPLATES),
+        )],
+    },
+    Group {
+        name: "Symbols",
+        columns: &[
+            Column::Large(Button::large(
+                "Equation",
+                Icon::Equation,
+                ids::INSERT_EQUATION,
+            )),
+            Column::Large(Button::large("Symbol", Icon::Symbol, ids::INSERT_SYMBOL).split(SYMBOLS)),
+        ],
+    },
+];
+
+/// Every ribbon tab, in OneNote order.
 pub static TABS: &[Tab] = &[
     Tab {
         name: "File",
@@ -436,6 +574,10 @@ pub static TABS: &[Tab] = &[
     Tab {
         name: "Home",
         kind: TabKind::Groups(&[CLIPBOARD, BASIC_TEXT, STYLES, TAGS, EMAIL, MEETINGS]),
+    },
+    Tab {
+        name: "Insert",
+        kind: TabKind::Groups(INSERT_GROUPS),
     },
 ];
 
