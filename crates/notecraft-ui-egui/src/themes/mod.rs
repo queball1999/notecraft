@@ -6,6 +6,7 @@
 //! them into colors.
 
 mod apply;
+pub mod contrast;
 mod tokens;
 
 pub use apply::{install, style};
