@@ -17,3 +17,5 @@ notecraft-storage.workspace = true
 notecraft-model.workspace = true
 notecraft-markdown.workspace = true
 notecraft-canvas.workspace = true
+serde_json.workspace = true
+tracing.workspace = true

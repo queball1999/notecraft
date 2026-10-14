@@ -9,5 +9,10 @@
 )]
 #![forbid(unsafe_code)]
 
+pub mod cmd;
+pub mod session;
+
+pub use session::Session;
+
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 5;

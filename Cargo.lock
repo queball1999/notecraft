@@ -1874,6 +1874,8 @@ dependencies = [
  "notecraft-markdown",
  "notecraft-model",
  "notecraft-storage",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]
