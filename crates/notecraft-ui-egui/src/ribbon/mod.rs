@@ -14,6 +14,8 @@ pub(crate) mod keytips;
 pub mod spec;
 mod tab;
 
+pub(crate) use button::style as button_style;
+
 use craft_ui::buttons::IconButton;
 use egui::{Align, Id, Key, Layout, Order, Rect, Sense, Stroke, Ui, UiBuilder};
 use notecraft_engine::cmd::{ids, CommandId, Registry, Value};

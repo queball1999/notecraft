@@ -20,7 +20,7 @@ const LABEL_SIZE: f32 = 12.0;
 const LARGE_WRAP: f32 = 72.0;
 
 /// Button colors for the ribbon, from the theme tokens.
-pub(super) fn style(t: &ThemeTokens) -> IconButtonStyle {
+pub(crate) fn style(t: &ThemeTokens) -> IconButtonStyle {
     let (rest_fill, rest_stroke) = match t.button_style {
         ButtonStyle::Flat => (Color32::TRANSPARENT, Stroke::NONE),
         ButtonStyle::Raised => (
