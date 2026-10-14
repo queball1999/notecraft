@@ -1,10 +1,10 @@
 # Themes
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: token system, theme commands, settings, and system mode implemented (PR 0.3).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: four presets and the OS UI font implemented (PR 0.4); two dark accents tuned for contrast.
 
 NoteCraft ships four theme presets that evoke each era of OneNote, each in a light and a dark mode, for eight variants. Themes change colors, spacing, corner radius, and control style. They never change layout or behavior.
 
-Status: the token system, theme commands, saved settings, and system mode landed in PR 0.3 (`crates/notecraft-ui-egui/src/themes/`). Every preset uses the Microsoft 365 palette until PR 0.4 encodes the other three (build_plan/02-phase-0-ui-shell.md).
+Status: the token system, theme commands, saved settings, and system mode landed in PR 0.3, and the four presets and the OS UI font in PR 0.4 (`crates/notecraft-ui-egui/src/themes/`, build_plan/02-phase-0-ui-shell.md). A test checks that the code matches the tables in section 4 and that every variant passes section 6.
 
 ## 1. Clean-room rule
 
@@ -18,11 +18,11 @@ NoteCraft does not bundle Segoe UI. It asks the OS for its UI font at runtime:
 
 | OS | UI font | Fallback |
 |---|---|---|
-| Windows 10 and 11 | Segoe UI (Microsoft 365 preset: Segoe UI Variable when present) | bundled open font |
-| macOS | system font (San Francisco) | bundled open font |
-| Linux | fontconfig `sans-serif` | bundled open font |
+| Windows 10 and 11 | Segoe UI (Microsoft 365 preset: Segoe UI Variable when present) | egui's built-in font |
+| macOS | system font (San Francisco) | egui's built-in font |
+| Linux | fontconfig `sans-serif` | egui's built-in font |
 
-The bundled fallback is an OFL-licensed sans serif, taken from storytold/craft-fonts if NoteCraft adopts it (docs/craft-libs.md section 4), with an ATTRIBUTION.md row. Note text defaults to the UI font at 11 pt, matching OneNote's default size.
+Decision (PR 0.4): NoteCraft bundles no UI font of its own. When the OS font is missing or cannot be parsed, it falls back to the fonts built into egui, which ship inside the egui dependency rather than as NoteCraft assets. So there is no ATTRIBUTION.md row and no `craft-fonts-ref` in the release workflows; revisit if the egui fallback looks wrong on a real Linux desktop. Every OS font file is size capped and parsed with skrifa (the parser egui uses) before egui loads it, because egui panics on font data it cannot parse. Note text defaults to the UI font at 11 pt, matching OneNote's default size.
 
 ## 3. Tokens
 
@@ -49,7 +49,9 @@ Every preset defines the same tokens. Widgets read tokens only; no widget hard-c
 
 ## 4. Proposed palettes
 
-Starting values for Phase 0. Expect tuning; record changes in the revision history.
+Values as tuned in PR 0.4. Change a table and the code together: a unit test fails when they differ. Record every change in the revision history.
+
+Tuning so far: the OneNote 2016 dark accent moved from `#9A64C4` to `#915EB8`, and the OneNote 2019 dark accent from `#9461BD` to `#915FB9`, because white `accent_text` on the original values was below WCAG AA (4.21:1 and 4.46:1). Further tuning by eye waits for the ribbon (PR 0.5), the first place the accent and tab strip colors show.
 
 ### OneNote 2016
 
@@ -165,3 +167,4 @@ Every preset must pass WCAG AA (4.5:1) for `text` on `canvas_bg`, `ribbon_text` 
 | 2026-10-14 | -1 | Created. Clean-room rule, fonts, tokens, proposed palettes for four presets in light and dark, contrast test. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | 0 | Token system, theme commands, settings, and system mode implemented (PR 0.3); presets still share the Microsoft 365 palette. |
+| 2026-10-14 | 0 | Four presets and the OS UI font implemented (PR 0.4). OneNote 2016 and 2019 dark accents darkened to pass WCAG AA. Font decision: no bundled fallback; egui's built-in fonts are the fallback. |
