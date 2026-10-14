@@ -7,7 +7,7 @@ labels: ["question"]
 
 Usage questions get faster answers in GitHub Discussions, where other users can help too. Please open a discussion instead of an issue:
 
-https://github.com/storytold/notecraft/discussions
+https://github.com/Queball1999/notecraft/discussions
 
 If you think you found a bug, use the bug report template. If you want a new feature, use the feature request template.
 

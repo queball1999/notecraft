@@ -1,6 +1,6 @@
 # Themes
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
 
 NoteCraft ships four theme presets that evoke each era of OneNote, each in a light and a dark mode, for eight variants. Themes change colors, spacing, corner radius, and control style. They never change layout or behavior.
 

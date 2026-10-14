@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=NoteCraft
+GenericName=Notebook
+Comment=Take notes on a freeform canvas with ink, stored as markdown
+Exec=notecraft %F
+TryExec=notecraft
+Icon=io.github.queball1999.notecraft
+Terminal=false
+StartupNotify=true
+StartupWMClass=io.github.queball1999.notecraft
+Categories=Office;Utility;TextEditor;
+MimeType=application/x-notecraft;text/markdown;
+Keywords=notes;notebook;notetaking;markdown;ink;pen;drawing;canvas;outline;

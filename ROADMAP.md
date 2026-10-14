@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed from QNote 2.0 to NoteCraft (related to, but independent of, the ArtCraft apps). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed from QNote 2.0 to NoteCraft (related to, but independent of, the ArtCraft apps). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -43,12 +43,12 @@ Hours are summed bottom-up from every PR in `build_plan/` (each PR carries a gen
 | Localization | 0% | 30-50 | 80-160 | 110-210 | [gaps](docs/gaps.md#localization) |
 | Performance and 1.0 hardening | 0% | 110-210 | 0 | 110-210 | [roadmap](docs/roadmap.md) |
 | Browser build and sync research | 0% | 0 | 100-190 | 100-190 | [Phase 4](build_plan/06-phase-4-advanced.md) |
-| Scaffolding, CI, release | 0% | 87-156 | 8-14 | 95-170 | [Phase -1](build_plan/01-phase-minus-1-scaffolding.md) |
+| Scaffolding, CI, release | 100% | 87-156 | 8-14 | 95-170 | [Phase -1](build_plan/01-phase-minus-1-scaffolding.md) |
 | Total | 0% | 1,279-2,202 | 644-1,228 | 1,923-3,430 | |
 
 Calendar, at about 30 focused hours a week: v1.0 in 43-74 weeks; full parity in 64-115 weeks.
 
-**Overall: 0% ready.** No code yet. Every feature is "Coming Soon" until Phase 0 (UI shell) and Phase 1 (core engine) land.
+**Overall: 0% ready for users.** Phase -1 is closed: the workspace, the eight `cargo xtask ci` gates, packaging, and logging exist, and CI runs on GitHub. Every feature is "Coming Soon" until Phase 0 (UI shell) and Phase 1 (core engine) land.
 
 ## By phase
 
@@ -68,7 +68,7 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 
 ## How estimates are maintained
 
-- Each PR in `build_plan/` has an hour range; phase totals are the sum of their PRs, and the tables above are the sum of the phases. A script check (moving into `cargo xtask parity` in Phase -1) keeps them in step.
+- Each PR in `build_plan/` has an hour range; phase totals are the sum of their PRs, and the tables above are the sum of the phases. `cargo xtask parity --check` (part of `cargo xtask ci`) fails if a phase total or a By phase row drifts.
 - At each phase close, replace estimates for finished work with actual hours and re-estimate the remaining phases.
 
 ## Progress log
@@ -78,3 +78,12 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-13 | Docs set started to the craftrules progress-docs standard; craft-libs and winprint (via craft-print) integration decided. No code yet. |
 | 2026-10-14 | Docs set completed (13 docs plus post-parity.md), `build_plan/` written with six phase files, root files and licenses added, CI/CD aligned with the related craft apps (shared craft-common-actions workflows), plain-ASCII US English rule added, scope narrowed to OneNote parity, and all hours re-assessed bottom-up. No code yet. |
 | 2026-10-14 | Project renamed from QNote 2.0 to NoteCraft: crates, binaries, the `.notecraft` page format, the notebook data folder, URL scheme, env vars, app id, and repo name. Docs now state NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | Phase -1 PR -1.1: Cargo workspace with shared never-crash lints, crate skeletons for L0 to L6, notecraft and notecraft-cli apps, placeholder xtask. |
+| 2026-10-14 | Phase -1 PR -1.2: cargo xtask ci runs fmt, clippy -D warnings, and test, with a step summary. |
+| 2026-10-14 | Phase -1 PR -1.3: cargo xtask text, assets, and layers gates, run by cargo xtask ci. |
+| 2026-10-14 | Phase -1 PR -1.4: cargo xtask wasm (L0 to L5 on wasm32) and cargo xtask parity (checklist summary and build plan hour totals); cargo xtask ci now runs all 8 gates. |
+| 2026-10-14 | Phase -1 PR -1.5: release contract for craft-common-actions: cargo xtask version, ico, and icns; packaging scripts adapted from GridCraft with new MSI GUIDs and NoteCraft file types; original app icon; build SHA and date embedded in both binaries. |
+| 2026-10-14 | App ID changed from ai.storyteller.notecraft to io.github.queball1999.notecraft and the repo moved to github.com/Queball1999/notecraft; NoteCraft no longer uses the ArtCraft namespace or links. |
+| 2026-10-14 | Phase -1 PR -1.6: desktop app logging (stderr plus rotated, size-capped notecraft.log; NOTECRAFT_NO_PREFS), --version on both binaries, build SHA refreshed when git HEAD moves. |
+| 2026-10-14 | Release workflow is now NoteCraft's own (free standard runners only; the shared one used a paid macOS runner and has no license). |
+| 2026-10-14 | Phase -1 closed. Repo on GitHub (queball1999/notecraft); CI, Printing, FreeBSD, and packaging lint green; release dry run built 20 artifacts on free runners; branch protection, phase ruleset, labels, Discussions, and the release environment set up. Phase 0 (UI shell) is next. |

@@ -1,10 +1,10 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: the release workflow, not the shared one, packages the CLI.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 
-Status: the `notecraft-cli` binary and `--version` land in Phase -1 (the shared release workflow packages and runs the CLI). Everything else here is post-parity optional (docs/post-parity.md); OneNote has no command line. The Phase column below says what the build plan delivers.
+Status: the `notecraft-cli` binary and `--version` land in Phase -1 (the release workflow packages and runs the CLI). Everything else here is post-parity optional (docs/post-parity.md); OneNote has no command line. The Phase column below says what the build plan delivers.
 
 ## Global options
 
@@ -60,3 +60,4 @@ notecraft-cli --notebook ~/Notes/Work run --page "Meeting notes" --cmd page.add_
 |---|---|---|
 | 2026-10-14 | -1 | Created. Global options, subcommands, exit codes. Same day: everything but `--version` marked post-parity; graph subcommand dropped. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | The release workflow, not the shared one, packages the CLI. |

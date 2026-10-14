@@ -1,0 +1,16 @@
+[package]
+name = "notecraft-canvas"
+description = "NoteCraft L4: ink engine, shapes, layout, hit testing, zoom and pan"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+notecraft-core.workspace = true
+notecraft-model.workspace = true

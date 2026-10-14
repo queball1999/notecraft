@@ -1,22 +1,12 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: ranks 3 (release dry run) and 5 (GitHub settings) removed.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
 Ranking rule: blockers first (things other work waits on), then alpha gate items, then by user impact per hour. Hour ranges match the build plan PRs. Optional features OneNote does not have are not gaps; they are in [post-parity.md](post-parity.md).
 
-## Now (Phase -1: scaffolding)
-
-| Rank | Gap | Rows | Hours | Plan |
-|---:|---|---|---|---|
-| 1 | No Cargo workspace or crates | SC-01 | 6-10 | build_plan/01, PR -1.1 |
-| 2 | No `xtask` with `ci`, `layers`, `assets`, `text`, `parity`, `wasm` | SC-02 to SC-06 | 24-40 | build_plan/01, PR -1.2 to -1.4 |
-| 3 | No `xtask version set` or packaging scripts for the shared release workflow | SC-07, SC-08 | 16-30 | build_plan/01, PR -1.5 |
-| 4 | No logging setup | SC-09 | 4-8 | build_plan/01, PR -1.6 |
-| 5 | GitHub repo settings (branch protection, labels, `release` branch, secrets) not configured | SC-10 | 2-4 | build_plan/01, section 6 |
-
-## Next (Phase 0: UI shell)
+## Now (Phase 0: UI shell)
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
@@ -30,7 +20,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | 13 | No status bar, full page view, shortcut map | SH-09, SH-13, SH-14 | 12-20 | build_plan/02, PR 0.9 |
 | 14 | No accessibility labels | SH-15 | 10-16 | build_plan/02, PR 0.10 |
 
-## Then (Phase 1: core engine, rest of alpha gate)
+## Next (Phase 1: core engine, rest of alpha gate)
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
@@ -86,3 +76,9 @@ All UI strings are written in US English first (AGENTS.md section 2).
 |---|---|---|
 | 2026-10-14 | -1 | Created. Re-ranked the same day for OneNote-only scope and re-assessed hours; risks updated. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | Rank 1 (no workspace) removed. |
+| 2026-10-14 | -1 | Rank 2 narrowed to the wasm and parity gates. |
+| 2026-10-14 | -1 | Rank 2 (xtask gates) removed. |
+| 2026-10-14 | -1 | Rank 3 narrowed to the GitHub release dry run. |
+| 2026-10-14 | -1 | Rank 4 (logging) removed. |
+| 2026-10-14 | -1 | Ranks 3 (release dry run) and 5 (GitHub settings) removed. |

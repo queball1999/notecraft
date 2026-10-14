@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 

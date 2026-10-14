@@ -1,0 +1,16 @@
+[package]
+name = "notecraft-ui-egui"
+description = "NoteCraft L6: the OneNote-style egui front end"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+notecraft-core.workspace = true
+notecraft-engine.workspace = true

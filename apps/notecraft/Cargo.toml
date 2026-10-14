@@ -1,0 +1,22 @@
+[package]
+name = "notecraft"
+description = "NoteCraft desktop app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+notecraft-ui-egui.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[build-dependencies]
+# Icon and VERSIONINFO for notecraft.exe; build.rs only uses it when the target is Windows.
+winresource = "0.1"

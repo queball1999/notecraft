@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata (software centers, Flathub). Template: package.sh and the Flatpak
+     manifest substitute @VERSION@ and @DATE@ from Cargo.toml and the build date. -->
+<component type="desktop-application">
+  <id>io.github.queball1999.notecraft</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>NoteCraft</name>
+  <summary>Take notes on a freeform canvas with ink, stored as markdown</summary>
+  <developer id="io.github.queball1999">
+    <name>The NoteCraft Contributors</name>
+  </developer>
+  <description>
+    <p>
+      NoteCraft is an open-source note-taking app with a freeform canvas: type anywhere on a
+      page, draw with a pen or highlighter, and embed pictures and files, organized in
+      notebooks, sections, and pages.
+    </p>
+    <p>
+      Notebooks are plain folders of markdown files, so every page can be read and edited in
+      any text editor and synced with any folder sync tool.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.queball1999.notecraft.desktop</launchable>
+  <icon type="stock">io.github.queball1999.notecraft</icon>
+  <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
+  <url type="homepage">https://github.com/Queball1999/notecraft</url>
+  <url type="bugtracker">https://github.com/Queball1999/notecraft/issues</url>
+  <url type="help">https://github.com/Queball1999/notecraft/discussions</url>
+  <categories>
+    <category>Office</category>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>notes</keyword>
+    <keyword>notebook</keyword>
+    <keyword>markdown</keyword>
+    <keyword>ink</keyword>
+    <keyword>canvas</keyword>
+  </keywords>
+  <!-- App color: the OneNote 2016 preset accent (docs/themes.md); see assets/app-icon/README.md. -->
+  <branding>
+    <color type="primary" scheme_preference="light">#d9cce6</color>
+    <color type="primary" scheme_preference="dark">#4a3d57</color>
+  </branding>
+  <requires>
+    <display_length compare="ge">760</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <recommends>
+    <control>tablet</control>
+  </recommends>
+  <provides>
+    <binary>notecraft</binary>
+    <binary>notecraft-cli</binary>
+    <mediatype>application/x-notecraft</mediatype>
+    <mediatype>text/markdown</mediatype>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

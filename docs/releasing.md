@@ -1,8 +1,8 @@
 # Releasing
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: releases run NoteCraft's own workflow on free standard runners.
 
-NoteCraft releases exactly the way DeckCraft, GridCraft, and WordCraft do: pushing to the `release` branch runs the shared release workflow in [storytold/craft-common-actions](https://github.com/storytold/craft-common-actions), which builds, signs, notarizes, packages, and drafts a GitHub Release. NoteCraft's own `.github/workflows/release.yml` is a thin caller.
+Pushing to the `release` branch runs `.github/workflows/release.yml`, which builds, signs (when secrets exist), notarizes, packages, and drafts a GitHub Release. The release flow and packaging scripts follow the related craft apps, but the workflow itself is NoteCraft's own: the shared release workflow in craft-common-actions builds macOS on a paid `macos-15-xlarge` runner, and it has no license, so NoteCraft cannot copy it. NoteCraft's workflow uses only GitHub's standard hosted runners, which are free for public repositories.
 
 ## 1. Branches
 
@@ -29,24 +29,24 @@ NoteCraft releases exactly the way DeckCraft, GridCraft, and WordCraft do: pushi
 4. Watch the Release workflow. The FreeBSD and Windows ARM64 workflows also run on the push to `release`.
 5. When it is green, open the draft GitHub Release, check the artifacts and `SHA256SUMS.txt`, edit the notes, and publish.
 
-Test run without releasing: run the Release workflow manually (workflow_dispatch) from any branch with a version override such as `0.1.0-rc.1`. Signing is skipped when secrets are absent, except on `release`, where the shared workflow requires them.
+Test run without releasing: run the Release workflow manually (workflow_dispatch) from any branch with a version override such as `0.1.0-rc.1`. Signing is skipped when secrets are absent: Windows builds are unsigned and macOS builds are ad-hoc signed and not notarized. Delete the draft release a test run creates.
 
-## 3. What the shared workflow builds
+## 3. What the release workflow builds
 
-| Job | Output |
-|---|---|
-| macOS universal | signed and notarized `.dmg` |
-| Windows x64 and arm64 | signed `.msi` (WiX 5) |
-| Linux x86_64 and aarch64 | AppImage, `.deb`, `.rpm`, `.tar.gz` |
-| Flatpak | `.flatpak` bundle |
-| Linux riscv64 | `.deb`, `.rpm`, `.tar.gz` |
-| FreeBSD x86_64 | `.tar.gz` |
-| Web (wasm) | zip; off for NoteCraft until Phase 4 (`has-web: false` in release.yml) |
-| Release | draft GitHub Release with every artifact |
+| Job | Runner (all free for public repos) | Output |
+|---|---|---|
+| macOS universal | `macos-15` | signed and notarized `.dmg` and CLI zip (ad-hoc signed without secrets) |
+| Windows x64 and arm64 | `windows-latest` | `.msi` (WiX 5) and portable zip; signed when secrets exist |
+| Linux x86_64 and aarch64 | `ubuntu-22.04`, `ubuntu-22.04-arm` | AppImage, `.deb`, `.rpm`, `.tar.gz` |
+| Flatpak x86_64 and aarch64 | `ubuntu-24.04`, `ubuntu-24.04-arm` | `.flatpak` bundle |
+| FreeBSD x86_64 | `ubuntu-24.04` with a FreeBSD VM | `.tar.gz` |
+| Release | `ubuntu-24.04` | draft GitHub Release with every artifact and `SHA256SUMS.txt` |
 
-## 4. The contract NoteCraft must meet
+Not built yet: Linux riscv64 (needs a cross toolchain; add if users ask) and the web build (Phase 4).
 
-The shared workflow expects these in every craft app. Phase -1 creates them (build_plan/01-phase-minus-1-scaffolding.md, PR -1.5).
+## 4. What the workflow calls
+
+The same layout the related craft apps use, so their scripts and fixes can be compared side by side. Phase -1 created these (build_plan/01-phase-minus-1-scaffolding.md, PR -1.5).
 
 | Path or command | Used by |
 |---|---|
@@ -58,15 +58,22 @@ The shared workflow expects these in every craft app. Phase -1 creates them (bui
 | `packaging/windows/package.ps1 -Arch <x64\|arm64>` | Windows build, sign, `.msi` |
 | `packaging/linux/package.sh [--formats "deb rpm tar"]` | Linux packages |
 | `packaging/linux/flatpak-bundle.sh <tarball>` | Flatpak |
-| `packaging/linux/ai.storyteller.notecraft.desktop` | desktop entry (also copied into the FreeBSD tarball) |
+| `packaging/linux/io.github.queball1999.notecraft.desktop` | desktop entry (also copied into the FreeBSD tarball) |
 | `packaging/freebsd/package.sh` | FreeBSD tarball (optional; the workflow has a fallback) |
 | `assets/app-icon/hicolor/` | icons for Linux and FreeBSD |
 | Binaries `notecraft` and `notecraft-cli` | names the workflow copies and checks |
 | Output in `dist/release/` | what the workflow uploads |
 
-Copy the scripts from GridCraft or DeckCraft and change names, ids, and paths; do not write them from scratch. `packaging-lint.yml` runs shellcheck, PowerShell analysis, and AppStream checks on them.
+The scripts are adapted from GridCraft (ATTRIBUTION.md). `packaging-lint.yml` runs shellcheck, PowerShell analysis, and AppStream checks on them.
 
-Version strings: the shared workflow exports generic `VERSION`, `BUILD_DATE`, and `BUILD_SHA`, plus app-prefixed copies for apps it lists. NoteCraft is not listed yet, so `notecraft`'s `build.rs` reads the generic names. Optionally, open a PR on craft-common-actions to add `NOTECRAFT_*` entries; that is a change to a shared repo and needs the maintainer's go-ahead.
+Version strings: `packaging/env.sh` and `package.ps1` export `NOTECRAFT_BUILD_SHA` and `NOTECRAFT_BUILD_DATE` themselves, and the release workflow sets them too. `apps/notecraft/build_info.rs` (used by both binaries) reads those, then generic `BUILD_SHA` and `BUILD_DATE` if a CI system sets them, then `git` and the clock, and embeds them; `--version` prints `NoteCraft <version> (<sha>, <date>)`.
+
+NoteCraft-specific choices in the adapted files:
+
+- MSI: new `UpgradeCode` (27ECD2DC-C5B0-4E04-987E-7A24F50DB30A) and component GUIDs, never shared with another app. Manufacturer is The NoteCraft Contributors. `.notecraft` opens in NoteCraft by default; `.md` is only offered under Open with.
+- Linux: MIME type `application/x-notecraft` (a subclass of `text/markdown`) for `*.notecraft`; the desktop entry also lists `text/markdown`. The deb/rpm maintainer defaults to the placeholder `maintainers@notecraft.invalid`; set `NOTECRAFT_MAINTAINER` to a real address before publishing packages.
+- macOS: exported type `io.github.queball1999.notecraft.page` (rank Owner) and markdown (rank Alternate). The DMG is a plain window with the app and an Applications link; GridCraft's DMG background and layout were not reused, and the script picks up `packaging/macos/dmg/background.tiff` and `dmg-layout.DS_Store` if NoteCraft ever adds its own.
+- Icons: original artwork in `assets/app-icon/` (README there); `packaging/icons.sh` renders every size with resvg and packs the `.ico` and `.icns` with `cargo xtask ico` and `cargo xtask icns`, so it runs on any OS.
 
 ## 5. Secrets
 
@@ -83,7 +90,7 @@ Set in the repo's `release` environment, same names as the related craft apps:
 
 | Field | Value |
 |---|---|
-| App id (reverse DNS) | `ai.storyteller.notecraft` |
+| App id (reverse DNS) | `io.github.queball1999.notecraft` (Flathub convention for a GitHub-hosted app; NoteCraft does not use the ArtCraft `ai.storyteller` namespace) |
 | Display name | NoteCraft |
 | Windows install folder | `NoteCraft` (`app-dir` in windows-arm64.yml) |
 | URL scheme | `notecraft://` (registered by installers from Phase 3) |
@@ -100,3 +107,6 @@ Set in the repo's `release` environment, same names as the related craft apps:
 |---|---|---|
 | 2026-10-14 | -1 | Created. Release branch flow, shared workflow outputs, packaging contract, secrets, app identity. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | Contract implemented; version info, MSI identity, file types, and DMG notes recorded. |
+| 2026-10-14 | -1 | App ID is now io.github.queball1999.notecraft and the repo is github.com/Queball1999/notecraft. |
+| 2026-10-14 | -1 | Releases run NoteCraft's own workflow on free standard runners. |

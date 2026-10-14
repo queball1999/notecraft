@@ -1,20 +1,14 @@
 # Roadmap: focus, alpha plan, milestones
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: current focus moved to Phase 0; Phase -1 close recorded.
 
 The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc says what we are doing now, what the alpha needs, and the milestones after it. The step-by-step execution plan is in [build_plan/](../build_plan/README.md). Optional features OneNote does not have are in [post-parity.md](post-parity.md) and are not on this roadmap.
 
 ## Current focus
 
-Pre-code. The docs set and build plan are being finished and reviewed. Phase -1 (scaffolding) starts when the maintainer approves them; no phase work has started.
+Phase 0, UI shell ([build_plan/02](../build_plan/02-phase-0-ui-shell.md)): the whole OneNote interface, clickable, on mock data. Branch `phase/0-ui-shell`.
 
-Exit criteria for Phase -1, for reference:
-
-- All crates from AGENTS.md section 5 exist and build, each with the never-crash lint header.
-- `cargo xtask ci` runs fmt, clippy, test, text, assets, layers, wasm, parity, and passes.
-- CI is green on `main`. The FreeBSD and Windows ARM64 nightlies are green.
-- A test run of `release.yml` (manual dispatch with a version override) produces artifacts for every platform.
-- Branch protection is on for `main` and `release`.
+Phase -1 closed on 2026-10-14 with every exit criterion met. The Release workflow dry run (0.0.0-test.2) built all 20 artifacts on free runners with NoteCraft's own release workflow. Signing secrets are not set yet; add them to the `release` environment before the first real release.
 
 ## Phases and estimates
 
@@ -82,3 +76,4 @@ v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux.
 |---|---|---|
 | 2026-10-14 | -1 | Created. Re-scoped the same day to OneNote parity; estimates re-assessed bottom-up (1,279-2,202 hours to 1.0, 1,923-3,430 to full parity); command palette removed from the alpha gate. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | Current focus moved to Phase 0; Phase -1 close recorded. |

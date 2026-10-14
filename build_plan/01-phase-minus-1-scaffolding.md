@@ -1,8 +1,8 @@
 # Phase -1: scaffolding and CI/CD
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: phase closed; release workflow change and GitHub settings recorded.
 
-Goal: an empty but complete workspace. Every crate exists and builds, `cargo xtask ci` runs every gate, CI matches the related craft apps, and the shared release workflow can build packages from the `release` branch. No features.
+Goal: an empty but complete workspace. Every crate exists and builds, `cargo xtask ci` runs every gate, CI matches the related craft apps, and the release workflow can build packages from the `release` branch. No features.
 
 | | |
 |---|---|
@@ -15,7 +15,7 @@ Goal: an empty but complete workspace. Every crate exists and builds, `cargo xta
 ## Entry criteria
 
 - The docs set exists (this repo as of 2026-10-14): SCRD.md, AGENTS.md, ROADMAP.md, docs/, build_plan/, root files, `.github/`.
-- The maintainer has created (or approved creating) the GitHub repo `storytold/notecraft`.
+- The maintainer has created (or approved creating) the GitHub repo `Queball1999/notecraft`.
 
 ## Already done before this phase
 
@@ -33,7 +33,7 @@ git status            # check: no target/, no secrets, no local settings
 git commit -m "docs: add spec, rules, docs set, and build plan" \
   -m "Initial commit. No code. Adds SCRD, AGENTS, ROADMAP, docs/, build_plan/, licenses, and CI/CD that mirrors the related craft apps." \
   -m "Refs: build_plan/01-phase-minus-1-scaffolding.md section 0"
-gh repo create storytold/notecraft --public --source . --remote origin \
+gh repo create Queball1999/notecraft --public --source . --remote origin \
   --description "OneNote-style canvas and ink on a markdown-first file format. Rust + egui."
 git push -u origin main
 git branch release main
@@ -80,15 +80,27 @@ Steps:
    ```toml
    [workspace]
    resolver = "2"
-   members = ["crates/*", "apps/notecraft", "apps/notecraft-cli", "xtask"]
-   default-members = ["apps/notecraft", "apps/notecraft-cli"]
+   # Members are listed explicitly: an empty glob such as "crates/*" is an error,
+   # and an explicit list lets each early commit build with only the crates it has.
+   members = [
+       "crates/notecraft-core",
+       "crates/notecraft-storage",
+       "crates/notecraft-model",
+       "crates/notecraft-markdown",
+       "crates/notecraft-canvas",
+       "crates/notecraft-engine",
+       "crates/notecraft-ui-egui",
+       "apps/notecraft",
+       "apps/notecraft-cli",
+       "xtask",
+   ]
 
    [workspace.package]
    version = "0.0.0"
    edition = "2021"
    rust-version = "1.95"
    license = "MIT OR Apache-2.0"
-   repository = "https://github.com/storytold/notecraft"
+   repository = "https://github.com/Queball1999/notecraft"
    authors = ["The NoteCraft Contributors"]
 
    [workspace.lints.rust]
@@ -297,7 +309,7 @@ xtask/src/version.rs
 packaging/env.sh
 packaging/macos/{import-cert.sh,package.sh,verify.sh,Info.plist,entitlements.plist}
 packaging/windows/{package.ps1,notecraft.wxs}
-packaging/linux/{package.sh,flatpak-bundle.sh,ai.storyteller.notecraft.desktop,ai.storyteller.notecraft.metainfo.xml,nfpm.yaml}
+packaging/linux/{package.sh,flatpak-bundle.sh,io.github.queball1999.notecraft.desktop,io.github.queball1999.notecraft.metainfo.xml,nfpm.yaml}
 packaging/freebsd/package.sh
 assets/app-icon/{notecraft.svg,notecraft.ico,notecraft.icns,hicolor/...}
 apps/notecraft/build.rs
@@ -306,7 +318,7 @@ apps/notecraft/build.rs
 Steps:
 
 1. `cargo xtask version set <v>`: set `[workspace.package] version` and refresh `Cargo.lock` (`cargo update --workspace`). Validate SemVer; refuse anything else.
-2. Copy the packaging scripts from GridCraft (newest of the related craft apps at the time). Replace `gridcraft` with `notecraft`, `GridCraft` with `NoteCraft`, the app id with `ai.storyteller.notecraft`, and binary names. Remove anything specific to spreadsheets. Keep comments, convert any non-ASCII characters to ASCII.
+2. Copy the packaging scripts from GridCraft (newest of the related craft apps at the time). Replace `gridcraft` with `notecraft`, `GridCraft` with `NoteCraft`, the app id with `io.github.queball1999.notecraft`, and binary names. Remove anything specific to spreadsheets. Keep comments, convert any non-ASCII characters to ASCII.
 3. App icon: an original design (for example a rounded square with a stylized page and pen stroke in the 2016 accent purple), drawn as SVG and exported to `.ico`, `.icns`, and the hicolor sizes by a script under `packaging/icons.sh`. Add ATTRIBUTION.md rows (author: The NoteCraft Contributors, license: MIT OR Apache-2.0).
 4. `apps/notecraft/build.rs`: read `VERSION`, `BUILD_DATE`, `BUILD_SHA` (generic names; NoteCraft is not in the shared workflow's per-app list) with fallbacks to the Cargo version, today, and `git rev-parse --short HEAD`. Expose as `env!` constants.
 5. Test with a manual Release workflow run from `chore/packaging` with version `0.0.0-test.1`. Signing is skipped off the `release` branch.
@@ -391,6 +403,12 @@ Done once, right after section 0. Uses `gh` with admin rights.
 | Section 6 GitHub settings | 2-4 |
 | Total | 55-98 |
 
+## Phase close notes (2026-10-14)
+
+- Release workflow: replaced the shared craft-common-actions release workflow with NoteCraft's own (PR #1), because the shared one builds macOS on a paid `macos-15-xlarge` runner and has no license to copy. The dry run (0.0.0-test.2) produced all 20 artifacts on free standard runners; its draft release was deleted.
+- GitHub settings as applied: `main` requires a PR and the `cargo xtask ci` check with 0 approvals (a single maintainer cannot approve their own PRs); `release` is linear history only, no force pushes or deletion; a `phase/*` ruleset requires a PR and the CI check, with repository admins allowed to bypass. Labels, Discussions, and an empty `release` environment exist; signing secrets are still to be added.
+- The repo is `github.com/queball1999/notecraft` (GitHub lowercases the owner; links with `Queball1999` resolve to it).
+
 ## Exit criteria
 
 - SC-01 to SC-10 scored D.
@@ -404,3 +422,6 @@ Done once, right after section 0. Uses `gh` with admin rights.
 |---|---|---|
 | 2026-10-14 | -1 | Created. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | PR -1.1 landed; sample Cargo.toml now lists members explicitly. |
+| 2026-10-14 | -1 | Repo and app ID moved off the ArtCraft namespace. |
+| 2026-10-14 | -1 | Phase closed; release workflow change and GitHub settings recorded. |

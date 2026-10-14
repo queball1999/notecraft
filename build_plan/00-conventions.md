@@ -1,6 +1,6 @@
 # Conventions: branches, commits, PRs, reviews
 
-> Stage: pre-alpha (scaffolding). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: approval rule and gh workflow match the applied GitHub settings.
 
 These conventions match the related craft apps, plus NoteCraft's plain-text rule. AGENTS.md section 9 is the short version.
 
@@ -108,7 +108,7 @@ Write the body to `.git/PR_BODY.md` first (inside `.git/`, so it is never commit
 - Work PRs into a phase branch: squash merge. The squash commit message is the PR title plus the `Refs:` line.
 - Phase-close PRs into `main`: merge commit (no squash), so the phase history stays visible.
 - Never force-push a phase branch, `main`, or `release`.
-- Required: CI green, one approving review (maintainer, or a second agent session when the maintainer allows it), conversations resolved.
+- Required: CI green and conversations resolved. GitHub does not let a PR's author approve it, so with a single maintainer the protection rules require 0 approvals; a review is still expected whenever a second person or a second agent session is available. Repository admins can bypass the `phase/*` ruleset, which is for emergencies only.
 
 ## 4. Reviews
 
@@ -150,9 +150,28 @@ A bug on `main` that blocks everyone: branch `fix/<slug>` off `main`, PR into `m
 
 See docs/releasing.md. Release prep is a `chore/release-<version>` PR into `main`; the release itself is a fast-forward of `release` to `main`.
 
+## 9. Working without a remote or `gh`
+
+The repo now exists (`github.com/queball1999/notecraft`) and `gh` is the normal path (section 3). On a machine without `gh` or network access, follow the same branch and commit rules locally:
+
+1. Create the work branch off the phase branch and make the planned commits on it.
+2. Run `cargo xtask ci` (or, before it exists, the commands the PR section lists).
+3. Squash-merge into the phase branch with the PR title as the subject and the `Refs:` line in the body:
+   ```sh
+   git checkout phase/<n>-<slug>
+   git merge --squash feat/<slug>
+   git commit -m "feat(<scope>): <subject>" -m "Refs: build_plan/<file>.md PR <n>"
+   ```
+4. Keep the work branch until it has been pushed once, so its individual commits stay visible; delete it after.
+5. When the remote exists: `git remote add origin <url>`, then `git push -u origin main release phase/<n>-<slug>` and push any work branches still around. Open the phase PR on GitHub as section 6 describes.
+
+PR bodies written for each phase file still apply; save them under `.git/PR_BODY-<n>.md` so they can be pasted into GitHub later.
+
 ## Revision history
 
 | Date | Phase | Change |
 |---|---|---|
 | 2026-10-14 | -1 | Created. |
+| 2026-10-14 | -1 | Added section 9: working without a remote or `gh`. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | -1 | Approval rule and gh workflow match the applied GitHub settings. |
