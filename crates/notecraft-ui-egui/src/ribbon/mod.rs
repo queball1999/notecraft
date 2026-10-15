@@ -16,6 +16,7 @@ mod combo;
 mod group;
 pub(crate) mod keytips;
 mod menus;
+mod picker;
 mod simplified;
 pub mod spec;
 mod tab;

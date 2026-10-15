@@ -1069,6 +1069,34 @@ mod tests {
     }
 
     #[test]
+    fn colors_dialog_picker_square_and_sliders_change_the_color() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Draw").click();
+        harness.run();
+        harness.get_by_label("Color").click();
+        harness.run();
+        harness.get_by_label("More Colors...").click();
+        harness.run();
+        harness.get_by_label("Custom").click();
+        harness.run();
+        let _ = harness.get_by_label("New #1F1F1F");
+        harness.get_by_label("Saturation and brightness").click();
+        harness.run();
+        assert!(
+            harness.query_by_label("New #1F1F1F").is_none(),
+            "the square sets it"
+        );
+        let _ = harness.get_by_label("Hue");
+        let _ = harness.get_by_label("Transparency");
+        // One set of R, G, B, A fields: egui's own picker header is not drawn.
+        let numbers = harness
+            .query_all(egui_kittest::kittest::By::new().role(egui::accesskit::Role::SpinButton))
+            .count();
+        assert_eq!(numbers, 4, "R, G, B, A once");
+    }
+
+    #[test]
     fn recent_colors_restore_from_settings_and_drop_junk() {
         let mut shell = AppShell::new();
         shell.set_recent_colors(vec![

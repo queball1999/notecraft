@@ -2,7 +2,7 @@
 //! picker (swatch grid, "no color", and a custom color editor with hex, rgb(), rgba(), and
 //! R, G, B, A fields), or a table size grid.
 
-use egui::color_picker::{color_picker_hsva_2d, show_color, Alpha};
+use egui::color_picker::show_color;
 use egui::ecolor::Hsva;
 use egui::{
     Color32, CornerRadius, FontId, Id, Rect, Response, Sense, Stroke, StrokeKind, Ui, WidgetInfo,
@@ -229,7 +229,7 @@ fn custom_editor(ui: &mut Ui, custom: &mut Custom, look: Look<'_>) {
     visuals.widgets.inactive.weak_bg_fill = t.canvas_bg;
     visuals.extreme_bg_color = t.canvas_bg;
     let before = custom.rgba();
-    if color_picker_hsva_2d(ui, &mut custom.hsva, Alpha::OnlyBlend) {
+    if super::picker::show(ui, &mut custom.hsva, t.border) {
         custom.text = color::format_hex(custom.rgba());
         custom.text_invalid = false;
     }
