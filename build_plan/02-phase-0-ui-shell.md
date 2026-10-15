@@ -244,7 +244,7 @@ Steps:
 
 1. `Viewport` in `notecraft-canvas` (no egui): offset, zoom (0.1 to 4.0), screen-to-page and page-to-screen transforms, zoom about a point. Property tests for round trips.
 2. Canvas widget: scroll to pan, middle-drag and Space+drag to pan, Ctrl+wheel and pinch to zoom about the pointer, scroll bars.
-3. Paper: blank, lined (rule spacing 0.25 inch), grid (0.25 inch), dotted; color from `canvas_rule`. Drawn only for the visible area.
+3. Paper: blank, lined (rule spacing 0.25 inch, with a thin red margin line 1 inch from the left edge, token `canvas_margin_rule`), grid (0.25 inch), dotted (a kept extra beyond OneNote); color from `canvas_rule`. Drawn only for the visible area.
 4. Page title area and date line (mock data).
 5. Commands: `view.zoom_in`, `view.zoom_out`, `view.zoom_100`, `view.zoom_fit_width`, `view.paper.set`.
 
@@ -259,7 +259,7 @@ Commits:
 
 PR title: `feat(canvas): add pan, zoom, and paper styles`.
 
-PR 0.7 (PR #13) landed with these changes to the plan. The command ids are the ones the View tab has used since PR 0.5b: `view.zoom_in`, `view.zoom_out`, `view.zoom`, `view.zoom_actual`, `view.zoom_page_width`, `view.rule_lines`, `view.page_color`, and `view.paper_size` (not `view.zoom_100`, `view.zoom_fit_width`, or `view.paper.set`). Paper styles follow OneNote's Rule Lines menu (none, narrow, college, standard, and wide ruled; small, medium, large, and very large grid); dotted was left out because OneNote does not appear to have it, pending the maintainer's confirmation. The rule color is `canvas_rule`. The engine commit came before the UI commits, because the widget reads the zoom from the session, and the paper styles got their own `feat(canvas)` commit. Zoom is session state set only by commands, so Ctrl+wheel and pinch dispatch `view.zoom`; the scroll position stays in the front end.
+PR 0.7 (PR #13) landed with these changes to the plan. The command ids are the ones the View tab has used since PR 0.5b: `view.zoom_in`, `view.zoom_out`, `view.zoom`, `view.zoom_actual`, `view.zoom_page_width`, `view.rule_lines`, `view.page_color`, and `view.paper_size` (not `view.zoom_100`, `view.zoom_fit_width`, or `view.paper.set`). Paper styles follow OneNote's Rule Lines menu (none, narrow, college, standard, and wide ruled; small, medium, large, and very large grid); dotted was left out at first because OneNote does not have it. The rule color is `canvas_rule`. The engine commit came before the UI commits, because the widget reads the zoom from the session, and the paper styles got their own `feat(canvas)` commit. Zoom is session state set only by commands, so Ctrl+wheel and pinch dispatch `view.zoom`; the scroll position stays in the front end.
 
 ## PR 0.8: start page, recent files, file picker
 
@@ -470,3 +470,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | 0 | PR 0.9 recorded: status bar, full page view, and shortcuts (PR #15). |
 | 2026-10-14 | 0 | PR 0.10 recorded: keyboard navigation and screen reader labels (PR #16). |
 | 2026-10-15 | 0 | Added PR 0.5c to 0.5f (ribbon display options and simplified ribbon, font boxes, color pickers, galleries and Help tab) after a review against OneNote and WordCraft. |
+| 2026-10-15 | 0 | PR 0.7 follow-up recorded: dotted paper kept as an extra, and the ruled margin line. |

@@ -1,6 +1,6 @@
 # Post-parity optional features
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: color alpha recorded as a kept extra (PR 0.5e).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: dotted paper recorded as a kept extra.
 
 The build plan covers OneNote parity only. Everything in this doc is something OneNote does not do. None of it is scheduled. Each item is optional and is considered only after full parity (v1.0.0 and the parity items in Phase 4) is reached, and only if users ask for it.
 
@@ -20,6 +20,7 @@ The architecture keeps these possible without rework: every action is already a 
 | Footnotes | `[^1]` footnotes | none | 6-10 |
 | Command palette | Ctrl+Shift+P search over every command | command registry | 10-16 |
 | Color alpha | Transparency (A) in the custom color editor; OneNote colors are opaque. Kept by maintainer decision (PR 0.5e) | none | 0 (built) |
+| Dotted paper | Dot grid in Rule Lines (`view.rule_lines` style `dotted`, `paper: dotted`); OneNote has rule lines and grids only. Kept by maintainer decision (2026-10-15) | none | 0 (built) |
 | Full control channel | Input simulation, state queries, events (docs/control-protocol.md) | minimal channel (Phase 0) | 16-28 |
 | MCP server | AI agent tools over stdio (docs/mcp.md) | command registry | 24-40 |
 | MCP bridge | MCP tools driving the running window | full control channel | 10-18 |
@@ -43,3 +44,4 @@ Hour ranges come from the PRs these features had in the build plan before it was
 | 2026-10-14 | -1 | Created. Backlinks, graph, embeds, tag pane, code highlighting, footnotes, command palette, control channel, MCP, CLI, and plugins moved here from the build plan. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Color alpha in the custom color editor recorded as a kept extra (PR 0.5e). |
+| 2026-10-15 | 0 | Dotted paper recorded as a kept extra (maintainer decision, 2026-10-15). |

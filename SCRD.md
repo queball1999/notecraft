@@ -95,7 +95,7 @@ All features start as "Coming Soon". The phase column says when each lands; chec
 | Feature | Phase | Notes |
 |---|---|---|
 | Pan and zoom (10% to 400%) | 0 | wgpu-backed canvas |
-| Rule lines and grid | 0 | blank, lined, grid, dotted |
+| Rule lines and grid | 0 | blank, lined (with the red margin line, as in OneNote), grid, dotted (a kept extra beyond OneNote) |
 | Note containers anywhere on the page | 1 | click to create, drag to move, resize width |
 | Page grows with content | 1 | |
 | Lasso and rectangle select | 3 | across text, ink, shapes, images |
