@@ -14,11 +14,14 @@ pub mod canvas;
 pub mod color;
 pub mod icons;
 pub mod nav;
+pub mod picker;
 pub mod ribbon;
+pub mod start;
 pub mod themes;
 pub mod toast;
 
 pub use app_shell::{AppShell, REGIONS};
+pub use picker::{FilePicker, NoPicker};
 pub use toast::Toasts;
 
 /// Layer number, read by `cargo xtask layers`.
