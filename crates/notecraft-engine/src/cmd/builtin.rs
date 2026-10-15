@@ -798,6 +798,23 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .args(MODE_ARGS)
     .ready(),
+    // Help tab
+    CommandSpec::new(ids::HELP_HELP, "Help", "Open the help for NoteCraft."),
+    CommandSpec::new(
+        ids::HELP_SUPPORT,
+        "Support",
+        "Find ways to get support for NoteCraft.",
+    ),
+    CommandSpec::new(
+        ids::HELP_FEEDBACK,
+        "Feedback",
+        "Send feedback about NoteCraft.",
+    ),
+    CommandSpec::new(
+        ids::HELP_TRAINING,
+        "Show Training",
+        "Show the training for NoteCraft.",
+    ),
     // Navigation: the notebook list, the section tabs, and the page list
     CommandSpec::new(
         ids::NAV_NOTEBOOK_SELECT,
