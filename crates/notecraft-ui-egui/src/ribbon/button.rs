@@ -156,6 +156,11 @@ pub(super) fn show_sized(
                 .open_memory(toggle)
                 .show(|ui| menus::items(ui, items, look, out));
         }
+        Menu::Papers(items) => {
+            Popup::menu(&response)
+                .open_memory(toggle)
+                .show(|ui| menus::papers(ui, items, look, out));
+        }
         Menu::Colors(colors) => {
             picker.show(|ui| menus::colors(ui, button.command, &colors, look, out));
         }

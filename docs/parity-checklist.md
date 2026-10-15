@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: CV-03 scored D (dotted paper kept extra, ruled margin line).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: CV-03 evidence: Rule Lines menu shows paper thumbnails.
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -88,7 +88,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 |---|---|---|---|---|---|
 | CV-01 | Canvas | Pan (scroll, middle drag, space drag) | 0 | D | PR 0.7 (#13): canvas widget scrolls with the wheel and scroll bars, pans with middle-drag and Space+drag; Viewport property tests; app_shell tests middle_drag_and_space_drag_pan_the_canvas, wheel_scrolls_the_canvas |
 | CV-02 | Canvas | Zoom 10% to 400%, Ctrl+wheel, pinch | 0 | D | PR 0.7 (#13): view.zoom_in, view.zoom_out, view.zoom, view.zoom_actual, view.zoom_page_width Ready; Ctrl+wheel and pinch zoom about the pointer through view.zoom; tests zoom_buttons_zoom_the_canvas, ctrl_wheel_and_pinch_zoom_about_the_pointer (pinch tested with synthetic zoom events only) |
-| CV-03 | Canvas | Rule lines and grid (blank, lined, grid, dotted) | 0 | D | PR 0.7 (#13): view.rule_lines (none, 4 ruled, 4 grid sizes), view.page_color, view.paper_size Ready and drawn for the visible area only; per page in the session. Ruled paper has a thin red margin line 1 inch from the left edge, as in OneNote (theme token canvas_margin_rule). Dotted (a quarter inch dot grid, capped at 20000 dots) is a kept extra beyond OneNote, see docs/post-parity.md |
+| CV-03 | Canvas | Rule lines and grid (blank, lined, grid, dotted) | 0 | D | PR 0.7 (#13): view.rule_lines (none, 4 ruled, 4 grid sizes), view.page_color, view.paper_size Ready and drawn for the visible area only; per page in the session. Ruled paper has a thin red margin line 1 inch from the left edge, as in OneNote (theme token canvas_margin_rule). The View > Rule Lines menu is a gallery of thumbnail cards, as in OneNote, each drawn by the canvas paper code at a reduced scale. Dotted (a quarter inch dot grid, capped at 20000 dots) is a kept extra beyond OneNote, see docs/post-parity.md |
 | CV-04 | Canvas | Click anywhere to create a note container | 1 | M | |
 | CV-05 | Canvas | Move and resize containers | 1 | M | |
 | CV-06 | Canvas | Page grows with content | 1 | M | |
@@ -229,3 +229,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 0 | SH-02 evidence: Office-style color menus, Recent Colors, and the Colors dialog (PR 0.5e). |
 | 2026-10-15 | 0 | SH-02 evidence: Styles and Tags galleries and the Help tab (PR 0.5f). |
 | 2026-10-15 | 0 | CV-03 scored D: ruled paper draws the red margin line; dotted paper kept as an extra (docs/post-parity.md). |
+| 2026-10-15 | 0 | CV-03 evidence: the Rule Lines menu shows thumbnail cards of each paper style. |

@@ -315,6 +315,7 @@ impl AppShell {
             tokens: &tokens,
             registry: &self.registry,
             fonts: &self.families,
+            rule_lines: self.session.page_style().rule_lines.id(),
         };
         if self.ribbon.backstage_open() {
             let clicked = self.ribbon.show_backstage(ui, look, self.session.recents());
@@ -1348,6 +1349,94 @@ mod tests {
         assert_eq!(view.view().zoom_percent, 200);
         assert_eq!(view.page_style().paper_size.id(), "a5");
         assert_eq!(view.page_style().rule_lines.id(), "dotted");
+    }
+
+    /// Open the View tab's Rule Lines menu.
+    fn open_rule_lines(harness: &mut egui_kittest::Harness<'static, AppShell>) {
+        harness.run();
+        harness.get_by_label("View").click();
+        harness.run();
+        harness.get_by_label("Rule Lines").click();
+        harness.run();
+    }
+
+    #[test]
+    fn rule_lines_menu_shows_a_named_card_per_item_under_group_headings() {
+        use egui::accesskit::Role;
+        let mut harness = harness(AppShell::new(), WINDOW);
+        open_rule_lines(&mut harness);
+        let _ = harness.get_by_label("Ruled Lines");
+        let _ = harness.get_by_label("Grid Lines");
+        for item in crate::ribbon::spec::RULE_LINES {
+            // A card is a radio button named like the text item it replaces.
+            let _ = harness.get_by_role_and_label(Role::RadioButton, item.label);
+        }
+        assert_eq!(
+            harness
+                .query_all(egui_kittest::kittest::By::new().role(Role::RadioButton))
+                .count(),
+            crate::ribbon::spec::RULE_LINES.len()
+        );
+    }
+
+    #[test]
+    fn clicking_a_rule_lines_card_sets_the_page_style_and_closes_the_menu() {
+        use egui::accesskit::Role;
+        let mut harness = harness(AppShell::new(), WINDOW);
+        open_rule_lines(&mut harness);
+        harness
+            .get_by_role_and_label(Role::RadioButton, "Large Grid")
+            .click();
+        harness.run();
+        assert_eq!(
+            harness.state().session().page_style().rule_lines.id(),
+            "grid_large"
+        );
+        assert!(toasts(&harness).is_empty());
+        assert!(harness
+            .query_by_role_and_label(Role::RadioButton, "Large Grid")
+            .is_none());
+        // Again, for a ruled style.
+        harness.get_by_label("Rule Lines").click();
+        harness.run();
+        harness
+            .get_by_role_and_label(Role::RadioButton, "College Ruled")
+            .click();
+        harness.run();
+        assert_eq!(
+            harness.state().session().page_style().rule_lines.id(),
+            "college"
+        );
+    }
+
+    #[test]
+    fn rule_lines_cards_mark_the_current_style_and_press_from_the_keyboard() {
+        use egui::accesskit::{Role, Toggled};
+        use egui_kittest::kittest::NodeT;
+        let mut harness = harness(AppShell::new(), WINDOW);
+        open_rule_lines(&mut harness);
+        let toggled = |harness: &egui_kittest::Harness<'_, AppShell>, label: &str| {
+            harness
+                .get_by_role_and_label(Role::RadioButton, label)
+                .accesskit_node()
+                .toggled()
+        };
+        assert_eq!(toggled(&harness, "None"), Some(Toggled::True));
+        assert_eq!(toggled(&harness, "Dotted"), Some(Toggled::False));
+        harness
+            .get_by_role_and_label(Role::RadioButton, "Dotted")
+            .focus();
+        harness.run();
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+        assert_eq!(
+            harness.state().session().page_style().rule_lines.id(),
+            "dotted"
+        );
+        harness.get_by_label("Rule Lines").click();
+        harness.run();
+        assert_eq!(toggled(&harness, "Dotted"), Some(Toggled::True));
+        assert_eq!(toggled(&harness, "None"), Some(Toggled::False));
     }
 
     #[test]

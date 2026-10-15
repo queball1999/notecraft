@@ -179,13 +179,16 @@ pub enum Menu {
     TableGrid,
     /// The button is drawn as an editable box with a list.
     Combo(Combo),
+    /// The whole button opens a gallery of paper thumbnails, one card per item (Rule Lines).
+    /// Each item's `style` argument names the rule lines style its card draws.
+    Papers(&'static [Item]),
 }
 
 impl Menu {
     /// The fixed menu items; color pickers and the table grid build theirs at run time.
     pub fn items(&self) -> &'static [Item] {
         match self {
-            Self::Split(items) | Self::Dropdown(items) => items,
+            Self::Split(items) | Self::Dropdown(items) | Self::Papers(items) => items,
             Self::Combo(combo) => combo.items,
             Self::None | Self::Colors(_) | Self::TableGrid => &[],
         }
@@ -197,7 +200,9 @@ impl Menu {
         match self {
             Self::Split(_) => true,
             Self::Colors(colors) => colors.split,
-            Self::None | Self::Dropdown(_) | Self::TableGrid | Self::Combo(_) => false,
+            Self::None | Self::Dropdown(_) | Self::Papers(_) | Self::TableGrid | Self::Combo(_) => {
+                false
+            }
         }
     }
 
@@ -253,6 +258,11 @@ impl Button {
 
     pub const fn dropdown(mut self, items: &'static [Item]) -> Self {
         self.menu = Menu::Dropdown(items);
+        self
+    }
+
+    pub const fn papers(mut self, items: &'static [Item]) -> Self {
+        self.menu = Menu::Papers(items);
         self
     }
 
@@ -1131,7 +1141,7 @@ const VIEW_GROUPS: &[Group] = &[
             ),
             Column::Large(
                 Button::large("Rule Lines", Icon::RuleLines, ids::VIEW_RULE_LINES)
-                    .dropdown(RULE_LINES),
+                    .papers(RULE_LINES),
             ),
             Column::Stack(&[
                 Button::small("Hide Page Title", Icon::HideTitle, ids::VIEW_HIDE_TITLE),
@@ -1305,6 +1315,7 @@ mod tests {
                                 Menu::None
                                 | Menu::Split(_)
                                 | Menu::Dropdown(_)
+                                | Menu::Papers(_)
                                 | Menu::Combo(_) => {}
                             }
                         }

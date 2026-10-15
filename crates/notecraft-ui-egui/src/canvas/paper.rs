@@ -36,28 +36,60 @@ pub(super) fn draw(
         if let Some(color) = page_color {
             painter.rect_filled(page, 0.0, color);
         }
-        let stroke = Stroke::new(1.0, tokens.canvas_rule);
-        let (rows, columns) = rule_lines(page, map, style.rule_lines);
-        for y in rows {
-            painter.hline(page.x_range(), painter.round_to_pixel_center(y), stroke);
-        }
-        for x in columns {
-            painter.vline(painter.round_to_pixel_center(x), page.y_range(), stroke);
-        }
-        // The margin goes after the horizontal rules so it sits on top of them.
-        if let Some(x) = margin_x(page, map, style.rule_lines) {
-            let stroke = Stroke::new(1.0, tokens.canvas_margin_rule);
-            painter.vline(painter.round_to_pixel_center(x), page.y_range(), stroke);
-        }
-        let radius = dot_radius(map.zoom);
-        for dot in dot_positions(page, map, style.rule_lines) {
-            painter.circle_filled(dot, radius, tokens.canvas_rule);
-        }
+        paint_rules(painter, page, map, style.rule_lines, tokens);
     }
     if let Some(edge) = edge {
         let stroke = Stroke::new(1.0, tokens.border);
         painter.rect_stroke(edge, 0.0, stroke, egui::StrokeKind::Outside);
     }
+}
+
+/// Draw the rule lines, grid, margin line, or dots of `rules` inside `page`, a part of the
+/// paper on screen. Shared by the canvas and the Rule Lines menu thumbnails.
+fn paint_rules(
+    painter: &Painter,
+    page: Rect,
+    map: PageToScreen,
+    rules: RuleLines,
+    tokens: &ThemeTokens,
+) {
+    let stroke = Stroke::new(1.0, tokens.canvas_rule);
+    let (rows, columns) = rule_lines(page, map, rules);
+    for y in rows {
+        painter.hline(page.x_range(), painter.round_to_pixel_center(y), stroke);
+    }
+    for x in columns {
+        painter.vline(painter.round_to_pixel_center(x), page.y_range(), stroke);
+    }
+    // The margin goes after the horizontal rules so it sits on top of them.
+    if let Some(x) = margin_x(page, map, rules) {
+        let stroke = Stroke::new(1.0, tokens.canvas_margin_rule);
+        painter.vline(painter.round_to_pixel_center(x), page.y_range(), stroke);
+    }
+    let radius = dot_radius(map.zoom);
+    for dot in dot_positions(page, map, rules) {
+        painter.circle_filled(dot, radius, tokens.canvas_rule);
+    }
+}
+
+/// Zoom of a Rule Lines menu thumbnail: a thumbnail shows the top left corner of the page at
+/// this scale, so ruled and grid spacings keep their real ratios.
+pub(crate) const THUMBNAIL_ZOOM: f32 = 0.45;
+
+/// Paint a miniature page in `rect` with `rules`, using the same drawing as the canvas.
+pub(crate) fn paint_thumbnail(
+    painter: &Painter,
+    rect: Rect,
+    rules: RuleLines,
+    tokens: &ThemeTokens,
+) {
+    let painter = painter.with_clip_rect(rect.intersect(painter.clip_rect()));
+    painter.rect_filled(rect, 0.0, tokens.canvas_bg);
+    let map = PageToScreen {
+        origin: rect.min,
+        zoom: THUMBNAIL_ZOOM,
+    };
+    paint_rules(&painter, rect, map, rules, tokens);
 }
 
 /// The paper on screen, or `None` for an auto-sized page, which fills the canvas.
@@ -274,6 +306,38 @@ mod tests {
         ] {
             assert_eq!(margin_x(area, map(1.0), style), None);
         }
+    }
+
+    #[test]
+    fn thumbnails_show_several_lines_and_keep_ruled_and_grid_sizes_apart() {
+        let thumb = PageToScreen {
+            origin: egui::pos2(0.0, 0.0),
+            zoom: THUMBNAIL_ZOOM,
+        };
+        let area = Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(66.0, 46.0));
+        let counts: Vec<usize> = RuleLines::ALL
+            .into_iter()
+            .map(|style| {
+                let (rows, _) = rule_lines(area, thumb, style);
+                let dots = dot_positions(area, thumb, style);
+                match style.kind() {
+                    RuleKind::None => assert!(rows.is_empty() && dots.is_empty()),
+                    RuleKind::Dots => assert!(dots.len() >= 4, "{style:?} dots"),
+                    RuleKind::Lines => {
+                        assert!(rows.len() >= 4, "{style:?} rows");
+                        assert!(margin_x(area, thumb, style).is_some(), "{style:?} margin");
+                    }
+                    RuleKind::Grid => {
+                        assert!(!rows.is_empty(), "{style:?} rows");
+                        assert!(margin_x(area, thumb, style).is_none());
+                    }
+                }
+                rows.len()
+            })
+            .collect();
+        // Narrow ruled paper is denser than wide, and small grids denser than extra large.
+        assert!(counts[1] >= counts[4]);
+        assert!(counts[5] > counts[8]);
     }
 
     #[test]
