@@ -79,15 +79,22 @@ fn dot_radius(zoom: f32) -> f32 {
     (1.5 * zoom).clamp(1.0, 3.0)
 }
 
+/// Largest dot stride tried: past it a view draws no dots.
+const MAX_DOT_STRIDE: u16 = 4096;
+
 /// Screen positions of the dots inside `area`, one at every crossing of the dotted paper
-/// grid. Empty for other styles, when the dots would be closer than [`MIN_SCREEN_SPACING`],
-/// or when more than [`MAX_DOTS`] would be needed.
+/// grid. Empty for other styles or when the dots would be closer than
+/// [`MIN_SCREEN_SPACING`]. When more than [`MAX_DOTS`] would be needed, only every k-th row
+/// and column is kept (counted from the page origin, so the dots stay put while panning).
 fn dot_positions(area: Rect, map: PageToScreen, rules: RuleLines) -> Vec<Pos2> {
     let spacing = rules.spacing();
     if rules.kind() != RuleKind::Dots || spacing * map.zoom < MIN_SCREEN_SPACING {
         return Vec::new();
     }
     let (min, max) = map.page_rect(area);
+    let Some(spacing) = dot_spacing(spacing, min, max) else {
+        return Vec::new();
+    };
     let rows: Vec<f32> = paper::line_positions(spacing, min.y, max.y)
         .map(|y| map.pos(Vec2::new(0.0, y)).y)
         .collect();
@@ -104,6 +111,34 @@ fn dot_positions(area: Rect, map: PageToScreen, rules: RuleLines) -> Vec<Pos2> {
         }
     }
     dots
+}
+
+/// The page spacing to draw dots at: `spacing` times the smallest whole stride that keeps the
+/// dots between `min` and `max` (page units) within [`MAX_DOTS`]. `None` if no stride up to
+/// [`MAX_DOT_STRIDE`] does.
+fn dot_spacing(spacing: f32, min: Vec2, max: Vec2) -> Option<f32> {
+    (1..=MAX_DOT_STRIDE)
+        .map(|k| spacing * f32::from(k))
+        .find(|&s| {
+            span_count(s, min.y, max.y).saturating_mul(span_count(s, min.x, max.x)) <= MAX_DOTS
+        })
+}
+
+/// How many multiples of `spacing` fall within `min..=max`; `usize::MAX` when that cannot be
+/// counted (bad numbers or absurdly many).
+fn span_count(spacing: f32, min: f32, max: f32) -> usize {
+    if !(spacing > 0.0 && spacing.is_finite() && min.is_finite() && max.is_finite()) {
+        return usize::MAX;
+    }
+    let count = (max / spacing).floor() - (min / spacing).ceil() + 1.0;
+    if count <= 0.0 {
+        0
+    } else if count < 1.0e9 {
+        // count is a whole number below 1e9, so the cast is exact.
+        count as usize
+    } else {
+        usize::MAX
+    }
 }
 
 /// Screen positions of the horizontal lines (y) and vertical lines (x) inside `area`.
@@ -183,9 +218,23 @@ mod tests {
 
     #[test]
     fn dots_are_capped_and_vanish_when_too_dense() {
-        // 4000 x 4000 points at 100% is 167 x 167 = 27889 dots: over the cap, so none.
+        // 4000 x 4000 points at 100% is 167 x 167 = 27889 dots: over the cap, so every
+        // second row and column is kept, on multiples of 48 page units.
         let big = Rect::from_min_size(egui::pos2(100.0, 50.0), egui::vec2(4000.0, 4000.0));
-        assert!(dot_positions(big, map(1.0), RuleLines::Dotted).is_empty());
+        let dots = dot_positions(big, map(1.0), RuleLines::Dotted);
+        assert_eq!(dots.len(), 84 * 84);
+        for dot in &dots {
+            assert_eq!((dot.x - 100.0) % 48.0, 0.0);
+            assert_eq!((dot.y - 50.0) % 48.0, 0.0);
+        }
+        // Panning by one dot spacing keeps the same page positions, only shifted on screen.
+        let panned = PageToScreen {
+            origin: egui::pos2(76.0, 50.0),
+            zoom: 1.0,
+        };
+        for dot in dot_positions(big, panned, RuleLines::Dotted) {
+            assert_eq!((dot.x - 76.0) % 48.0, 0.0);
+        }
         // 3000 x 3000 is 126 x 126 = 15876 dots: drawn.
         let ok = Rect::from_min_size(egui::pos2(100.0, 50.0), egui::vec2(3000.0, 3000.0));
         let dots = dot_positions(ok, map(1.0), RuleLines::Dotted);
