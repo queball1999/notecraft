@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: open a notebook or page passed at launch. Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: the command line (and its MCP server) joins the build plan (PR 0.13, 1.16, 2.11, 3.14, 3.15); the desktop app opens a notebook or page passed at launch. Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -19,7 +19,7 @@ This file is the stage summary and progress log. The detailed assessments live i
 | [docs/themes.md](docs/themes.md) | The four OneNote theme presets |
 | [docs/releasing.md](docs/releasing.md) | Release, signing, notarization, packaging |
 | [docs/post-parity.md](docs/post-parity.md) | Optional features OneNote does not have; considered only after full parity |
-| [docs/mcp.md](docs/mcp.md), [docs/control-protocol.md](docs/control-protocol.md), [docs/cli.md](docs/cli.md) | Automation specs (mostly post-parity) |
+| [docs/mcp.md](docs/mcp.md), [docs/control-protocol.md](docs/control-protocol.md), [docs/cli.md](docs/cli.md) | Automation specs (CLI and MCP server: build plan; control channel: mostly post-parity) |
 
 The execution plan for agents (phases, branches, commit messages, PRs) is in [`build_plan/`](build_plan/README.md). It covers OneNote parity only.
 
@@ -39,14 +39,14 @@ Hours are summed bottom-up from every PR in `build_plan/` (each PR carries a gen
 | Page links, search, note tags | 0% | 92-154 | 0 | 92-154 | [markdown](docs/markdown.md#5-page-links) |
 | Print and export | 0% | 88-153 | 0 | 88-153 | [printing](docs/printing.md) |
 | File formats (.md, .notecraft, .one import) | 0% | 104-176 | 160-320 | 264-496 | [gaps](docs/gaps.md#file-formats) |
-| Command registry, undo/redo | 0% | 32-54 | 0 | 32-54 | [architecture](docs/architecture.md) |
+| Command registry, undo/redo, command line | 0% | 88-148 | 0 | 88-148 | [architecture](docs/architecture.md) |
 | Localization | 0% | 30-50 | 80-160 | 110-210 | [gaps](docs/gaps.md#localization) |
 | Performance and 1.0 hardening | 0% | 110-210 | 0 | 110-210 | [roadmap](docs/roadmap.md) |
 | Browser build and sync research | 0% | 0 | 100-190 | 100-190 | [Phase 4](build_plan/06-phase-4-advanced.md) |
 | Scaffolding, CI, release | 100% | 87-156 | 8-14 | 95-170 | [Phase -1](build_plan/01-phase-minus-1-scaffolding.md) |
-| Total | 0% | 1,343-2,306 | 644-1,228 | 1,987-3,534 | |
+| Total | 0% | 1,399-2,400 | 644-1,228 | 2,043-3,628 | |
 
-Calendar, at about 30 focused hours a week: v1.0 in 45-77 weeks; full parity in 66-118 weeks.
+Calendar, at about 30 focused hours a week: v1.0 in 47-80 weeks; full parity in 68-121 weeks.
 
 **Overall: 0% ready for users.** Phase -1 is closed: the workspace, the eight `cargo xtask ci` gates, packaging, and logging exist, and CI runs on GitHub. Every feature is "Coming Soon" until Phase 0 (UI shell) and Phase 1 (core engine) land.
 
@@ -55,10 +55,10 @@ Calendar, at about 30 focused hours a week: v1.0 in 45-77 weeks; full parity in 
 | Phase | Theme | Hours | Ends with |
 |---|---|---|---|
 | -1 | Scaffolding and CI/CD | 55-98 | CI green, release pipeline proven |
-| 0 | UI shell | 278-464 | internal 0.0.1 |
-| 1 | Core engine | 444-756 | v0.1.0 alpha |
-| 2 | Page links, search, note tags | 130-222 | v0.2.0 |
-| 3 | Polish and parity | 356-606 | v0.9.0 beta |
+| 0 | UI shell | 284-474 | internal 0.0.1 |
+| 1 | Core engine | 454-772 | v0.1.0 alpha |
+| 2 | Page links, search, note tags | 134-230 | v0.2.0 |
+| 3 | Polish and parity | 392-666 | v0.9.0 beta |
 | Hardening | Beta to 1.0 | 80-160 | v1.0.0 |
 | 4 | Remaining parity | 644-1,228 | full OneNote parity (1.x) |
 
@@ -104,3 +104,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-15 | Phase 0 PR 0.5d: Font and Font Size are editable boxes, as in OneNote: they show the current value (Calibri, 11), the font box lists the installed families from a background scan that reads only each font's name table, and typing filters it; the size box takes any size from 1 to 1638. |
 | 2026-10-15 | Phase 0 PR 0.5e: color menus in Office's layout: Automatic or No Color, Theme Colors, Standard Colors, Recent Colors (saved in settings), and More Colors, which opens a Colors dialog with Standard and Custom pages and New over Current. Split color buttons show the last color as the bar under their icon and apply it; Text Highlight Color offers fifteen colors with No Color last. |
 | 2026-10-15 | Open at launch: `notecraft <notebook folder or page file>` opens it instead of the last recent item (`--help` added; a bad path toasts and falls back); documented in docs/cli.md. |
+| 2026-10-15 | Scope change (maintainer decision): the command line works like the related craft apps' (WordCraft's wordcraft-cli has convert, info, text, inspect, render, run, commands, mcp), an exception to the OneNote-only rule for the CLI and its MCP server only. The Full CLI and MCP server rows leave docs/post-parity.md; PR 1.16, 2.11, 3.14, and 3.15 added (56-94 hours). Phase 0 PR 0.13 landed `notecraft-cli commands [--json]` and `notecraft-cli run [--sample] --cmd 'id={json}'`. Totals: 1,399-2,400 to 1.0 and 2,043-3,628 to full parity. |

@@ -183,6 +183,25 @@ Commits:
 
 PR title: `feat(ui): add find on page`.
 
+## PR 2.11: command line search
+
+| | |
+|---|---|
+| Branch | `feat/cli-search` off `phase/2-links-search-tags` |
+| Hours | 4-8 |
+| Rows | none |
+
+Steps: `notecraft-cli search <query> [--tag <t>] [--limit <n>]` prints ranked hits (page, snippet) from the same engine search the desktop app uses, as text or with `--json`. `notecraft-cli index [--rebuild]` updates or rebuilds `index.sqlite`. Depends on PR 2.4 and 2.5.
+
+Commits:
+
+1. `feat(cli): add search with tag and limit filters`
+2. `feat(cli): add index and index --rebuild`
+
+PR title: `feat(cli): add search and index`.
+
+This PR is part of the command line decision of 2026-10-15 (docs/cli.md). It can land at any point after PR 2.5 and before PR 2.10.
+
 ## PR 2.10: close Phase 2
 
 Follow 00-conventions.md section 6; release v0.2.0.
@@ -201,7 +220,8 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2.8 highlight and timestamps | 6-10 |
 | 2.9 find on page | 8-14 |
 | 2.10 close and v0.2.0 | 4-8 |
-| Total | 130-222 |
+| 2.11 command line search | 4-8 |
+| Total | 134-230 |
 
 ## Exit criteria
 
@@ -214,3 +234,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 |---|---|---|
 | 2026-10-14 | -1 | Created. OneNote-only scope: page links, search, note tags, Find Tags, equations, highlight, timestamps, find on page. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-15 | 0 | Added PR 2.11 (command line search and index) after the maintainer decision of 2026-10-15; Phase 2 estimate 134-230 hours. |

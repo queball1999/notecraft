@@ -10,7 +10,7 @@ NoteCraft is a clean-room remake of the OneNote experience (freeform canvas, ink
 
 - Plain ASCII, US English, everywhere: no em dashes, en dashes, emoji, typographic arrows, curly quotes, or box-drawing characters. This includes chat replies, commit messages, and PR bodies. (AGENTS.md section 2.)
 - Compare NoteCraft only to OneNote. Never name or compare against any other note-taking app.
-- Build OneNote features only until full parity. Anything OneNote lacks goes in docs/post-parity.md, not in the build plan.
+- Build OneNote features only until full parity. Anything OneNote lacks goes in docs/post-parity.md, not in the build plan. Exception: the command line (`notecraft-cli`, including its MCP server) follows the related craft apps (maintainer decision, 2026-10-15).
 - Never crash: no `unsafe`, no `unwrap`, `expect`, or `panic!` outside tests. Parsers are lenient and bounded.
 - Every user action is a command with a stable id.
 - Respect the L0 to L7 layering. Engine crates never touch egui.

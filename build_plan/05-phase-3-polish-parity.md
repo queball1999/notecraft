@@ -241,6 +241,46 @@ Commits:
 
 PR title: `perf: meet the SCRD performance targets`.
 
+## PR 3.14: command line render, export, print
+
+| | |
+|---|---|
+| Branch | `feat/cli-render` off `phase/3-polish-parity` |
+| Hours | 12-20 |
+| Rows | none |
+
+Steps: `notecraft-cli render <page> --format pdf|html|png [--out <file>]`, `notecraft-cli export <notebook> --format zip|html|pdf [--out <path>]`, and `notecraft-cli print <page> [--printer <name>] [--copies <n>]` (through craft-print) call the same engine paths as the File tab; no rendering code is duplicated. PNG output reuses the canvas painter's software path. Depends on PR 3.6, 3.7, and 3.8.
+
+Commits:
+
+1. `feat(cli): add render to pdf, html, and png`
+2. `feat(cli): add export to zip, html, and pdf`
+3. `feat(cli): add print through craft-print`
+
+PR title: `feat(cli): add render, export, and print`.
+
+This PR is part of the command line decision of 2026-10-15 (docs/cli.md). It can land at any point after PR 3.8 and before PR 3.13.
+
+## PR 3.15: MCP server
+
+| | |
+|---|---|
+| Branch | `feat/cli-mcp` off `phase/3-polish-parity` |
+| Hours | 24-40 |
+| Rows | none |
+
+Steps: `notecraft-cli mcp [--notebook <path>] [--allow-destructive]` serves the tools, resources, and safety rules in docs/mcp.md over stdio, headless, on the same command registry and engine as the other subcommands. Destructive tools stay off unless `--allow-destructive` is given. Every tool call is bounded (input size, result size) and never panics. The bridge to a running app (`mcp --connect <port>`) stays post-parity because it needs the full control channel (docs/post-parity.md). Depends on PR 1.16, 2.11, and 3.14.
+
+Commits:
+
+1. `feat(mcp): add the stdio transport and tool dispatch`
+2. `feat(mcp): expose commands, pages, and search as tools and resources`
+3. `feat(mcp): enforce the safety rules and add protocol tests`
+
+PR title: `feat(cli): add an MCP server over stdio`.
+
+This PR is part of the command line decision of 2026-10-15 (docs/cli.md). It can land at any point after PR 3.14 and before PR 3.13.
+
 ## PR 3.13: close Phase 3 and ship the beta
 
 Follow 00-conventions.md section 6; release v0.9.0.
@@ -271,7 +311,9 @@ Not new features. Between v0.9.0 and v1.0.0, work only from docs/gaps.md: beta b
 | 3.11 localization plumbing | 30-50 |
 | 3.12 performance | 30-50 |
 | 3.13 close and beta | 8-14 |
-| Total | 356-606 |
+| 3.14 command line render, export, print | 12-20 |
+| 3.15 MCP server | 24-40 |
+| Total | 392-666 |
 
 Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 
@@ -288,3 +330,4 @@ Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 |---|---|---|
 | 2026-10-14 | -1 | Created. Control channel, MCP, CLI, and plugins moved to docs/post-parity.md (not OneNote features). |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-15 | 0 | Added PR 3.14 (command line render, export, print) and PR 3.15 (MCP server) after the maintainer decision of 2026-10-15; Phase 3 estimate 392-666 hours. |

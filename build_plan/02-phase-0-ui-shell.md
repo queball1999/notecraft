@@ -330,6 +330,25 @@ PR title: `feat(ui): add keyboard navigation and screen reader labels`.
 
 PR 0.10 (PR #16) landed both commits. An audit of the AccessKit tree found the ribbon, menus, navigation, backstage, and start page already named; the panel resize handles were the only unnamed focus stops and now carry the Splitter role and a name. The status bar's contents are drawn after the page so it comes last in the Tab order without changing the layout. Ribbon, navigation, and egui buttons already drew an accent focus ring; the canvas and the start page's recent rows now do too. The Narrator and VoiceOver runs could not be done from an agent session and stay open in gaps rank 14, so SH-15 is P.
 
+## PR 0.13: command line core
+
+| | |
+|---|---|
+| Branch | `feat/cli-core` off `phase/0-ui-shell` |
+| Hours | 6-10 |
+| Rows | none |
+
+Steps: `notecraft-cli commands [--json]` lists every command id, label, status, and argument schema from the registry. `notecraft-cli run [--sample] --cmd 'id={json}' ...` runs commands headlessly, in order, on an empty session (or the sample notebooks with `--sample`) and prints one JSON result per command; exit codes 0, 1, 2, 3, 4, and 6 as in docs/cli.md (`--cmd` is capped at 16 KB each and 1000 per run). The desktop app opens a notebook folder or page file passed at launch: `notecraft [<notebook folder or page file>]`.
+
+Commits:
+
+1. `feat(cli): add commands and headless run, as the craft apps have`
+2. `feat(app): open a notebook or page passed at launch`
+
+PR title: `feat(cli): add commands and run, and open a path at launch`.
+
+This follows the maintainer decision of 2026-10-15: the command line (and later its MCP server) works like the related craft apps' command lines. It is a deliberate exception to the OneNote-only scope rule, for the CLI only (see docs/cli.md). The remaining subcommands arrive with the engine work they use: PR 1.16, 2.11, 3.14, and 3.15.
+
 ## PR 0.5c to 0.5f: ribbon parity follow-ups
 
 A review against OneNote (Microsoft 365 screenshots) and against WordCraft's ribbon, the related craft app with the same egui stack, found four gaps in the PR 0.5 ribbon. Each is its own PR, stacked in this order. Rows: SH-02 and SH-05 (and TX-10 for the highlight palette, whose command stays Coming Soon until Phase 1).
@@ -447,7 +466,8 @@ Follow 00-conventions.md section 6. Also:
 | 0.10 accessibility | 10-16 |
 | 0.11 control minimal | 8-14 |
 | 0.12 close and 0.0.1 | 4-8 |
-| Total | 278-464 |
+| 0.13 command line core | 6-10 |
+| Total | 284-474 |
 
 ## Exit criteria
 
@@ -468,3 +488,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | 0 | PR 0.9 recorded: status bar, full page view, and shortcuts (PR #15). |
 | 2026-10-14 | 0 | PR 0.10 recorded: keyboard navigation and screen reader labels (PR #16). |
 | 2026-10-15 | 0 | Added PR 0.5c to 0.5f (ribbon display options and simplified ribbon, font boxes, color pickers, galleries and Help tab) after a review against OneNote and WordCraft. |
+| 2026-10-15 | 0 | Added PR 0.13 (command line core: `commands`, `run`, and opening a path at launch) after the maintainer decision of 2026-10-15 to let the CLI follow the related craft apps. |

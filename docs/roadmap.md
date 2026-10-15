@@ -1,6 +1,6 @@
 # Roadmap: focus, alpha plan, milestones
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: Phase 0 estimate raised for ribbon parity follow-ups (PR 0.5c to 0.5f).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: command line PRs added to Phases 0 to 3.
 
 The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc says what we are doing now, what the alpha needs, and the milestones after it. The step-by-step execution plan is in [build_plan/](../build_plan/README.md). Optional features OneNote does not have are in [post-parity.md](post-parity.md) and are not on this roadmap.
 
@@ -17,14 +17,14 @@ Hours are summed from every PR in the build plan. They assume one experienced Ru
 | Phase | Theme | Hours | Calendar | Plan |
 |---|---|---|---|---|
 | -1 | Scaffolding and CI/CD | 55-98 | 2-4 weeks | [01](../build_plan/01-phase-minus-1-scaffolding.md) |
-| 0 | UI shell | 278-464 | 9-16 weeks | [02](../build_plan/02-phase-0-ui-shell.md) |
-| 1 | Core engine | 444-756 | 15-26 weeks | [03](../build_plan/03-phase-1-core-engine.md) |
-| 2 | Page links, search, note tags | 130-222 | 4-8 weeks | [04](../build_plan/04-phase-2-links-search-tags.md) |
-| 3 | Polish and parity | 356-606 | 12-21 weeks | [05](../build_plan/05-phase-3-polish-parity.md) |
+| 0 | UI shell | 284-474 | 9-16 weeks | [02](../build_plan/02-phase-0-ui-shell.md) |
+| 1 | Core engine | 454-772 | 15-26 weeks | [03](../build_plan/03-phase-1-core-engine.md) |
+| 2 | Page links, search, note tags | 134-230 | 4-8 weeks | [04](../build_plan/04-phase-2-links-search-tags.md) |
+| 3 | Polish and parity | 392-666 | 13-23 weeks | [05](../build_plan/05-phase-3-polish-parity.md) |
 | Hardening | Beta to 1.0 | 80-160 | 3-6 weeks | [05](../build_plan/05-phase-3-polish-parity.md#beta-to-10-hardening) |
-| To 1.0 | | 1,343-2,306 | 45-77 weeks | |
+| To 1.0 | | 1,399-2,400 | 47-80 weeks | |
 | 4 | Remaining parity (post-1.0) | 644-1,228 | 22-41 weeks | [06](../build_plan/06-phase-4-advanced.md) |
-| Full parity | | 1,987-3,534 | 66-118 weeks | |
+| Full parity | | 2,043-3,628 | 68-121 weeks | |
 
 ### What changed in the 2026-10-14 re-assessment
 
@@ -78,3 +78,4 @@ v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux.
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | Current focus moved to Phase 0; Phase -1 close recorded. |
 | 2026-10-15 | 0 | Phase 0 estimate raised to 278-464 hours for ribbon parity follow-ups (PR 0.5c to 0.5f); totals 1,343-2,306 to 1.0 and 1,987-3,534 to full parity. |
+| 2026-10-15 | 0 | Command line PRs added (0.13, 1.16, 2.11, 3.14, 3.15) after the maintainer decision of 2026-10-15; totals 1,399-2,400 hours to 1.0 and 2,043-3,628 to full parity. |

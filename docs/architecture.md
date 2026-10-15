@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: section 4: the default shortcut map lives in the engine.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: CLI and MCP server are in the build plan.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -34,7 +34,7 @@ NoteCraft follows the ArtCraft layered pattern. A crate may depend only on crate
 +--------------------------------------------------------------------------+
 ```
 
-Plus `xtask` (build tooling, not shipped) and `testdata/`. If a post-parity MCP server is ever built (docs/post-parity.md), it would be a new L6 crate `notecraft-mcp` beside the UI.
+Plus `xtask` (build tooling, not shipped) and `testdata/`. The MCP server (PR 3.15, docs/mcp.md) would be a new L6 crate `notecraft-mcp` beside the UI, started by `notecraft-cli mcp`.
 
 ## 2. Crates
 
@@ -87,7 +87,7 @@ The watcher (`notify`) reports a changed page. If NoteCraft has no unsaved edits
 - Ids are `area.verb` strings, for example `page.new`, `ink.set_color`, `view.zoom_in`. They are stable once released.
 - Each command declares: id, label, description, argument schema (serde), whether it is undoable, whether it is destructive, and its default shortcut.
 - A command not implemented yet is registered with `status = ComingSoon`. The UI shows the badge and a toast; the control channel returns a clear "not implemented" error.
-- Every action being a command is what keeps post-parity options (command palette, CLI, MCP) cheap to add later without touching features.
+- Every action being a command is what keeps the CLI and MCP server (and post-parity options such as a command palette) cheap to add later without touching features.
 - Implemented in `crates/notecraft-engine/src/cmd/` (PR 0.2): `ids.rs` declares every id, `builtin.rs` holds the specs, and `Registry::run(&mut Session, id, args)` checks the JSON arguments and returns errors with stable codes (`not_found`, `coming_soon`, `invalid_args`, `internal`). The egui shell's `AppShell::dispatch` turns an error into a toast.
 - The canvas (PR 0.7) splits view state the same way: the zoom and each page's style (rule lines, page color, paper size) live in the session and change only through commands, so Ctrl+wheel and pinch dispatch `view.zoom` like the ribbon does. The scroll position is front-end state in `notecraft-ui-egui/src/canvas`. The page-to-screen math is `notecraft_canvas::Viewport`, with no egui types.
 - File commands (PR 0.8) take an optional `path`. A button sends them without one, and the shell asks its `FilePicker` (the OS dialogs through `rfd` in the desktop app, a fake in tests) and runs the command again with the chosen path; canceling runs nothing. The control channel always passes a path. The recent list lives in the session and the app saves it in `config.toml`.
@@ -152,3 +152,4 @@ Other workflows mirror the related craft apps: `printing.yml` (craft-print on al
 | 2026-10-14 | 0 | Section 4: canvas zoom and page style are session state; scroll position is front-end state (PR 0.7). |
 | 2026-10-14 | 0 | Section 4: file commands without a path ask the front end picker; recents in the session (PR 0.8). |
 | 2026-10-14 | 0 | Section 4: the default shortcut map lives in the engine; the shell matches and dispatches it (PR 0.9). |
+| 2026-10-15 | 0 | CLI and MCP server are in the build plan, not post-parity. |

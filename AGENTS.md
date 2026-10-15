@@ -12,7 +12,7 @@ NoteCraft is a clean-room, open-source note-taking app. It is related to the Art
 
 ### Scope: OneNote parity first
 
-- The build plan covers OneNote features only. Do not add features OneNote does not have (backlinks, graph view, command palette, MCP, full CLI, plugins, and similar) to any phase.
+- The build plan covers OneNote features only. Do not add features OneNote does not have (backlinks, graph view, command palette, plugins, and similar) to any phase. Exception: the command line (`notecraft-cli`, including its MCP server) follows the related craft apps (maintainer decision, 2026-10-15).
 - Those ideas go in [docs/post-parity.md](docs/post-parity.md) and are considered only after full parity.
 
 ## 2. Plain text style (US English, ASCII only)
@@ -58,7 +58,7 @@ This rule applies to every file in the repo and to every commit message, PR titl
 | L4 | `notecraft-canvas` | ink engine, shapes, layout, hit testing, zoom and pan |
 | L5 | `notecraft-engine` | session, command registry, undo/redo, clipboard, export |
 | L6 | `notecraft-ui-egui` | the OneNote-style egui front end (swappable) |
-| L7 | `notecraft`, `notecraft-cli`, `notecraft-web` | desktop, command line (`--version` only before full parity), browser (Phase 4) |
+| L7 | `notecraft`, `notecraft-cli`, `notecraft-web` | desktop, command line (see docs/cli.md), browser (Phase 4) |
 
 - Layering is enforced by `cargo xtask layers`: a crate may only depend on lower layers, and nothing below L6 depends on egui, eframe, winit, or rfd.
 - Engine crates are UI-agnostic. The egui front end is a separate, swappable layer.

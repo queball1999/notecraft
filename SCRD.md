@@ -1,7 +1,7 @@
 # SCRD: System Combined Resource Document
 
 Target: NoteCraft, a one-to-one remake of OneNote with a markdown-first, folder-based file format
-Prepared: 2026-10-13. Revised: 2026-10-14 (plain ASCII; scope narrowed to OneNote parity; estimates re-assessed)
+Prepared: 2026-10-13. Revised: 2026-10-15 (command line and MCP server added to the build plan; estimates updated)
 Stack: Rust + egui (ArtCraft pattern)
 Platforms: Windows, macOS, Linux (FreeBSD built by CI; browser in Phase 4)
 
@@ -23,7 +23,7 @@ The development philosophy follows the ArtCraft pattern: build the UI first as a
 
 NoteCraft is a related but independent project. It follows the patterns of the ArtCraft apps ([WordCraft](https://github.com/storytold/wordcraft), [DeckCraft](https://github.com/storytold/deckcraft), [GridCraft](https://github.com/storytold/gridcraft)) and uses their shared libraries (craft-libs) and CI workflows (craft-common-actions), but it is developed separately and is not an official ArtCraft app.
 
-Scope rule: the build plan covers OneNote features only. Features OneNote does not have (backlinks, graph view, command palette, MCP, full CLI, plugins) are optional post-parity ideas in [docs/post-parity.md](docs/post-parity.md).
+Scope rule: the build plan covers OneNote features only. The one exception is the command line and its MCP server, which follow the related craft apps (maintainer decision, 2026-10-15; [docs/cli.md](docs/cli.md)). Other features OneNote does not have (backlinks, graph view, command palette, plugins) are optional post-parity ideas in [docs/post-parity.md](docs/post-parity.md).
 
 ---
 
@@ -45,7 +45,7 @@ Scope rule: the build plan covers OneNote features only. Features OneNote does n
 | Crash-safe writes | craft-atomic |
 | Settings | craft-settings (`config.toml`) |
 | Printing | craft-print (wraps winprint on Windows, CUPS on macOS and Linux) |
-| CLI | `notecraft-cli --version` (more is post-parity) |
+| CLI | `notecraft-cli` (commands and run in Phase 0; the rest through Phase 3, see docs/cli.md) |
 | License | MIT OR Apache-2.0 |
 | First version | 0.1.0 (alpha) |
 
@@ -219,7 +219,7 @@ Full spec: [docs/markdown.md](docs/markdown.md).
 
 ### 4.10 Automation
 
-Every action is a command with a stable id, used by the ribbon, shortcuts, and a minimal control channel for UI tests (Phase 0). A command palette, a full CLI, a full control channel, MCP, and plugins are not OneNote features; their specs ([docs/cli.md](docs/cli.md), [docs/control-protocol.md](docs/control-protocol.md), [docs/mcp.md](docs/mcp.md)) are kept for a possible post-parity effort ([docs/post-parity.md](docs/post-parity.md)).
+Every action is a command with a stable id, used by the ribbon, shortcuts, and a minimal control channel for UI tests (Phase 0). The command line and its MCP server ([docs/cli.md](docs/cli.md), [docs/mcp.md](docs/mcp.md)) are not OneNote features but are in the build plan by maintainer decision (2026-10-15). A command palette, a full control channel, and plugins are not OneNote features; their specs ([docs/control-protocol.md](docs/control-protocol.md)) are kept for a possible post-parity effort ([docs/post-parity.md](docs/post-parity.md)).
 
 ---
 
@@ -249,14 +249,14 @@ Hours are summed bottom-up from every PR in [build_plan/](build_plan/README.md);
 | Phase | Theme | Hours | Calendar | Ends with |
 |---|---|---|---|---|
 | -1 | Scaffolding and CI/CD | 55-98 | 2-4 weeks | CI green, release pipeline proven |
-| 0 | UI shell | 278-464 | 9-16 weeks | internal 0.0.1 |
-| 1 | Core engine | 444-756 | 15-26 weeks | v0.1.0 alpha |
-| 2 | Page links, search, note tags | 130-222 | 4-8 weeks | v0.2.0 |
-| 3 | Polish and parity | 356-606 | 12-21 weeks | v0.9.0 beta |
+| 0 | UI shell | 284-474 | 9-16 weeks | internal 0.0.1 |
+| 1 | Core engine | 454-772 | 15-26 weeks | v0.1.0 alpha |
+| 2 | Page links, search, note tags | 134-230 | 4-8 weeks | v0.2.0 |
+| 3 | Polish and parity | 392-666 | 13-23 weeks | v0.9.0 beta |
 | Hardening | Beta to 1.0 | 80-160 | 3-6 weeks | v1.0.0 |
 | 4 | Remaining parity | 644-1,228 | 22-41 weeks | full OneNote parity |
-| Total to 1.0 | | 1,343-2,306 | 45-77 weeks | |
-| Total to full parity | | 1,987-3,534 | 66-118 weeks | |
+| Total to 1.0 | | 1,399-2,400 | 47-80 weeks | |
+| Total to full parity | | 2,043-3,628 | 68-121 weeks | |
 
 ### Phase -1: scaffolding and CI/CD
 
@@ -403,7 +403,7 @@ Phase 4 takes each area to full parity.
 | Audio and video recording | P3 | 4 |
 | Password-protected sections | P3 | 4 |
 | OCR, docked window, translations, RTL, browser build | P3 | 4 |
-| Backlinks, graph view, command palette, MCP, CLI, plugins | not scheduled | post-parity (optional) |
+| Backlinks, graph view, command palette, plugins, MCP bridge, full control channel | not scheduled | post-parity (optional) |
 
 ---
 

@@ -1,6 +1,6 @@
 # Post-parity optional features
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: color alpha recorded as a kept extra (PR 0.5e).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: Full CLI and MCP server moved into the build plan.
 
 The build plan covers OneNote parity only. Everything in this doc is something OneNote does not do. None of it is scheduled. Each item is optional and is considered only after full parity (v1.0.0 and the parity items in Phase 4) is reached, and only if users ask for it.
 
@@ -21,12 +21,12 @@ The architecture keeps these possible without rework: every action is already a 
 | Command palette | Ctrl+Shift+P search over every command | command registry | 10-16 |
 | Color alpha | Transparency (A) in the custom color editor; OneNote colors are opaque. Kept by maintainer decision (PR 0.5e) | none | 0 (built) |
 | Full control channel | Input simulation, state queries, events (docs/control-protocol.md) | minimal channel (Phase 0) | 16-28 |
-| MCP server | AI agent tools over stdio (docs/mcp.md) | command registry | 24-40 |
 | MCP bridge | MCP tools driving the running window | full control channel | 10-18 |
-| Full CLI | `run`, `render`, `export`, `print`, `search`, `check` (docs/cli.md) | export (Phase 3) | 28-48 |
 | Plugins | Manifest, lifecycle, macro commands, Plugins ribbon tab | command registry | 50-90 |
 | WASM plugins | Sandboxed plugins with a host API | plugins | 50-90 |
-| Total | | | 304-528 |
+| Total | | | 252-440 |
+
+The full CLI and the MCP server moved into the build plan on 2026-10-15 (maintainer decision; PR 0.13, 1.16, 2.11, 3.14, and 3.15), so they are no longer candidates here. The MCP bridge and the full control channel stay.
 
 Hour ranges come from the PRs these features had in the build plan before it was narrowed to OneNote parity. Re-estimate before starting any of them.
 
@@ -43,3 +43,4 @@ Hour ranges come from the PRs these features had in the build plan before it was
 | 2026-10-14 | -1 | Created. Backlinks, graph, embeds, tag pane, code highlighting, footnotes, command palette, control channel, MCP, CLI, and plugins moved here from the build plan. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Color alpha in the custom color editor recorded as a kept extra (PR 0.5e). |
+| 2026-10-15 | 0 | Full CLI and MCP server rows removed: both are in the build plan now (maintainer decision, 2026-10-15). MCP bridge and full control channel kept. |

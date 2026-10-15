@@ -305,6 +305,26 @@ Commits:
 
 PR title: `test: fuzz every page parser`.
 
+## PR 1.16: command line info, text, check, and run on notebooks
+
+| | |
+|---|---|
+| Branch | `feat/cli-notebooks` off `phase/1-core-engine` |
+| Hours | 10-16 |
+| Rows | none |
+
+Steps: the global `--notebook <path>` option (default: the current directory if it is a notebook), plus `--json` and `--quiet`. `notecraft-cli info` prints notebook, section, and page counts and the format version. `notecraft-cli text <page>` prints a page's plain text. `notecraft-cli check` validates a notebook (unparseable pages, broken links, missing attachments) and exits non-zero when it finds problems. `notecraft-cli run --page <page> --cmd <id> ...` opens the notebook through the engine, runs the commands against the page, and saves it (exit code 5 if the file changed on disk). `<page>` accepts a page id, a notebook-relative path, or a page link target. Depends on PR 1.1, 1.3, 1.4, and 1.7.
+
+Commits:
+
+1. `feat(cli): add --notebook and the info command`
+2. `feat(cli): add text and check`
+3. `feat(cli): run commands against a page and save it`
+
+PR title: `feat(cli): add info, text, check, and run on notebooks`.
+
+This PR is part of the command line decision of 2026-10-15 (docs/cli.md). It can land at any point after PR 1.7 and before PR 1.15.
+
 ## PR 1.15: close Phase 1 and ship the alpha
 
 Follow 00-conventions.md section 6, then release v0.1.0 (docs/releasing.md). Fill every Evidence cell in the docs/roadmap.md alpha gate table first; do not release with an empty cell.
@@ -328,7 +348,8 @@ Follow 00-conventions.md section 6, then release v0.1.0 (docs/releasing.md). Fil
 | 1.13 structure editing | 30-50 |
 | 1.14 fuzzing | 10-16 |
 | 1.15 close and alpha | 8-14 |
-| Total | 444-756 |
+| 1.16 command line on notebooks | 10-16 |
+| Total | 454-772 |
 
 ## Exit criteria
 
@@ -342,3 +363,4 @@ Follow 00-conventions.md section 6, then release v0.1.0 (docs/releasing.md). Fil
 |---|---|---|
 | 2026-10-14 | -1 | Created. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-15 | 0 | Added PR 1.16 (command line info, text, check, and run on notebooks) after the maintainer decision of 2026-10-15; Phase 1 estimate 454-772 hours. |

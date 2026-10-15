@@ -1,6 +1,6 @@
 # Build plan
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: Phase -1 marked done, Phase 0 next.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: command line PRs added to Phases 0 to 3.
 
 This folder is the execution plan for NoteCraft. It is written so an agent or a new contributor can pick up any phase cold and know exactly which branch to create, which files to touch, which commits to make, and how to open each PR.
 
@@ -12,17 +12,17 @@ The spec is [SCRD.md](../SCRD.md). The rules are [AGENTS.md](../AGENTS.md). Prog
 |---|---|---|---|
 | [00-conventions.md](00-conventions.md) | all | n/a | branch, commit, PR, and review rules |
 | [01-phase-minus-1-scaffolding.md](01-phase-minus-1-scaffolding.md) | -1 | 55-98 | done 2026-10-14 |
-| [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 278-464 | next |
-| [03-phase-1-core-engine.md](03-phase-1-core-engine.md) | 1 | 444-756 | not started |
-| [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 130-222 | not started |
-| [05-phase-3-polish-parity.md](05-phase-3-polish-parity.md) | 3, plus beta-to-1.0 hardening | 356-606, plus 80-160 | not started |
+| [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 284-474 | next |
+| [03-phase-1-core-engine.md](03-phase-1-core-engine.md) | 1 | 454-772 | not started |
+| [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 134-230 | not started |
+| [05-phase-3-polish-parity.md](05-phase-3-polish-parity.md) | 3, plus beta-to-1.0 hardening | 392-666, plus 80-160 | not started |
 | [06-phase-4-advanced.md](06-phase-4-advanced.md) | 4 | 644-1,228 | not started |
 
-Totals: 1,343-2,306 hours to v1.0; 1,987-3,534 hours to full OneNote parity. Each file's "Estimate" table is the source; ROADMAP.md sums them.
+Totals: 1,399-2,400 hours to v1.0; 2,043-3,628 hours to full OneNote parity. Each file's "Estimate" table is the source; ROADMAP.md sums them.
 
 ## Scope
 
-The build plan covers OneNote parity only. Features OneNote does not have (backlinks, graph view, command palette, MCP, full CLI, plugins, and others) are listed in [docs/post-parity.md](../docs/post-parity.md) and are considered only after full parity.
+The build plan covers OneNote parity only, with one exception: the command line and its MCP server follow the related craft apps (maintainer decision, 2026-10-15; docs/cli.md). Other features OneNote does not have (backlinks, graph view, command palette, plugins, and others) are listed in [docs/post-parity.md](../docs/post-parity.md) and are considered only after full parity.
 
 ## How to use a phase file
 
@@ -54,3 +54,4 @@ The build plan covers OneNote parity only. Features OneNote does not have (backl
 | 2026-10-14 | -1 | Created. Same day: scope narrowed to OneNote parity, Phase 2 replaced, hours re-assessed bottom-up. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | Phase -1 marked done, Phase 0 next. |
+| 2026-10-15 | 0 | Command line PRs added (0.13, 1.16, 2.11, 3.14, 3.15); phase and total hours updated. |
