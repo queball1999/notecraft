@@ -133,13 +133,13 @@ pub(super) fn show(
             if item.command == ids::FILE_NEW_NOTEBOOK {
                 ui.label(RichText::new("Choose a folder for the new notebook.").color(t.text));
                 ui.add_space(12.0);
-                if ui.button("Choose a Folder").clicked() {
+                if ui.add(start::framed("Choose a Folder", 14.0, t)).clicked() {
                     out.push(Clicked::new(ids::FILE_NEW_NOTEBOOK, &[]));
                 }
                 return;
             }
             if item.command == ids::FILE_OPEN {
-                start::action_buttons(ui, out);
+                start::action_buttons(ui, t, out);
                 ui.add_space(24.0);
                 start::recent_list(ui, recents, t, out);
                 return;

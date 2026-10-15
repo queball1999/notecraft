@@ -2,12 +2,12 @@
 //! is open: New Notebook, Open Notebook, Open File, and the recent list. The recent list is
 //! also on the File backstage's Open page.
 
-use egui::{Align, Button, Layout, RichText, Sense, Ui};
+use egui::{Align, Button, Layout, RichText, Sense, Stroke, Ui};
 use notecraft_engine::cmd::{ids, CommandId, Map, Value};
 use notecraft_engine::recent::{RecentItem, RecentKind, Recents};
 
 use crate::ribbon::Clicked;
-use crate::themes::ThemeTokens;
+use crate::themes::{mix, ThemeTokens};
 
 const WIDTH: f32 = 560.0;
 const ROW_HEIGHT: f32 = 44.0;
@@ -54,7 +54,7 @@ pub fn show(ui: &mut Ui, recents: &Recents, tokens: &ThemeTokens, out: &mut Vec<
                     .color(tokens.text_muted),
             );
             ui.add_space(20.0);
-            action_buttons(ui, out);
+            action_buttons(ui, tokens, out);
             ui.add_space(28.0);
             recent_list(ui, recents, tokens, out);
         });
@@ -62,11 +62,18 @@ pub fn show(ui: &mut Ui, recents: &Recents, tokens: &ThemeTokens, out: &mut Vec<
 }
 
 /// New Notebook, Open Notebook, and Open File, side by side.
-pub(crate) fn action_buttons(ui: &mut Ui, out: &mut Vec<Clicked>) {
+/// A button with a visible frame. The theme's buttons are flat to blend into the ribbon,
+/// which leaves a button on the page looking like plain text.
+pub(crate) fn framed(label: &str, size: f32, tokens: &ThemeTokens) -> Button<'static> {
+    Button::new(RichText::new(label).size(size).color(tokens.text))
+        .fill(mix(tokens.canvas_bg, tokens.text, 0.06))
+        .stroke(Stroke::new(1.0, tokens.border))
+}
+
+pub(crate) fn action_buttons(ui: &mut Ui, tokens: &ThemeTokens, out: &mut Vec<Clicked>) {
     ui.horizontal(|ui| {
         for (label, command) in OPEN_ACTIONS {
-            let button =
-                Button::new(RichText::new(label).size(14.0)).min_size(egui::vec2(140.0, 34.0));
+            let button = framed(label, 14.0, tokens).min_size(egui::vec2(140.0, 34.0));
             if ui.add(button).clicked() {
                 out.push(clicked(command));
             }
@@ -96,7 +103,7 @@ pub(crate) fn recent_list(
         }
     }
     ui.add_space(6.0);
-    if ui.button("Clear Recent").clicked() {
+    if ui.add(framed("Clear Recent", 13.0, tokens)).clicked() {
         out.push(clicked(ids::FILE_RECENT_CLEAR));
     }
 }
