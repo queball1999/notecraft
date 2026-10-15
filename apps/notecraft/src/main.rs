@@ -61,6 +61,8 @@ impl eframe::App for App {
         });
         let recents = self.shell.session().recents();
         self.store.update(|p| p.recent.observe(recents));
+        let colors = self.shell.recent_colors();
+        self.store.update(|p| p.colors.observe(colors));
 
         // Remember the window geometry; update() only marks the store dirty on a real change.
         let info = ctx.input(|i| i.viewport().clone());
@@ -159,6 +161,7 @@ fn main() -> eframe::Result<()> {
     let theme = store.get().theme.clone();
     let ribbon = (store.get().ribbon.layout(), store.get().ribbon.show());
     let recents = store.get().recent.recents();
+    let recent_colors = store.get().colors.recent.clone();
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
         .with_app_id(APP_ID)
@@ -200,6 +203,7 @@ fn main() -> eframe::Result<()> {
             shell.set_ribbon(ribbon.0, ribbon.1);
             // Reopen what was open last; with nothing recent, the start page shows.
             shell.set_recents(recents);
+            shell.set_recent_colors(recent_colors);
             shell.reopen_last();
             Ok(Box::new(App {
                 shell,

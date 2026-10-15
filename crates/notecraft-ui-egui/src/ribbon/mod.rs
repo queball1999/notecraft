@@ -21,6 +21,7 @@ pub mod spec;
 mod tab;
 
 pub(crate) use button::style as button_style;
+pub(crate) use menus::{recent_colors, set_recent_colors};
 
 use craft_ui::buttons::IconButton;
 use egui::{
@@ -199,6 +200,21 @@ impl Ribbon {
     /// shows over the page while the pointer is at the top of `window` or over the ribbon.
     /// Returns the commands clicked this frame.
     pub fn show(
+        &mut self,
+        ui: &mut Ui,
+        look: Look<'_>,
+        layout: RibbonLayout,
+        show: RibbonShow,
+    ) -> Vec<Clicked> {
+        // More Colors opens the Colors dialog, which stays up after its menu closes.
+        let mut dialog = Vec::new();
+        menus::colors_dialog(ui.ctx(), look, &mut dialog);
+        let mut out = self.show_bar(ui, look, layout, show);
+        out.extend(dialog);
+        out
+    }
+
+    fn show_bar(
         &mut self,
         ui: &mut Ui,
         look: Look<'_>,

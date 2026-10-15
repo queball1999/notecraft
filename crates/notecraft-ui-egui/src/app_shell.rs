@@ -84,6 +84,10 @@ pub struct AppShell {
     font_list: FontList,
     /// The families once the scan is done; the font box offers a short list until then.
     families: Vec<String>,
+    /// Recent Colors from settings, put into the color menus on the first frame.
+    restore_colors: Option<Vec<String>>,
+    /// The Recent Colors as of the last frame, for saving.
+    recent_colors: Vec<String>,
 }
 
 impl Default for AppShell {
@@ -120,7 +124,20 @@ impl AppShell {
             installed_font: None,
             font_list: FontList::none(),
             families: Vec::new(),
+            restore_colors: None,
+            recent_colors: Vec::new(),
         }
+    }
+
+    /// Restore the Recent Colors of the color menus, from saved settings.
+    pub fn set_recent_colors(&mut self, colors: Vec<String>) {
+        self.recent_colors.clone_from(&colors);
+        self.restore_colors = Some(colors);
+    }
+
+    /// The Recent Colors of the color menus, newest first.
+    pub fn recent_colors(&self) -> &[String] {
+        &self.recent_colors
     }
 
     /// List the installed fonts in the font box once `list` is filled.
@@ -285,6 +302,10 @@ impl AppShell {
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
         self.font_list.load_previews(ui.ctx());
+        if let Some(colors) = self.restore_colors.take() {
+            ribbon::set_recent_colors(ui.ctx(), &colors);
+        }
+        self.recent_colors = ribbon::recent_colors(ui.ctx());
         if self.families.is_empty() {
             if let Some(families) = self.font_list.families() {
                 self.families = families;
@@ -955,17 +976,111 @@ mod tests {
         assert_eq!(toasts(&harness), ["Coming Soon: Color"]);
         assert!(harness.query_by_label("#C62828").is_none(), "picker closes");
 
-        // More Colors opens a full picker; Apply runs the command with the custom color.
+        // The pick joins Recent Colors.
         harness.get_by_label("Color").click();
         harness.run();
-        harness.get_by_label("More Colors").click();
-        harness.run();
-        harness.get_by_label("Apply").click();
+        let _ = harness.get_by_label("Recent Colors");
+        assert!(
+            harness.get_all_by_label("#C62828").count() >= 2,
+            "grid and recent"
+        );
+
+        // More Colors opens the Colors dialog; OK runs the command with its color.
+        harness.get_by_label("More Colors...").click();
         harness.run();
         assert!(
-            harness.query_by_label("More Colors").is_none(),
-            "picker closes"
+            harness.query_by_label("More Colors...").is_none(),
+            "menu closes"
         );
+        let _ = harness.get_by_label("Standard");
+        harness.get_by_label("OK").click();
+        harness.run();
+        assert!(harness.query_by_label("OK").is_none(), "dialog closes");
+        assert_eq!(
+            harness.state().recent_colors().first().map(String::as_str),
+            Some("#C62828"),
+            "the dialog starts from the last color"
+        );
+    }
+
+    #[test]
+    fn font_color_lays_out_theme_standard_and_applies_its_last_color() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Font Color").click();
+        harness.run();
+        // The main part applies the default color; the menu opens from the arrow.
+        assert_eq!(toasts(&harness), ["Coming Soon: Font Color"]);
+        assert_eq!(harness.state().recent_colors(), ["#E53935"]);
+        let arrow = harness.get_by_label("Font Color").rect().right_center() - egui::vec2(3.0, 0.0);
+        harness.event(egui::Event::PointerMoved(arrow));
+        for pressed in [true, false] {
+            harness.event(egui::Event::PointerButton {
+                pos: arrow,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            });
+        }
+        harness.run();
+        for caption in [
+            "Automatic",
+            "Theme Colors",
+            "Standard Colors",
+            "Recent Colors",
+        ] {
+            let _ = harness.get_by_label(caption);
+        }
+        harness.get_by_label("#1E88E5").click();
+        harness.run();
+        assert_eq!(
+            harness.state().recent_colors(),
+            ["#1E88E5", "#E53935"],
+            "newest first"
+        );
+    }
+
+    #[test]
+    fn highlight_offers_fifteen_colors_with_no_color_last() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let arrow = harness
+            .get_by_label("Text Highlight Color")
+            .rect()
+            .right_center()
+            - egui::vec2(3.0, 0.0);
+        harness.event(egui::Event::PointerMoved(arrow));
+        for pressed in [true, false] {
+            harness.event(egui::Event::PointerButton {
+                pos: arrow,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            });
+        }
+        harness.run();
+        let last_swatch = harness.get_by_label("#616161").rect();
+        let no_color = harness.get_by_label("No Color").rect();
+        assert!(no_color.top() > last_swatch.bottom(), "No Color comes last");
+        assert!(
+            harness.query_by_label("Theme Colors").is_none(),
+            "one plain grid"
+        );
+    }
+
+    #[test]
+    fn recent_colors_restore_from_settings_and_drop_junk() {
+        let mut shell = AppShell::new();
+        shell.set_recent_colors(vec![
+            "#123456".to_owned(),
+            "not a color".to_owned(),
+            "#123456".to_owned(),
+            "#ABCDEF80".to_owned(),
+        ]);
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.run();
+        assert_eq!(harness.state().recent_colors(), ["#123456", "#ABCDEF80"]);
     }
 
     #[test]
@@ -976,7 +1091,9 @@ mod tests {
         harness.run();
         harness.get_by_label("Color").click();
         harness.run();
-        harness.get_by_label("More Colors").click();
+        harness.get_by_label("More Colors...").click();
+        harness.run();
+        harness.get_by_label("Custom").click();
         harness.run();
 
         // Replace the field's text with an rgba() color: the editor shows it as hex.
@@ -988,7 +1105,7 @@ mod tests {
             .get_by_role(egui::accesskit::Role::TextInput)
             .type_text("rgba(255, 0, 0, 0.5)");
         harness.run();
-        let _ = harness.get_by_label("#FF000080");
+        let _ = harness.get_by_label("New #FF000080");
 
         // Text that is not a color is flagged and Apply is disabled until it is fixed.
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
@@ -997,12 +1114,16 @@ mod tests {
             .type_text("not a color");
         harness.run();
         let _ = harness.get_by_label("Not a color: use #RRGGBB, #RRGGBBAA, rgb(), or rgba()");
-        harness.get_by_label("Apply").click();
+        harness.get_by_label("OK").click();
         harness.run();
         assert!(
-            harness.query_by_label("More Colors").is_some(),
-            "Apply does nothing while the text is not a color"
+            harness.query_by_label("Custom").is_some(),
+            "OK does nothing while the text is not a color"
         );
+        harness.get_by_label("Cancel").click();
+        harness.run();
+        assert!(harness.query_by_label("Custom").is_none(), "Cancel closes");
+        assert!(toasts(&harness).is_empty(), "and runs nothing");
     }
 
     #[test]
@@ -1546,7 +1667,9 @@ mod tests {
         harness.run();
         harness.get_by_label("Color").click();
         harness.run();
-        harness.get_by_label("More Colors").click();
+        harness.get_by_label("More Colors...").click();
+        harness.run();
+        harness.get_by_label("Custom").click();
         harness.run();
         harness
             .get_by_role(egui::accesskit::Role::TextInput)

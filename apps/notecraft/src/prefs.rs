@@ -20,6 +20,24 @@ pub struct Prefs {
     pub theme: ThemePrefs,
     pub ribbon: RibbonPrefs,
     pub recent: RecentPrefs,
+    pub colors: ColorPrefs,
+}
+
+/// The color menus' Recent Colors, newest first, as `#RRGGBB` or `#RRGGBBAA`. The front end
+/// drops anything that is not a color when it restores them.
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct ColorPrefs {
+    pub recent: Vec<String>,
+}
+
+impl ColorPrefs {
+    /// Record the current list; leaves it alone when nothing changed.
+    pub fn observe(&mut self, recent: &[String]) {
+        if self.recent != recent {
+            self.recent = recent.to_vec();
+        }
+    }
 }
 
 /// The recent notebooks and pages, newest first. Kinds are strings so an unknown kind (from
@@ -349,6 +367,17 @@ mod tests {
         );
         r.observe(RibbonLayout::Simplified, RibbonShow::TabsOnly);
         assert!(r.collapsed, "an older build opens it collapsed");
+    }
+
+    #[test]
+    fn recent_colors_round_trip() {
+        let p: Prefs = serde_json::from_str(r##"{"colors":{"recent":["#112233"]}}"##).unwrap();
+        assert_eq!(p.colors.recent, ["#112233"]);
+        let mut c = ColorPrefs::default();
+        c.observe(&["#AABBCC".to_owned()]);
+        assert_eq!(c.recent, ["#AABBCC"]);
+        let empty: Prefs = serde_json::from_str("{}").unwrap();
+        assert!(empty.colors.recent.is_empty());
     }
 
     #[test]

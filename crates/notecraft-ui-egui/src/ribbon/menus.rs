@@ -10,7 +10,7 @@ use egui::{
 };
 use notecraft_engine::cmd::{CommandId, Map, Value};
 
-use super::spec::{Button, ColorMenu, Item, Menu, Preview};
+use super::spec::{Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS};
 use super::{Clicked, Look};
 use crate::color::{self, Rgba8};
 use crate::themes::{hex, mix};
@@ -190,7 +190,6 @@ fn swatch(ui: &mut Ui, color: Color32, look: Look<'_>) -> Response {
 /// State of the custom color part of a picker, kept in egui memory per menu.
 #[derive(Clone, Debug)]
 struct Custom {
-    open: bool,
     /// The color being edited, as HSVA so dragging hue and saturation is lossless.
     hsva: Hsva,
     /// The text in the color field; may be half typed.
@@ -202,7 +201,6 @@ struct Custom {
 impl Custom {
     fn new(rgba: Rgba8) -> Self {
         Self {
-            open: false,
             hsva: Hsva::from_srgba_unmultiplied(rgba),
             text: color::format_hex(rgba),
             text_invalid: false,
@@ -280,8 +278,121 @@ fn custom_editor(ui: &mut Ui, custom: &mut Custom, look: Look<'_>) {
     }
 }
 
-/// A color picker for `command`. Picking a swatch, "no color", or applying a custom color
-/// runs the command with the color and closes the menu.
+/// Most Recent Colors kept.
+const RECENT_MAX: usize = 10;
+/// Width of a color menu: ten swatches and their gaps.
+const PALETTE_WIDTH: f32 = 10.0 * SWATCH + 9.0 * 3.0;
+
+fn recent_id() -> Id {
+    Id::new("ribbon_recent_colors")
+}
+
+fn last_id(command: CommandId) -> Id {
+    Id::new(("ribbon_last_color", command.as_str()))
+}
+
+fn dialog_id() -> Id {
+    Id::new("ribbon_colors_dialog")
+}
+
+/// The Recent Colors, newest first, as `#RRGGBB` or `#RRGGBBAA`.
+pub(crate) fn recent_colors(ctx: &egui::Context) -> Vec<String> {
+    ctx.data(|data| data.get_temp::<Vec<String>>(recent_id()))
+        .unwrap_or_default()
+}
+
+/// Restore the Recent Colors (from settings); entries that are not colors are dropped.
+pub(crate) fn set_recent_colors(ctx: &egui::Context, colors: &[String]) {
+    let mut list: Vec<String> = Vec::new();
+    for color in colors
+        .iter()
+        .filter_map(|c| color::parse(c))
+        .map(color::format_hex)
+    {
+        if !list.contains(&color) && list.len() < RECENT_MAX {
+            list.push(color);
+        }
+    }
+    ctx.data_mut(|data| data.insert_temp(recent_id(), list));
+}
+
+/// The color a split color button applies and shows as its bar: the last one picked for
+/// `command`, or the menu's default.
+pub(super) fn last_color(ctx: &egui::Context, command: CommandId, menu: &ColorMenu) -> Color32 {
+    let [r, g, b, a] = ctx
+        .data(|data| data.get_temp::<String>(last_id(command)))
+        .and_then(|hex| color::parse(&hex))
+        .unwrap_or_else(|| {
+            let [_, r, g, b] = menu.default.to_be_bytes();
+            [r, g, b, u8::MAX]
+        });
+    Color32::from_rgba_unmultiplied(r, g, b, a)
+}
+
+/// Record a pick: it becomes the command's last color and the newest Recent Color.
+fn remember(ctx: &egui::Context, command: CommandId, value: &str) {
+    let Some(rgba) = color::parse(value) else {
+        return;
+    };
+    let hex = color::format_hex(rgba);
+    let mut recent = recent_colors(ctx);
+    recent.retain(|c| *c != hex);
+    recent.insert(0, hex.clone());
+    recent.truncate(RECENT_MAX);
+    ctx.data_mut(|data| {
+        data.insert_temp(recent_id(), recent);
+        data.insert_temp(last_id(command), hex);
+    });
+}
+
+/// Run `command` with `value` as its color argument, remembering real colors.
+fn pick(ctx: &egui::Context, command: CommandId, arg: &str, value: &str, out: &mut Vec<Clicked>) {
+    remember(ctx, command, value);
+    out.push(Clicked {
+        command,
+        args: object(&[(arg, Value::from(value))]),
+    });
+}
+
+/// The command a split color button's main part runs: its last color.
+pub(super) fn apply_last(
+    ctx: &egui::Context,
+    command: CommandId,
+    menu: &ColorMenu,
+    out: &mut Vec<Clicked>,
+) {
+    let c = last_color(ctx, command, menu);
+    let hex = color::format_hex(c.to_srgba_unmultiplied());
+    pick(ctx, command, menu.arg, &hex, out);
+}
+
+/// A small caption over a block of swatches.
+fn caption(ui: &mut Ui, text: &str, look: Look<'_>) {
+    ui.label(
+        egui::RichText::new(text)
+            .size(11.0)
+            .color(look.tokens.text_muted),
+    );
+}
+
+/// A row of swatches; returns the color clicked.
+fn swatch_row(ui: &mut Ui, colors: &[Color32], look: Look<'_>) -> Option<Color32> {
+    let mut picked = None;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 3.0;
+        for &c in colors {
+            if swatch(ui, c, look).clicked() {
+                picked = Some(c);
+            }
+        }
+    });
+    picked
+}
+
+/// A color picker for `command`, laid out as in OneNote: "no color" (first, or last for the
+/// highlighter), the swatches (Theme Colors and Standard Colors, or one grid), Recent Colors,
+/// and More Colors, which opens the Colors dialog. A pick runs the command and closes the
+/// menu.
 pub(super) fn colors(
     ui: &mut Ui,
     command: CommandId,
@@ -289,62 +400,212 @@ pub(super) fn colors(
     look: Look<'_>,
     out: &mut Vec<Clicked>,
 ) {
-    let run = |out: &mut Vec<Clicked>, value: &str| {
-        out.push(Clicked {
-            command,
-            args: object(&[(menu.arg, Value::from(value))]),
-        });
-    };
-    if let Some((label, value)) = menu.none {
-        if row(ui, label, Preview::None, look).clicked() {
-            run(out, value);
-            ui.close();
-        }
-        ui.separator();
-    }
-    let columns = menu.columns.max(1);
-    ui.spacing_mut().item_spacing = egui::vec2(3.0, 3.0);
-    for chunk in menu.colors.chunks(columns) {
-        ui.horizontal(|ui| {
-            for &rgb in chunk {
-                if swatch(ui, hex(rgb), look).clicked() {
-                    run(out, &hex_string(hex(rgb)));
-                    ui.close();
-                }
-            }
-        });
-    }
-    if !menu.custom {
-        return;
-    }
-    ui.separator();
-    let id = Id::new(("ribbon_custom_color", command.as_str()));
-    let first = menu.colors.first().map_or([128, 128, 128, 255], |&rgb| {
-        let [_, r, g, b] = rgb.to_be_bytes();
-        [r, g, b, u8::MAX]
-    });
-    let mut custom = ui
-        .data(|data| data.get_temp::<Custom>(id))
-        .unwrap_or_else(|| Custom::new(first));
-    if row(ui, "More Colors", Preview::None, look).clicked() {
-        custom.open = !custom.open;
-    }
-    if custom.open {
-        custom_editor(ui, &mut custom, look);
-        ui.horizontal(|ui| {
-            show_color(ui, Color32::from(custom.hsva), egui::vec2(32.0, 18.0));
-            ui.label(color::format_hex(custom.rgba()));
-            let apply =
-                egui::Button::new(egui::RichText::new("Apply").color(look.tokens.accent_text))
-                    .fill(look.tokens.accent);
-            if ui.add_enabled(!custom.text_invalid, apply).clicked() {
-                run(out, &color::format_hex(custom.rgba()));
-                custom.open = false;
+    let ctx = ui.ctx().clone();
+    ui.set_min_width(PALETTE_WIDTH);
+    let none_row = |ui: &mut Ui, out: &mut Vec<Clicked>| {
+        if let Some((label, value)) = menu.none {
+            if row(ui, label, Preview::None, look).clicked() {
+                out.push(Clicked {
+                    command,
+                    args: object(&[(menu.arg, Value::from(value))]),
+                });
                 ui.close();
             }
-        });
+        }
+    };
+    if !menu.none_last && menu.none.is_some() {
+        none_row(ui, out);
+        ui.separator();
     }
-    ui.data_mut(|data| data.insert_temp(id, custom));
+    ui.spacing_mut().item_spacing = egui::vec2(3.0, 3.0);
+    let columns = menu.columns.max(1);
+    let rows: Vec<Vec<Color32>> = menu
+        .colors
+        .chunks(columns)
+        .map(|chunk| chunk.iter().map(|&rgb| hex(rgb)).collect())
+        .collect();
+    let mut picked = None;
+    match menu.palette {
+        Palette::Theme => {
+            caption(ui, "Theme Colors", look);
+            for (index, colors) in rows.iter().enumerate() {
+                if index == 1 {
+                    // The hues stand apart from their tints and shades, as in Office.
+                    ui.add_space(3.0);
+                }
+                picked = picked.or(swatch_row(ui, colors, look));
+            }
+            caption(ui, "Standard Colors", look);
+            let standard: Vec<Color32> = STANDARD_COLORS.iter().map(|&rgb| hex(rgb)).collect();
+            picked = picked.or(swatch_row(ui, &standard, look));
+        }
+        Palette::Grid => {
+            for colors in &rows {
+                picked = picked.or(swatch_row(ui, colors, look));
+            }
+        }
+    }
+    let recent: Vec<Color32> = recent_colors(&ctx)
+        .iter()
+        .filter_map(|c| color::parse(c))
+        .map(|[r, g, b, a]| Color32::from_rgba_unmultiplied(r, g, b, a))
+        .collect();
+    if !recent.is_empty() {
+        caption(ui, "Recent Colors", look);
+        picked = picked.or(swatch_row(ui, &recent, look));
+    }
+    if let Some(c) = picked {
+        let hex = color::format_hex(c.to_srgba_unmultiplied());
+        pick(&ctx, command, menu.arg, &hex, out);
+        ui.close();
+        return;
+    }
+    if menu.none_last && menu.none.is_some() {
+        ui.separator();
+        none_row(ui, out);
+    }
+    if menu.custom {
+        ui.separator();
+        if row(ui, "More Colors...", Preview::None, look).clicked() {
+            let current = last_color(&ctx, command, menu).to_srgba_unmultiplied();
+            let dialog = Dialog {
+                command,
+                arg: menu.arg,
+                current,
+                custom: Custom::new(current),
+                tab: DialogTab::Standard,
+            };
+            ctx.data_mut(|data| data.insert_temp(dialog_id(), Some(dialog)));
+            ui.close();
+        }
+    }
+}
+
+/// Which page of the Colors dialog shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DialogTab {
+    Standard,
+    Custom,
+}
+
+/// The Colors dialog (More Colors): the command it sets, the color it had, and the new one.
+#[derive(Clone, Debug)]
+struct Dialog {
+    command: CommandId,
+    arg: &'static str,
+    current: Rgba8,
+    custom: Custom,
+    tab: DialogTab,
+}
+
+/// The Standard page's swatches: twelve hues from light to dark in six rows, then greys.
+/// Computed, not copied from any palette.
+fn standard_swatches() -> Vec<Vec<Color32>> {
+    let mut rows: Vec<Vec<Color32>> = [0.85_f32, 0.72, 0.6, 0.48, 0.36, 0.24]
+        .iter()
+        .map(|&value| {
+            (0..12)
+                .map(|step| {
+                    let hue = step as f32 / 12.0;
+                    let saturation = if value > 0.7 { 0.45 } else { 0.85 };
+                    Color32::from(Hsva::new(hue, saturation, value + 0.15, 1.0))
+                })
+                .collect()
+        })
+        .collect();
+    rows.push(
+        (0..12)
+            .map(|step| {
+                let v = (255.0 * (1.0 - step as f32 / 11.0)).round() as u8;
+                Color32::from_rgb(v, v, v)
+            })
+            .collect(),
+    );
+    rows
+}
+
+/// Draw the Colors dialog if More Colors opened it. OK runs its command with the new color.
+pub(super) fn colors_dialog(ctx: &egui::Context, look: Look<'_>, out: &mut Vec<Clicked>) {
+    let Some(mut dialog) = ctx
+        .data(|data| data.get_temp::<Option<Dialog>>(dialog_id()))
+        .flatten()
+    else {
+        return;
+    };
+    let mut done: Option<bool> = None;
+    let mut open = true;
+    egui::Window::new("Colors")
+        .id(dialog_id().with("window"))
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut open)
+        .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                for (tab, label) in [
+                    (DialogTab::Standard, "Standard"),
+                    (DialogTab::Custom, "Custom"),
+                ] {
+                    if ui.selectable_label(dialog.tab == tab, label).clicked() {
+                        dialog.tab = tab;
+                    }
+                }
+            });
+            ui.separator();
+            match dialog.tab {
+                DialogTab::Standard => {
+                    ui.spacing_mut().item_spacing = egui::vec2(3.0, 3.0);
+                    for row in standard_swatches() {
+                        if let Some(c) = swatch_row(ui, &row, look) {
+                            dialog.custom.set(c.to_srgba_unmultiplied());
+                        }
+                    }
+                }
+                DialogTab::Custom => custom_editor(ui, &mut dialog.custom, look),
+            }
+            ui.separator();
+            ui.horizontal(|ui| {
+                // New over Current, as in Office.
+                ui.vertical(|ui| {
+                    ui.label(format!("New {}", color::format_hex(dialog.custom.rgba())));
+                    show_color(
+                        ui,
+                        Color32::from(dialog.custom.hsva),
+                        egui::vec2(48.0, 18.0),
+                    );
+                    let [r, g, b, a] = dialog.current;
+                    show_color(
+                        ui,
+                        Color32::from_rgba_unmultiplied(r, g, b, a),
+                        egui::vec2(48.0, 18.0),
+                    );
+                    ui.label("Current");
+                });
+                ui.add_space(12.0);
+                ui.vertical(|ui| {
+                    let ok =
+                        egui::Button::new(egui::RichText::new("OK").color(look.tokens.accent_text))
+                            .fill(look.tokens.accent);
+                    if ui.add_enabled(!dialog.custom.text_invalid, ok).clicked() {
+                        done = Some(true);
+                    }
+                    if ui.button("Cancel").clicked() {
+                        done = Some(false);
+                    }
+                });
+            });
+        });
+    if ctx.input(|input| input.key_pressed(egui::Key::Escape)) || !open {
+        done = done.or(Some(false));
+    }
+    if done == Some(true) {
+        let hex = color::format_hex(dialog.custom.rgba());
+        pick(ctx, dialog.command, dialog.arg, &hex, out);
+    }
+    let keep = done.is_none().then_some(dialog);
+    ctx.data_mut(|data| {
+        data.insert_temp(dialog_id(), keep);
+    });
 }
 
 /// A grid of cells: hovering picks columns and rows, clicking inserts that table. "Insert

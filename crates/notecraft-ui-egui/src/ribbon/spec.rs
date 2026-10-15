@@ -104,19 +104,35 @@ impl Item {
     }
 }
 
-/// A color picker menu: a grid of swatches, an optional "no color" entry, and an optional
-/// custom color. The chosen color goes to the button's command as `arg` = `#RRGGBB`.
+/// How a color menu lays out its swatches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Palette {
+    /// Office's layout: Theme Colors (the first row of hues apart from their tints and
+    /// shades) and a row of Standard Colors.
+    Theme,
+    /// One plain grid.
+    Grid,
+}
+
+/// A color picker menu: swatches, Recent Colors, an optional "no color" entry, and an
+/// optional More Colors dialog. The chosen color goes to the button's command as `arg` =
+/// `#RRGGBB`.
 #[derive(Clone, Copy, Debug)]
 pub struct ColorMenu {
-    /// The button runs its command with no color (the last one used) and its arrow opens the
-    /// picker; otherwise the whole button opens the picker.
+    /// The button applies the last color used (shown as the bar under its icon) and its
+    /// arrow opens the picker; otherwise the whole button opens the picker.
     pub split: bool,
     pub arg: &'static str,
     pub colors: &'static [u32],
     pub columns: usize,
+    pub palette: Palette,
+    /// The bar's color before anything is picked.
+    pub default: u32,
     /// Label and argument value of the "no color" entry, if the command has one.
     pub none: Option<(&'static str, &'static str)>,
-    /// Offer "More Colors" with a full color picker.
+    /// The "no color" entry comes last instead of first (Text Highlight Color).
+    pub none_last: bool,
+    /// Offer More Colors, which opens the Colors dialog.
     pub custom: bool,
 }
 
@@ -267,10 +283,17 @@ pub const COLOR_GRID: &[u32] = &[
     0x1E5120, 0x00555D, 0x0E427D, 0x2D1968, 0x700D39,
 ];
 
-/// Highlighter colors: light enough to read text through.
+/// The Standard Colors row under Theme Colors: ten plain hues. Original values.
+pub const STANDARD_COLORS: &[u32] = &[
+    0xB71C1C, 0xE53935, 0xFB8C00, 0xFDD835, 0x9CCC65, 0x43A047, 0x29B6F6, 0x1E88E5, 0x1A237E,
+    0x7B1FA2,
+];
+
+/// Highlighter colors, fifteen as in OneNote: the light ones read text through, the dark ones
+/// suit light text. Original values.
 pub const HIGHLIGHT_GRID: &[u32] = &[
     0xFFF176, 0xA5D6A7, 0x80DEEA, 0xF48FB1, 0x90CAF9, 0xFFCC80, 0xCE93D8, 0xC5E1A5, 0xBCAAA4,
-    0xE0E0E0,
+    0xE0E0E0, 0xEF5350, 0x26A69A, 0x5C6BC0, 0x9E9E9E, 0x616161,
 ];
 
 /// Page background colors: soft enough for any ink color on top.
@@ -466,7 +489,10 @@ const BASIC_TEXT: Group = Group {
                 arg: "color",
                 colors: HIGHLIGHT_GRID,
                 columns: 5,
+                palette: Palette::Grid,
+                default: 0xFFF176,
                 none: Some(("No Color", "none")),
+                none_last: true,
                 custom: true,
             }),
             Button::icon("Font Color", Icon::FontColor, ids::FORMAT_FONT_COLOR).colors(ColorMenu {
@@ -474,7 +500,10 @@ const BASIC_TEXT: Group = Group {
                 arg: "color",
                 colors: COLOR_GRID,
                 columns: 10,
+                palette: Palette::Theme,
+                default: 0xE53935,
                 none: Some(("Automatic", "none")),
+                none_last: false,
                 custom: true,
             }),
         ],
@@ -793,7 +822,10 @@ const DRAW_GROUPS: &[Group] = &[
                     arg: "color",
                     colors: COLOR_GRID,
                     columns: 10,
+                    palette: Palette::Theme,
+                    default: 0x1F1F1F,
                     none: None,
+                    none_last: false,
                     custom: true,
                 }),
                 Button::small("Thickness", Icon::Thickness, ids::DRAW_THICKNESS)
@@ -1032,7 +1064,10 @@ const VIEW_GROUPS: &[Group] = &[
                         arg: "color",
                         colors: PAGE_COLOR_GRID,
                         columns: 5,
+                        palette: Palette::Grid,
+                        default: 0xDCEBF7,
                         none: Some(("No Color", "none")),
+                        none_last: false,
                         custom: true,
                     },
                 ),
@@ -1156,7 +1191,11 @@ mod tests {
                             out.extend(items.iter().map(|i| (i.label, i.command, i.args.to_vec())));
                             match button.menu {
                                 Menu::Colors(colors) => {
-                                    for &rgb in colors.colors {
+                                    let standard = match colors.palette {
+                                        Palette::Theme => STANDARD_COLORS,
+                                        Palette::Grid => &[],
+                                    };
+                                    for &rgb in colors.colors.iter().chain(standard) {
                                         let value: &'static str =
                                             Box::leak(format!("#{rgb:06X}").into_boxed_str());
                                         out.push((

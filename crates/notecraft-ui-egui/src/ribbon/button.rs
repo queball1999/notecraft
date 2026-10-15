@@ -116,7 +116,11 @@ pub(super) fn show_sized(
     };
 
     let style = style(tokens);
-    let accent = tokens.accent;
+    // A color button's icon carries the last color picked, as in OneNote.
+    let accent = match button.menu {
+        Menu::Colors(colors) => menus::last_color(ui.ctx(), button.command, &colors),
+        _ => tokens.accent,
+    };
     let response = IconButton::new(button.label, size, &style).show(ui, |ui, rect, color| {
         let colors = IconColors { fg: color, accent };
         paint_contents(ui, rect, button, drawn, galley, colors, has_menu);
@@ -135,7 +139,10 @@ pub(super) fn show_sized(
         keytips::paint_tip(ui, response.rect.center_bottom(), code, look);
     }
     if clicked && !opens_menu {
-        out.push(Clicked::new(button.command, button.args));
+        match button.menu {
+            Menu::Colors(colors) => menus::apply_last(ui.ctx(), button.command, &colors, out),
+            _ => out.push(Clicked::new(button.command, button.args)),
+        }
     }
     let toggle = opens_menu.then_some(SetOpenCommand::Toggle);
     // Pickers stay open while the user works in them and close themselves on a choice.
