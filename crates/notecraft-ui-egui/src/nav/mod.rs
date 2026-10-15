@@ -2,7 +2,6 @@
 //! session and returns commands (`nav.*.select`, `section.new`, `page.new`) for the shell to
 //! dispatch; none of them changes the session directly.
 
-pub mod mock;
 mod notebooks;
 mod pages;
 mod sections;

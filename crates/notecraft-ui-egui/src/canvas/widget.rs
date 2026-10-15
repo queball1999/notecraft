@@ -5,10 +5,9 @@ use egui::containers::scroll_area::{DragScroll, ScrollSource};
 use egui::{CursorIcon, PointerButton, Rect, ScrollArea, Sense, UiBuilder};
 use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
-use notecraft_engine::Session;
+use notecraft_engine::{mock, Session};
 
 use super::{paper, title, CanvasUi, PageToScreen};
-use crate::nav::mock;
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 

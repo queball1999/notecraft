@@ -48,7 +48,7 @@ impl Default for AppShell {
 impl AppShell {
     pub fn new() -> Self {
         let mut session = Session::new();
-        session.set_notebooks(nav::mock::notebooks());
+        session.set_notebooks(notecraft_engine::mock::notebooks());
         Self {
             registry: Registry::builtin(),
             session,

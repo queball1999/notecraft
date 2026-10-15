@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 use notecraft_model::{Notebook, PageRef, Section};
 
+use crate::recent::Recents;
 use crate::view::{PageStyle, ViewState};
 
 /// Which notebook, section, and page are shown, by id.
@@ -26,6 +27,7 @@ pub struct Session {
     selection: Selection,
     /// Page styles by page id; pages missing here use the default style.
     page_styles: BTreeMap<String, PageStyle>,
+    recents: Recents,
 }
 
 impl Session {
@@ -101,6 +103,20 @@ impl Session {
             .and_then(|id| self.page_styles.get(id))
             .copied()
             .unwrap_or_default()
+    }
+
+    /// Recently opened notebooks and pages, newest first.
+    pub fn recents(&self) -> &Recents {
+        &self.recents
+    }
+
+    /// Replace the recent list without a command, for restoring saved settings.
+    pub fn set_recents(&mut self, recents: Recents) {
+        self.recents = recents;
+    }
+
+    pub(crate) fn recents_mut(&mut self) -> &mut Recents {
+        &mut self.recents
     }
 
     /// Set the style of the page shown now. Returns false, changing nothing, when no page

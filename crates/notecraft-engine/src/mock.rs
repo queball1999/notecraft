@@ -1,5 +1,6 @@
 //! Mock notebooks for Phase 0: two notebooks, five sections (one inside a section group),
-//! and twenty pages with subpages. Phase 1 replaces them with notebooks read from disk.
+//! and twenty pages with subpages. Opening any notebook or page shows them until Phase 1 reads
+//! notebooks from disk.
 
 use notecraft_model::{Notebook, PageRef, Section, SectionGroup, SectionNode};
 
