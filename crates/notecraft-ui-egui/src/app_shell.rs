@@ -546,6 +546,22 @@ mod tests {
     }
 
     #[test]
+    fn the_canvas_reports_its_visible_part_to_screen_readers() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let canvas = harness.get_by_label("Canvas").rect();
+        assert!(
+            canvas.max.x <= WINDOW.x && canvas.max.y <= WINDOW.y,
+            "{canvas:?}"
+        );
+        // So a click at its center lands on the page and does not scroll it.
+        let before = harness.state().canvas().viewport().origin();
+        harness.get_by_label("Canvas").click();
+        harness.run();
+        assert_eq!(harness.state().canvas().viewport().origin(), before);
+    }
+
+    #[test]
     fn display_options_check_the_current_layout_and_mode() {
         use egui_kittest::kittest::NodeT;
         let mut harness = harness(AppShell::new(), WINDOW);

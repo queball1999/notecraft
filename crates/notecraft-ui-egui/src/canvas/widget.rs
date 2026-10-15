@@ -60,6 +60,17 @@ pub fn show(
                     zoom,
                 };
                 let screen = visible.translate(content.min.to_vec2());
+                // Screen readers get the visible part of the page, not the whole scrollable
+                // content, so their highlight and their click land on screen.
+                let shown = screen.intersect(ui.clip_rect());
+                ui.ctx().accesskit_node_builder(response.id, |node| {
+                    node.set_bounds(egui::accesskit::Rect {
+                        x0: shown.min.x.into(),
+                        y0: shown.min.y.into(),
+                        x1: shown.max.x.into(),
+                        y1: shown.max.y.into(),
+                    });
+                });
                 paper::draw(ui.painter(), screen, map, style, tokens);
                 if let Some(page) = session.current_page() {
                     title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
