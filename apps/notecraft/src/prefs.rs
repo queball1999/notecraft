@@ -1,8 +1,9 @@
-//! User settings, stored in `config.toml` by craft-settings: window geometry and the theme
-//! (docs/themes.md section 5); recent files join in a later PR. Every section uses
+//! User settings, stored in `config.toml` by craft-settings: window geometry, the theme
+//! (docs/themes.md section 5), the ribbon state, and the recent list. Every section uses
 //! `#[serde(default)]`, so a missing or damaged key falls back to its default instead of
 //! failing the load.
 
+use notecraft_engine::recent::{RecentKind, Recents};
 use notecraft_ui_egui::themes::{Mode, Preset};
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +18,47 @@ pub struct Prefs {
     pub window: WindowPrefs,
     pub theme: ThemePrefs,
     pub ribbon: RibbonPrefs,
+    pub recent: RecentPrefs,
+}
+
+/// The recent notebooks and pages, newest first. Kinds are strings so an unknown kind (from
+/// a newer version) drops that entry instead of failing the file; the engine checks the
+/// paths again on restore.
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct RecentPrefs {
+    pub items: Vec<RecentEntry>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct RecentEntry {
+    pub kind: String,
+    pub path: String,
+}
+
+impl RecentPrefs {
+    /// The saved list, with bad entries dropped.
+    pub fn recents(&self) -> Recents {
+        Recents::from_items(self.items.iter().filter_map(|entry| {
+            RecentKind::from_id(&entry.kind).map(|kind| (kind, entry.path.clone()))
+        }))
+    }
+
+    /// Record the session's list; leaves the entries alone when nothing changed.
+    pub fn observe(&mut self, recents: &Recents) {
+        let items: Vec<RecentEntry> = recents
+            .items()
+            .iter()
+            .map(|item| RecentEntry {
+                kind: item.kind.id().to_owned(),
+                path: item.path.clone(),
+            })
+            .collect();
+        if self.items != items {
+            self.items = items;
+        }
+    }
 }
 
 /// The ribbon's collapsed state (`view.ribbon.toggle`), kept across runs as in OneNote.
@@ -225,6 +267,31 @@ mod tests {
         assert_eq!(
             (odd.preset(), odd.mode()),
             (Preset::OneNote2019, Mode::System)
+        );
+    }
+
+    #[test]
+    fn recents_round_trip_and_drop_bad_entries() {
+        let p: Prefs = serde_json::from_str(
+            r#"{"recent":{"items":[
+                {"kind":"notebook","path":"/n/Work"},
+                {"kind":"folder","path":"/n/Old"},
+                {"kind":"page","path":""},
+                {"kind":"page","path":"/n/a.md"},
+                {"path":"/n/no-kind"}
+            ]}}"#,
+        )
+        .unwrap();
+        let recents = p.recent.recents();
+        let paths: Vec<&str> = recents.items().iter().map(|i| i.path.as_str()).collect();
+        assert_eq!(paths, ["/n/Work", "/n/a.md"]);
+
+        let mut saved = RecentPrefs::default();
+        saved.observe(&recents);
+        assert_eq!(saved.recents(), recents);
+        assert_eq!(
+            saved.items.first().map(|e| e.kind.as_str()),
+            Some("notebook")
         );
     }
 

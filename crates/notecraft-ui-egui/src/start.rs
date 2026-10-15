@@ -27,7 +27,7 @@ fn clicked(command: CommandId) -> Clicked {
 }
 
 /// The command that reopens `item`, with its path.
-fn reopen(item: &RecentItem) -> Clicked {
+pub(crate) fn reopen(item: &RecentItem) -> Clicked {
     let command = match item.kind {
         RecentKind::Notebook => ids::FILE_OPEN_NOTEBOOK,
         RecentKind::Page => ids::FILE_OPEN,

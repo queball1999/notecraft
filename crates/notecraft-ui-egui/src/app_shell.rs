@@ -95,6 +95,16 @@ impl AppShell {
         self.session.set_recents(recents);
     }
 
+    /// Reopen the newest recent notebook or page, as OneNote reopens what was open at the
+    /// last exit. Returns whether something opened.
+    pub fn reopen_last(&mut self) -> bool {
+        let Some(item) = self.session.recents().items().first() else {
+            return false;
+        };
+        let open = start::reopen(item);
+        self.dispatch(open.command.as_str(), open.args)
+    }
+
     /// Use the OS UI font (docs/themes.md section 2).
     pub fn with_fonts(mut self, fonts: OsFonts) -> Self {
         self.fonts = fonts;
@@ -1122,6 +1132,25 @@ mod tests {
         harness.run();
         assert_eq!(recent_paths(harness.state()), ["/n/Fresh"]);
         assert!(!harness.state().ribbon().backstage_open());
+    }
+
+    #[test]
+    fn reopen_last_opens_the_newest_entry_without_reordering() {
+        let mut shell = AppShell::empty();
+        assert!(!shell.reopen_last(), "nothing to reopen");
+        shell.set_recents(notecraft_engine::recent::Recents::from_items([
+            (
+                notecraft_engine::recent::RecentKind::Page,
+                "/n/Plans.md".to_owned(),
+            ),
+            (
+                notecraft_engine::recent::RecentKind::Notebook,
+                "/n/Work".to_owned(),
+            ),
+        ]));
+        assert!(shell.reopen_last());
+        assert_eq!(shell.session().notebooks().len(), 2);
+        assert_eq!(recent_paths(&shell), ["/n/Plans.md", "/n/Work"]);
     }
 
     #[test]
