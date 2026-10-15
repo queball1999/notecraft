@@ -13,6 +13,7 @@ publish = false
 workspace = true
 
 [dependencies]
+notecraft-engine.workspace = true
 notecraft-ui-egui.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -21,6 +22,7 @@ egui.workspace = true
 image.workspace = true
 serde.workspace = true
 craft-settings.workspace = true
+rfd.workspace = true
 craft-quit = { workspace = true, features = ["egui", "menu"] }
 
 [dev-dependencies]

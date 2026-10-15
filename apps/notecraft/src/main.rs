@@ -18,6 +18,7 @@
 )]
 
 mod logging;
+mod picker;
 mod prefs;
 
 use craft_settings::{Location, SaveStatus, SettingsStore};
@@ -57,6 +58,8 @@ impl eframe::App for App {
             p.theme.observe(view.theme_preset, view.theme_mode);
             p.ribbon.collapsed = view.ribbon_collapsed;
         });
+        let recents = self.shell.session().recents();
+        self.store.update(|p| p.recent.observe(recents));
 
         // Remember the window geometry; update() only marks the store dirty on a real change.
         let info = ctx.input(|i| i.viewport().clone());
@@ -154,6 +157,7 @@ fn main() -> eframe::Result<()> {
     let window = store.get().window.clone();
     let theme = store.get().theme.clone();
     let ribbon_collapsed = store.get().ribbon.collapsed;
+    let recents = store.get().recent.recents();
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
         .with_app_id(APP_ID)
@@ -185,9 +189,14 @@ fn main() -> eframe::Result<()> {
                 tracing::warn!(error = %e, "macOS app menu not installed; Cmd+Q quits without asking");
             }
             let store = pending.take().ok_or("the app was already created")?;
-            let mut shell = AppShell::new().with_fonts(OsFonts::load());
+            let mut shell = AppShell::empty()
+                .with_fonts(OsFonts::load())
+                .with_picker(Box::new(picker::OsPicker));
             shell.set_theme(theme.preset(), theme.mode());
             shell.set_ribbon_collapsed(ribbon_collapsed);
+            // Reopen what was open last; with nothing recent, the start page shows.
+            shell.set_recents(recents);
+            shell.reopen_last();
             Ok(Box::new(App {
                 shell,
                 store,

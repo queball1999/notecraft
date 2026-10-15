@@ -3,12 +3,14 @@
 //! command dispatch and toasts; PR 0.3 installs the theme; PR 0.5 adds the ribbon; PR 0.6 adds
 //! the notebook pane, section tabs, and page list on mock notebooks; PR 0.7 adds the canvas.
 
-use notecraft_engine::cmd::{ids, CommandError, Registry, Value};
+use notecraft_engine::cmd::{ids, CommandError, CommandId, Map, Registry, Value};
 use notecraft_engine::Session;
 
 use crate::canvas::{self, CanvasUi};
 use crate::nav::{self, NavUi};
+use crate::picker::{FilePicker, NoPicker};
 use crate::ribbon::{self, Clicked, Ribbon};
+use crate::start;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
 
@@ -22,6 +24,13 @@ pub const SIDE_WIDTH: f32 = 220.0;
 /// The labels of the placeholder regions, in drawing order. UI tests look them up by name.
 pub const REGIONS: [&str; 4] = ["Status bar", "Notebooks", "Add Page", "Canvas"];
 
+/// File commands that open something, and close the File backstage when they do.
+const FILE_OPENS: [CommandId; 3] = [
+    ids::FILE_NEW_NOTEBOOK,
+    ids::FILE_OPEN_NOTEBOOK,
+    ids::FILE_OPEN,
+];
+
 /// Everything inside the main window.
 #[derive(Debug)]
 pub struct AppShell {
@@ -31,6 +40,8 @@ pub struct AppShell {
     ribbon: Ribbon,
     nav: NavUi,
     canvas: CanvasUi,
+    /// Asked for a path when a file command arrives without one.
+    picker: Box<dyn FilePicker>,
     /// The preset and mode last installed into egui, so it is redone only on a change.
     installed: Option<(Preset, Mode)>,
     /// The OS UI fonts, if the app loaded them (tests run with egui's built-in font).
@@ -46,9 +57,19 @@ impl Default for AppShell {
 }
 
 impl AppShell {
+    /// A shell with the mock notebooks open, as after opening a notebook.
     pub fn new() -> Self {
         let mut session = Session::new();
-        session.set_notebooks(nav::mock::notebooks());
+        session.set_notebooks(notecraft_engine::mock::notebooks());
+        Self::with_session(session)
+    }
+
+    /// A shell with nothing open: it shows the start page.
+    pub fn empty() -> Self {
+        Self::with_session(Session::new())
+    }
+
+    fn with_session(session: Session) -> Self {
         Self {
             registry: Registry::builtin(),
             session,
@@ -56,10 +77,32 @@ impl AppShell {
             ribbon: Ribbon::new(),
             nav: NavUi::default(),
             canvas: CanvasUi::default(),
+            picker: Box::new(NoPicker),
             installed: None,
             fonts: OsFonts::default(),
             installed_font: None,
         }
+    }
+
+    /// Ask `picker` for paths (the desktop app passes the OS dialogs).
+    pub fn with_picker(mut self, picker: Box<dyn FilePicker>) -> Self {
+        self.picker = picker;
+        self
+    }
+
+    /// Restore the recent list without a command, from saved settings.
+    pub fn set_recents(&mut self, recents: notecraft_engine::recent::Recents) {
+        self.session.set_recents(recents);
+    }
+
+    /// Reopen the newest recent notebook or page, as OneNote reopens what was open at the
+    /// last exit. Returns whether something opened.
+    pub fn reopen_last(&mut self) -> bool {
+        let Some(item) = self.session.recents().items().first() else {
+            return false;
+        };
+        let open = start::reopen(item);
+        self.dispatch(open.command.as_str(), open.args)
     }
 
     /// Use the OS UI font (docs/themes.md section 2).
@@ -113,15 +156,55 @@ impl AppShell {
     }
 
     /// Run a command by id, as a ribbon button or shortcut does. A command that does not
-    /// run (Coming Soon, unknown, bad arguments, or caught panic) shows a toast instead.
-    pub fn dispatch(&mut self, id: &str, args: Value) {
-        if let Err(err) = self.registry.run(&mut self.session, id, args) {
-            match err {
-                CommandError::ComingSoon { .. } => tracing::debug!("{err}"),
-                _ => tracing::warn!("{err}"),
+    /// run (Coming Soon, unknown, bad arguments, or caught panic) shows a toast instead. A
+    /// file command without a path asks the picker first; canceling runs nothing. Returns
+    /// whether the command ran.
+    pub fn dispatch(&mut self, id: &str, args: Value) -> bool {
+        let Some(args) = self.fill_path(id, args) else {
+            return false;
+        };
+        match self.registry.run(&mut self.session, id, args) {
+            Ok(_) => {
+                // Opening something from the File backstage returns to the notes.
+                if FILE_OPENS.iter().any(|open| open.as_str() == id) {
+                    self.ribbon.close_backstage();
+                }
+                true
             }
-            self.toasts.push(toast::error_text(&self.registry, &err));
+            Err(err) => {
+                match err {
+                    CommandError::ComingSoon { .. } => tracing::debug!("{err}"),
+                    _ => tracing::warn!("{err}"),
+                }
+                self.toasts.push(toast::error_text(&self.registry, &err));
+                false
+            }
         }
+    }
+
+    /// `args` with a `path` from the picker if `id` is a file command sent without one.
+    /// `None` when the user canceled the picker.
+    fn fill_path(&mut self, id: &str, args: Value) -> Option<Value> {
+        let mut map = match args {
+            Value::Null => Map::new(),
+            Value::Object(map) => map,
+            other => return Some(other),
+        };
+        if map.contains_key("path") {
+            return Some(Value::Object(map));
+        }
+        let path = if id == ids::FILE_NEW_NOTEBOOK.as_str() {
+            self.picker
+                .pick_folder("Choose a Folder for the New Notebook")
+        } else if id == ids::FILE_OPEN_NOTEBOOK.as_str() {
+            self.picker.pick_folder("Open Notebook")
+        } else if id == ids::FILE_OPEN.as_str() {
+            self.picker.pick_file("Open File")
+        } else {
+            return Some(Value::Object(map));
+        };
+        map.insert("path".to_owned(), Value::from(path?));
+        Some(Value::Object(map))
     }
 
     /// Per-frame work that must run even when the window is hidden (eframe `logic`).
@@ -153,7 +236,7 @@ impl AppShell {
             registry: &self.registry,
         };
         if self.ribbon.backstage_open() {
-            let clicked = self.ribbon.show_backstage(ui, look);
+            let clicked = self.ribbon.show_backstage(ui, look, self.session.recents());
             self.dispatch_all(clicked);
             self.toasts.show(ui.ctx());
             return;
@@ -185,6 +268,16 @@ impl AppShell {
             .frame(panel.fill(tokens.ribbon_bg))
             .show(ui, |ui| placeholder(ui, "Status bar"));
         let session = &self.session;
+        if session.notebooks().is_empty() {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
+                .show(ui, |ui| {
+                    start::show(ui, session.recents(), &tokens, &mut clicked);
+                });
+            self.dispatch_all(clicked);
+            self.toasts.show(ui.ctx());
+            return;
+        }
         let nav_ui = &mut self.nav;
         let canvas_ui = &mut self.canvas;
         egui::Panel::left("notebooks")
@@ -880,6 +973,184 @@ mod tests {
         harness.run_steps(30);
         assert!(origin(&harness).y > 50.0, "{:?}", origin(&harness));
         assert_eq!(harness.state().session().view().zoom_percent, 100);
+    }
+
+    /// A picker that answers with fixed paths, or cancels when they are `None`.
+    #[derive(Debug, Default)]
+    struct FakePicker {
+        folder: Option<String>,
+        file: Option<String>,
+    }
+
+    impl FilePicker for FakePicker {
+        fn pick_folder(&mut self, _title: &str) -> Option<String> {
+            self.folder.clone()
+        }
+
+        fn pick_file(&mut self, _title: &str) -> Option<String> {
+            self.file.clone()
+        }
+    }
+
+    fn picking(folder: Option<&str>, file: Option<&str>) -> AppShell {
+        AppShell::empty().with_picker(Box::new(FakePicker {
+            folder: folder.map(str::to_owned),
+            file: file.map(str::to_owned),
+        }))
+    }
+
+    fn recent_paths(shell: &AppShell) -> Vec<String> {
+        let items = shell.session().recents().items();
+        items.iter().map(|item| item.path.clone()).collect()
+    }
+
+    #[test]
+    fn start_page_shows_while_nothing_is_open() {
+        let mut harness = harness(AppShell::empty(), WINDOW);
+        harness.run();
+        for label in ["New Notebook", "Open Notebook", "Open File", "Recent"] {
+            let _ = harness.get_by_label(label);
+        }
+        assert!(harness.query_by_label("Canvas").is_none());
+        assert!(harness.query_by_label("Notebooks").is_none());
+        let _ = harness.get_by_label("Notebooks and pages you open show up here.");
+    }
+
+    #[test]
+    fn open_notebook_asks_the_picker_and_opens() {
+        let mut harness = harness(picking(Some("C:\\Notes\\Work"), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 2);
+        assert_eq!(recent_paths(harness.state()), ["C:\\Notes\\Work"]);
+        let _ = harness.get_by_label("Canvas");
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn canceling_the_picker_does_nothing() {
+        let mut harness = harness(AppShell::empty(), WINDOW);
+        harness.run();
+        for label in ["New Notebook", "Open Notebook", "Open File"] {
+            harness.get_by_label(label).click();
+            harness.run();
+        }
+        assert!(harness.state().session().notebooks().is_empty());
+        assert!(recent_paths(harness.state()).is_empty());
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn a_wrong_file_type_shows_a_toast() {
+        let mut harness = harness(picking(None, Some("/notes/todo.txt")), WINDOW);
+        harness.run();
+        harness.get_by_label("Open File").click();
+        harness.run();
+        assert!(harness.state().session().notebooks().is_empty());
+        assert_eq!(toasts(&harness).len(), 1);
+    }
+
+    #[test]
+    fn recent_rows_reopen_without_the_picker() {
+        let mut shell = AppShell::empty();
+        let recents = notecraft_engine::recent::Recents::from_items([
+            (
+                notecraft_engine::recent::RecentKind::Page,
+                "/n/Plans.md".to_owned(),
+            ),
+            (
+                notecraft_engine::recent::RecentKind::Notebook,
+                "/n/Work".to_owned(),
+            ),
+        ]);
+        shell.set_recents(recents);
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("Work").click();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 2);
+        assert_eq!(recent_paths(harness.state()), ["/n/Work", "/n/Plans.md"]);
+    }
+
+    #[test]
+    fn backstage_open_page_lists_recents_and_opens_files() {
+        let mut shell = AppShell::new().with_picker(Box::new(FakePicker {
+            folder: None,
+            file: Some("/n/Ideas.notecraft".to_owned()),
+        }));
+        shell.set_recents(notecraft_engine::recent::Recents::from_items([(
+            notecraft_engine::recent::RecentKind::Notebook,
+            "/n/Work".to_owned(),
+        )]));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("File").click();
+        harness.run();
+        harness.get_by_label("Open").click();
+        harness.run();
+        assert!(toasts(&harness).is_empty(), "choosing Open runs nothing");
+        let _ = harness.get_by_label("Work");
+        harness.get_by_label("Open File").click();
+        harness.run();
+        assert!(
+            !harness.state().ribbon().backstage_open(),
+            "opening returns to the notes"
+        );
+        assert_eq!(
+            recent_paths(harness.state()),
+            ["/n/Ideas.notecraft", "/n/Work"]
+        );
+
+        harness.get_by_label("File").click();
+        harness.run();
+        harness.get_by_label("Open").click();
+        harness.run();
+        harness.get_by_label("Clear Recent").click();
+        harness.run();
+        assert!(recent_paths(harness.state()).is_empty());
+        let _ = harness.get_by_label("Notebooks and pages you open show up here.");
+    }
+
+    #[test]
+    fn backstage_new_page_asks_for_a_folder() {
+        let shell = AppShell::new().with_picker(Box::new(FakePicker {
+            folder: Some("/n/Fresh".to_owned()),
+            file: None,
+        }));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("File").click();
+        harness.run();
+        harness.get_by_label("New").click();
+        harness.run();
+        assert!(
+            recent_paths(harness.state()).is_empty(),
+            "choosing New runs nothing"
+        );
+        harness.get_by_label("Choose a Folder").click();
+        harness.run();
+        assert_eq!(recent_paths(harness.state()), ["/n/Fresh"]);
+        assert!(!harness.state().ribbon().backstage_open());
+    }
+
+    #[test]
+    fn reopen_last_opens_the_newest_entry_without_reordering() {
+        let mut shell = AppShell::empty();
+        assert!(!shell.reopen_last(), "nothing to reopen");
+        shell.set_recents(notecraft_engine::recent::Recents::from_items([
+            (
+                notecraft_engine::recent::RecentKind::Page,
+                "/n/Plans.md".to_owned(),
+            ),
+            (
+                notecraft_engine::recent::RecentKind::Notebook,
+                "/n/Work".to_owned(),
+            ),
+        ]));
+        assert!(shell.reopen_last());
+        assert_eq!(shell.session().notebooks().len(), 2);
+        assert_eq!(recent_paths(&shell), ["/n/Plans.md", "/n/Work"]);
     }
 
     #[test]

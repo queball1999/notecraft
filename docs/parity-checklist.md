@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: CV-01 and CV-02 scored D, CV-03 scored P (canvas pan, zoom, paper, PR 0.7).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-11 scored D, SH-12 scored P (start page, recents, open dialogs, PR 0.8).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -18,7 +18,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Area | D | P | M | Total | Done % |
 |---|---:|---:|---:|---:|---:|
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
-| Shell | 5 | 3 | 12 | 20 | 25% |
+| Shell | 6 | 4 | 10 | 20 | 30% |
 | Themes | 5 | 1 | 0 | 6 | 83% |
 | Canvas | 2 | 1 | 9 | 12 | 16% |
 | Ink | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +28,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 22 | 5 | 86 | 113 | 19% |
+| Total | 23 | 6 | 84 | 113 | 20% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -59,8 +59,8 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | SH-07 | Shell | Section tabs with colors | 0 | D | PR 0.6: colored section tabs across the page, softened in dark mode, "+" tab (section.new, Coming Soon), overflow menu; clicks run nav.section.select (egui_kittest tests) |
 | SH-08 | Shell | Page list with subpage indent | 0 | D | PR 0.6: page list with Add Page (page.new, Coming Soon), subpages indented two levels, current page highlighted; right of the page in 2016 and 2019, left in 2021 and Microsoft 365; clicks run nav.page.select (egui_kittest tests) |
 | SH-09 | Shell | Status bar (zoom, page info) | 0 | M | |
-| SH-11 | Shell | File backstage with recent notebooks and pages | 0 | M | |
-| SH-12 | Shell | Open dialog for notebooks, `.md`, and `.notecraft` | 0 | M | |
+| SH-11 | Shell | File backstage with recent notebooks and pages | 0 | D | PR 0.8 (#14): start page and the backstage Open page list the last 10 notebooks and pages (saved in config.toml); a row reopens, Clear Recent empties; file.recent.clear Ready; tests recent_rows_reopen_without_the_picker, backstage_open_page_lists_recents_and_opens_files |
+| SH-12 | Shell | Open dialog for notebooks, `.md`, and `.notecraft` | 0 | P | PR 0.8 (#14): file.new_notebook, file.open_notebook, file.open Ready; a path-less command asks the picker (OS dialogs through rfd in the app; a fake in tests); only .md and .notecraft accepted; Phase 0 shows the mock notebooks. Missing: the OS dialogs not yet tried in the running app |
 | SH-13 | Shell | Full page view (F11) | 0 | M | |
 | SH-14 | Shell | OneNote default shortcut map | 0 | M | |
 | SH-15 | Shell | Keyboard navigation and screen reader labels (AccessKit) | 0 | M | |
@@ -220,3 +220,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | 0 | SH-02 and SH-03 scored D; SH-05 scored P; SH-04 evidence updated (PR 0.5b). |
 | 2026-10-14 | 0 | SH-06, SH-07, SH-08 scored D (navigation on mock notebooks, PR 0.6). |
 | 2026-10-14 | 0 | CV-01 and CV-02 scored D, CV-03 scored P (canvas pan, zoom, paper, PR 0.7). |
+| 2026-10-14 | 0 | SH-11 scored D, SH-12 scored P (start page, recents, open dialogs, PR 0.8). |

@@ -20,8 +20,12 @@ command_ids! {
     // File tab (backstage view)
     /// Create a notebook in a folder you choose.
     FILE_NEW_NOTEBOOK = "file.new_notebook";
-    /// Open a notebook folder or a page file.
+    /// Open a notebook folder.
+    FILE_OPEN_NOTEBOOK = "file.open_notebook";
+    /// Open a .md or .notecraft page file.
     FILE_OPEN = "file.open";
+    /// Remove every notebook and page from the recent list.
+    FILE_RECENT_CLEAR = "file.recent.clear";
     /// Show the open notebooks and where they are stored.
     FILE_INFO = "file.info";
     /// Rename the notebook, change its color, or show its folder.

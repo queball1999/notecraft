@@ -4,6 +4,7 @@
 
 mod builtin;
 mod canvas;
+mod file;
 mod guard;
 pub mod ids;
 mod layout;

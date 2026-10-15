@@ -2,8 +2,20 @@
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
-use super::{canvas, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler};
+use super::{
+    canvas, file, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
+};
 
+const NOTEBOOK_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "path",
+    ArgKind::String,
+    "Notebook folder; the app asks with a folder picker when omitted.",
+)];
+const FILE_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "path",
+    ArgKind::String,
+    "A .md or .notecraft file; the app asks with a file picker when omitted.",
+)];
 const NAV_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "id",
     ArgKind::String,
@@ -105,13 +117,30 @@ pub(super) static SPECS: &[CommandSpec] = &[
         ids::FILE_NEW_NOTEBOOK,
         "New Notebook",
         "Create a notebook in a folder you choose.",
-    ),
+    )
+    .args(NOTEBOOK_PATH_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_OPEN_NOTEBOOK,
+        "Open Notebook",
+        "Open a notebook folder.",
+    )
+    .args(NOTEBOOK_PATH_ARGS)
+    .shortcut("Ctrl+O")
+    .ready(),
     CommandSpec::new(
         ids::FILE_OPEN,
-        "Open",
-        "Open a notebook folder or a page file.",
+        "Open File",
+        "Open a .md or .notecraft page file.",
     )
-    .shortcut("Ctrl+O"),
+    .args(FILE_PATH_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_RECENT_CLEAR,
+        "Clear Recent",
+        "Remove every notebook and page from the recent list.",
+    )
+    .ready(),
     CommandSpec::new(
         ids::FILE_INFO,
         "Info",
@@ -778,6 +807,10 @@ pub(super) static SPECS: &[CommandSpec] = &[
 
 /// The handler of every Ready command.
 static HANDLERS: &[(CommandId, Handler)] = &[
+    (ids::FILE_NEW_NOTEBOOK, file::new_notebook),
+    (ids::FILE_OPEN_NOTEBOOK, file::open_notebook),
+    (ids::FILE_OPEN, file::open_file),
+    (ids::FILE_RECENT_CLEAR, file::recent_clear),
     (ids::VIEW_THEME_SET, theme::theme_set),
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),

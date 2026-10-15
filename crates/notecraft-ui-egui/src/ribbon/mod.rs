@@ -20,6 +20,7 @@ pub(crate) use button::style as button_style;
 use craft_ui::buttons::IconButton;
 use egui::{Align, Id, Key, Layout, Order, Rect, Sense, Stroke, Ui, UiBuilder};
 use notecraft_engine::cmd::{ids, CommandId, Registry, Value};
+use notecraft_engine::recent::Recents;
 
 use crate::themes::ThemeTokens;
 use keytips::{Action, KeyTips, Mode};
@@ -311,9 +312,14 @@ impl Ribbon {
     }
 
     /// Draw the File backstage over the whole window. Returns the commands clicked.
-    pub fn show_backstage(&mut self, ui: &mut Ui, look: Look<'_>) -> Vec<Clicked> {
+    pub fn show_backstage(
+        &mut self,
+        ui: &mut Ui,
+        look: Look<'_>,
+        recents: &Recents,
+    ) -> Vec<Clicked> {
         let mut out = Vec::new();
-        backstage::show(self, ui, look, &mut out);
+        backstage::show(self, ui, look, recents, &mut out);
         out
     }
 }
