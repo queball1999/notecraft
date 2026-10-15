@@ -385,6 +385,8 @@ Commits:
 2. `feat(ui): add the colors dialog`
 3. `feat(ui): show the last color on split color buttons`
 
+PR 0.5e landed with these changes to the plan. The theme block reuses the existing original grid (ten hues over four rows of tints and shades); the Standard page of the dialog is computed (twelve hues by six lightness steps and a grey row). Draw's Color menu takes the Office layout too; Page Color and Text Highlight Color keep one plain grid, as in OneNote. Every color menu fills its icon's accent bar with the last color. The three commits land as one, since the menu, the dialog, and the last color share the same state.
+
 ### PR 0.5f: style and tag galleries, Help tab
 
 | | |

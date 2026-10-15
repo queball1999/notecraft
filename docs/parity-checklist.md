@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: SH-02 evidence: font and size boxes (PR 0.5d).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: SH-02 evidence: color menus and the Colors dialog (PR 0.5e).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -51,7 +51,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
 | SH-01 | Shell | Window opens on wgpu (DX12, Metal, Vulkan) | 0 | P | PR 0.1: window opens on wgpu (Windows DX12 verified; macOS and Linux launches to verify); geometry saved through craft-settings |
-| SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | D | PR 0.5a and 0.5b: data-driven ribbon with original icons drawn in code; File backstage and all seven OneNote tabs with their groups; egui_kittest tests click every tab in every preset. PR 0.5d: Font and Font Size are editable boxes showing the current value; the font box lists the installed families (a background scan reads only each file's name table; 88 families on Windows 11) and filters as you type; the size box takes any size from 1 to 1638 |
+| SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | D | PR 0.5a and 0.5b: data-driven ribbon with original icons drawn in code; File backstage and all seven OneNote tabs with their groups; egui_kittest tests click every tab in every preset. PR 0.5d: Font and Font Size are editable boxes showing the current value; the font box lists the installed families (a background scan reads only each file's name table; 88 families on Windows 11) and filters as you type; the size box takes any size from 1 to 1638. PR 0.5e: color menus in Office's layout (Automatic, Theme Colors, Standard Colors, Recent Colors saved in settings, More Colors) with a Colors dialog (Standard and Custom pages, New over Current, OK and Cancel); split color buttons show and apply the last color; Text Highlight Color offers fifteen colors with No Color last |
 | SH-03 | Shell | Every ribbon button bound to a command id | 0 | D | PR 0.2, 0.5a, 0.5b: every button, menu item, and backstage entry on all tabs runs a registered command with arguments its schema accepts (unit test); clicks dispatch through the registry (egui_kittest tests) |
 | SH-04 | Shell | "Coming Soon" badge and toast for unimplemented commands | 0 | P | PR 0.2 and 0.5: clicking a Coming Soon button shows "Coming Soon: <label>" for 3 s and its tooltip says Coming Soon (egui_kittest tests). The per-button badge was dropped at the maintainer's request; decide whether this row still needs one |
 | SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | P | PR 0.5b: view.ribbon.toggle (Ctrl+F1, chevron, double-click a tab), peek while collapsed, collapsed state saved; key tips on tabs and buttons (Alt, F10, Alt plus letter, Esc); egui_kittest tests. PR 0.5c: Ribbon Display Options menu on the chevron (Classic or Simplified Ribbon; Full-screen mode, Show tabs only, Always show Ribbon) through view.ribbon.layout and view.ribbon.show, both saved (the old collapsed key still read); the simplified ribbon is one row of icon buttons with a More Options menu for what does not fit; full-screen mode shows the ribbon while the pointer is at the top; checked in the running app on Windows 11. A lone Alt tap sent as OS keyboard input (keybd_event) showed the key tips on Windows 11; not yet tried by hand on a physical keyboard |
@@ -226,3 +226,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 0 | SH-15 evidence: buttons are push buttons, navigation rows selectable list items, splitter focus ring, named scroll bars; checked in the running app (PR 0.10). |
 | 2026-10-15 | 0 | SH-05 evidence: Ribbon Display Options, simplified ribbon, full-screen mode (PR 0.5c); Alt key tips seen with OS keyboard input. |
 | 2026-10-15 | 0 | SH-02 evidence: font and size boxes with installed fonts (PR 0.5d). |
+| 2026-10-15 | 0 | SH-02 evidence: Office-style color menus, Recent Colors, and the Colors dialog (PR 0.5e). |
