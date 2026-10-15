@@ -42,6 +42,8 @@ command_ids! {
     FILE_OPTIONS = "file.options";
     /// Show the version, build, and licenses.
     FILE_ABOUT = "file.about";
+    /// Copy the version, build, and system details to the clipboard for a bug report.
+    FILE_COPY_ABOUT_INFO = "file.copy_about_info";
 
     // Home tab: Clipboard group
     /// Move the selection to the clipboard.

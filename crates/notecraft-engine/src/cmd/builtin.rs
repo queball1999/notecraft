@@ -182,7 +182,14 @@ pub(super) static SPECS: &[CommandSpec] = &[
         ids::FILE_ABOUT,
         "About NoteCraft",
         "Show the version, build, and licenses.",
-    ),
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_COPY_ABOUT_INFO,
+        "Copy About Info",
+        "Copy the version, build, and system details to the clipboard for a bug report.",
+    )
+    .ready(),
     // Home tab: Clipboard group
     CommandSpec::new(ids::EDIT_CUT, "Cut", "Move the selection to the clipboard.")
         .undoable()
@@ -856,6 +863,8 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_OPEN_NOTEBOOK, file::open_notebook),
     (ids::FILE_OPEN, file::open_file),
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
+    (ids::FILE_ABOUT, file::about),
+    (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),
     (ids::VIEW_THEME_SET, theme::theme_set),
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),

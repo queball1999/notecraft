@@ -9,6 +9,7 @@ use notecraft_engine::Session;
 
 use craft_ui::buttons::IconButton;
 
+use crate::about::AppInfo;
 use crate::canvas::{self, CanvasUi};
 use crate::font_list::FontList;
 use crate::icons::{self, Icon, IconColors};
@@ -88,6 +89,10 @@ pub struct AppShell {
     restore_colors: Option<Vec<String>>,
     /// The Recent Colors as of the last frame, for saving.
     recent_colors: Vec<String>,
+    /// Build and system details for the About page, from the app.
+    about: AppInfo,
+    /// Text for the clipboard, put there on the next frame.
+    pending_copy: Option<String>,
 }
 
 impl Default for AppShell {
@@ -126,7 +131,20 @@ impl AppShell {
             families: Vec::new(),
             restore_colors: None,
             recent_colors: Vec::new(),
+            about: AppInfo::default(),
+            pending_copy: None,
         }
+    }
+
+    /// Show `info` on the About page (the app passes its build details).
+    pub fn with_about(mut self, info: AppInfo) -> Self {
+        self.about = info;
+        self
+    }
+
+    /// The text `file.copy_about_info` copies, for tests.
+    pub fn pending_copy(&self) -> Option<&str> {
+        self.pending_copy.as_deref()
     }
 
     /// Restore the Recent Colors of the color menus, from saved settings.
@@ -232,6 +250,11 @@ impl AppShell {
                 // Opening something from the File backstage returns to the notes.
                 if FILE_OPENS.iter().any(|open| open.as_str() == id) {
                     self.ribbon.close_backstage();
+                } else if id == ids::FILE_ABOUT.as_str() {
+                    self.ribbon.open_backstage_on(ids::FILE_ABOUT);
+                } else if id == ids::FILE_COPY_ABOUT_INFO.as_str() {
+                    self.pending_copy = Some(self.about.plain_text());
+                    self.toasts.push("Copied the version and build details.");
                 }
                 true
             }
@@ -296,11 +319,19 @@ impl AppShell {
         }
     }
 
+    /// Put text a command asked to copy on the clipboard.
+    fn flush_copy(&mut self, ctx: &egui::Context) {
+        if let Some(text) = self.pending_copy.take() {
+            ctx.copy_text(text);
+        }
+    }
+
     /// Draw the window contents (eframe `ui`).
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let tokens = self.tokens(ui.ctx());
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
+        self.flush_copy(ui.ctx());
         self.font_list.load_previews(ui.ctx());
         if let Some(colors) = self.restore_colors.take() {
             ribbon::set_recent_colors(ui.ctx(), &colors);
@@ -317,8 +348,11 @@ impl AppShell {
             fonts: &self.families,
         };
         if self.ribbon.backstage_open() {
-            let clicked = self.ribbon.show_backstage(ui, look, self.session.recents());
+            let clicked = self
+                .ribbon
+                .show_backstage(ui, look, self.session.recents(), &self.about);
             self.dispatch_all(clicked);
+            self.flush_copy(ui.ctx());
             self.toasts.show(ui.ctx());
             return;
         }

@@ -24,7 +24,7 @@ mod prefs;
 use craft_settings::{Location, SaveStatus, SettingsStore};
 use notecraft_ui_egui::font_list::FontList;
 use notecraft_ui_egui::themes::OsFonts;
-use notecraft_ui_egui::AppShell;
+use notecraft_ui_egui::{AppInfo, AppShell};
 use prefs::Prefs;
 use std::io::Write;
 use std::time::Instant;
@@ -40,6 +40,29 @@ fn version_line() -> String {
         env!("NOTECRAFT_BUILD_SHA"),
         env!("NOTECRAFT_BUILD_DATE")
     )
+}
+
+/// Build and system details for the About page. Paths are the ones in use right now.
+fn about_info(
+    settings_dir: Option<&std::path::Path>,
+    log_file: Option<&std::path::Path>,
+) -> AppInfo {
+    let dir_text = |p: &std::path::Path| p.display().to_string();
+    AppInfo {
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        commit: env!("NOTECRAFT_BUILD_SHA").to_owned(),
+        build_date: env!("NOTECRAFT_BUILD_DATE").to_owned(),
+        profile: if cfg!(debug_assertions) {
+            "debug"
+        } else {
+            "release"
+        }
+        .to_owned(),
+        target: env!("NOTECRAFT_BUILD_TARGET").to_owned(),
+        os: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
+        settings_dir: settings_dir.map(dir_text),
+        log_dir: log_file.and_then(std::path::Path::parent).map(dir_text),
+    }
 }
 
 struct App {
@@ -157,6 +180,7 @@ fn main() -> eframe::Result<()> {
     }
 
     let store = open_settings();
+    let about = about_info(store.dir(), log_path.as_deref());
     let window = store.get().window.clone();
     let theme = store.get().theme.clone();
     let ribbon = (store.get().ribbon.layout(), store.get().ribbon.show());
@@ -198,7 +222,8 @@ fn main() -> eframe::Result<()> {
             let mut shell = AppShell::empty()
                 .with_fonts(OsFonts::load())
                 .with_font_list(font_list)
-                .with_picker(Box::new(picker::OsPicker));
+                .with_picker(Box::new(picker::OsPicker))
+                .with_about(about);
             shell.set_theme(theme.preset(), theme.mode());
             shell.set_ribbon(ribbon.0, ribbon.1);
             // Reopen what was open last; with nothing recent, the start page shows.

@@ -110,6 +110,24 @@ pub(super) fn recent_clear(
     Ok(CommandOutput::default())
 }
 
+/// `file.about`: show the About page. The engine has nothing to change; the front end opens
+/// the page (it alone knows the build details), so this succeeds and does no more.
+pub(super) fn about(
+    _session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    Ok(CommandOutput::default())
+}
+
+/// `file.copy_about_info`: copy the About details. The front end builds the text and owns the
+/// clipboard, so this succeeds and does no more.
+pub(super) fn copy_about_info(
+    _session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    Ok(CommandOutput::default())
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::{json, Value};

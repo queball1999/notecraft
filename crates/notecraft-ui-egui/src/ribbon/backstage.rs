@@ -6,11 +6,12 @@
 use craft_ui::buttons::{ButtonVisuals, IconButton, IconButtonStyle};
 use craft_ui::tabs::Tab;
 use egui::{Color32, CornerRadius, FontId, Frame, Key, Margin, RichText, Sense, Stroke, Ui};
-use notecraft_engine::cmd::{ids, Status};
+use notecraft_engine::cmd::{ids, CommandId, Status};
 use notecraft_engine::recent::Recents;
 
 use super::spec::{Item, TabKind, TABS};
 use super::{Clicked, Look, Ribbon};
+use crate::about::AppInfo;
 use crate::icons::{self, Icon, IconColors};
 use crate::start;
 use crate::themes::mix;
@@ -33,11 +34,17 @@ fn has_own_page(item: &Item) -> bool {
     item.command == ids::FILE_NEW_NOTEBOOK || item.command == ids::FILE_OPEN
 }
 
+/// The index of the entry that runs `command`.
+pub(super) fn index_of(command: CommandId) -> Option<usize> {
+    entries().iter().position(|item| item.command == command)
+}
+
 pub(super) fn show(
     ribbon: &mut Ribbon,
     ui: &mut Ui,
     look: Look<'_>,
     recents: &Recents,
+    about: &AppInfo,
     out: &mut Vec<Clicked>,
 ) {
     let t = look.tokens;
@@ -129,6 +136,10 @@ pub(super) fn show(
             let Some(item) = current else {
                 return;
             };
+            if item.command == ids::FILE_ABOUT {
+                crate::about::show(ui, t, about, out);
+                return;
+            }
             ui.label(RichText::new(item.label).size(28.0).color(t.text));
             ui.add_space(12.0);
             if item.command == ids::FILE_NEW_NOTEBOOK {
