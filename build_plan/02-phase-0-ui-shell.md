@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.9 recorded: status bar, full page view, and shortcuts.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.10 recorded: keyboard navigation and screen reader labels.
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
 
@@ -328,6 +328,8 @@ Commits:
 
 PR title: `feat(ui): add keyboard navigation and screen reader labels`.
 
+PR 0.10 (PR #16) landed both commits. An audit of the AccessKit tree found the ribbon, menus, navigation, backstage, and start page already named; the panel resize handles were the only unnamed focus stops and now carry the Splitter role and a name. The status bar's contents are drawn after the page so it comes last in the Tab order without changing the layout. Ribbon, navigation, and egui buttons already drew an accent focus ring; the canvas and the start page's recent rows now do too. The Narrator and VoiceOver runs could not be done from an agent session and stay open in gaps rank 14, so SH-15 is P.
+
 ## PR 0.11: minimal control channel for UI tests
 
 | | |
@@ -388,3 +390,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | 0 | PR 0.7 recorded: canvas pan, zoom, and paper (PR #13). |
 | 2026-10-14 | 0 | PR 0.8 recorded: start page, recents, and file picker (PR #14). |
 | 2026-10-14 | 0 | PR 0.9 recorded: status bar, full page view, and shortcuts (PR #15). |
+| 2026-10-14 | 0 | PR 0.10 recorded: keyboard navigation and screen reader labels (PR #16). |

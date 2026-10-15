@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: status bar, full page view, and shortcut map (PR 0.9). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: screen reader names, keyboard order, and focus rings (PR 0.10). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -98,3 +98,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | Phase 0 PR 0.7: the page canvas pans (wheel, scroll bars, middle-drag, Space+drag) and zooms 10% to 400% (ribbon, Ctrl+wheel, pinch, all through view.zoom); rule lines and grids, page color, and paper size are Ready and drawn for the visible area only; the page title, date, and time area is drawn on mock data; Viewport in notecraft-canvas with property tests (PR #13). |
 | 2026-10-14 | Phase 0 PR 0.8: start page while nothing is open (New Notebook, Open Notebook, Open File, recent list); File backstage New and Open pages; file.new_notebook, file.open_notebook, file.open, and file.recent.clear Ready; OS open dialogs through rfd in the app; the last 10 notebooks and pages saved in config.toml, and the newest reopened at launch (PR #14). |
 | 2026-10-14 | Phase 0 PR 0.9: status bar (Page n of m, zoom menu); Full Page View (F11, Esc, or the Normal View button to leave); OneNote's default shortcut map in the engine (Ctrl+2 to Ctrl+9 note tags included, Ctrl+E bound to a Coming Soon search.all) dispatched by the shell, with Ctrl as Cmd on macOS; egui's own Ctrl+= UI scaling turned off (PR #15). |
+| 2026-10-14 | Phase 0 PR 0.10: every actionable control has a screen reader name (the panel splitters were the only gap); Tab moves through the ribbon, navigation, section tabs, page, and status bar in that order; every control, the canvas included, shows an accent focus ring; tests guard both. Narrator and VoiceOver runs are still to do (PR #16). |
