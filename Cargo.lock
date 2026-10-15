@@ -2048,6 +2048,7 @@ name = "notecraft-cli"
 version = "0.0.0"
 dependencies = [
  "notecraft-engine",
+ "serde_json",
 ]
 
 [[package]]
