@@ -29,6 +29,21 @@ pub const SIDE_WIDTH: f32 = 220.0;
 /// up by name.
 pub const REGIONS: [&str; 4] = ["Zoom 100%", "Notebooks", "Add Page", "Canvas"];
 
+/// Give the panel resize handles a role and a name. egui leaves them unlabeled, and they are
+/// stops in the keyboard Tab order, so a screen reader would otherwise announce nothing.
+fn name_splitters(ctx: &egui::Context) {
+    for (panel, name) in [
+        ("notebooks", "Notebook pane width"),
+        ("pages", "Page list width"),
+    ] {
+        let id = egui::Id::new(panel).with("__resize");
+        ctx.accesskit_node_builder(id, |node| {
+            node.set_role(egui::accesskit::Role::Splitter);
+            node.set_label(name);
+        });
+    }
+}
+
 /// File commands that open something, and close the File backstage when they do.
 const FILE_OPENS: [CommandId; 3] = [
     ids::FILE_NEW_NOTEBOOK,
@@ -320,6 +335,7 @@ impl AppShell {
                 canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
             })
             .inner;
+        name_splitters(ui.ctx());
         // Like the OS dark mode, the canvas width is reported, not commanded.
         self.session.view_mut().canvas_width = canvas_width.max(0.0) as u32;
         self.dispatch_all(clicked);
@@ -1314,6 +1330,72 @@ mod tests {
         let mut harness = harness(AppShell::empty(), WINDOW);
         harness.run();
         assert!(harness.query_by_label("Zoom 100%").is_none());
+    }
+
+    /// Roles a user can act on; each must have a name for screen readers.
+    const ACTIONABLE: [egui::accesskit::Role; 14] = {
+        use egui::accesskit::Role;
+        [
+            Role::Button,
+            Role::Tab,
+            Role::CheckBox,
+            Role::RadioButton,
+            Role::MenuItem,
+            Role::ComboBox,
+            Role::TextInput,
+            Role::Slider,
+            Role::SpinButton,
+            Role::Link,
+            Role::TreeItem,
+            Role::ListBoxOption,
+            Role::Splitter,
+            Role::Unknown,
+        ]
+    };
+
+    /// Every actionable node without a label or value, as "role at rect".
+    fn unnamed(harness: &egui_kittest::Harness<'_, AppShell>) -> Vec<String> {
+        use egui_kittest::kittest::{By, NodeT};
+        harness
+            .query_all(By::new().predicate(|node| ACTIONABLE.contains(&node.role())))
+            .filter_map(|node| {
+                let ak = node.accesskit_node();
+                let named = ak.label().is_some_and(|l| !l.trim().is_empty())
+                    || ak.value().is_some_and(|v| !v.trim().is_empty());
+                (!named).then(|| format!("{:?} at {:?}", ak.role(), node.rect()))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_control_has_a_screen_reader_name() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        for tab in ["Home", "Insert", "Draw", "History", "Review", "View"] {
+            harness.get_by_label(tab).click();
+            harness.run();
+            assert_eq!(unnamed(&harness), Vec::<String>::new(), "{tab} tab");
+        }
+        harness.get_by_label("File").click();
+        harness.run();
+        for entry in ["Info", "New", "Open"] {
+            // The entry comes first; the open page repeats its name as a heading.
+            harness.get_all_by_label(entry).next().unwrap().click();
+            harness.run();
+            assert_eq!(unnamed(&harness), Vec::<String>::new(), "backstage {entry}");
+        }
+        harness.key_press(egui::Key::Escape);
+        harness.key_press(egui::Key::F11);
+        harness.run();
+        assert_eq!(unnamed(&harness), Vec::<String>::new(), "full page view");
+
+        let mut start = harness_for(AppShell::empty());
+        start.run();
+        assert_eq!(unnamed(&start), Vec::<String>::new(), "start page");
+    }
+
+    fn harness_for(shell: AppShell) -> egui_kittest::Harness<'static, AppShell> {
+        harness(shell, WINDOW)
     }
 
     #[test]
