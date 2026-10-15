@@ -12,6 +12,18 @@ pub(crate) fn plain_button(response: Response) -> Response {
     response
 }
 
+/// Name the scroll bars of the scroll area `area` (its `ScrollAreaOutput::id`), which egui
+/// leaves unlabeled. Same approach as the canvas scroll bars: the bar for axis `d` (0
+/// horizontal, 1 vertical) has the id `area.with(d)`; a bar not shown this frame is skipped.
+pub(crate) fn name_scroll_bars(ctx: &egui::Context, area: egui::Id) {
+    for (axis, name) in [(0_usize, "Horizontal"), (1, "Vertical")] {
+        let id = area.with(axis);
+        if ctx.read_response(id).is_some() {
+            ctx.accesskit_node_builder(id, |node| node.set_label(name));
+        }
+    }
+}
+
 /// Report a navigation row as a selectable list item: "Welcome, list item, selected" rather
 /// than "Welcome, toggle button, on". UI Automation then offers SelectionItem, whose Select
 /// AccessKit sends as a click. Only item roles get that pattern; a button with a selected

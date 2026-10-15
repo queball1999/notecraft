@@ -13,6 +13,7 @@
 mod backstage;
 mod button;
 mod combo;
+mod gallery;
 mod group;
 pub(crate) mod keytips;
 mod menus;
@@ -33,6 +34,7 @@ use notecraft_engine::cmd::{ids, CommandId, Registry, Value};
 use notecraft_engine::recent::Recents;
 use notecraft_engine::view::{RibbonLayout, RibbonShow};
 
+use crate::about::AppInfo;
 use crate::themes::ThemeTokens;
 use keytips::{Action, KeyTips, Mode};
 use spec::{str_arg, Arg, Button, TabKind, TABS};
@@ -446,10 +448,16 @@ impl Ribbon {
         ui: &mut Ui,
         look: Look<'_>,
         recents: &Recents,
+        about: &AppInfo,
     ) -> Vec<Clicked> {
         let mut out = Vec::new();
-        backstage::show(self, ui, look, recents, &mut out);
+        backstage::show(self, ui, look, recents, about, &mut out);
         out
+    }
+
+    /// Open the File backstage on the entry that runs `command`, if it has one.
+    pub fn open_backstage_on(&mut self, command: CommandId) {
+        self.backstage = Some(backstage::index_of(command).unwrap_or(0));
     }
 }
 

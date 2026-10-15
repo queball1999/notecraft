@@ -3,6 +3,7 @@
 use egui::{Align2, FontId, Sense, Stroke, Ui};
 
 use super::button::{self, SMALL_HEIGHT};
+use super::gallery;
 use super::spec::{Column, Group};
 use super::{Clicked, KeyFrame, Look, BODY_HEIGHT};
 
@@ -57,6 +58,7 @@ fn show_column(
     out: &mut Vec<Clicked>,
 ) {
     match column {
+        Column::Gallery(gallery) => gallery::show(ui, gallery, look, keys, out),
         Column::Large(large) => button::show(ui, large, look, keys, content_height, out),
         Column::Stack(buttons) => {
             ui.vertical(|ui| {

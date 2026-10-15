@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 mod a11y;
+pub mod about;
 mod app_shell;
 pub mod canvas;
 pub mod color;
@@ -24,6 +25,7 @@ pub mod status;
 pub mod themes;
 pub mod toast;
 
+pub use about::AppInfo;
 pub use app_shell::{AppShell, REGIONS};
 pub use picker::{FilePicker, NoPicker};
 pub use toast::Toasts;

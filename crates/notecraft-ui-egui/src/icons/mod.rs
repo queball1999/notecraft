@@ -6,6 +6,7 @@
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke};
 
 mod draw;
+mod help;
 mod home;
 mod insert;
 mod review;
@@ -141,6 +142,11 @@ icons! {
     NewDockedWindow => |p, _| view::new_docked_window(p);
     Theme => |p, c| view::theme(p, c.accent);
     DarkMode => |p, _| view::dark_mode(p);
+    // Help
+    Help => |p, _| help::help(p);
+    Support => |p, _| help::support(p);
+    Feedback => |p, _| help::feedback(p);
+    Training => |p, _| help::training(p);
 }
 
 /// Colors an icon may use besides its main color.

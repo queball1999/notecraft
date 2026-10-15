@@ -81,7 +81,7 @@ fn ribbon_tabs_are_covered() {
         .filter_map(|id| id.as_str().split('.').next())
         .collect();
     for area in [
-        "file", "edit", "format", "insert", "draw", "history", "review", "view",
+        "file", "edit", "format", "insert", "draw", "history", "review", "view", "help",
     ] {
         assert!(areas.contains(area), "no commands for {area}");
     }

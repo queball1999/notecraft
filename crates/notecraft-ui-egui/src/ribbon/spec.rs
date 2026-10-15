@@ -302,9 +302,69 @@ pub const PAGE_COLOR_GRID: &[u32] = &[
     0xEEEEEE,
 ];
 
+/// How a gallery draws its entries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GalleryKind {
+    /// Each entry is drawn in its own style (size and weight), as the Styles gallery.
+    Styles,
+    /// Each entry has its tag icon and, for the first nine, its Ctrl+number shortcut.
+    Tags,
+}
+
+/// An in-ribbon gallery, as OneNote's Styles and Tags: a bordered box showing `visible`
+/// entries, arrows to scroll through them, and a More arrow that opens the full list.
+///
+/// The gallery is backed by a dropdown button (`button`) whose items are the full list. That
+/// button is what the simplified ribbon, the More Options menu, key tips, and the command
+/// tests see, so a gallery is one dropdown there. In the classic ribbon the first
+/// `scroll_len` items are the entries the box scrolls through; the rest of the list (such as
+/// Customize Tags) is only in the More menu.
+#[derive(Clone, Copy, Debug)]
+pub struct Gallery {
+    pub button: Button,
+    pub kind: GalleryKind,
+    /// How many entries show at once, and how far an arrow scrolls.
+    pub visible: usize,
+    /// Width of the entry box in points.
+    pub width: f32,
+    /// How many leading items of the list are entries of the box.
+    pub scroll_len: usize,
+}
+
+impl Gallery {
+    pub const fn new(
+        kind: GalleryKind,
+        button: Button,
+        visible: usize,
+        width: f32,
+        scroll_len: usize,
+    ) -> Self {
+        Self {
+            button,
+            kind,
+            visible,
+            width,
+            scroll_len,
+        }
+    }
+
+    /// The full list, which the More arrow opens.
+    pub fn items(&self) -> &'static [Item] {
+        self.button.menu.items()
+    }
+
+    /// The items the box scrolls through.
+    pub fn entries(&self) -> &'static [Item] {
+        let items = self.items();
+        items.get(..self.scroll_len).unwrap_or(items)
+    }
+}
+
 /// One column of a group.
 #[derive(Clone, Copy, Debug)]
 pub enum Column {
+    /// A gallery of entries.
+    Gallery(Gallery),
     /// One large button.
     Large(Button),
     /// Up to three small buttons stacked.
@@ -341,6 +401,7 @@ impl Group {
             .iter()
             .flat_map(|column| -> Vec<&'static Button> {
                 match column {
+                    Column::Gallery(gallery) => vec![&gallery.button],
                     Column::Large(button) => vec![button],
                     Column::Stack(buttons) => buttons.iter().collect(),
                     Column::Rows(rows) => rows.iter().flat_map(|row| row.iter()).collect(),
@@ -531,17 +592,13 @@ const ALL_STYLES: &[Item] = &[
 
 const STYLES: Group = Group {
     name: "Styles",
-    columns: &[
-        Column::Stack(&[
-            Button::small("Heading 1", Icon::Style, ids::STYLE_APPLY)
-                .args(&[str_arg("style", "heading1")]),
-            Button::small("Heading 2", Icon::Style, ids::STYLE_APPLY)
-                .args(&[str_arg("style", "heading2")]),
-            Button::small("Normal", Icon::Style, ids::STYLE_APPLY)
-                .args(&[str_arg("style", "normal")]),
-        ]),
-        Column::Large(Button::large("Styles", Icon::Style, ids::STYLE_APPLY).dropdown(ALL_STYLES)),
-    ],
+    columns: &[Column::Gallery(Gallery::new(
+        GalleryKind::Styles,
+        Button::large("Styles", Icon::Style, ids::STYLE_APPLY).dropdown(ALL_STYLES),
+        2,
+        132.0,
+        11,
+    ))],
 };
 
 const MORE_TAGS: &[Item] = &[
@@ -562,14 +619,13 @@ const MORE_TAGS: &[Item] = &[
 const TAGS: Group = Group {
     name: "Tags",
     columns: &[
-        Column::Stack(&[
-            Button::small("To Do", Icon::TodoTag, ids::TAG_APPLY).args(&[str_arg("tag", "todo")]),
-            Button::small("Important", Icon::Important, ids::TAG_APPLY)
-                .args(&[str_arg("tag", "important")]),
-            Button::small("Question", Icon::Question, ids::TAG_APPLY)
-                .args(&[str_arg("tag", "question")]),
-        ]),
-        Column::Large(Button::large("Tags", Icon::Tag, ids::TAG_APPLY).dropdown(MORE_TAGS)),
+        Column::Gallery(Gallery::new(
+            GalleryKind::Tags,
+            Button::large("Tags", Icon::Tag, ids::TAG_APPLY).dropdown(MORE_TAGS),
+            2,
+            160.0,
+            10,
+        )),
         Column::Large(Button::large("To Do Tag", Icon::TodoTag, ids::TAG_TODO)),
         Column::Large(Button::large("Find Tags", Icon::FindTags, ids::TAG_FIND)),
     ],
@@ -1125,6 +1181,26 @@ const VIEW_GROUPS: &[Group] = &[
     },
 ];
 
+// Help tab
+
+const HELP_GROUPS: &[Group] = &[Group {
+    name: "Help",
+    columns: &[
+        Column::Large(Button::large("Help", Icon::Help, ids::HELP_HELP)),
+        Column::Large(Button::large("Support", Icon::Support, ids::HELP_SUPPORT)),
+        Column::Large(Button::large(
+            "Feedback",
+            Icon::Feedback,
+            ids::HELP_FEEDBACK,
+        )),
+        Column::Large(Button::large(
+            "Show Training",
+            Icon::Training,
+            ids::HELP_TRAINING,
+        )),
+    ],
+}];
+
 /// Every ribbon tab, in OneNote order.
 pub static TABS: &[Tab] = &[
     Tab {
@@ -1161,6 +1237,11 @@ pub static TABS: &[Tab] = &[
         name: "View",
         key: "W",
         kind: TabKind::Groups(VIEW_GROUPS),
+    },
+    Tab {
+        name: "Help",
+        key: "Y",
+        kind: TabKind::Groups(HELP_GROUPS),
     },
 ];
 
@@ -1288,7 +1369,7 @@ mod tests {
     fn tabs_follow_onenote_and_labels_are_unique_per_group() {
         let names: Vec<&str> = TABS.iter().map(|tab| tab.name).collect();
         let onenote = [
-            "File", "Home", "Insert", "Draw", "History", "Review", "View",
+            "File", "Home", "Insert", "Draw", "History", "Review", "View", "Help",
         ];
         assert!(names.iter().all(|name| onenote.contains(name)));
         assert_eq!(names.first(), Some(&"File"));
@@ -1306,6 +1387,52 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// Every gallery column of every tab.
+    fn galleries() -> Vec<&'static Gallery> {
+        let mut out = Vec::new();
+        for tab in TABS {
+            if let TabKind::Groups(groups) = tab.kind {
+                for group in groups {
+                    for column in group.columns {
+                        if let Column::Gallery(gallery) = column {
+                            out.push(gallery);
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn galleries_are_backed_by_a_dropdown_whose_items_are_all_dispatched() {
+        let found = galleries();
+        assert_eq!(found.len(), 2);
+        let dispatched = dispatched();
+        for gallery in found {
+            assert!(matches!(gallery.button.menu, Menu::Dropdown(_)));
+            assert!(gallery.visible >= 1);
+            assert!(gallery.entries().len() >= gallery.visible);
+            assert!(gallery.entries().len() <= gallery.items().len());
+            for item in gallery.items() {
+                assert!(
+                    dispatched
+                        .iter()
+                        .any(|(label, command, _)| *label == item.label
+                            && *command == item.command),
+                    "{} is not covered",
+                    item.label
+                );
+            }
+            assert!(gallery
+                .button
+                .menu
+                .items()
+                .iter()
+                .all(|i| !i.label.is_empty()));
         }
     }
 

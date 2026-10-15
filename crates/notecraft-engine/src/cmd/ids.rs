@@ -42,6 +42,8 @@ command_ids! {
     FILE_OPTIONS = "file.options";
     /// Show the version, build, and licenses.
     FILE_ABOUT = "file.about";
+    /// Copy the version, build, and system details to the clipboard for a bug report.
+    FILE_COPY_ABOUT_INFO = "file.copy_about_info";
 
     // Home tab: Clipboard group
     /// Move the selection to the clipboard.
@@ -284,6 +286,16 @@ command_ids! {
     VIEW_MODE_TOGGLE = "view.mode.toggle";
     /// Use light, dark, or the system color mode.
     VIEW_MODE_SET = "view.mode.set";
+
+    // Help tab
+    /// Open the help for NoteCraft.
+    HELP_HELP = "help.help";
+    /// Find ways to get support.
+    HELP_SUPPORT = "help.support";
+    /// Send feedback about NoteCraft.
+    HELP_FEEDBACK = "help.feedback";
+    /// Show the training for NoteCraft.
+    HELP_TRAINING = "help.training";
 
     // Navigation: the notebook list, the section tabs, and the page list
     /// Show a notebook, at its first section's first page.
