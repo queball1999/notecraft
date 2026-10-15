@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.8 recorded: start page, recents, and file picker.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.9 recorded: status bar, full page view, and shortcuts.
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
 
@@ -309,6 +309,8 @@ Commits:
 
 PR title: `feat(ui): add status bar, full page view, and shortcuts`.
 
+PR 0.9 (PR #15) landed with these changes to the plan. The status bar shows the page position and the zoom; save state waits for auto-save (FM-05), since Phase 0 has nothing to save. Ctrl+E is bound to a new Coming Soon command, `search.all`, until Phase 2 builds search. The shortcut map is built from each command's `default_shortcut` plus a short table of bindings with arguments (Ctrl+2 to Ctrl+9 note tags), so there is one place to declare a shortcut. Commit order: the engine map and its duplicate test are one commit, then the shell dispatch (Ctrl+F1 moved into the map, and egui's own Ctrl+=, Ctrl+-, and Ctrl+0 UI scaling turned off), the full page view, and the status bar.
+
 ## PR 0.10: accessibility
 
 | | |
@@ -385,3 +387,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | 0 | PR 0.5b recorded: the other five tabs, collapse, and key tips (PR #10). |
 | 2026-10-14 | 0 | PR 0.7 recorded: canvas pan, zoom, and paper (PR #13). |
 | 2026-10-14 | 0 | PR 0.8 recorded: start page, recents, and file picker (PR #14). |
+| 2026-10-14 | 0 | PR 0.9 recorded: status bar, full page view, and shortcuts (PR #15). |

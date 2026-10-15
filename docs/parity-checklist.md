@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-11 scored D, SH-12 scored P (start page, recents, open dialogs, PR 0.8).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-09, SH-13, SH-14 scored D (status bar, full page view, shortcut map, PR 0.9).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -18,7 +18,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Area | D | P | M | Total | Done % |
 |---|---:|---:|---:|---:|---:|
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
-| Shell | 6 | 4 | 10 | 20 | 30% |
+| Shell | 9 | 4 | 7 | 20 | 45% |
 | Themes | 5 | 1 | 0 | 6 | 83% |
 | Canvas | 2 | 1 | 9 | 12 | 16% |
 | Ink | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +28,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 23 | 6 | 84 | 113 | 20% |
+| Total | 26 | 6 | 81 | 113 | 23% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -58,11 +58,11 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | SH-06 | Shell | Navigation: notebook list | 0 | D | PR 0.6: notebook pane with color swatches, expandable notebooks and section groups; clicks run nav.notebook.select and nav.section.select (egui_kittest and engine tests). Shows mock notebooks until Phase 1 reads real ones (ST-01) |
 | SH-07 | Shell | Section tabs with colors | 0 | D | PR 0.6: colored section tabs across the page, softened in dark mode, "+" tab (section.new, Coming Soon), overflow menu; clicks run nav.section.select (egui_kittest tests) |
 | SH-08 | Shell | Page list with subpage indent | 0 | D | PR 0.6: page list with Add Page (page.new, Coming Soon), subpages indented two levels, current page highlighted; right of the page in 2016 and 2019, left in 2021 and Microsoft 365; clicks run nav.page.select (egui_kittest tests) |
-| SH-09 | Shell | Status bar (zoom, page info) | 0 | M | |
+| SH-09 | Shell | Status bar (zoom, page info) | 0 | D | PR 0.9 (#15): Page n of m and the zoom, which opens a zoom menu through the zoom commands; test status_bar_shows_the_page_and_zoom_menu. Save state joins with auto-save (FM-05) |
 | SH-11 | Shell | File backstage with recent notebooks and pages | 0 | D | PR 0.8 (#14): start page and the backstage Open page list the last 10 notebooks and pages (saved in config.toml); a row reopens, Clear Recent empties; file.recent.clear Ready; tests recent_rows_reopen_without_the_picker, backstage_open_page_lists_recents_and_opens_files |
 | SH-12 | Shell | Open dialog for notebooks, `.md`, and `.notecraft` | 0 | P | PR 0.8 (#14): file.new_notebook, file.open_notebook, file.open Ready; a path-less command asks the picker (OS dialogs through rfd in the app; a fake in tests); only .md and .notecraft accepted; Phase 0 shows the mock notebooks. Missing: the OS dialogs not yet tried in the running app |
-| SH-13 | Shell | Full page view (F11) | 0 | M | |
-| SH-14 | Shell | OneNote default shortcut map | 0 | M | |
+| SH-13 | Shell | Full page view (F11) | 0 | D | PR 0.9 (#15): view.full_page (F11) and view.normal Ready; only the page shows, with a Normal View button; F11, Esc, or the button leaves; test full_page_view_shows_only_the_page |
+| SH-14 | Shell | OneNote default shortcut map | 0 | D | PR 0.9 (#15): cmd::shortcuts (every default shortcut plus Ctrl+2 to Ctrl+9 tags), dispatched by the shell, Ctrl as Cmd on macOS, idle while a text field has focus; tests reject duplicates and invalid bindings; shortcuts_run_their_commands. Cmd on macOS not yet tried on a Mac (gaps rank 6) |
 | SH-15 | Shell | Keyboard navigation and screen reader labels (AccessKit) | 0 | M | |
 | SH-16 | Shell | Quick Access Toolbar | 3 | M | |
 | SH-17 | Shell | Docked window (Ctrl+Alt+D) | 4 | M | |
@@ -221,3 +221,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | 0 | SH-06, SH-07, SH-08 scored D (navigation on mock notebooks, PR 0.6). |
 | 2026-10-14 | 0 | CV-01 and CV-02 scored D, CV-03 scored P (canvas pan, zoom, paper, PR 0.7). |
 | 2026-10-14 | 0 | SH-11 scored D, SH-12 scored P (start page, recents, open dialogs, PR 0.8). |
+| 2026-10-14 | 0 | SH-09, SH-13, SH-14 scored D (status bar, full page view, shortcut map, PR 0.9). |
