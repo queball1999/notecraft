@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.10 recorded: keyboard navigation and screen reader labels.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: About page recorded.
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
 
@@ -389,6 +389,8 @@ PR 0.5e landed with these changes to the plan. The theme block reuses the existi
 
 PR 0.5f landed with these changes to the plan. A gallery is data in the ribbon spec (`Column::Gallery`): it wraps a dropdown button holding the full list, so the simplified ribbon, the More Options menu, key tips, and the command tests treat it as that one dropdown, and only the classic ribbon draws the box. The arrows scroll the leading entries (all styles; the ten tags that apply, not Customize Tags or Remove Tag) two at a time. The large Styles and Tags buttons and the stacked Heading, Normal, To Do, Important, and Question buttons were removed since the galleries replace them; To Do Tag and Find Tags stay. The Help commands are Coming Soon with no shortcut yet (OneNote's F1 is left to Phase 1), and the Help tab's key tip is Y.
 
+About page landed on feat/about-page, outside the numbered PRs. `file.about` is Ready and opens the backstage on the About entry; the page shows the version, commit, build date, profile, target, app ID, copyright, the MIT and Apache texts, ATTRIBUTION.md, links, and the settings and log folders, with the Microsoft trademark notice always visible. The app (L7) gathers the details into `AppInfo` (build.rs adds the target triple) and passes them to the shell, so the UI crate tests with fake values. A new Ready command, `file.copy_about_info`, backs the Copy button. The UI stack versions (egui, wgpu) are not shown: egui exposes no version constant and reading Cargo.lock at build time would be a fragile hack.
+
 ### PR 0.5f: style and tag galleries, Help tab
 
 | | |
@@ -470,3 +472,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | 0 | PR 0.9 recorded: status bar, full page view, and shortcuts (PR #15). |
 | 2026-10-14 | 0 | PR 0.10 recorded: keyboard navigation and screen reader labels (PR #16). |
 | 2026-10-15 | 0 | Added PR 0.5c to 0.5f (ribbon display options and simplified ribbon, font boxes, color pickers, galleries and Help tab) after a review against OneNote and WordCraft. |
+| 2026-10-15 | 0 | About page recorded (feat/about-page); no change to hours. |

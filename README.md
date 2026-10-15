@@ -67,4 +67,4 @@ NoteCraft is dual-licensed under either of
 
 at your option. Unless you explicitly state otherwise, any contribution you submit for inclusion in NoteCraft, as defined in the Apache-2.0 license, is dual licensed as above, without any additional terms or conditions.
 
-Microsoft, OneNote, and Microsoft 365 are trademarks of Microsoft Corporation. NoteCraft is an independent project and is not affiliated with, sponsored by, or endorsed by Microsoft Corporation. These names are used only to describe the workflow NoteCraft is compatible with.
+Microsoft, OneNote, Office, and Microsoft 365 are trademarks of the Microsoft group of companies. NoteCraft is an independent open-source project. It is not affiliated with, sponsored by, or endorsed by Microsoft Corporation. These names are used only to describe the workflow NoteCraft is compatible with. NoteCraft contains no Microsoft code, artwork, icons, fonts, or templates.

@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: SH-02 evidence: style and tag galleries and the Help tab (PR 0.5f).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: SH-11 evidence: the About page.
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -59,7 +59,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | SH-07 | Shell | Section tabs with colors | 0 | D | PR 0.6: colored section tabs across the page, softened in dark mode, "+" tab (section.new, Coming Soon), overflow menu; clicks run nav.section.select (egui_kittest tests) |
 | SH-08 | Shell | Page list with subpage indent | 0 | D | PR 0.6: page list with Add Page (page.new, Coming Soon), subpages indented two levels, current page highlighted; right of the page in 2016 and 2019, left in 2021 and Microsoft 365; clicks run nav.page.select (egui_kittest tests) |
 | SH-09 | Shell | Status bar (zoom, page info) | 0 | D | PR 0.9 (#15): Page n of m and the zoom, which opens a zoom menu through the zoom commands; test status_bar_shows_the_page_and_zoom_menu. Save state joins with auto-save (FM-05) |
-| SH-11 | Shell | File backstage with recent notebooks and pages | 0 | D | PR 0.8 (#14): start page and the backstage Open page list the last 10 notebooks and pages (saved in config.toml); a row reopens, Clear Recent empties; file.recent.clear Ready; tests recent_rows_reopen_without_the_picker, backstage_open_page_lists_recents_and_opens_files |
+| SH-11 | Shell | File backstage with recent notebooks and pages | 0 | D | PR 0.8 (#14): start page and the backstage Open page list the last 10 notebooks and pages (saved in config.toml); a row reopens, Clear Recent empties; file.recent.clear Ready; tests recent_rows_reopen_without_the_picker, backstage_open_page_lists_recents_and_opens_files. About page (feat/about-page): the About entry shows the version, commit, build date, profile, target, app ID, copyright, licenses, third-party notices, links, settings and log folders, a Copy button (file.copy_about_info), and the Microsoft trademark notice; file.about and file.copy_about_info Ready; tests in about.rs (file_about_is_ready_and_opens_the_page, page_shows_version_notice_and_license, copy_button_puts_the_details_on_the_clipboard, about_controls_are_named_and_pressable) |
 | SH-12 | Shell | Open dialog for notebooks, `.md`, and `.notecraft` | 0 | P | PR 0.8 (#14): file.new_notebook, file.open_notebook, file.open Ready; a path-less command asks the picker (OS dialogs through rfd in the app; a fake in tests); only .md and .notecraft accepted; Phase 0 shows the mock notebooks. Missing: the OS dialogs not yet tried in the running app |
 | SH-13 | Shell | Full page view (F11) | 0 | D | PR 0.9 (#15): view.full_page (F11) and view.normal Ready; only the page shows, with a Normal View button; F11, Esc, or the button leaves; test full_page_view_shows_only_the_page |
 | SH-14 | Shell | OneNote default shortcut map | 0 | D | PR 0.9 (#15): cmd::shortcuts (every default shortcut plus Ctrl+2 to Ctrl+9 tags), dispatched by the shell, Ctrl as Cmd on macOS, idle while a text field has focus; tests reject duplicates and invalid bindings; shortcuts_run_their_commands. Cmd on macOS not yet tried on a Mac (gaps rank 6) |
@@ -228,3 +228,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 0 | SH-02 evidence: font and size boxes with installed fonts (PR 0.5d). |
 | 2026-10-15 | 0 | SH-02 evidence: Office-style color menus, Recent Colors, and the Colors dialog (PR 0.5e). |
 | 2026-10-15 | 0 | SH-02 evidence: Styles and Tags galleries and the Help tab (PR 0.5f). |
+| 2026-10-15 | 0 | SH-11 evidence: the About page (feat/about-page). |

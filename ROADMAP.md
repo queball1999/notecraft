@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: screen reader names, keyboard order, and focus rings (PR 0.10). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: the About page (version, licenses, trademark notice). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -104,3 +104,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-15 | Phase 0 PR 0.5d: Font and Font Size are editable boxes, as in OneNote: they show the current value (Calibri, 11), the font box lists the installed families from a background scan that reads only each font's name table, and typing filters it; the size box takes any size from 1 to 1638. |
 | 2026-10-15 | Phase 0 PR 0.5e: color menus in Office's layout: Automatic or No Color, Theme Colors, Standard Colors, Recent Colors (saved in settings), and More Colors, which opens a Colors dialog with Standard and Custom pages and New over Current. Split color buttons show the last color as the bar under their icon and apply it; Text Highlight Color offers fifteen colors with No Color last. |
 | 2026-10-15 | Phase 0 PR 0.5f: Styles and Tags are in-ribbon galleries, as in OneNote: a bordered box with two entries drawn in their own style (Heading 1 and Heading 2; To Do and Important with their icons and Ctrl+number shortcuts), arrows that scroll two entries at a time, and a More arrow for the full list; the simplified ribbon shows each as one dropdown. The Help tab (Help, Support, Feedback, Show Training) follows View; its commands are Coming Soon. |
+| 2026-10-15 | Phase 0: the File backstage About page is real (feat/about-page): version, commit, build date, profile, target, app ID, copyright, MIT and Apache texts, third-party notices, links, settings and log folders, a Copy button for bug reports (file.copy_about_info), and the Microsoft trademark notice. |
