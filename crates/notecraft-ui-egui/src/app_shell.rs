@@ -6,7 +6,10 @@
 use notecraft_engine::cmd::{ids, CommandError, CommandId, Map, Registry, Value};
 use notecraft_engine::Session;
 
+use craft_ui::buttons::IconButton;
+
 use crate::canvas::{self, CanvasUi};
+use crate::icons::{self, Icon, IconColors};
 use crate::nav::{self, NavUi};
 use crate::picker::{FilePicker, NoPicker};
 use crate::ribbon::{self, Clicked, Ribbon};
@@ -250,6 +253,10 @@ impl AppShell {
             self.toasts.show(ui.ctx());
             return;
         }
+        if self.session.view().full_page && !self.session.notebooks().is_empty() {
+            self.full_page_ui(ui, &tokens);
+            return;
+        }
 
         let collapsed = self.session.view().ribbon_collapsed;
         let panel = egui::Frame::side_top_panel(ui.style());
@@ -313,6 +320,53 @@ impl AppShell {
             })
             .inner;
         // Like the OS dark mode, the canvas width is reported, not commanded.
+        self.session.view_mut().canvas_width = canvas_width.max(0.0) as u32;
+        self.dispatch_all(clicked);
+        self.toasts.show(ui.ctx());
+    }
+
+    /// Full Page View: only the page, with a button at the top right (and Esc or F11) to go
+    /// back to the normal view.
+    fn full_page_ui(&mut self, ui: &mut egui::Ui, tokens: &ThemeTokens) {
+        let mut clicked = Vec::new();
+        let leave =
+            ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+        let session = &self.session;
+        let canvas_ui = &mut self.canvas;
+        let canvas_width = egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
+            .show(ui, |ui| {
+                let page = ui.max_rect();
+                let width = canvas::show(ui, page, session, canvas_ui, tokens, &mut clicked);
+                let size = egui::vec2(32.0, 32.0);
+                // Left of the vertical scroll bar.
+                let at = egui::pos2(page.max.x - size.x - 20.0, page.min.y + 8.0);
+                let rect = egui::Rect::from_min_size(at, size);
+                let style = ribbon::button_style(tokens);
+                let exit = ui
+                    .scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                        IconButton::new("Normal View", size, &style).show(ui, |ui, rect, color| {
+                            let colors = IconColors {
+                                fg: color,
+                                accent: tokens.accent,
+                            };
+                            icons::paint(ui.painter(), rect.shrink(6.0), Icon::NormalView, colors);
+                        })
+                    })
+                    .inner;
+                if exit
+                    .on_hover_text("Exit Full Page View (F11 or Esc)")
+                    .clicked()
+                    || leave
+                {
+                    clicked.push(Clicked {
+                        command: ids::VIEW_NORMAL,
+                        args: Value::Null,
+                    });
+                }
+                width
+            })
+            .inner;
         self.session.view_mut().canvas_width = canvas_width.max(0.0) as u32;
         self.dispatch_all(clicked);
         self.toasts.show(ui.ctx());
@@ -1191,6 +1245,48 @@ mod tests {
         harness.run();
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::N);
         harness.run();
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn full_page_view_shows_only_the_page() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let shows_chrome = |harness: &egui_kittest::Harness<'_, AppShell>| {
+            harness.query_by_label("Home").is_some()
+                && harness.query_by_label("Notebooks").is_some()
+                && harness.query_all_by_label("Quick Notes").next().is_some()
+        };
+        assert!(shows_chrome(&harness));
+
+        // F11 in, F11 out.
+        harness.key_press(egui::Key::F11);
+        harness.run();
+        assert!(harness.state().session().view().full_page);
+        assert!(harness.query_by_label("Home").is_none());
+        assert!(harness.query_by_label("Notebooks").is_none());
+        assert!(harness.query_all_by_label("Quick Notes").next().is_none());
+        let _ = harness.get_by_label("Canvas");
+        harness.key_press(egui::Key::F11);
+        harness.run();
+        assert!(shows_chrome(&harness));
+
+        // The View tab button in, Esc out.
+        harness.get_by_label("View").click();
+        harness.run();
+        harness.get_by_label("Full Page View").click();
+        harness.run();
+        assert!(harness.state().session().view().full_page);
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert!(!harness.state().session().view().full_page);
+
+        // The corner button out.
+        harness.key_press(egui::Key::F11);
+        harness.run();
+        harness.get_by_label("Normal View").click();
+        harness.run();
+        assert!(shows_chrome(&harness));
         assert!(toasts(&harness).is_empty());
     }
 
