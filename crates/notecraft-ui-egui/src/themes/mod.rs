@@ -63,6 +63,7 @@ mod tests {
             "sidebar_selected" => color(tokens.sidebar_selected),
             "canvas_bg" => color(tokens.canvas_bg),
             "canvas_rule" => color(tokens.canvas_rule),
+            "canvas_margin_rule" => color(tokens.canvas_margin_rule),
             "text" => color(tokens.text),
             "border" => color(tokens.border),
             "radius" => tokens.radius.to_string(),
@@ -77,7 +78,7 @@ mod tests {
     fn palettes_match_the_themes_doc() {
         for preset in Preset::ALL {
             let rows = doc_rows(preset);
-            assert_eq!(rows.len(), 16, "{} table rows", preset.label());
+            assert_eq!(rows.len(), 17, "{} table rows", preset.label());
             let light = ThemeTokens::for_variant(preset, false);
             let dark = ThemeTokens::for_variant(preset, true);
             for (token, light_doc, dark_doc) in rows {
