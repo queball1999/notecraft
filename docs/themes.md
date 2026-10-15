@@ -70,7 +70,7 @@ Flat purple ribbon with white text, light gray navigation, square corners, no sh
 | `sidebar_selected` | `#D9CCE6` | `#4A3D57` |
 | `canvas_bg` | `#FFFFFF` | `#1E1E1E` |
 | `canvas_rule` | `#C9DDF0` | `#34404C` |
-| `canvas_margin_rule` | `#E8A0A0` | `#7A3B3B` |
+| `canvas_margin_rule` | `#D86868` | `#9A4646` |
 | `text` | `#1F1F1F` | `#EDEDED` |
 | `border` | `#D2CDD8` | `#403A47` |
 | `radius` | 0 | 0 |
@@ -94,7 +94,7 @@ Slightly deeper purple, cleaner spacing, 2 px corners.
 | `sidebar_selected` | `#DDD0EA` | `#463A54` |
 | `canvas_bg` | `#FFFFFF` | `#1D1D1D` |
 | `canvas_rule` | `#CADCEB` | `#333E49` |
-| `canvas_margin_rule` | `#E49A9A` | `#783A3E` |
+| `canvas_margin_rule` | `#D46262` | `#984549` |
 | `text` | `#1E1E1E` | `#ECECEC` |
 | `border` | `#D6D1DC` | `#3E3845` |
 | `radius` | 2 | 2 |
@@ -118,7 +118,7 @@ Light ribbon with a purple accent only on the selected tab, muted colors, minima
 | `sidebar_selected` | `#E6DDF0` | `#3D3447` |
 | `canvas_bg` | `#FFFFFF` | `#1B1B1B` |
 | `canvas_rule` | `#D3E1EE` | `#30383F` |
-| `canvas_margin_rule` | `#E8A5A5` | `#7C3F3F` |
+| `canvas_margin_rule` | `#DA6C6C` | `#9C4A4A` |
 | `text` | `#202020` | `#EAEAEA` |
 | `border` | `#E0DEE3` | `#3A3A3A` |
 | `radius` | 3 | 3 |
@@ -142,7 +142,7 @@ Fluent-style: soft surfaces, rounded corners, light blur feel (simulated with la
 | `sidebar_selected` | `#E3D8F0` | `#3F3550` |
 | `canvas_bg` | `#FFFFFF` | `#1A1A1C` |
 | `canvas_rule` | `#D5E2EF` | `#2F3640` |
-| `canvas_margin_rule` | `#E6A0A8` | `#7A3C44` |
+| `canvas_margin_rule` | `#D66874` | `#9A4752` |
 | `text` | `#1C1C1C` | `#EDEDED` |
 | `border` | `#E2DDE8` | `#3B3842` |
 | `radius` | 6 | 6 |
@@ -175,3 +175,4 @@ Every preset must pass WCAG AA (4.5:1) for `text` on `canvas_bg`, `ribbon_text` 
 | 2026-10-14 | 0 | Four presets and the OS UI font implemented (PR 0.4). OneNote 2016 and 2019 dark accents darkened to pass WCAG AA. Font decision: no bundled fallback; egui's built-in fonts are the fallback. |
 | 2026-10-14 | 0 | Ribbon buttons have no fill at rest in every preset; `raised` keeps its border (fix after PR 0.5). |
 | 2026-10-15 | 0 | New token `canvas_margin_rule` (red margin line on ruled paper), a soft red in light and a dim red in dark for each preset; not contrast checked because it is decorative. |
+| 2026-10-15 | 0 | `canvas_margin_rule` made stronger in every preset (light and dark) so the margin line reads clearly, after maintainer review. |
