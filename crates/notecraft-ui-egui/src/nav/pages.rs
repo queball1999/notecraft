@@ -12,6 +12,7 @@ pub(crate) fn show(ui: &mut Ui, session: &Session, t: &ThemeTokens, out: &mut Ve
     ui.add_space(6.0);
     let (add, _) = Row {
         label: "Add Page",
+        item: false,
         selected: false,
         level: 0,
         swatch: None,
@@ -46,6 +47,7 @@ pub(crate) fn show(ui: &mut Ui, session: &Session, t: &ThemeTokens, out: &mut Ve
                     label: page.display_title(),
                     selected: current == Some(page.id.as_str()),
                     level: usize::from(page.level),
+                    item: true,
                     swatch: None,
                     arrow: None,
                     muted: false,

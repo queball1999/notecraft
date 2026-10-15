@@ -9,6 +9,7 @@
 )]
 #![forbid(unsafe_code)]
 
+mod a11y;
 mod app_shell;
 pub mod canvas;
 pub mod color;

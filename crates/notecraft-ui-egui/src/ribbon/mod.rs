@@ -302,7 +302,7 @@ impl Ribbon {
                 })
             })
             .inner;
-        if response
+        if crate::a11y::plain_button(response)
             .on_hover_text(format!("{label} (Ctrl+F1)"))
             .clicked()
         {

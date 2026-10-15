@@ -78,6 +78,7 @@ pub fn show(
             })
         })
         .inner;
+    name_scroll_bars(ui.ctx(), output.id);
 
     // The scroll area owns the scroll position unless this frame pans by dragging.
     let offset = output.state.offset;
@@ -113,6 +114,18 @@ fn zoom_gestures(ui: &egui::Ui, rect: Rect, state: &mut CanvasUi, clicked: &mut 
             command: ids::VIEW_ZOOM,
             args: Value::Object(args),
         });
+    }
+}
+
+/// Name the scroll bars, which egui leaves unlabeled, so a screen reader says which one it is.
+/// egui gives the bar for axis `d` (0 horizontal, 1 vertical) the id `area.with(d)`; a bar not
+/// shown this frame is skipped so no empty node is made for it.
+fn name_scroll_bars(ctx: &egui::Context, area: egui::Id) {
+    for (axis, name) in [(0_usize, "Horizontal"), (1, "Vertical")] {
+        let id = area.with(axis);
+        if ctx.read_response(id).is_some() {
+            ctx.accesskit_node_builder(id, |node| node.set_label(name));
+        }
     }
 }
 

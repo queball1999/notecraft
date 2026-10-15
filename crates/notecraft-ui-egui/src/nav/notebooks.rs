@@ -37,6 +37,7 @@ pub(crate) fn show(
                     swatch: Some(swatch_color(notebook.color, t)),
                     arrow: Some(expanded),
                     muted: false,
+                    item: true,
                 }
                 .show(ui, t);
                 if response.clicked() {
@@ -80,6 +81,7 @@ fn nodes(
                     swatch: Some(swatch_color(section.color, t)),
                     arrow: None,
                     muted: false,
+                    item: true,
                 }
                 .show(ui, t);
                 if response.clicked() {
@@ -95,6 +97,7 @@ fn nodes(
                     swatch: None,
                     arrow: Some(expanded),
                     muted: true,
+                    item: true,
                 }
                 .show(ui, t);
                 if response.clicked() {

@@ -29,18 +29,30 @@ pub const SIDE_WIDTH: f32 = 220.0;
 /// up by name.
 pub const REGIONS: [&str; 4] = ["Zoom 100%", "Notebooks", "Add Page", "Canvas"];
 
-/// Give the panel resize handles a role and a name. egui leaves them unlabeled, and they are
-/// stops in the keyboard Tab order, so a screen reader would otherwise announce nothing.
-fn name_splitters(ctx: &egui::Context) {
-    for (panel, name) in [
-        ("notebooks", "Notebook pane width"),
-        ("pages", "Page list width"),
-    ] {
+/// The panel resize handles: their egui ids and accessible names.
+const SPLITTERS: [(&str, &str); 2] = [
+    ("notebooks", "Notebook pane width"),
+    ("pages", "Page list width"),
+];
+
+/// Give the panel resize handles a role and a name, and a focus ring. egui leaves them
+/// unlabeled and draws nothing when they have keyboard focus, yet they are stops in the Tab
+/// order, so a screen reader would announce nothing and a keyboard user would lose the focus.
+fn finish_splitters(ui: &egui::Ui, tokens: &ThemeTokens) {
+    let ctx = ui.ctx();
+    for (panel, name) in SPLITTERS {
         let id = egui::Id::new(panel).with("__resize");
         ctx.accesskit_node_builder(id, |node| {
             node.set_role(egui::accesskit::Role::Splitter);
             node.set_label(name);
         });
+        if ctx.memory(|memory| memory.has_focus(id)) {
+            if let Some(handle) = ctx.read_response(id) {
+                let stroke = egui::Stroke::new(1.5, tokens.accent);
+                ui.painter()
+                    .rect_stroke(handle.rect, 0.0, stroke, egui::StrokeKind::Inside);
+            }
+        }
     }
 }
 
@@ -341,7 +353,7 @@ impl AppShell {
         ui.scope_builder(egui::UiBuilder::new().max_rect(status_rect), |ui| {
             status::show(ui, session, &tokens, &mut clicked);
         });
-        name_splitters(ui.ctx());
+        finish_splitters(ui, &tokens);
         // Like the OS dark mode, the canvas width is reported, not commanded.
         self.session.view_mut().canvas_width = canvas_width.max(0.0) as u32;
         self.dispatch_all(clicked);
@@ -377,7 +389,7 @@ impl AppShell {
                         })
                     })
                     .inner;
-                if exit
+                if crate::a11y::plain_button(exit)
                     .on_hover_text("Exit Full Page View (F11 or Esc)")
                     .clicked()
                     || leave
@@ -1339,7 +1351,7 @@ mod tests {
     }
 
     /// Roles a user can act on; each must have a name for screen readers.
-    const ACTIONABLE: [egui::accesskit::Role; 14] = {
+    const ACTIONABLE: [egui::accesskit::Role; 16] = {
         use egui::accesskit::Role;
         [
             Role::Button,
@@ -1353,8 +1365,10 @@ mod tests {
             Role::SpinButton,
             Role::Link,
             Role::TreeItem,
+            Role::ListItem,
             Role::ListBoxOption,
             Role::Splitter,
+            Role::ScrollBar,
             Role::Unknown,
         ]
     };
@@ -1398,6 +1412,92 @@ mod tests {
         let mut start = harness_for(AppShell::empty());
         start.run();
         assert_eq!(unnamed(&start), Vec::<String>::new(), "start page");
+    }
+
+    #[test]
+    fn canvas_scroll_bars_have_names() {
+        use egui::accesskit::Role;
+        use egui_kittest::kittest::NodeT;
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        for name in ["Horizontal", "Vertical"] {
+            assert_eq!(
+                harness.get_by_label(name).accesskit_node().role(),
+                Role::ScrollBar
+            );
+        }
+    }
+
+    #[test]
+    fn buttons_are_push_buttons_and_rows_report_selection() {
+        use egui::accesskit::Role;
+        use egui_kittest::kittest::{By, NodeT};
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        // A toggled state makes Narrator say "toggle button, off" and drops UIA Invoke.
+        let toggles: Vec<String> = harness
+            .query_all(By::new().role(Role::Button))
+            .filter(|node| node.accesskit_node().data().toggled().is_some())
+            .map(|node| node.accesskit_node().label().unwrap_or_default())
+            .collect();
+        assert_eq!(toggles, Vec::<String>::new());
+        // Rows are list items with a selection state (UIA SelectionItem); Add Page is a
+        // command, so it stays a push button.
+        let row = |label: &str| {
+            let node = harness.get_by_label(label);
+            let ak = node.accesskit_node();
+            (ak.role(), ak.data().is_selected())
+        };
+        assert_eq!(row("Welcome"), (Role::ListItem, Some(true)));
+        assert_eq!(row("Grocery list"), (Role::ListItem, Some(false)));
+        assert_eq!(row("My Notebook"), (Role::ListItem, Some(false)));
+        assert_eq!(row("Add Page"), (Role::Button, None));
+    }
+
+    /// Every control a screen reader presses (button, tab, menu item, row) that does not
+    /// offer the Click action, as "role label". Without it Narrator cannot activate the
+    /// control: UI Automation gets no Invoke, Toggle, Selection, or Expand pattern to use.
+    fn unpressable(harness: &egui_kittest::Harness<'_, AppShell>) -> Vec<String> {
+        use egui::accesskit::{Action, Role};
+        use egui_kittest::kittest::{By, NodeT};
+        const PRESSABLE: [Role; 9] = [
+            Role::Button,
+            Role::Tab,
+            Role::CheckBox,
+            Role::RadioButton,
+            Role::MenuItem,
+            Role::Link,
+            Role::TreeItem,
+            Role::ListItem,
+            Role::ListBoxOption,
+        ];
+        harness
+            .query_all(By::new().predicate(|node| PRESSABLE.contains(&node.role())))
+            .filter_map(|node| {
+                let ak = node.accesskit_node();
+                let data = ak.data();
+                (!data.supports_action(Action::Click) && !data.is_disabled())
+                    .then(|| format!("{:?} {}", ak.role(), ak.label().unwrap_or_default()))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_control_can_be_pressed_by_a_screen_reader() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        for tab in ["Home", "Insert", "Draw", "History", "Review", "View"] {
+            harness.get_by_label(tab).click();
+            harness.run();
+            assert_eq!(unpressable(&harness), Vec::<String>::new(), "{tab} tab");
+        }
+        harness.get_by_label("File").click();
+        harness.run();
+        assert_eq!(unpressable(&harness), Vec::<String>::new(), "backstage");
+
+        let mut start = harness_for(AppShell::empty());
+        start.run();
+        assert_eq!(unpressable(&start), Vec::<String>::new(), "start page");
     }
 
     fn harness_for(shell: AppShell) -> egui_kittest::Harness<'static, AppShell> {

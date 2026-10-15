@@ -80,6 +80,7 @@ pub(super) fn show(
                     icons::paint(ui.painter(), rect.shrink(6.0), Icon::Back, colors);
                 },
             );
+            let back = crate::a11y::plain_button(back);
             if back.on_hover_text("Back to your notes (Esc)").clicked() {
                 ribbon.close_backstage();
             }

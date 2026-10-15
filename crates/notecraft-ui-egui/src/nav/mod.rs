@@ -8,9 +8,7 @@ mod sections;
 
 use std::collections::BTreeSet;
 
-use egui::{
-    Color32, CornerRadius, FontId, Rect, Response, Sense, Stroke, Ui, WidgetInfo, WidgetType,
-};
+use egui::{Color32, CornerRadius, FontId, Rect, Response, Sense, Stroke, Ui};
 use notecraft_engine::cmd::{CommandId, Map, Value};
 
 use crate::ribbon::Clicked;
@@ -90,6 +88,8 @@ pub(crate) struct Row<'a> {
     /// Some(expanded) draws a disclosure arrow.
     pub arrow: Option<bool>,
     pub muted: bool,
+    /// A notebook, section, or page a screen reader selects, rather than a command button.
+    pub item: bool,
 }
 
 impl Row<'_> {
@@ -100,7 +100,12 @@ impl Row<'_> {
             ui.allocate_exact_size(egui::vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
         let label = self.label;
         let selected = self.selected;
-        response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, selected, label));
+        if self.item {
+            crate::a11y::selectable_row(&response, label, selected);
+        } else {
+            response
+                .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+        }
 
         let painter = ui.painter_at(rect);
         let fill = if self.selected {

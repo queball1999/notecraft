@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-15 scored P (screen reader names, keyboard order, focus ring, PR 0.10).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: SH-15 evidence: push buttons, selectable rows, splitter focus ring, named scroll bars (PR 0.10).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -63,7 +63,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | SH-12 | Shell | Open dialog for notebooks, `.md`, and `.notecraft` | 0 | P | PR 0.8 (#14): file.new_notebook, file.open_notebook, file.open Ready; a path-less command asks the picker (OS dialogs through rfd in the app; a fake in tests); only .md and .notecraft accepted; Phase 0 shows the mock notebooks. Missing: the OS dialogs not yet tried in the running app |
 | SH-13 | Shell | Full page view (F11) | 0 | D | PR 0.9 (#15): view.full_page (F11) and view.normal Ready; only the page shows, with a Normal View button; F11, Esc, or the button leaves; test full_page_view_shows_only_the_page |
 | SH-14 | Shell | OneNote default shortcut map | 0 | D | PR 0.9 (#15): cmd::shortcuts (every default shortcut plus Ctrl+2 to Ctrl+9 tags), dispatched by the shell, Ctrl as Cmd on macOS, idle while a text field has focus; tests reject duplicates and invalid bindings; shortcuts_run_their_commands. Cmd on macOS not yet tried on a Mac (gaps rank 6) |
-| SH-15 | Shell | Keyboard navigation and screen reader labels (AccessKit) | 0 | P | PR 0.10 (#16): every actionable AccessKit node named (panel splitters added); Tab order ribbon, navigation, section tabs, page, status bar; accent focus ring on every control including the canvas; tests every_control_has_a_screen_reader_name, tab_moves_through_ribbon_navigation_page_and_status_bar. Missing: runs with Narrator (Windows) and VoiceOver (macOS) |
+| SH-15 | Shell | Keyboard navigation and screen reader labels (AccessKit) | 0 | P | PR 0.10 (#16): every actionable AccessKit node named (panel splitters added); Tab order ribbon, navigation, section tabs, page, status bar; accent focus ring on every control including the canvas and the splitters; buttons are push buttons (UIA Invoke) and navigation rows are selectable list items (UIA SelectionItem), checked in the running app; canvas scroll bars named; tests every_control_has_a_screen_reader_name, every_control_can_be_pressed_by_a_screen_reader, buttons_are_push_buttons_and_rows_report_selection, tab_moves_through_ribbon_navigation_page_and_status_bar. Missing: runs with Narrator (Windows) and VoiceOver (macOS) |
 | SH-16 | Shell | Quick Access Toolbar | 3 | M | |
 | SH-17 | Shell | Docked window (Ctrl+Alt+D) | 4 | M | |
 | SH-18 | Shell | Browser version | 4 | M | |
@@ -223,3 +223,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | 0 | SH-11 scored D, SH-12 scored P (start page, recents, open dialogs, PR 0.8). |
 | 2026-10-14 | 0 | SH-09, SH-13, SH-14 scored D (status bar, full page view, shortcut map, PR 0.9). |
 | 2026-10-14 | 0 | SH-15 scored P (screen reader names, keyboard order, focus ring, PR 0.10). |
+| 2026-10-15 | 0 | SH-15 evidence: buttons are push buttons, navigation rows selectable list items, splitter focus ring, named scroll bars; checked in the running app (PR 0.10). |

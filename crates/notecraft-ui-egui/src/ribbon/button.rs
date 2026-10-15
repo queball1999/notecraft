@@ -92,6 +92,7 @@ pub(super) fn show(
         let colors = IconColors { fg: color, accent };
         paint_contents(ui, rect, button, galley, colors, has_menu);
     });
+    let response = crate::a11y::plain_button(response);
 
     let arrow = arrow_rect(response.rect, button.size);
     let on_arrow = response

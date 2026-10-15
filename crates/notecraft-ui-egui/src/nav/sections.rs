@@ -109,18 +109,20 @@ pub(crate) fn show(
             egui::vec2(BUTTON_WIDTH - 2.0, strip.height() - 8.0),
         );
         let glyph = glyph.to_owned();
-        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-            IconButton::new(label, rect.size(), &style).show(ui, |ui, rect, color| {
-                ui.painter().text(
-                    rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    glyph,
-                    FontId::proportional(15.0),
-                    color,
-                );
+        let response = ui
+            .scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                IconButton::new(label, rect.size(), &style).show(ui, |ui, rect, color| {
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        glyph,
+                        FontId::proportional(15.0),
+                        color,
+                    );
+                })
             })
-        })
-        .inner
+            .inner;
+        crate::a11y::plain_button(response)
     };
 
     let new_section = button(ui, 0.0, "New Section", "+");
