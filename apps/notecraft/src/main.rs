@@ -56,7 +56,7 @@ impl eframe::App for App {
         let view = *self.shell.session().view();
         self.store.update(|p| {
             p.theme.observe(view.theme_preset, view.theme_mode);
-            p.ribbon.collapsed = view.ribbon_collapsed;
+            p.ribbon.observe(view.ribbon_layout, view.ribbon_show);
         });
         let recents = self.shell.session().recents();
         self.store.update(|p| p.recent.observe(recents));
@@ -156,7 +156,7 @@ fn main() -> eframe::Result<()> {
     let store = open_settings();
     let window = store.get().window.clone();
     let theme = store.get().theme.clone();
-    let ribbon_collapsed = store.get().ribbon.collapsed;
+    let ribbon = (store.get().ribbon.layout(), store.get().ribbon.show());
     let recents = store.get().recent.recents();
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
@@ -193,7 +193,7 @@ fn main() -> eframe::Result<()> {
                 .with_fonts(OsFonts::load())
                 .with_picker(Box::new(picker::OsPicker));
             shell.set_theme(theme.preset(), theme.mode());
-            shell.set_ribbon_collapsed(ribbon_collapsed);
+            shell.set_ribbon(ribbon.0, ribbon.1);
             // Reopen what was open last; with nothing recent, the start page shows.
             shell.set_recents(recents);
             shell.reopen_last();

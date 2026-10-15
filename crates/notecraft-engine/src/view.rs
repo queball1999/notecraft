@@ -1,5 +1,5 @@
 //! View state that commands change and the front end draws: the theme preset and color mode
-//! (docs/themes.md section 5), whether the ribbon is collapsed, the canvas zoom, and how a
+//! (docs/themes.md section 5), the ribbon's layout and how much of it shows, the canvas zoom, and how a
 //! page looks (rule lines, page color, paper size). The colors themselves live in the front
 //! end.
 
@@ -74,6 +74,63 @@ impl ThemeMode {
     }
 }
 
+/// The ribbon's layout (Ribbon Display Options, Ribbon Layout). Ids are the
+/// `ribbon.layout` setting values.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum RibbonLayout {
+    /// Groups of large and small buttons under the tab strip.
+    #[default]
+    Classic,
+    /// One row of icon buttons; what does not fit goes in a More Options menu.
+    Simplified,
+}
+
+impl RibbonLayout {
+    pub const ALL: [Self; 2] = [Self::Classic, Self::Simplified];
+
+    /// The setting and command argument value: `classic` or `simplified`.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Classic => "classic",
+            Self::Simplified => "simplified",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|layout| layout.id() == id)
+    }
+}
+
+/// How much of the ribbon shows (Ribbon Display Options, Show Ribbon). Ids are the
+/// `ribbon.show` setting values.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum RibbonShow {
+    /// Tabs and commands.
+    #[default]
+    Always,
+    /// Tabs only; clicking a tab shows its commands over the page until one is used.
+    TabsOnly,
+    /// No tabs or commands until the pointer reaches the top of the window.
+    FullScreen,
+}
+
+impl RibbonShow {
+    pub const ALL: [Self; 3] = [Self::Always, Self::TabsOnly, Self::FullScreen];
+
+    /// The setting and command argument value: `always`, `tabs`, or `full_screen`.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Always => "always",
+            Self::TabsOnly => "tabs",
+            Self::FullScreen => "full_screen",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|show| show.id() == id)
+    }
+}
+
 /// How a page looks behind its content. Phase 0 keeps one per page in the session; Phase 1
 /// stores it in the page file.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -92,8 +149,11 @@ pub struct ViewState {
     /// Whether the OS is in dark mode, as last reported by the front end. Only used to
     /// resolve [`ThemeMode::System`].
     pub system_dark: bool,
-    /// The ribbon shows only its tab names (`view.ribbon.toggle`, Ctrl+F1).
-    pub ribbon_collapsed: bool,
+    /// Classic or simplified ribbon (`view.ribbon.layout`).
+    pub ribbon_layout: RibbonLayout,
+    /// How much of the ribbon shows (`view.ribbon.show`; Ctrl+F1 switches between
+    /// always and tabs only).
+    pub ribbon_show: RibbonShow,
     /// Full Page View (`view.full_page`, F11): only the page shows.
     pub full_page: bool,
     /// Canvas zoom in percent, 10 to 400 (`view.zoom` and friends).
@@ -109,7 +169,8 @@ impl Default for ViewState {
             theme_preset: ThemePreset::default(),
             theme_mode: ThemeMode::default(),
             system_dark: false,
-            ribbon_collapsed: false,
+            ribbon_layout: RibbonLayout::default(),
+            ribbon_show: RibbonShow::default(),
             full_page: false,
             zoom_percent: 100,
             canvas_width: 0,
@@ -139,6 +200,12 @@ mod tests {
         }
         for mode in ThemeMode::ALL {
             assert_eq!(ThemeMode::from_id(mode.id()), Some(mode));
+        }
+        for layout in RibbonLayout::ALL {
+            assert_eq!(RibbonLayout::from_id(layout.id()), Some(layout));
+        }
+        for show in RibbonShow::ALL {
+            assert_eq!(RibbonShow::from_id(show.id()), Some(show));
         }
         assert_eq!(ThemePreset::from_id("M365"), None);
         assert_eq!(ThemeMode::from_id(""), None);

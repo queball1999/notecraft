@@ -3,37 +3,64 @@
 //! it (AGENTS.md section 4). A button whose command is Coming Soon says so in its tooltip, and
 //! clicking it shows the Coming Soon toast.
 //!
-//! The ribbon collapses to its tab strip (`view.ribbon.toggle`: Ctrl+F1, the chevron, or a
-//! double click on a tab). While collapsed, clicking a tab shows its groups over the page
-//! until a button is used or the user clicks elsewhere. Key tips are in [`keytips`].
+//! The chevron at the body's lower right opens Ribbon Display Options, as in OneNote: the
+//! classic or the simplified layout ([`simplified`], `view.ribbon.layout`), and how much shows
+//! (`view.ribbon.show`): always, tabs only, or nothing until the pointer reaches the top of
+//! the window (full-screen mode). Ctrl+F1 and a double click on a tab switch between always
+//! and tabs only. With tabs only, clicking a tab shows its groups over the page until a button
+//! is used or the user clicks elsewhere. Key tips are in [`keytips`].
 
 mod backstage;
 mod button;
 mod group;
 pub(crate) mod keytips;
 mod menus;
+mod simplified;
 pub mod spec;
 mod tab;
 
 pub(crate) use button::style as button_style;
 
 use craft_ui::buttons::IconButton;
-use egui::{Align, Id, Key, Layout, Order, Rect, Sense, Stroke, Ui, UiBuilder};
+use egui::{
+    Align, Id, Key, Layout, Order, Popup, PopupCloseBehavior, Rect, Sense, SetOpenCommand, Stroke,
+    Ui, UiBuilder,
+};
 use notecraft_engine::cmd::{ids, CommandId, Registry, Value};
 use notecraft_engine::recent::Recents;
+use notecraft_engine::view::{RibbonLayout, RibbonShow};
 
 use crate::themes::ThemeTokens;
 use keytips::{Action, KeyTips, Mode};
-use spec::{Arg, Button, TabKind, TABS};
+use spec::{str_arg, Arg, Button, TabKind, TABS};
 
 /// Height of the tab strip, in points.
 pub const TAB_STRIP_HEIGHT: f32 = 26.0;
-/// Height of the body under the tab strip, in points.
+/// Height of the classic body under the tab strip, in points.
 pub const BODY_HEIGHT: f32 = 96.0;
-/// Total ribbon height.
+/// Total height of the classic ribbon.
 pub const HEIGHT: f32 = TAB_STRIP_HEIGHT + BODY_HEIGHT;
-/// Room kept at the right of the body for the collapse chevron.
+/// Room kept at the right of the body for the display options chevron.
 const CHEVRON_WIDTH: f32 = 28.0;
+/// How close to the top of the window the pointer must come to show a full-screen ribbon.
+const REVEAL_EDGE: f32 = 6.0;
+
+/// Height of the body for `layout`.
+pub fn body_height(layout: RibbonLayout) -> f32 {
+    match layout {
+        RibbonLayout::Classic => BODY_HEIGHT,
+        RibbonLayout::Simplified => simplified::BODY_HEIGHT,
+    }
+}
+
+/// Height the ribbon takes from the window for `layout` and `show`.
+pub fn height(layout: RibbonLayout, show: RibbonShow) -> f32 {
+    match show {
+        RibbonShow::Always => TAB_STRIP_HEIGHT + body_height(layout),
+        RibbonShow::TabsOnly => TAB_STRIP_HEIGHT,
+        RibbonShow::FullScreen => 0.0,
+    }
+}
 
 /// What the ribbon needs to draw itself.
 #[derive(Clone, Copy)]
@@ -87,6 +114,11 @@ pub struct Ribbon {
     backstage: Option<usize>,
     /// While collapsed: the selected tab's groups show over the page.
     peek: bool,
+    /// In full-screen mode: the ribbon shows over the page.
+    revealed: bool,
+    /// The layout and show mode of the frame being drawn, for the display options menu.
+    layout: RibbonLayout,
+    show_mode: RibbonShow,
     keytips: KeyTips,
 }
 
@@ -100,6 +132,9 @@ impl Default for Ribbon {
             selected: home,
             backstage: None,
             peek: false,
+            revealed: false,
+            layout: RibbonLayout::default(),
+            show_mode: RibbonShow::default(),
             keytips: KeyTips::default(),
         }
     }
@@ -152,9 +187,63 @@ impl Ribbon {
         self.keytips.mode != Mode::Off
     }
 
-    /// Draw the ribbon into `ui`: [`HEIGHT`] tall, or [`TAB_STRIP_HEIGHT`] when `collapsed`.
+    /// Whether a full-screen ribbon is showing over the page.
+    pub fn revealed(&self) -> bool {
+        self.revealed
+    }
+
+    /// Draw the ribbon into `ui`, [`height`] tall. In full-screen mode it takes no room: it
+    /// shows over the page while the pointer is at the top of `window` or over the ribbon.
     /// Returns the commands clicked this frame.
-    pub fn show(&mut self, ui: &mut Ui, look: Look<'_>, collapsed: bool) -> Vec<Clicked> {
+    pub fn show(
+        &mut self,
+        ui: &mut Ui,
+        look: Look<'_>,
+        layout: RibbonLayout,
+        show: RibbonShow,
+    ) -> Vec<Clicked> {
+        self.layout = layout;
+        self.show_mode = show;
+        if show != RibbonShow::FullScreen {
+            self.revealed = false;
+            return self.draw(ui, look, show == RibbonShow::TabsOnly);
+        }
+        self.peek = false;
+        let ctx = ui.ctx().clone();
+        let window = ctx.content_rect();
+        let pointer = ctx.input(|input| input.pointer.latest_pos());
+        if pointer.is_some_and(|pos| pos.y <= window.min.y + REVEAL_EDGE) {
+            self.revealed = true;
+        }
+        if !self.revealed {
+            return Vec::new();
+        }
+        let size = egui::vec2(window.width(), TAB_STRIP_HEIGHT + body_height(layout));
+        let mut out = Vec::new();
+        let area = egui::Area::new(Id::new("ribbon_reveal"))
+            .order(Order::Foreground)
+            .fixed_pos(window.min)
+            .show(&ctx, |ui| {
+                let rect = Rect::from_min_size(ui.max_rect().min, size);
+                ui.painter().rect_filled(rect, 0.0, look.tokens.ribbon_bg);
+                ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+                    out = self.draw(ui, look, false);
+                });
+                ui.allocate_rect(rect, Sense::hover());
+            });
+        // It stays while the pointer is over it or one of its menus is open, and goes once a
+        // command runs or on Esc.
+        let over = pointer.is_some_and(|pos| area.response.rect.contains(pos));
+        let menu_open = Popup::is_any_open(&ctx);
+        let escape = ctx.input(|input| input.key_pressed(Key::Escape));
+        if escape || !(over || menu_open) || (!out.is_empty() && !menu_open) {
+            self.revealed = false;
+        }
+        out
+    }
+
+    /// The tab strip and, unless `collapsed`, the body; with `collapsed`, a peek over the page.
+    fn draw(&mut self, ui: &mut Ui, look: Look<'_>, collapsed: bool) -> Vec<Clicked> {
         let mut out = Vec::new();
         let ctx = ui.ctx().clone();
         if !collapsed {
@@ -205,7 +294,7 @@ impl Ribbon {
                 .show(&ctx, |ui| {
                     let body = Rect::from_min_size(
                         ui.max_rect().min,
-                        egui::vec2(strip.width(), BODY_HEIGHT),
+                        egui::vec2(strip.width(), body_height(self.layout)),
                     );
                     self.body(ui, body, look, &keys, &mut out);
                     ui.allocate_rect(body, Sense::hover());
@@ -249,35 +338,40 @@ impl Ribbon {
         };
         let mut inner = body.shrink2(egui::vec2(6.0, 3.0));
         inner.max.x -= CHEVRON_WIDTH;
-        ui.scope_builder(
-            UiBuilder::new()
-                .max_rect(inner)
-                .layout(Layout::left_to_right(Align::Min)),
-            |ui| {
-                egui::ScrollArea::horizontal()
-                    .id_salt("ribbon_body")
-                    .show(ui, |ui| {
-                        ui.horizontal_top(|ui| {
-                            for group in groups {
-                                group::show(ui, group, look, keys, out);
-                            }
-                        });
-                    });
-            },
-        );
+        match self.layout {
+            RibbonLayout::Classic => {
+                ui.scope_builder(
+                    UiBuilder::new()
+                        .max_rect(inner)
+                        .layout(Layout::left_to_right(Align::Min)),
+                    |ui| {
+                        egui::ScrollArea::horizontal()
+                            .id_salt("ribbon_body")
+                            .show(ui, |ui| {
+                                ui.horizontal_top(|ui| {
+                                    for group in groups {
+                                        group::show(ui, group, look, keys, out);
+                                    }
+                                });
+                            });
+                    },
+                );
+            }
+            RibbonLayout::Simplified => simplified::show(ui, inner, groups, look, keys, out),
+        }
 
-        // Collapse the ribbon, or pin it open again while peeking.
-        let label = if self.peek {
+        // While peeking, pin the ribbon open; otherwise open Ribbon Display Options.
+        let peeking = self.peek;
+        let label = if peeking {
             "Pin the Ribbon"
         } else {
-            "Collapse the Ribbon"
+            "Ribbon Display Options"
         };
         let chevron = Rect::from_min_size(
             egui::pos2(body.max.x - CHEVRON_WIDTH + 2.0, body.max.y - 24.0),
             egui::vec2(22.0, 20.0),
         );
         let style = button::style(tokens);
-        let peeking = self.peek;
         let response = ui
             .scope_builder(UiBuilder::new().max_rect(chevron), |ui| {
                 IconButton::new(label, chevron.size(), &style).show(ui, |ui, rect, color| {
@@ -291,10 +385,11 @@ impl Ribbon {
                             c + egui::vec2(0.0, 5.0),
                         ]
                     } else {
+                        // A down chevron, as in OneNote.
                         vec![
-                            c + egui::vec2(-4.0, 2.0),
-                            c + egui::vec2(0.0, -2.0),
-                            c + egui::vec2(4.0, 2.0),
+                            c + egui::vec2(-4.0, -2.0),
+                            c + egui::vec2(0.0, 2.0),
+                            c + egui::vec2(4.0, -2.0),
                         ]
                     };
                     ui.painter()
@@ -302,13 +397,27 @@ impl Ribbon {
                 })
             })
             .inner;
-        if crate::a11y::plain_button(response)
-            .on_hover_text(format!("{label} (Ctrl+F1)"))
-            .clicked()
-        {
-            out.push(Clicked::new(ids::VIEW_RIBBON_TOGGLE, &[]));
-            self.peek = false;
+        let response = crate::a11y::plain_button(response);
+        if peeking {
+            if response
+                .on_hover_text(format!("{label} (Ctrl+F1)"))
+                .clicked()
+            {
+                out.push(Clicked::new(
+                    ids::VIEW_RIBBON_SHOW,
+                    &[str_arg("mode", "always")],
+                ));
+                self.peek = false;
+            }
+            return;
         }
+        let toggle = response.clicked().then_some(SetOpenCommand::Toggle);
+        let response = response.on_hover_text(label);
+        let (layout, show) = (self.layout, self.show_mode);
+        Popup::menu(&response)
+            .open_memory(toggle)
+            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| display_options(ui, layout, show, look, out));
     }
 
     /// Draw the File backstage over the whole window. Returns the commands clicked.
@@ -321,5 +430,44 @@ impl Ribbon {
         let mut out = Vec::new();
         backstage::show(self, ui, look, recents, &mut out);
         out
+    }
+}
+
+/// Ribbon Display Options: Ribbon Layout and Show Ribbon, the current choices checked.
+fn display_options(
+    ui: &mut Ui,
+    layout: RibbonLayout,
+    show: RibbonShow,
+    look: Look<'_>,
+    out: &mut Vec<Clicked>,
+) {
+    ui.spacing_mut().item_spacing.y = 1.0;
+    menus::heading(ui, "Ribbon Layout");
+    for (choice, label) in [
+        (RibbonLayout::Classic, "Classic Ribbon"),
+        (RibbonLayout::Simplified, "Simplified Ribbon"),
+    ] {
+        if menus::choice(ui, label, layout == choice, look).clicked() {
+            out.push(Clicked::new(
+                ids::VIEW_RIBBON_LAYOUT,
+                &[str_arg("layout", choice.id())],
+            ));
+            ui.close();
+        }
+    }
+    ui.separator();
+    menus::heading(ui, "Show Ribbon");
+    for (choice, label) in [
+        (RibbonShow::FullScreen, "Full-screen mode"),
+        (RibbonShow::TabsOnly, "Show tabs only"),
+        (RibbonShow::Always, "Always show Ribbon"),
+    ] {
+        if menus::choice(ui, label, show == choice, look).clicked() {
+            out.push(Clicked::new(
+                ids::VIEW_RIBBON_SHOW,
+                &[str_arg("mode", choice.id())],
+            ));
+            ui.close();
+        }
     }
 }

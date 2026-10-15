@@ -8,11 +8,11 @@ use crate::session::Session;
 use crate::view::{ThemeMode, ThemePreset};
 
 /// The string argument `name`, already known to be present or absent by the schema check.
-fn string_arg<'a>(args: &'a Map<String, Value>, name: &str) -> &'a str {
+pub(super) fn string_arg<'a>(args: &'a Map<String, Value>, name: &str) -> &'a str {
     args.get(name).and_then(Value::as_str).unwrap_or_default()
 }
 
-fn invalid(id: CommandId, what: &str, value: &str, expected: &[&str]) -> CommandError {
+pub(super) fn invalid(id: CommandId, what: &str, value: &str, expected: &[&str]) -> CommandError {
     let value: String = value.chars().take(64).collect();
     CommandError::InvalidArgs {
         id,

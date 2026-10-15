@@ -10,7 +10,7 @@ use egui::{
 };
 use notecraft_engine::cmd::{CommandId, Map, Value};
 
-use super::spec::{ColorMenu, Item, Preview};
+use super::spec::{Button, ColorMenu, Item, Menu, Preview};
 use super::{Clicked, Look};
 use crate::color::{self, Rgba8};
 use crate::themes::{hex, mix};
@@ -78,6 +78,82 @@ fn row(ui: &mut Ui, label: &str, preview: Preview, look: Look<'_>) -> Response {
         text,
     );
     response
+}
+
+/// A section heading inside a menu, as in Ribbon Display Options.
+pub(super) fn heading(ui: &mut Ui, text: &str) {
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(ROW_WIDTH, ROW_HEIGHT), Sense::hover());
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, true, text));
+    ui.painter().text(
+        egui::pos2(rect.min.x + 8.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        text,
+        FontId::proportional(13.0),
+        ui.visuals().strong_text_color(),
+    );
+}
+
+/// One of several choices, with a check mark in front of the current one. Screen readers
+/// hear a radio button, checked or not.
+pub(super) fn choice(ui: &mut Ui, label: &str, checked: bool, look: Look<'_>) -> Response {
+    let t = look.tokens;
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(ROW_WIDTH, ROW_HEIGHT), Sense::click());
+    response.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, checked, label));
+    let painter = ui.painter_at(rect);
+    if response.hovered() || response.has_focus() {
+        painter.rect_filled(rect, CornerRadius::same(t.radius), t.hover);
+    }
+    let text = ui.visuals().text_color();
+    if checked {
+        let c = egui::pos2(rect.min.x + 15.0, rect.center().y);
+        let points = vec![
+            c + egui::vec2(-4.5, 0.0),
+            c + egui::vec2(-1.5, 3.0),
+            c + egui::vec2(4.5, -3.5),
+        ];
+        painter.add(egui::Shape::line(points, Stroke::new(1.5, text)));
+    }
+    painter.text(
+        egui::pos2(rect.min.x + 30.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(13.0),
+        text,
+    );
+    response
+}
+
+/// A ribbon button as a menu entry (the simplified ribbon's More Options menu): a plain
+/// command runs, and a button with a menu opens the same menu as a submenu. A split button's
+/// submenu starts with its own command.
+pub(super) fn button_item(ui: &mut Ui, button: &Button, look: Look<'_>, out: &mut Vec<Clicked>) {
+    match button.menu {
+        Menu::None => {
+            if row(ui, button.label, Preview::None, look).clicked() {
+                out.push(Clicked::new(button.command, button.args));
+                ui.close();
+            }
+        }
+        Menu::Split(list) | Menu::Dropdown(list) => {
+            ui.menu_button(button.label, |ui| {
+                if button.menu.is_split() && row(ui, button.label, Preview::None, look).clicked() {
+                    out.push(Clicked::new(button.command, button.args));
+                    ui.close();
+                }
+                items(ui, list, look, out);
+            });
+        }
+        Menu::Colors(menu) => {
+            ui.menu_button(button.label, |ui| {
+                colors(ui, button.command, &menu, look, out)
+            });
+        }
+        Menu::TableGrid => {
+            ui.menu_button(button.label, |ui| table_grid(ui, button.command, look, out));
+        }
+    }
 }
 
 /// A plain list of items. Picking one closes the menu.

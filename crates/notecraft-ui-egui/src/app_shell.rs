@@ -4,6 +4,7 @@
 //! the notebook pane, section tabs, and page list on mock notebooks; PR 0.7 adds the canvas.
 
 use notecraft_engine::cmd::{ids, CommandError, CommandId, Map, Registry, Value};
+use notecraft_engine::view::{RibbonLayout, RibbonShow};
 use notecraft_engine::Session;
 
 use craft_ui::buttons::IconButton;
@@ -17,9 +18,6 @@ use crate::shortcuts::Shortcuts;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
 use crate::{start, status};
-
-/// Height of the ribbon region (tab strip and body), in points.
-pub const RIBBON_HEIGHT: f32 = ribbon::HEIGHT;
 /// Height of the status bar, in points.
 pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
@@ -176,9 +174,11 @@ impl AppShell {
         view.theme_mode = mode;
     }
 
-    /// Collapse or expand the ribbon without a command, for restoring saved settings.
-    pub fn set_ribbon_collapsed(&mut self, collapsed: bool) {
-        self.session.view_mut().ribbon_collapsed = collapsed;
+    /// Set the ribbon's layout and show mode without a command, for restoring saved settings.
+    pub fn set_ribbon(&mut self, layout: RibbonLayout, show: RibbonShow) {
+        let view = self.session.view_mut();
+        view.ribbon_layout = layout;
+        view.ribbon_show = show;
     }
 
     /// The tokens of the theme egui is showing now.
@@ -286,18 +286,22 @@ impl AppShell {
             return;
         }
 
-        let collapsed = self.session.view().ribbon_collapsed;
-        let panel = egui::Frame::side_top_panel(ui.style());
-        let height = if collapsed {
-            ribbon::TAB_STRIP_HEIGHT
-        } else {
-            RIBBON_HEIGHT
+        let (layout, show) = {
+            let view = self.session.view();
+            (view.ribbon_layout, view.ribbon_show)
         };
-        let mut clicked = egui::Panel::top("ribbon")
-            .exact_size(height)
-            .frame(egui::Frame::NONE.fill(tokens.ribbon_bg))
-            .show(ui, |ui| self.ribbon.show(ui, look, collapsed))
-            .inner;
+        let panel = egui::Frame::side_top_panel(ui.style());
+        let height = ribbon::height(layout, show);
+        let mut clicked = if height > 0.0 {
+            egui::Panel::top("ribbon")
+                .exact_size(height)
+                .frame(egui::Frame::NONE.fill(tokens.ribbon_bg))
+                .show(ui, |ui| self.ribbon.show(ui, look, layout, show))
+                .inner
+        } else {
+            // Full-screen mode: the ribbon takes no room and shows over the page on demand.
+            self.ribbon.show(ui, look, layout, show)
+        };
 
         let session = &self.session;
         // The status bar's space is taken now, so the panes and the page fit around it, but
@@ -492,16 +496,28 @@ mod tests {
         }
     }
 
+    fn ribbon_show(harness: &egui_kittest::Harness<'_, AppShell>) -> RibbonShow {
+        harness.state().session().view().ribbon_show
+    }
+
+    /// Open Ribbon Display Options and pick `choice`.
+    fn display_option(harness: &mut egui_kittest::Harness<'_, AppShell>, choice: &str) {
+        harness.get_by_label("Ribbon Display Options").click();
+        harness.run();
+        harness.get_by_label(choice).click();
+        harness.run();
+    }
+
     #[test]
-    fn ribbon_collapses_with_ctrl_f1_and_the_chevron() {
+    fn ribbon_collapses_with_ctrl_f1_and_pins_open_again() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F1);
         harness.run();
-        assert!(harness.state().session().view().ribbon_collapsed);
+        assert_eq!(ribbon_show(&harness), RibbonShow::TabsOnly);
         assert!(harness.query_by_label("Paste").is_none());
 
-        // While collapsed, clicking a tab shows its groups until a button is used.
+        // With tabs only, clicking a tab shows its groups until a button is used.
         harness.get_by_label("Home").click();
         harness.run();
         assert!(harness.state().ribbon().peeking());
@@ -516,10 +532,116 @@ mod tests {
 
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F1);
         harness.run();
-        assert!(!harness.state().session().view().ribbon_collapsed);
-        harness.get_by_label("Collapse the Ribbon").click();
+        assert_eq!(ribbon_show(&harness), RibbonShow::Always);
+
+        // The display options menu collapses it; the pin on a peek brings it back.
+        display_option(&mut harness, "Show tabs only");
+        assert_eq!(ribbon_show(&harness), RibbonShow::TabsOnly);
+        harness.get_by_label("Home").click();
         harness.run();
-        assert!(harness.state().session().view().ribbon_collapsed);
+        harness.get_by_label("Pin the Ribbon").click();
+        harness.run();
+        assert_eq!(ribbon_show(&harness), RibbonShow::Always);
+        assert!(harness.query_by_label("Paste").is_some());
+    }
+
+    #[test]
+    fn display_options_check_the_current_layout_and_mode() {
+        use egui_kittest::kittest::NodeT;
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Ribbon Display Options").click();
+        harness.run();
+        let checked = |label: &str| {
+            harness
+                .get_by_label(label)
+                .accesskit_node()
+                .data()
+                .toggled()
+                .map(|t| t == egui::accesskit::Toggled::True)
+        };
+        assert_eq!(checked("Classic Ribbon"), Some(true));
+        assert_eq!(checked("Simplified Ribbon"), Some(false));
+        assert_eq!(checked("Always show Ribbon"), Some(true));
+        assert_eq!(checked("Show tabs only"), Some(false));
+        assert_eq!(checked("Full-screen mode"), Some(false));
+    }
+
+    #[test]
+    fn simplified_ribbon_is_one_row_that_runs_the_same_commands() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let classic = harness.get_by_label("Paste").rect();
+        display_option(&mut harness, "Simplified Ribbon");
+        assert_eq!(
+            harness.state().session().view().ribbon_layout,
+            RibbonLayout::Simplified
+        );
+        let paste = harness.get_by_label("Paste").rect();
+        let bold = harness.get_by_label("Bold").rect();
+        assert!(paste.height() < classic.height(), "icon only, not large");
+        assert!((paste.center().y - bold.center().y).abs() < 1.0, "one row");
+        assert!(
+            harness.get_by_label("Canvas").rect().top()
+                < classic.bottom() + ribbon::TAB_STRIP_HEIGHT,
+            "the page moves up"
+        );
+        harness.get_by_label("Bold").click();
+        harness.run();
+        assert!(harness
+            .state()
+            .toasts()
+            .texts()
+            .any(|t| t == "Coming Soon: Bold"));
+        display_option(&mut harness, "Classic Ribbon");
+        assert_eq!(
+            harness.state().session().view().ribbon_layout,
+            RibbonLayout::Classic
+        );
+    }
+
+    #[test]
+    fn simplified_ribbon_puts_what_does_not_fit_in_more_options() {
+        let mut shell = AppShell::new();
+        shell.set_ribbon(RibbonLayout::Simplified, RibbonShow::Always);
+        let mut harness = harness(shell, egui::vec2(800.0, 600.0));
+        harness.run();
+        assert!(harness.query_by_label("Meeting Details").is_none());
+        harness.get_by_label("More Options").click();
+        harness.run();
+        harness.get_by_label("Meeting Details").click();
+        harness.run();
+        assert!(harness
+            .state()
+            .toasts()
+            .texts()
+            .any(|t| t == "Coming Soon: Meeting Details"));
+    }
+
+    #[test]
+    fn full_screen_mode_hides_the_ribbon_until_the_pointer_reaches_the_top() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        display_option(&mut harness, "Full-screen mode");
+        assert_eq!(ribbon_show(&harness), RibbonShow::FullScreen);
+        harness.event(egui::Event::PointerMoved(egui::pos2(400.0, 400.0)));
+        harness.run();
+        assert!(harness.query_by_label("Home").is_none());
+        assert!(harness.query_by_label("Paste").is_none());
+
+        harness.event(egui::Event::PointerMoved(egui::pos2(400.0, 1.0)));
+        harness.run();
+        assert!(harness.state().ribbon().revealed());
+        assert!(harness.query_by_label("Paste").is_some());
+
+        // Leaving it hides it again; Ctrl+F1 brings the whole ribbon back.
+        harness.event(egui::Event::PointerMoved(egui::pos2(400.0, 500.0)));
+        harness.run();
+        assert!(!harness.state().ribbon().revealed());
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F1);
+        harness.run();
+        assert_eq!(ribbon_show(&harness), RibbonShow::Always);
+        assert!(harness.query_by_label("Paste").is_some());
     }
 
     #[test]
@@ -1537,7 +1659,7 @@ mod tests {
         let stops = [
             at("File"),
             at("Paste"),
-            at("Collapse the Ribbon"),
+            at("Ribbon Display Options"),
             at("My Notebook"),
             at("Notebook pane width"),
             at("Add Page"),

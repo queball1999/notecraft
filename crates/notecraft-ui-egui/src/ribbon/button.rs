@@ -55,13 +55,37 @@ pub(super) fn show(
     large_height: f32,
     out: &mut Vec<Clicked>,
 ) {
+    show_sized(ui, button, button.size, look, keys, large_height, out);
+}
+
+/// Width of `button` drawn icon-only, as the simplified ribbon draws every button.
+pub(super) fn icon_only_width(button: &Button) -> f32 {
+    let arrow = if button.menu.is_none() {
+        0.0
+    } else {
+        ARROW - 2.0
+    };
+    24.0 + arrow
+}
+
+/// [`show`] at `size` instead of the button's own size.
+pub(super) fn show_sized(
+    ui: &mut Ui,
+    button: &'static Button,
+    size: Size,
+    look: Look<'_>,
+    keys: &KeyFrame,
+    large_height: f32,
+    out: &mut Vec<Clicked>,
+) {
     let tokens = look.tokens;
     let spec = look.registry.get(button.command.as_str());
     let coming_soon = spec.is_none_or(|spec| spec.status == Status::ComingSoon);
     let has_menu = !button.menu.is_none();
     let font = FontId::proportional(LABEL_SIZE);
+    let drawn = size;
 
-    let (size, galley) = match button.size {
+    let (size, galley) = match drawn {
         Size::Large => {
             let galley = ui.painter().layout(
                 button.label.to_owned(),
@@ -80,21 +104,18 @@ pub(super) fn show(
             let width = 4.0 + 16.0 + 5.0 + galley.size().x + 6.0 + arrow;
             (egui::vec2(width, SMALL_HEIGHT), Some(galley))
         }
-        Size::IconOnly => {
-            let arrow = if has_menu { ARROW - 2.0 } else { 0.0 };
-            (egui::vec2(24.0 + arrow, SMALL_HEIGHT), None)
-        }
+        Size::IconOnly => (egui::vec2(icon_only_width(button), SMALL_HEIGHT), None),
     };
 
     let style = style(tokens);
     let accent = tokens.accent;
     let response = IconButton::new(button.label, size, &style).show(ui, |ui, rect, color| {
         let colors = IconColors { fg: color, accent };
-        paint_contents(ui, rect, button, galley, colors, has_menu);
+        paint_contents(ui, rect, button, drawn, galley, colors, has_menu);
     });
     let response = crate::a11y::plain_button(response);
 
-    let arrow = arrow_rect(response.rect, button.size);
+    let arrow = arrow_rect(response.rect, drawn);
     let on_arrow = response
         .interact_pointer_pos()
         .is_some_and(|pos| arrow.contains(pos));
@@ -155,12 +176,13 @@ fn paint_contents(
     ui: &Ui,
     rect: Rect,
     button: &Button,
+    size: Size,
     galley: Option<Arc<Galley>>,
     colors: IconColors,
     has_menu: bool,
 ) {
     let painter = ui.painter();
-    match button.size {
+    match size {
         Size::Large => {
             let icon = Rect::from_center_size(
                 egui::pos2(rect.center().x, rect.min.y + 6.0 + 16.0),

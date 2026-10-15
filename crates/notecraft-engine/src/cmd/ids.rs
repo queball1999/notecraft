@@ -252,6 +252,10 @@ command_ids! {
     VIEW_NAVIGATION_TOGGLE = "view.navigation.toggle";
     /// Show only the ribbon tab names.
     VIEW_RIBBON_TOGGLE = "view.ribbon.toggle";
+    /// Use the classic or the simplified ribbon.
+    VIEW_RIBBON_LAYOUT = "view.ribbon.layout";
+    /// Always show the ribbon, show only its tabs, or hide it (full-screen mode).
+    VIEW_RIBBON_SHOW = "view.ribbon.show";
     /// Set the background color of the page.
     VIEW_PAGE_COLOR = "view.page_color";
     /// Show rule lines or a grid on the page.

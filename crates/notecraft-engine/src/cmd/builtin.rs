@@ -109,6 +109,16 @@ const MODE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     ArgKind::String,
     "light, dark, or system.",
 )];
+const RIBBON_LAYOUT_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "layout",
+    ArgKind::String,
+    "classic or simplified.",
+)];
+const RIBBON_SHOW_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "mode",
+    ArgKind::String,
+    "always, tabs, or full_screen.",
+)];
 
 /// Every built-in command, in ribbon order.
 pub(super) static SPECS: &[CommandSpec] = &[
@@ -698,6 +708,20 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .shortcut("Ctrl+F1")
     .ready(),
     CommandSpec::new(
+        ids::VIEW_RIBBON_LAYOUT,
+        "Ribbon Layout",
+        "Use the classic or the simplified ribbon.",
+    )
+    .args(RIBBON_LAYOUT_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::VIEW_RIBBON_SHOW,
+        "Show Ribbon",
+        "Always show the ribbon, show only its tabs, or hide it until the pointer reaches the top.",
+    )
+    .args(RIBBON_SHOW_ARGS)
+    .ready(),
+    CommandSpec::new(
         ids::VIEW_PAGE_COLOR,
         "Page Color",
         "Set the background color of the page.",
@@ -819,6 +843,8 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
     (ids::VIEW_RIBBON_TOGGLE, layout::ribbon_toggle),
+    (ids::VIEW_RIBBON_LAYOUT, layout::ribbon_layout),
+    (ids::VIEW_RIBBON_SHOW, layout::ribbon_show),
     (ids::VIEW_FULL_PAGE, layout::full_page),
     (ids::VIEW_NORMAL, layout::normal),
     (ids::VIEW_PAGE_COLOR, canvas::page_color),

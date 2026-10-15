@@ -4,6 +4,7 @@
 //! failing the load.
 
 use notecraft_engine::recent::{RecentKind, Recents};
+use notecraft_engine::view::{RibbonLayout, RibbonShow};
 use notecraft_ui_egui::themes::{Mode, Preset};
 use serde::{Deserialize, Serialize};
 
@@ -61,11 +62,45 @@ impl RecentPrefs {
     }
 }
 
-/// The ribbon's collapsed state (`view.ribbon.toggle`), kept across runs as in OneNote.
+/// The ribbon's layout and show mode (Ribbon Display Options), kept across runs as in
+/// OneNote. Strings, so an unknown value falls back to the default. `collapsed` is the older
+/// setting: it is read when `show` is missing and kept in step so an older build still opens
+/// the ribbon the way it was left.
 #[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
 #[serde(default)]
 pub struct RibbonPrefs {
     pub collapsed: bool,
+    pub layout: String,
+    pub show: String,
+}
+
+impl RibbonPrefs {
+    pub fn layout(&self) -> RibbonLayout {
+        RibbonLayout::from_id(&self.layout).unwrap_or_default()
+    }
+
+    pub fn show(&self) -> RibbonShow {
+        match RibbonShow::from_id(&self.show) {
+            Some(show) => show,
+            None if self.collapsed => RibbonShow::TabsOnly,
+            None => RibbonShow::default(),
+        }
+    }
+
+    /// Record the current layout and show mode; leaves the strings alone when nothing
+    /// changed.
+    pub fn observe(&mut self, layout: RibbonLayout, show: RibbonShow) {
+        if self.layout != layout.id() {
+            layout.id().clone_into(&mut self.layout);
+        }
+        if self.show != show.id() {
+            show.id().clone_into(&mut self.show);
+        }
+        let collapsed = show == RibbonShow::TabsOnly;
+        if self.collapsed != collapsed {
+            self.collapsed = collapsed;
+        }
+    }
 }
 
 impl craft_settings::Settings for Prefs {
@@ -293,6 +328,27 @@ mod tests {
             saved.items.first().map(|e| e.kind.as_str()),
             Some("notebook")
         );
+    }
+
+    #[test]
+    fn ribbon_reads_old_and_bad_values_and_round_trips() {
+        let old: Prefs = serde_json::from_str(r#"{"ribbon":{"collapsed":true}}"#).unwrap();
+        assert_eq!(old.ribbon.show(), RibbonShow::TabsOnly);
+        assert_eq!(old.ribbon.layout(), RibbonLayout::Classic);
+        let bad: Prefs =
+            serde_json::from_str(r#"{"ribbon":{"layout":"compact","show":"hidden"}}"#).unwrap();
+        assert_eq!(
+            (bad.ribbon.layout(), bad.ribbon.show()),
+            (RibbonLayout::Classic, RibbonShow::Always)
+        );
+        let mut r = RibbonPrefs::default();
+        r.observe(RibbonLayout::Simplified, RibbonShow::FullScreen);
+        assert_eq!(
+            (r.layout(), r.show(), r.collapsed),
+            (RibbonLayout::Simplified, RibbonShow::FullScreen, false)
+        );
+        r.observe(RibbonLayout::Simplified, RibbonShow::TabsOnly);
+        assert!(r.collapsed, "an older build opens it collapsed");
     }
 
     #[test]
