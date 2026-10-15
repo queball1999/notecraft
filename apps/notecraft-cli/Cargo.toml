@@ -14,3 +14,4 @@ workspace = true
 
 [dependencies]
 notecraft-engine.workspace = true
+serde_json.workspace = true
