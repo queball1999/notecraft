@@ -3,7 +3,7 @@
 //! command dispatch and toasts; PR 0.3 installs the theme; PR 0.5 adds the ribbon; PR 0.6 adds
 //! the notebook pane, section tabs, and page list on mock notebooks; PR 0.7 adds the canvas.
 
-use notecraft_engine::cmd::{ids, CommandError, CommandId, Map, Registry, Value};
+use notecraft_engine::cmd::{ids, CommandError, CommandId, CommandOutput, Map, Registry, Value};
 use notecraft_engine::view::{RibbonLayout, RibbonShow};
 use notecraft_engine::Session;
 
@@ -256,18 +256,10 @@ impl AppShell {
     /// file command without a path asks the picker first; canceling runs nothing. Returns
     /// whether the command ran.
     pub fn dispatch(&mut self, id: &str, args: Value) -> bool {
-        let Some(args) = self.fill_path(id, args) else {
-            return false;
-        };
-        match self.registry.run(&mut self.session, id, args) {
-            Ok(_) => {
-                // Opening something from the File backstage returns to the notes.
-                if FILE_OPENS.iter().any(|open| open.as_str() == id) {
-                    self.ribbon.close_backstage();
-                }
-                true
-            }
-            Err(err) => {
+        match self.run_command(id, args) {
+            Some(Ok(_)) => true,
+            None => false,
+            Some(Err(err)) => {
                 match err {
                     CommandError::ComingSoon { .. } => tracing::debug!("{err}"),
                     _ => tracing::warn!("{err}"),
@@ -276,6 +268,24 @@ impl AppShell {
                 false
             }
         }
+    }
+
+    /// The one path every command takes, whether from the ribbon, a shortcut, or the control
+    /// channel: pick a path if a file command has none, run it through the registry, and
+    /// close the File backstage after an open. `None` when the user canceled the picker.
+    /// Unlike [`AppShell::dispatch`] it does not toast, so the caller reports the error.
+    pub fn run_command(
+        &mut self,
+        id: &str,
+        args: Value,
+    ) -> Option<Result<CommandOutput, CommandError>> {
+        let args = self.fill_path(id, args)?;
+        let result = self.registry.run(&mut self.session, id, args);
+        // Opening something from the File backstage returns to the notes.
+        if result.is_ok() && FILE_OPENS.iter().any(|open| open.as_str() == id) {
+            self.ribbon.close_backstage();
+        }
+        Some(result)
     }
 
     /// `args` with a `path` from the picker if `id` is a file command sent without one.

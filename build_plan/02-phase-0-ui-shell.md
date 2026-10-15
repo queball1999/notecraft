@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.10 recorded: keyboard navigation and screen reader labels.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: PR 0.11 landed on feat/control-minimal: the minimal control channel.
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
 
@@ -438,6 +438,8 @@ Commits:
 
 PR title: `feat(app): add a minimal control channel for UI tests`.
 
+PR 0.11 landed on feat/control-minimal with these changes to the plan. The control channel lives in the app (`apps/notecraft/src/control/`): `proto.rs` holds the framing, JSON-RPC types, and auth state machine with no window or socket; `server.rs` is the listener and client threads on 127.0.0.1; `mod.rs` is the per-frame UI-thread half. `command.run` goes through the new `AppShell::run_command`, the same path `dispatch` (ribbon, shortcuts) uses, so there is no second action path. `screenshot` uses `ViewportCommand::Screenshot` and `Event::Screenshot`; the PNG and base64 encoding run on the connection thread. The optional `region` parameter is not implemented. `wait.idle` answers at the end of the first frame with no immediate repaint pending. Without a settings folder (`NOTECRAFT_NO_PREFS`) `--control` refuses to start, since the token has nowhere to go. The headless tests drive the shell in egui_kittest over a real TCP socket and inject the screenshot event, because kittest has no GPU; the real-window test, `tests/control_window.rs`, is `#[ignore]` (it needs a display and a GPU adapter) and saves one PNG per theme to `target/control-screenshots/`. Uploading those PNGs as a CI artifact needs a runner with a GPU and is not wired up. Hours stay 8-14.
+
 ## PR 0.12: close Phase 0
 
 Follow 00-conventions.md section 6. Also:
@@ -489,3 +491,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | 0 | PR 0.10 recorded: keyboard navigation and screen reader labels (PR #16). |
 | 2026-10-15 | 0 | Added PR 0.5c to 0.5f (ribbon display options and simplified ribbon, font boxes, color pickers, galleries and Help tab) after a review against OneNote and WordCraft. |
 | 2026-10-15 | 0 | Added PR 0.13 (command line core: `commands`, `run`, and opening a path at launch) after the maintainer decision of 2026-10-15 to let the CLI follow the related craft apps. |
+| 2026-10-15 | 0 | PR 0.11 landed on feat/control-minimal: minimal control channel (`auth`, `command.run`, `screenshot`, `wait.idle`) with token auth. |

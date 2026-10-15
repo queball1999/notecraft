@@ -1,6 +1,6 @@
 //! NoteCraft desktop app: opens the main window on wgpu and hosts the egui front end.
 //!
-//! Usage: `notecraft [--version] [--help] [<notebook folder or page file>]`
+//! Usage: `notecraft [--version] [--help] [--control <port>] [<notebook folder or page file>]`
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -18,6 +18,7 @@
 )]
 
 mod args;
+mod control;
 mod logging;
 mod picker;
 mod prefs;
@@ -46,12 +47,19 @@ fn version_line() -> String {
 struct App {
     shell: AppShell,
     store: SettingsStore<Prefs>,
+    /// The UI test control channel, when started with `--control`.
+    control: Option<control::Control>,
     /// Last settings save error already logged, so a failing disk is logged once, not per frame.
     logged_save_error: Option<String>,
 }
 
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // First, so a command from the control channel is in the session before the shell
+        // installs the theme and the UI draws.
+        if let Some(control) = &mut self.control {
+            control.poll(ctx, &mut self.shell);
+        }
         self.shell.logic(ctx);
 
         // Remember the theme; commands change it in the session.
@@ -90,9 +98,15 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.shell.ui(ui);
+        if let Some(control) = &mut self.control {
+            control.end_frame(ui.ctx());
+        }
     }
 
     fn on_exit(&mut self) {
+        if let Some(control) = &self.control {
+            control.shutdown();
+        }
         if let Err(e) = self.store.flush() {
             tracing::warn!(error = %e, "saving settings on exit failed");
         }
@@ -135,7 +149,7 @@ fn open_settings() -> SettingsStore<Prefs> {
 }
 
 fn main() -> eframe::Result<()> {
-    let open = match args::parse(std::env::args_os().skip(1)) {
+    let (open, control_port) = match args::parse(std::env::args_os().skip(1)) {
         Ok(args::Cli::Version) => {
             // A closed stdout is not an error worth crashing over.
             let _ = writeln!(std::io::stdout(), "{}", version_line());
@@ -145,7 +159,7 @@ fn main() -> eframe::Result<()> {
             let _ = write!(std::io::stdout(), "{}", args::USAGE);
             return Ok(());
         }
-        Ok(args::Cli::Launch { open }) => open,
+        Ok(args::Cli::Launch { open, control }) => (open, control),
         Err(e) => {
             let _ = writeln!(std::io::stderr(), "notecraft: {e}\n");
             let _ = write!(std::io::stderr(), "{}", args::USAGE);
@@ -167,6 +181,20 @@ fn main() -> eframe::Result<()> {
     }
 
     let store = open_settings();
+    // The control token lives beside config.toml; with no settings folder (NOTECRAFT_NO_PREFS)
+    // there is nowhere to put it, so refuse rather than listen without a way to log in.
+    let control_dir = match (control_port, store.dir()) {
+        (Some(port), Some(dir)) => Some((port, dir.to_path_buf())),
+        (Some(_), None) => {
+            let _ = writeln!(
+                std::io::stderr(),
+                "notecraft: --control needs a settings folder to hold control.token; \
+                 unset NOTECRAFT_NO_PREFS or set NOTECRAFT_CONFIG_DIR"
+            );
+            std::process::exit(2);
+        }
+        (None, _) => None,
+    };
     let window = store.get().window.clone();
     let theme = store.get().theme.clone();
     let ribbon = (store.get().ribbon.layout(), store.get().ribbon.show());
@@ -220,9 +248,18 @@ fn main() -> eframe::Result<()> {
             if !opened {
                 shell.reopen_last();
             }
+            let control = match &control_dir {
+                Some((port, dir)) => {
+                    let control = control::Control::start(*port, dir, &cc.egui_ctx)?;
+                    tracing::info!(addr = %control.addr(), "control channel listening");
+                    Some(control)
+                }
+                None => None,
+            };
             Ok(Box::new(App {
                 shell,
                 store,
+                control,
                 logged_save_error: None,
             }))
         }),

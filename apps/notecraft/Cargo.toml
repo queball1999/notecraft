@@ -21,12 +21,14 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "
 egui.workspace = true
 image.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+getrandom = "0.3"
 craft-settings.workspace = true
 rfd.workspace = true
 craft-quit = { workspace = true, features = ["egui", "menu"] }
 
 [dev-dependencies]
-serde_json.workspace = true
+egui_kittest.workspace = true
 
 [build-dependencies]
 # Icon and VERSIONINFO for notecraft.exe; build.rs only uses it when the target is Windows.
