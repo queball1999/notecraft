@@ -6,7 +6,7 @@
 //! built, so a list of every installed font stays cheap.
 
 use egui::{
-    Align2, Area, CornerRadius, FontId, Key, Modifiers, Order, Rect, Sense, Stroke, StrokeKind, Ui,
+    Area, CornerRadius, FontId, Key, Modifiers, Order, Rect, Sense, Stroke, StrokeKind, Ui,
 };
 
 use super::Look;
@@ -18,6 +18,10 @@ const ROW: f32 = 22.0;
 const ARROW: f32 = 16.0;
 /// Space above and below the text inside the field.
 const EDIT_MARGIN_Y: f32 = 1.0;
+/// Space between the box's left edge and its text.
+const EDIT_INSET_X: f32 = 6.0;
+/// Text size of a list row.
+const ROW_TEXT: f32 = 13.0;
 /// Most of the list shown at once.
 const LIST_HEIGHT: f32 = 300.0;
 
@@ -100,16 +104,18 @@ pub(super) fn show(
     // sits in the middle whatever the font's line height.
     let font = FontId::proportional(12.0);
     let line = ui.ctx().fonts_mut(|fonts| fonts.row_height(&font));
+    // Inset from the box's left edge so the text does not touch the outline.
+    let inset = field.with_min_x(field.min.x + EDIT_INSET_X);
     let edit_rect = Rect::from_center_size(
-        field.center(),
-        egui::vec2(field.width(), (line + 2.0 * EDIT_MARGIN_Y).min(HEIGHT)),
+        inset.center(),
+        egui::vec2(inset.width(), (line + 2.0 * EDIT_MARGIN_Y).min(HEIGHT)),
     );
     let edit = egui::TextEdit::singleline(&mut text)
         .id(edit_id)
         .font(font)
-        .margin(egui::vec2(4.0, EDIT_MARGIN_Y))
+        .margin(egui::vec2(0.0, EDIT_MARGIN_Y))
         .frame(egui::Frame::NONE)
-        .desired_width(field.width() - 8.0);
+        .desired_width(inset.width() - 2.0);
     let response = ui.put(edit_rect, edit);
     ui.ctx()
         .accesskit_node_builder(edit_id, |node| node.set_label(label));
@@ -284,17 +290,31 @@ fn list(
             };
             ui.painter()
                 .rect_filled(rect, CornerRadius::same(t.radius), fill);
-            ui.painter().text(
-                egui::pos2(rect.min.x + 6.0, rect.center().y),
-                Align2::LEFT_CENTER,
-                item,
-                if previews {
-                    crate::font_list::preview_font(ui.ctx(), item, 13.0)
-                } else {
-                    FontId::proportional(13.0)
-                },
-                ui.visuals().text_color(),
-            );
+            // Each row is clipped to itself, and a face taller than the row is drawn
+            // smaller, so script and symbol faces stay inside their row and the list.
+            let painter = ui.painter_at(rect.intersect(ui.clip_rect()));
+            let color = ui.visuals().text_color();
+            let mut font = if previews {
+                crate::font_list::preview_font(ui.ctx(), item, ROW_TEXT)
+            } else {
+                FontId::proportional(ROW_TEXT)
+            };
+            // Measured by the drawn glyphs, not the line box: some faces (Gabriola) reserve
+            // a very tall line, which would shrink and misplace the text.
+            let mut galley = painter.layout_no_wrap(item.clone(), font.clone(), color);
+            let room = ROW - 4.0;
+            let ink = galley.mesh_bounds.height();
+            if ink > room {
+                font.size = (font.size * room / ink).max(8.0);
+                galley = painter.layout_no_wrap(item.clone(), font, color);
+            }
+            let ink = galley.mesh_bounds;
+            let top = if ink.is_positive() {
+                rect.center().y - ink.center().y
+            } else {
+                rect.center().y - galley.size().y / 2.0
+            };
+            painter.galley(egui::pos2(rect.min.x + 6.0, top), galley, color);
             if response.clicked() {
                 picked = Some(item.clone());
             }

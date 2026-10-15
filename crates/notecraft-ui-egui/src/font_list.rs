@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use egui::{FontFamily, FontId};
@@ -31,8 +32,8 @@ const MAX_NAME_TABLE: u32 = 1024 * 1024;
 const MAX_DEPTH: usize = 6;
 /// Largest font file loaded for a preview; bigger faces (CJK) show in the UI font.
 const MAX_PREVIEW_BYTES: u64 = 4 * 1024 * 1024;
-/// Most preview faces loaded in one frame.
-const PREVIEWS_PER_FRAME: usize = 4;
+/// Most preview faces read in one batch; a screenful of the list.
+const PREVIEWS_PER_BATCH: usize = 16;
 /// Most font data loaded for previews in one run.
 const PREVIEW_BUDGET: u64 = 64 * 1024 * 1024;
 
@@ -54,6 +55,10 @@ struct Found {
 #[derive(Clone, Default)]
 pub struct FontList {
     found: Arc<Mutex<Option<Arc<Found>>>>,
+    /// Faces a preview worker finished reading, waiting to be installed.
+    ready: Arc<Mutex<Vec<PreviewRead>>>,
+    /// A preview worker is running.
+    busy: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for FontList {
@@ -81,6 +86,7 @@ impl FontList {
     fn from_found(found: Found) -> Self {
         Self {
             found: Arc::new(Mutex::new(Some(Arc::new(found)))),
+            ..Self::default()
         }
     }
 
@@ -121,54 +127,133 @@ impl FontList {
         self.found()?.faces.get(family).cloned()
     }
 
-    /// Load the oldest requested preview face, if any (call once per frame). A face that
-    /// cannot be read, is too big, or would pass the budget is marked failed and shows in
-    /// the UI font.
+    /// Turn requested previews into installed faces (call once per frame). A worker thread
+    /// reads and checks the files; this installs every face it finished in one frame, so egui
+    /// rebuilds its fonts once per batch, then starts the next batch. A face that cannot be
+    /// read, is too big, would pass the budget, or cannot draw its own name (symbol fonts) is
+    /// marked failed and shows in the UI font.
     pub fn load_previews(&self, ctx: &egui::Context) {
-        // egui applies every face added in a frame in one rebuild, so take a few at once.
-        for _ in 0..PREVIEWS_PER_FRAME {
-            if !self.load_one_preview(ctx) {
-                return;
+        let ready = self
+            .ready
+            .lock()
+            .map(|mut ready| std::mem::take(&mut *ready))
+            .unwrap_or_default();
+        let mut used = ctx.data(|data| data.get_temp::<u64>(budget_id()).unwrap_or(0));
+        for read in ready {
+            match read {
+                PreviewRead::Face { name, bytes, index } => {
+                    let size = bytes.len() as u64;
+                    if used + size > PREVIEW_BUDGET {
+                        mark(ctx, failed_id(), &name);
+                        continue;
+                    }
+                    used += size;
+                    install(ctx, &name, bytes, index);
+                }
+                PreviewRead::Failed(name) => mark(ctx, failed_id(), &name),
+            }
+        }
+        ctx.data_mut(|data| data.insert_temp(budget_id(), used));
+
+        if self.busy.load(Ordering::Acquire) {
+            return;
+        }
+        let batch: Vec<(String, Option<Face>)> = ctx
+            .data_mut(|data| {
+                let queue = data.get_temp_mut_or_default::<Vec<String>>(queue_id());
+                let take = queue.len().min(PREVIEWS_PER_BATCH);
+                queue.drain(..take).collect::<Vec<String>>()
+            })
+            .into_iter()
+            .filter_map(|name| match self.face(&name) {
+                Some(face) => Some((name, Some(face))),
+                // No file to read: settle it here, without a worker or a repaint.
+                None => {
+                    mark(ctx, failed_id(), &name);
+                    None
+                }
+            })
+            .collect();
+        if batch.is_empty() {
+            return;
+        }
+        self.busy.store(true, Ordering::Release);
+        let (ready, busy, waker) = (Arc::clone(&self.ready), Arc::clone(&self.busy), ctx.clone());
+        let names: Vec<String> = batch.iter().map(|(name, _)| name.clone()).collect();
+        let spawned = std::thread::Builder::new()
+            .name("font-preview".to_owned())
+            .spawn(move || {
+                let reads: Vec<PreviewRead> = batch
+                    .into_iter()
+                    .map(|(name, face)| read_face(name, face))
+                    .collect();
+                if let Ok(mut slot) = ready.lock() {
+                    slot.extend(reads);
+                }
+                busy.store(false, Ordering::Release);
+                waker.request_repaint();
+            });
+        if spawned.is_err() {
+            self.busy.store(false, Ordering::Release);
+            for name in names {
+                mark(ctx, failed_id(), &name);
             }
         }
     }
+}
 
-    /// Load the oldest requested face; false when nothing was queued.
-    fn load_one_preview(&self, ctx: &egui::Context) -> bool {
-        let Some(name) = ctx.data_mut(|data| {
-            let queue = data.get_temp_mut_or_default::<Vec<String>>(queue_id());
-            (!queue.is_empty()).then(|| queue.remove(0))
-        }) else {
-            return false;
-        };
-        let used = ctx.data(|data| data.get_temp::<u64>(budget_id()).unwrap_or(0));
-        let bytes = self.face(&name).and_then(|face| {
-            let size = std::fs::metadata(&face.path).ok()?.len();
-            (size <= MAX_PREVIEW_BYTES && used + size <= PREVIEW_BUDGET).then_some(())?;
-            Some((std::fs::read(&face.path).ok()?, face.index))
-        });
-        let Some((bytes, index)) =
-            bytes.filter(|(b, i)| skrifa::FontRef::from_index(b, *i).is_ok())
-        else {
-            mark(ctx, failed_id(), &name);
-            return true;
-        };
-        let size = bytes.len() as u64;
-        let key = preview_key(&name);
-        let mut data = egui::FontData::from_owned(bytes);
-        data.index = index;
-        ctx.add_font(egui::epaint::text::FontInsert::new(
-            &key,
-            data,
-            vec![egui::epaint::text::InsertFontFamily {
-                family: FontFamily::Name(key.clone().into()),
-                priority: egui::epaint::text::FontPriority::Highest,
-            }],
-        ));
-        ctx.data_mut(|data| data.insert_temp(budget_id(), used + size));
-        ctx.request_repaint();
-        true
+/// A preview face the worker read, or a name it could not use.
+enum PreviewRead {
+    Face {
+        name: String,
+        bytes: Vec<u8>,
+        index: u32,
+    },
+    Failed(String),
+}
+
+/// Read and check one face off the UI thread.
+fn read_face(name: String, face: Option<Face>) -> PreviewRead {
+    let bytes = face.and_then(|face| {
+        let size = std::fs::metadata(&face.path).ok()?.len();
+        if size > MAX_PREVIEW_BYTES {
+            return None;
+        }
+        let bytes = std::fs::read(&face.path).ok()?;
+        draws_name(&bytes, face.index, &name).then_some((bytes, face.index))
+    });
+    match bytes {
+        Some((bytes, index)) => PreviewRead::Face { name, bytes, index },
+        None => PreviewRead::Failed(name),
     }
+}
+
+/// Whether the face at `index` in `bytes` parses and has a glyph for every letter and digit
+/// of `name`. Symbol fonts do not, and would draw an empty row.
+fn draws_name(bytes: &[u8], index: u32, name: &str) -> bool {
+    use skrifa::MetadataProvider;
+    let Ok(font) = skrifa::FontRef::from_index(bytes, index) else {
+        return false;
+    };
+    let charmap = font.charmap();
+    name.chars()
+        .filter(|c| c.is_alphanumeric())
+        .all(|c| charmap.map(c).is_some())
+}
+
+/// Add a preview face to egui under its own family.
+fn install(ctx: &egui::Context, name: &str, bytes: Vec<u8>, index: u32) {
+    let key = preview_key(name);
+    let mut data = egui::FontData::from_owned(bytes);
+    data.index = index;
+    ctx.add_font(egui::epaint::text::FontInsert::new(
+        &key,
+        data,
+        vec![egui::epaint::text::InsertFontFamily {
+            family: FontFamily::Name(key.clone().into()),
+            priority: egui::epaint::text::FontPriority::Highest,
+        }],
+    ));
 }
 
 fn queue_id() -> egui::Id {
@@ -470,6 +555,38 @@ mod tests {
         ctx.end_pass().textures_delta.clear();
     }
 
+    /// Run frames until the preview worker is done and its faces are installed.
+    fn settle(ctx: &egui::Context, list: &FontList) {
+        for _ in 0..200 {
+            pass(ctx, |ctx| list.load_previews(ctx));
+            let queued =
+                ctx.data(|data| data.get_temp::<Vec<String>>(queue_id()).unwrap_or_default());
+            let waiting = list.ready.lock().map(|r| r.len()).unwrap_or(0);
+            if queued.is_empty() && waiting == 0 && !list.busy.load(Ordering::Acquire) {
+                pass(ctx, |_| {});
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    #[test]
+    fn symbol_faces_without_their_name_glyphs_are_refused() {
+        let defs = egui::FontDefinitions::default();
+        let bytes = defs
+            .font_data
+            .values()
+            .next()
+            .map(|data| data.font.to_vec())
+            .unwrap_or_default();
+        assert!(draws_name(&bytes, 0, "Sample 12"));
+        assert!(
+            !draws_name(&bytes, 0, "\u{4E2D}\u{6587}"),
+            "no CJK glyphs in egui's font"
+        );
+        assert!(!draws_name(b"junk", 0, "Sample"));
+    }
+
     #[test]
     fn previews_load_a_requested_face_and_fall_back_until_then() {
         let dir = std::env::temp_dir().join(format!("notecraft-preview-{}", std::process::id()));
@@ -505,8 +622,7 @@ mod tests {
             font.clone().map(|f| f.family),
             Some(FontFamily::Proportional)
         );
-        pass(&ctx, |ctx| list.load_previews(ctx));
-        pass(&ctx, |_| {});
+        settle(&ctx, &list);
         pass(&ctx, |ctx| font = Some(preview_font(ctx, "Sample", 13.0)));
         assert_eq!(
             font.clone().map(|f| f.family),
@@ -515,7 +631,7 @@ mod tests {
 
         // A face that cannot be read stays in the UI font and is not asked for again.
         pass(&ctx, |ctx| font = Some(preview_font(ctx, "Missing", 13.0)));
-        pass(&ctx, |ctx| list.load_previews(ctx));
+        settle(&ctx, &list);
         pass(&ctx, |ctx| font = Some(preview_font(ctx, "Missing", 13.0)));
         assert_eq!(
             font.clone().map(|f| f.family),
