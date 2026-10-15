@@ -18,6 +18,7 @@ pub(super) const LIGHT: Palette = Palette {
     sidebar_selected: 0xE6DDF0,
     canvas_bg: 0xFFFFFF,
     canvas_rule: 0xD3E1EE,
+    canvas_margin_rule: 0xDA6C6C,
     text: 0x202020,
     border: 0xE0DEE3,
 };
@@ -33,6 +34,7 @@ pub(super) const DARK: Palette = Palette {
     sidebar_selected: 0x3D3447,
     canvas_bg: 0x1B1B1B,
     canvas_rule: 0x30383F,
+    canvas_margin_rule: 0x9C4A4A,
     text: 0xEAEAEA,
     border: 0x3A3A3A,
 };

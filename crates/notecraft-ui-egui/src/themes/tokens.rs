@@ -43,6 +43,8 @@ pub struct ThemeTokens {
     pub canvas_bg: Color32,
     /// Rule lines and grid.
     pub canvas_rule: Color32,
+    /// The red margin line on ruled paper. Decorative, so it has no contrast requirement.
+    pub canvas_margin_rule: Color32,
     pub text: Color32,
     pub text_muted: Color32,
     /// Separators and control borders.
@@ -98,6 +100,7 @@ pub(super) struct Palette {
     pub sidebar_selected: u32,
     pub canvas_bg: u32,
     pub canvas_rule: u32,
+    pub canvas_margin_rule: u32,
     pub text: u32,
     pub border: u32,
 }
@@ -151,6 +154,7 @@ impl ThemeTokens {
             sidebar_selected: hex(p.sidebar_selected),
             canvas_bg,
             canvas_rule: hex(p.canvas_rule),
+            canvas_margin_rule: hex(p.canvas_margin_rule),
             text,
             text_muted: mix(text, canvas_bg, 0.35),
             border: hex(p.border),

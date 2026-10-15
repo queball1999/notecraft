@@ -74,6 +74,9 @@ pub struct Look<'a> {
     pub registry: &'a Registry,
     /// The installed font families for the font box; empty until they are known.
     pub fonts: &'a [String],
+    /// The rule lines style of the current page (its `view.rule_lines` id), marked in the Rule
+    /// Lines menu.
+    pub rule_lines: &'static str,
 }
 
 /// A command a ribbon button or menu item asked to run.

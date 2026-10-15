@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: rank 9: style and tag galleries and the Help tab landed (PR 0.5f).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: rank 11: dotted paper decision made; only the real pinch check remains.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -12,7 +12,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 |---:|---|---|---|---|
 | 6 | Window launch, system dark mode, and the OS UI font not yet verified on macOS and Linux (Windows done); shortcuts using Cmd not yet tried on a Mac | SH-01, SH-14, TH-06 | 1-2 | build_plan/02, PR 0.1, 0.3, 0.4, 0.9 |
 | 9 | Ribbon key tips not yet tried by hand on a physical keyboard (a lone Alt tap sent as OS keyboard input does show them on Windows 11); SH-04 needs a decision now that the per-button badge is gone; typing into the font and size boxes is tested in the harness but not yet by hand in the running app | SH-04, SH-05 | 1-2 | build_plan/02, PR 0.5 |
-| 11 | Canvas pan, zoom, and paper landed (PR 0.7). Left: confirm that dotted paper is out of scope (OneNote does not appear to have it) and drop it from CV-03; try pinch zoom on a real touchpad or touch screen (only synthetic zoom events tested) | CV-02, CV-03 | 0-1 | build_plan/02, PR 0.7 |
+| 11 | Canvas pan, zoom, and paper landed (PR 0.7). Left: try pinch zoom on a real touchpad or touch screen (only synthetic zoom events tested) | CV-02 | 0-1 | build_plan/02, PR 0.7 |
 | 12 | Start page, recents, and open dialogs landed (PR 0.8). Left: try the OS folder and file dialogs in the running app on Windows, macOS, and Linux (tests use a fake picker) | SH-12 | 1 | build_plan/02, PR 0.8 |
 | 14 | Screen reader names, keyboard order, and focus rings landed (PR 0.10). Left: try the app with Narrator (Windows) and VoiceOver (macOS) and record the results | SH-15 | 1-2 | build_plan/02, PR 0.10 |
 
@@ -94,3 +94,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-15 | 0 | Rank 9 updated: color pickers and the Colors dialog landed (PR 0.5e); the duplicated RGBA fields on its Custom page noted. |
 | 2026-10-15 | 0 | Rank 9: font names now show in their own face (PR 0.5d) and the Colors dialog shows one set of R, G, B, A fields (PR 0.5e); a hand check of typing in the boxes added. |
 | 2026-10-15 | 0 | Rank 9 narrowed: style and tag galleries and the Help tab landed (PR 0.5f); ribbon parity follow-ups 0.5c to 0.5f are done. |
+| 2026-10-15 | 0 | Rank 11 narrowed: dotted paper kept as an extra and built with the ruled margin line (CV-03 done); only the real pinch check remains. |

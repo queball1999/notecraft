@@ -294,11 +294,7 @@ mod tests {
         }
         let before = session.clone();
         assert_eq!(
-            run(
-                &mut session,
-                "view.rule_lines",
-                json!({ "style": "dotted" })
-            ),
+            run(&mut session, "view.rule_lines", json!({ "style": "polka" })),
             Err("invalid_args")
         );
         assert_eq!(

@@ -8,9 +8,11 @@ use egui::{
     Color32, CornerRadius, FontId, Id, Rect, Response, Sense, Stroke, StrokeKind, Ui, WidgetInfo,
     WidgetType,
 };
+use notecraft_canvas::paper::RuleKind;
+use notecraft_canvas::RuleLines;
 use notecraft_engine::cmd::{CommandId, Map, Value};
 
-use super::spec::{Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS};
+use super::spec::{ArgValue, Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS};
 use super::{Clicked, Look};
 use crate::color::{self, Rgba8};
 use crate::themes::{hex, mix};
@@ -145,6 +147,9 @@ pub(super) fn button_item(ui: &mut Ui, button: &Button, look: Look<'_>, out: &mu
                 items(ui, list, look, out);
             });
         }
+        Menu::Papers(list) => {
+            ui.menu_button(button.label, |ui| papers(ui, list, look, out));
+        }
         Menu::Colors(menu) => {
             ui.menu_button(button.label, |ui| {
                 colors(ui, button.command, &menu, look, out)
@@ -166,6 +171,91 @@ pub(super) fn items(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<C
         if row(ui, item.label, item.preview, look).clicked() {
             out.push(Clicked::new(item.command, item.args));
             ui.close();
+        }
+    }
+}
+
+/// Size of a paper thumbnail card in the Rule Lines menu, in points.
+const CARD: egui::Vec2 = egui::vec2(68.0, 48.0);
+/// Cards per row in the Rule Lines menu.
+const CARD_COLUMNS: usize = 4;
+/// Space between cards.
+const CARD_GAP: f32 = 6.0;
+
+/// The rule lines style an item selects: its `style` argument.
+fn paper_style(item: &Item) -> Option<RuleLines> {
+    item.args
+        .iter()
+        .find(|arg| arg.name == "style")
+        .and_then(|arg| match arg.value {
+            ArgValue::Str(id) => RuleLines::from_id(id),
+            _ => None,
+        })
+}
+
+/// One thumbnail card: a miniature page drawn like the real paper. Screen readers hear a
+/// radio button named like the text item, checked for the current style.
+fn paper_card(
+    ui: &mut Ui,
+    label: &str,
+    rules: RuleLines,
+    selected: bool,
+    look: Look<'_>,
+) -> Response {
+    let t = look.tokens;
+    let (rect, response) = ui.allocate_exact_size(CARD, Sense::click());
+    response.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, selected, label));
+    let painter = ui.painter_at(rect.expand(2.0));
+    let page = rect.shrink(1.0);
+    crate::canvas::paper::paint_thumbnail(&painter, page, rules, t);
+    let outline = if selected {
+        Stroke::new(2.0, t.accent)
+    } else if response.hovered() || response.has_focus() {
+        Stroke::new(2.0, mix(t.border, t.accent, 0.6))
+    } else {
+        Stroke::new(1.0, t.border)
+    };
+    painter.rect_stroke(rect, CornerRadius::same(2), outline, StrokeKind::Inside);
+    response.on_hover_text(label)
+}
+
+/// The Rule Lines menu: a gallery of thumbnail cards, None first, then "Ruled Lines", then
+/// "Grid Lines" (grids and Dotted). The items stay the source of truth: a card runs its item's
+/// command with its arguments, and picking one closes the menu.
+pub(super) fn papers(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<Clicked>) {
+    /// A group heading (none for the first) and which kinds of paper belong to it.
+    type Group = (Option<&'static str>, fn(RuleKind) -> bool);
+    let groups: [Group; 3] = [
+        (None, |kind| kind == RuleKind::None),
+        (Some("Ruled Lines"), |kind| kind == RuleKind::Lines),
+        (Some("Grid Lines"), |kind| {
+            matches!(kind, RuleKind::Grid | RuleKind::Dots)
+        }),
+    ];
+    ui.set_min_width(CARD_COLUMNS as f32 * (CARD.x + CARD_GAP));
+    for (title, wanted) in groups {
+        let cards: Vec<(&Item, RuleLines)> = items
+            .iter()
+            .filter_map(|item| paper_style(item).map(|rules| (item, rules)))
+            .filter(|(_, rules)| wanted(rules.kind()))
+            .collect();
+        if cards.is_empty() {
+            continue;
+        }
+        if let Some(title) = title {
+            heading(ui, title);
+        }
+        for chunk in cards.chunks(CARD_COLUMNS) {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(CARD_GAP, CARD_GAP);
+                for (item, rules) in chunk {
+                    let selected = rules.id() == look.rule_lines;
+                    if paper_card(ui, item.label, *rules, selected, look).clicked() {
+                        out.push(Clicked::new(item.command, item.args));
+                        ui.close();
+                    }
+                }
+            });
         }
     }
 }

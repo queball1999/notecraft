@@ -4,7 +4,7 @@
 //! The zoom lives in the session (`view.zoom` and friends), so every zoom, including Ctrl+wheel
 //! and pinch, is a command. The scroll position is front-end state kept here.
 
-mod paper;
+pub(crate) mod paper;
 mod title;
 mod widget;
 

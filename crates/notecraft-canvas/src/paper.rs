@@ -16,9 +16,17 @@ pub enum RuleKind {
     Lines,
     /// Horizontal and vertical lines.
     Grid,
+    /// A dot at every grid crossing (a kept extra beyond OneNote).
+    Dots,
 }
 
-/// The rule line styles of OneNote's Rule Lines menu.
+/// Distance of the red margin line from the left edge of a ruled page, in page units: 1 inch.
+pub const MARGIN_X: f32 = UNITS_PER_INCH;
+
+/// Most dots drawn at once; a denser view draws none rather than a slow, gray page.
+pub const MAX_DOTS: usize = 20_000;
+
+/// The rule line styles of OneNote's Rule Lines menu, plus dotted paper (a kept extra).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum RuleLines {
     #[default]
@@ -31,10 +39,11 @@ pub enum RuleLines {
     GridMedium,
     GridLarge,
     GridXLarge,
+    Dotted,
 }
 
 impl RuleLines {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::None,
         Self::Narrow,
         Self::College,
@@ -44,6 +53,7 @@ impl RuleLines {
         Self::GridMedium,
         Self::GridLarge,
         Self::GridXLarge,
+        Self::Dotted,
     ];
 
     /// The command argument value, for example `college` or `grid_small`.
@@ -58,6 +68,7 @@ impl RuleLines {
             Self::GridMedium => "grid_medium",
             Self::GridLarge => "grid_large",
             Self::GridXLarge => "grid_xlarge",
+            Self::Dotted => "dotted",
         }
     }
 
@@ -72,12 +83,19 @@ impl RuleLines {
             Self::GridSmall | Self::GridMedium | Self::GridLarge | Self::GridXLarge => {
                 RuleKind::Grid
             }
+            Self::Dotted => RuleKind::Dots,
         }
+    }
+
+    /// The x of the red margin line in page units, or `None` unless the style is ruled
+    /// (narrow, college, standard, wide). Grids and dots have no margin line.
+    pub fn margin(self) -> Option<f32> {
+        (self.kind() == RuleKind::Lines).then_some(MARGIN_X)
     }
 
     /// Distance between lines, in page units (1/96 inch). Zero for [`RuleLines::None`].
     /// Ruled spacings follow US notebook paper: narrow 1/4 inch, college 9/32, standard
-    /// 5/16, wide 11/32. Grids are 1/8, 1/4, 1/2, and 1 inch.
+    /// 5/16, wide 11/32. Grids are 1/8, 1/4, 1/2, and 1 inch; dots are 1/4 inch apart.
     pub fn spacing(self) -> f32 {
         let inches = match self {
             Self::None => 0.0,
@@ -86,7 +104,7 @@ impl RuleLines {
             Self::Standard => 10.0 / 32.0,
             Self::Wide => 11.0 / 32.0,
             Self::GridSmall => 1.0 / 8.0,
-            Self::GridMedium => 1.0 / 4.0,
+            Self::GridMedium | Self::Dotted => 1.0 / 4.0,
             Self::GridLarge => 1.0 / 2.0,
             Self::GridXLarge => 1.0,
         };
@@ -178,7 +196,8 @@ mod tests {
         for size in PaperSize::ALL {
             assert_eq!(PaperSize::from_id(size.id()), Some(size));
         }
-        assert_eq!(RuleLines::from_id("dotted"), None);
+        assert_eq!(RuleLines::from_id("dotted"), Some(RuleLines::Dotted));
+        assert_eq!(RuleLines::from_id("Dotted"), None);
         assert_eq!(PaperSize::from_id("A4"), None);
     }
 
@@ -197,6 +216,26 @@ mod tests {
         assert_eq!(RuleLines::None.kind(), RuleKind::None);
         assert_eq!(RuleLines::Wide.kind(), RuleKind::Lines);
         assert_eq!(RuleLines::GridSmall.kind(), RuleKind::Grid);
+    }
+
+    #[test]
+    fn dotted_paper_is_a_quarter_inch_dot_grid() {
+        assert_eq!(RuleLines::Dotted.id(), "dotted");
+        assert_eq!(RuleLines::Dotted.kind(), RuleKind::Dots);
+        assert_eq!(RuleLines::Dotted.spacing(), 24.0);
+        assert_eq!(RuleLines::ALL.last(), Some(&RuleLines::Dotted));
+    }
+
+    #[test]
+    fn only_ruled_paper_has_a_margin() {
+        for style in RuleLines::ALL {
+            let ruled = style.kind() == RuleKind::Lines;
+            assert_eq!(style.margin().is_some(), ruled, "{}", style.id());
+        }
+        assert_eq!(RuleLines::College.margin(), Some(96.0));
+        assert_eq!(RuleLines::Dotted.margin(), None);
+        assert_eq!(RuleLines::GridSmall.margin(), None);
+        assert_eq!(RuleLines::None.margin(), None);
     }
 
     #[test]
