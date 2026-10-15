@@ -1,6 +1,6 @@
 //! NoteCraft desktop app: opens the main window on wgpu and hosts the egui front end.
 //!
-//! Usage: `notecraft [--version]`
+//! Usage: `notecraft [--version] [--help] [<notebook folder or page file>]`
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -17,6 +17,7 @@
     windows_subsystem = "windows"
 )]
 
+mod args;
 mod logging;
 mod picker;
 mod prefs;
@@ -134,14 +135,23 @@ fn open_settings() -> SettingsStore<Prefs> {
 }
 
 fn main() -> eframe::Result<()> {
-    if std::env::args()
-        .skip(1)
-        .any(|a| a == "--version" || a == "-V")
-    {
-        // A closed stdout is not an error worth crashing over.
-        let _ = writeln!(std::io::stdout(), "{}", version_line());
-        return Ok(());
-    }
+    let open = match args::parse(std::env::args_os().skip(1)) {
+        Ok(args::Cli::Version) => {
+            // A closed stdout is not an error worth crashing over.
+            let _ = writeln!(std::io::stdout(), "{}", version_line());
+            return Ok(());
+        }
+        Ok(args::Cli::Help) => {
+            let _ = write!(std::io::stdout(), "{}", args::USAGE);
+            return Ok(());
+        }
+        Ok(args::Cli::Launch { open }) => open,
+        Err(e) => {
+            let _ = writeln!(std::io::stderr(), "notecraft: {e}\n");
+            let _ = write!(std::io::stderr(), "{}", args::USAGE);
+            std::process::exit(2);
+        }
+    };
     let log_path = logging::init();
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
@@ -201,10 +211,15 @@ fn main() -> eframe::Result<()> {
                 .with_picker(Box::new(picker::OsPicker));
             shell.set_theme(theme.preset(), theme.mode());
             shell.set_ribbon(ribbon.0, ribbon.1);
-            // Reopen what was open last; with nothing recent, the start page shows.
             shell.set_recents(recents);
             shell.set_recent_colors(recent_colors);
-            shell.reopen_last();
+            // A path on the command line wins; if it cannot open (the shell toasts why), or
+            // none was given, reopen what was open last. With nothing recent, the start page
+            // shows.
+            let opened = open.as_deref().is_some_and(|path| shell.open_path(path));
+            if !opened {
+                shell.reopen_last();
+            }
             Ok(Box::new(App {
                 shell,
                 store,

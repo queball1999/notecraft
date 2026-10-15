@@ -1,10 +1,22 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: the release workflow, not the shared one, packages the CLI.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: the desktop app opens a notebook or page passed at launch.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 
 Status: the `notecraft-cli` binary and `--version` land in Phase -1 (the release workflow packages and runs the CLI). Everything else here is post-parity optional (docs/post-parity.md); OneNote has no command line. The Phase column below says what the build plan delivers.
+
+## Desktop app arguments
+
+The desktop app takes a notebook or page to open, as OneNote opens a file handed to it by the OS (file associations and "Open with"):
+
+```sh
+notecraft [--help] [--version] [<notebook folder or page file>]
+```
+
+- A folder opens as a notebook (`file.open_notebook`); a `.md` or `.notecraft` file opens as a page (`file.open`). A relative path resolves against the current directory.
+- With no path, or if the path cannot be opened (missing, wrong file type, or not valid UTF-8), the app starts anyway, shows an error toast for a bad path, and reopens the last recent item.
+- `--help` and `--version` print to stdout and exit 0. An unknown option or a second path prints the error and usage to stderr and exits 2. `--` ends the options.
 
 ## Global options
 
@@ -61,3 +73,4 @@ notecraft-cli --notebook ~/Notes/Work run --page "Meeting notes" --cmd page.add_
 | 2026-10-14 | -1 | Created. Global options, subcommands, exit codes. Same day: everything but `--version` marked post-parity; graph subcommand dropped. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | The release workflow, not the shared one, packages the CLI. |
+| 2026-10-15 | 0 | Documented the desktop app's arguments: `notecraft [<notebook folder or page file>]`, `--help`, `--version`. |

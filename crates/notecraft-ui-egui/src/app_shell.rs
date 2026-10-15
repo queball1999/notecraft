@@ -167,6 +167,38 @@ impl AppShell {
         self.dispatch(open.command.as_str(), open.args)
     }
 
+    /// Open the notebook folder or page file named on the command line, as OneNote does for
+    /// a file it is asked to open. A relative path resolves against the current directory.
+    /// A folder runs `file.open_notebook`, anything else `file.open`. A path that is missing,
+    /// not valid UTF-8, or refused by the command shows an error toast and returns false, so
+    /// the caller can fall back to [`Self::reopen_last`].
+    pub fn open_path(&mut self, path: &std::path::Path) -> bool {
+        let full = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+        let Some(text) = full.to_str() else {
+            tracing::warn!(path = %full.display(), "launch path is not valid UTF-8");
+            self.toasts.push(format!(
+                "Cannot open {}: the path is not valid text.",
+                full.display()
+            ));
+            return false;
+        };
+        let id = if full.is_dir() {
+            ids::FILE_OPEN_NOTEBOOK
+        } else if full.exists() {
+            ids::FILE_OPEN
+        } else {
+            tracing::warn!(path = %full.display(), "launch path does not exist");
+            self.toasts.push(format!(
+                "Cannot open {}: it does not exist.",
+                full.display()
+            ));
+            return false;
+        };
+        let mut args = Map::new();
+        args.insert("path".to_owned(), Value::String(text.to_owned()));
+        self.dispatch(id.as_str(), Value::Object(args))
+    }
+
     /// Use the OS UI font (docs/themes.md section 2).
     pub fn with_fonts(mut self, fonts: OsFonts) -> Self {
         self.fonts = fonts;
@@ -1664,6 +1696,32 @@ mod tests {
         assert!(shell.reopen_last());
         assert_eq!(shell.session().notebooks().len(), 2);
         assert_eq!(recent_paths(&shell), ["/n/Plans.md", "/n/Work"]);
+    }
+
+    #[test]
+    fn open_path_opens_a_folder_or_a_page_file() {
+        let dir = std::env::temp_dir().join(format!("notecraft-open-path-{}", std::process::id()));
+        assert!(std::fs::create_dir_all(&dir).is_ok());
+        let page = dir.join("Plans.md");
+        assert!(std::fs::write(&page, "# Plans\n").is_ok());
+
+        let mut shell = AppShell::empty();
+        assert!(shell.open_path(&dir));
+        assert_eq!(shell.session().notebooks().len(), 2);
+        let first = shell.session().recents().items().first().map(|i| i.kind);
+        assert_eq!(first, Some(notecraft_engine::recent::RecentKind::Notebook));
+
+        assert!(shell.open_path(&page));
+        let first = shell.session().recents().items().first().map(|i| i.kind);
+        assert_eq!(first, Some(notecraft_engine::recent::RecentKind::Page));
+        assert!(shell.toasts().is_empty());
+
+        // Missing and wrong-type paths toast and leave the recent list alone.
+        assert!(!shell.open_path(&dir.join("nope.md")));
+        std::fs::write(dir.join("todo.txt"), "x").ok();
+        assert!(!shell.open_path(&dir.join("todo.txt")));
+        assert_eq!(recent_paths(&shell).len(), 2);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

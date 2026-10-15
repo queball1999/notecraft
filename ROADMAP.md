@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: screen reader names, keyboard order, and focus rings (PR 0.10). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: open a notebook or page passed at launch. Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -103,3 +103,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-15 | Phase 0 PR 0.5c: Ribbon Display Options on the ribbon chevron, as in OneNote: Classic or Simplified Ribbon, and Full-screen mode, Show tabs only, or Always show Ribbon (view.ribbon.layout, view.ribbon.show, both saved). The simplified ribbon is one row of icon buttons with a More Options menu; full-screen mode shows the ribbon while the pointer is at the top of the window. The canvas now reports only its visible part to screen readers. |
 | 2026-10-15 | Phase 0 PR 0.5d: Font and Font Size are editable boxes, as in OneNote: they show the current value (Calibri, 11), the font box lists the installed families from a background scan that reads only each font's name table, and typing filters it; the size box takes any size from 1 to 1638. |
 | 2026-10-15 | Phase 0 PR 0.5e: color menus in Office's layout: Automatic or No Color, Theme Colors, Standard Colors, Recent Colors (saved in settings), and More Colors, which opens a Colors dialog with Standard and Custom pages and New over Current. Split color buttons show the last color as the bar under their icon and apply it; Text Highlight Color offers fifteen colors with No Color last. |
+| 2026-10-15 | Open at launch: `notecraft <notebook folder or page file>` opens it instead of the last recent item (`--help` added; a bad path toasts and falls back); documented in docs/cli.md. |
