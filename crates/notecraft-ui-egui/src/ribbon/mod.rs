@@ -12,6 +12,7 @@
 
 mod backstage;
 mod button;
+mod combo;
 mod group;
 pub(crate) mod keytips;
 mod menus;
@@ -67,6 +68,8 @@ pub fn height(layout: RibbonLayout, show: RibbonShow) -> f32 {
 pub struct Look<'a> {
     pub tokens: &'a ThemeTokens,
     pub registry: &'a Registry,
+    /// The installed font families for the font box; empty until they are known.
+    pub fonts: &'a [String],
 }
 
 /// A command a ribbon button or menu item asked to run.

@@ -153,6 +153,9 @@ pub(super) fn button_item(ui: &mut Ui, button: &Button, look: Look<'_>, out: &mu
         Menu::TableGrid => {
             ui.menu_button(button.label, |ui| table_grid(ui, button.command, look, out));
         }
+        Menu::Combo(combo) => {
+            ui.menu_button(button.label, |ui| items(ui, combo.items, look, out));
+        }
     }
 }
 

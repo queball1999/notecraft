@@ -13,6 +13,7 @@ mod a11y;
 mod app_shell;
 pub mod canvas;
 pub mod color;
+pub mod font_list;
 pub mod icons;
 pub mod nav;
 pub mod picker;

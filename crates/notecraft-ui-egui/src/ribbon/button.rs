@@ -6,11 +6,11 @@ use egui::{
     Color32, CornerRadius, FontId, Galley, Popup, PopupCloseBehavior, Rect, SetOpenCommand, Stroke,
     Ui, Vec2,
 };
-use notecraft_engine::cmd::Status;
+use notecraft_engine::cmd::{Map, Status, Value};
 use std::sync::Arc;
 
-use super::spec::{Button, Menu, Size};
-use super::{keytips, menus, Clicked, KeyFrame, Look};
+use super::spec::{Button, Combo, Menu, Size};
+use super::{combo, keytips, menus, Clicked, KeyFrame, Look};
 use crate::icons::{self, IconColors};
 use crate::themes::{mix, ButtonStyle, ThemeTokens};
 
@@ -58,8 +58,12 @@ pub(super) fn show(
     show_sized(ui, button, button.size, look, keys, large_height, out);
 }
 
-/// Width of `button` drawn icon-only, as the simplified ribbon draws every button.
+/// Width of `button` drawn icon-only, as the simplified ribbon draws every button (a box
+/// keeps its own width).
 pub(super) fn icon_only_width(button: &Button) -> f32 {
+    if let Menu::Combo(combo) = button.menu {
+        return combo.width;
+    }
     let arrow = if button.menu.is_none() {
         0.0
     } else {
@@ -78,6 +82,10 @@ pub(super) fn show_sized(
     large_height: f32,
     out: &mut Vec<Clicked>,
 ) {
+    if let Menu::Combo(combo) = button.menu {
+        show_combo(ui, button, &combo, look, out);
+        return;
+    }
     let tokens = look.tokens;
     let spec = look.registry.get(button.command.as_str());
     let coming_soon = spec.is_none_or(|spec| spec.status == Status::ComingSoon);
@@ -147,6 +155,7 @@ pub(super) fn show_sized(
         Menu::TableGrid => {
             picker.show(|ui| menus::table_grid(ui, button.command, look, out));
         }
+        Menu::Combo(_) => {}
     }
 
     let mut tip = spec.map_or_else(String::new, |spec| spec.description.to_owned());
@@ -157,6 +166,54 @@ pub(super) fn show_sized(
         tip.push_str("\nComing Soon");
     }
     let _ = response.on_hover_text(format!("{}\n{tip}", button.label));
+}
+
+/// A box button: the font or size box. A pick or typed value runs the command with it; a
+/// size that is not a number in range is ignored, as OneNote refuses it.
+fn show_combo(
+    ui: &mut Ui,
+    button: &'static Button,
+    combo: &Combo,
+    look: Look<'_>,
+    out: &mut Vec<Clicked>,
+) {
+    let fallback: Vec<String>;
+    let items: &[String] = if combo.fonts && !look.fonts.is_empty() {
+        look.fonts
+    } else {
+        fallback = combo
+            .items
+            .iter()
+            .map(|item| item.label.to_owned())
+            .collect();
+        &fallback
+    };
+    ui.allocate_ui(egui::vec2(combo.width, combo::HEIGHT), |ui| {
+        let Some(value) = combo::show(
+            ui,
+            button.label,
+            combo.width,
+            combo.current,
+            items,
+            combo.search,
+            look,
+        ) else {
+            return;
+        };
+        let value = match combo.number {
+            Some((min, max)) => match value.parse::<f64>() {
+                Ok(n) if n.is_finite() && (min..=max).contains(&n) => Value::from(n),
+                _ => return,
+            },
+            None => Value::from(value),
+        };
+        let mut args = Map::new();
+        args.insert(combo.arg.to_owned(), value);
+        out.push(Clicked {
+            command: button.command,
+            args: Value::Object(args),
+        });
+    });
 }
 
 /// The part of a button that opens its menu: the bottom strip of a large button, the right

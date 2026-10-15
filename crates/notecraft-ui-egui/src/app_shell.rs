@@ -10,6 +10,7 @@ use notecraft_engine::Session;
 use craft_ui::buttons::IconButton;
 
 use crate::canvas::{self, CanvasUi};
+use crate::font_list::FontList;
 use crate::icons::{self, Icon, IconColors};
 use crate::nav::{self, NavUi};
 use crate::picker::{FilePicker, NoPicker};
@@ -79,6 +80,10 @@ pub struct AppShell {
     fonts: OsFonts,
     /// The font choice last installed (see [`OsFonts::choice`]).
     installed_font: Option<Option<bool>>,
+    /// The installed font families, filled in by a background scan.
+    font_list: FontList,
+    /// The families once the scan is done; the font box offers a short list until then.
+    families: Vec<String>,
 }
 
 impl Default for AppShell {
@@ -113,7 +118,15 @@ impl AppShell {
             installed: None,
             fonts: OsFonts::default(),
             installed_font: None,
+            font_list: FontList::none(),
+            families: Vec::new(),
         }
+    }
+
+    /// List the installed fonts in the font box once `list` is filled.
+    pub fn with_font_list(mut self, list: FontList) -> Self {
+        self.font_list = list;
+        self
     }
 
     /// Ask `picker` for paths (the desktop app passes the OS dialogs).
@@ -271,9 +284,15 @@ impl AppShell {
         let tokens = self.tokens(ui.ctx());
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
+        if self.families.is_empty() {
+            if let Some(families) = self.font_list.families() {
+                self.families = families;
+            }
+        }
         let look = ribbon::Look {
             tokens: &tokens,
             registry: &self.registry,
+            fonts: &self.families,
         };
         if self.ribbon.backstage_open() {
             let clicked = self.ribbon.show_backstage(ui, look, self.session.recents());
@@ -559,6 +578,114 @@ mod tests {
         harness.get_by_label("Canvas").click();
         harness.run();
         assert_eq!(harness.state().canvas().viewport().origin(), before);
+    }
+
+    fn type_into(harness: &mut egui_kittest::Harness<'_, AppShell>, label: &str, text: &str) {
+        harness.get_by_label(label).focus();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness.event(egui::Event::Text(text.to_owned()));
+        harness.run();
+    }
+
+    fn last_toast(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
+        harness.state().toasts().texts().last().map(str::to_owned)
+    }
+
+    #[test]
+    fn font_box_shows_the_font_and_filters_installed_families_as_you_type() {
+        use egui_kittest::kittest::NodeT;
+        let families = ["Arial", "Arial Black", "Calibri", "Consolas", "Segoe UI"]
+            .map(str::to_owned)
+            .to_vec();
+        let shell = AppShell::new().with_font_list(FontList::from_families(families));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        assert_eq!(
+            harness
+                .get_by_label("Font")
+                .accesskit_node()
+                .value()
+                .as_deref(),
+            Some("Calibri")
+        );
+        type_into(&mut harness, "Font", "black");
+        assert!(harness.query_by_label("Arial Black").is_some());
+        assert!(harness.query_by_label("Consolas").is_none(), "filtered");
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+        assert_eq!(last_toast(&harness).as_deref(), Some("Coming Soon: Font"));
+        assert!(
+            harness.query_by_label("Arial Black").is_none(),
+            "list closed"
+        );
+
+        // Esc puts the current font back.
+        type_into(&mut harness, "Font", "Cons");
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert_eq!(
+            harness
+                .get_by_label("Font")
+                .accesskit_node()
+                .value()
+                .as_deref(),
+            Some("Calibri")
+        );
+    }
+
+    #[test]
+    fn size_box_takes_typed_sizes_and_ignores_text() {
+        use egui_kittest::kittest::NodeT;
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        assert_eq!(
+            harness
+                .get_by_label("Font Size")
+                .accesskit_node()
+                .value()
+                .as_deref(),
+            Some("11")
+        );
+        type_into(&mut harness, "Font Size", "abc");
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+        assert_eq!(last_toast(&harness), None, "not a size");
+        type_into(&mut harness, "Font Size", "13.5");
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+        assert_eq!(
+            last_toast(&harness).as_deref(),
+            Some("Coming Soon: Font Size")
+        );
+    }
+
+    #[test]
+    fn box_arrows_list_every_entry_and_a_pick_runs_the_command() {
+        let families = ["Arial", "Calibri", "Consolas", "Segoe UI"]
+            .map(str::to_owned)
+            .to_vec();
+        let shell = AppShell::new().with_font_list(FontList::from_families(families));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("Font list").click();
+        harness.run();
+        assert!(harness.query_by_label("Segoe UI").is_some());
+        harness.get_by_label("Consolas").click();
+        harness.run();
+        assert_eq!(last_toast(&harness).as_deref(), Some("Coming Soon: Font"));
+        assert!(harness.query_by_label("Segoe UI").is_none(), "list closed");
+
+        let mut harness = harness_for(AppShell::new());
+        harness.run();
+        harness.get_by_label("Font Size list").click();
+        harness.run();
+        harness.get_by_label("24").click();
+        harness.run();
+        assert_eq!(
+            last_toast(&harness).as_deref(),
+            Some("Coming Soon: Font Size")
+        );
     }
 
     #[test]

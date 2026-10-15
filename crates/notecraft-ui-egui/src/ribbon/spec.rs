@@ -120,6 +120,24 @@ pub struct ColorMenu {
     pub custom: bool,
 }
 
+/// An editable box with a list, as OneNote's Font and Font Size boxes. What is typed or
+/// picked goes to the button's command as `arg`.
+#[derive(Clone, Copy, Debug)]
+pub struct Combo {
+    /// The list when nothing better is known; the font box lists the installed families.
+    pub items: &'static [Item],
+    /// The value shown until the selection says otherwise.
+    pub current: &'static str,
+    pub width: f32,
+    pub arg: &'static str,
+    /// Typing filters the list (the font box).
+    pub search: bool,
+    /// The value is a number from `min` to `max` (the size box); other text is ignored.
+    pub number: Option<(f64, f64)>,
+    /// Use the installed font families as the list once they are known.
+    pub fonts: bool,
+}
+
 /// How a button is drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Size {
@@ -143,6 +161,8 @@ pub enum Menu {
     Colors(ColorMenu),
     /// A grid to pick a table size; runs the button's command with `rows` and `columns`.
     TableGrid,
+    /// The button is drawn as an editable box with a list.
+    Combo(Combo),
 }
 
 impl Menu {
@@ -150,6 +170,7 @@ impl Menu {
     pub fn items(&self) -> &'static [Item] {
         match self {
             Self::Split(items) | Self::Dropdown(items) => items,
+            Self::Combo(combo) => combo.items,
             Self::None | Self::Colors(_) | Self::TableGrid => &[],
         }
     }
@@ -160,7 +181,7 @@ impl Menu {
         match self {
             Self::Split(_) => true,
             Self::Colors(colors) => colors.split,
-            Self::None | Self::Dropdown(_) | Self::TableGrid => false,
+            Self::None | Self::Dropdown(_) | Self::TableGrid | Self::Combo(_) => false,
         }
     }
 
@@ -226,6 +247,11 @@ impl Button {
 
     pub const fn table_grid(mut self) -> Self {
         self.menu = Menu::TableGrid;
+        self
+    }
+
+    pub const fn combo(mut self, combo: Combo) -> Self {
+        self.menu = Menu::Combo(combo);
         self
     }
 }
@@ -391,8 +417,24 @@ const BASIC_TEXT: Group = Group {
     name: "Basic Text",
     columns: &[Column::Rows(&[
         &[
-            Button::small("Font", Icon::Font, ids::FORMAT_FONT_FAMILY).dropdown(FONTS),
-            Button::small("Size", Icon::FontSize, ids::FORMAT_FONT_SIZE).dropdown(FONT_SIZES),
+            Button::small("Font", Icon::Font, ids::FORMAT_FONT_FAMILY).combo(Combo {
+                items: FONTS,
+                current: "Calibri",
+                width: 128.0,
+                arg: "name",
+                search: true,
+                number: None,
+                fonts: true,
+            }),
+            Button::small("Font Size", Icon::FontSize, ids::FORMAT_FONT_SIZE).combo(Combo {
+                items: FONT_SIZES,
+                current: "11",
+                width: 44.0,
+                arg: "points",
+                search: false,
+                number: Some((1.0, 1638.0)),
+                fonts: false,
+            }),
             Button::icon("Bullets", Icon::Bullets, ids::FORMAT_BULLETS),
             Button::icon("Numbering", Icon::Numbering, ids::FORMAT_NUMBERING),
             Button::icon("Decrease Indent", Icon::Outdent, ids::FORMAT_OUTDENT),
@@ -1139,7 +1181,10 @@ mod tests {
                                     ));
                                     out.push((button.label, button.command, Vec::new()));
                                 }
-                                Menu::None | Menu::Split(_) | Menu::Dropdown(_) => {}
+                                Menu::None
+                                | Menu::Split(_)
+                                | Menu::Dropdown(_)
+                                | Menu::Combo(_) => {}
                             }
                         }
                     }
