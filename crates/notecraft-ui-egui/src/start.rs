@@ -117,8 +117,17 @@ fn recent_row(ui: &mut Ui, item: &RecentItem, tokens: &ThemeTokens) -> egui::Res
     };
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, item.name()));
     let painter = ui.painter();
-    if response.hovered() || response.has_focus() {
+    if response.hovered() {
         painter.rect_filled(rect, f32::from(tokens.radius), tokens.hover);
+    }
+    if response.has_focus() {
+        let stroke = egui::Stroke::new(1.5, tokens.accent);
+        painter.rect_stroke(
+            rect,
+            f32::from(tokens.radius),
+            stroke,
+            egui::StrokeKind::Inside,
+        );
     }
     let left = rect.left_top() + egui::vec2(10.0, 5.0);
     painter.text(

@@ -64,6 +64,16 @@ pub fn show(
                 if let Some(page) = session.current_page() {
                     title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
                 }
+                if response.has_focus() {
+                    // Keyboard focus: a ring just inside the visible part of the page.
+                    let stroke = egui::Stroke::new(2.0, tokens.accent);
+                    ui.painter().rect_stroke(
+                        screen.shrink(1.0),
+                        0.0,
+                        stroke,
+                        egui::StrokeKind::Inside,
+                    );
+                }
                 response
             })
         })

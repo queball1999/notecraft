@@ -288,10 +288,13 @@ impl AppShell {
             .inner;
 
         let session = &self.session;
-        egui::Panel::bottom("status_bar")
+        // The status bar's space is taken now, so the panes and the page fit around it, but
+        // its contents are drawn last so it comes last in the keyboard Tab order.
+        let status_rect = egui::Panel::bottom("status_bar")
             .exact_size(STATUS_HEIGHT)
             .frame(panel.fill(tokens.ribbon_bg))
-            .show(ui, |ui| status::show(ui, session, &tokens, &mut clicked));
+            .show(ui, |ui| ui.max_rect())
+            .inner;
         if session.notebooks().is_empty() {
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
@@ -335,6 +338,9 @@ impl AppShell {
                 canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
             })
             .inner;
+        ui.scope_builder(egui::UiBuilder::new().max_rect(status_rect), |ui| {
+            status::show(ui, session, &tokens, &mut clicked);
+        });
         name_splitters(ui.ctx());
         // Like the OS dark mode, the canvas width is reported, not commanded.
         self.session.view_mut().canvas_width = canvas_width.max(0.0) as u32;
@@ -1396,6 +1402,57 @@ mod tests {
 
     fn harness_for(shell: AppShell) -> egui_kittest::Harness<'static, AppShell> {
         harness(shell, WINDOW)
+    }
+
+    /// The label of the focused node, after each of `presses` Tab presses.
+    fn tab_through(
+        harness: &mut egui_kittest::Harness<'_, AppShell>,
+        presses: usize,
+    ) -> Vec<String> {
+        use egui_kittest::kittest::{By, NodeT};
+        (0..presses)
+            .map(|_| {
+                harness.key_press(egui::Key::Tab);
+                harness.run();
+                harness
+                    .query_all(By::new().predicate(|node| node.is_focused()))
+                    .next()
+                    .map(|node| node.accesskit_node().label().unwrap_or_default())
+                    .unwrap_or_default()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn tab_moves_through_ribbon_navigation_page_and_status_bar() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let order = tab_through(&mut harness, 70);
+        let at = |label: &str| {
+            order
+                .iter()
+                .position(|l| l == label)
+                .unwrap_or_else(|| panic!("{label} never got focus: {order:?}"))
+        };
+        let stops = [
+            at("File"),
+            at("Paste"),
+            at("Collapse the Ribbon"),
+            at("My Notebook"),
+            at("Notebook pane width"),
+            at("Add Page"),
+            at("Welcome"),
+            at("Page list width"),
+            at("New Section"),
+            at("Canvas"),
+            at("Zoom 100%"),
+        ];
+        assert!(stops.windows(2).all(|w| w[0] < w[1]), "{order:?}");
+        assert!(
+            order.iter().all(|l| !l.is_empty()),
+            "an unnamed stop: {order:?}"
+        );
+        assert!(toasts(&harness).is_empty(), "Tab runs nothing");
     }
 
     #[test]
