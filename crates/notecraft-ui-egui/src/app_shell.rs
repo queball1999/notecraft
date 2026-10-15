@@ -14,9 +14,9 @@ use crate::nav::{self, NavUi};
 use crate::picker::{FilePicker, NoPicker};
 use crate::ribbon::{self, Clicked, Ribbon};
 use crate::shortcuts::Shortcuts;
-use crate::start;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
+use crate::{start, status};
 
 /// Height of the ribbon region (tab strip and body), in points.
 pub const RIBBON_HEIGHT: f32 = ribbon::HEIGHT;
@@ -25,8 +25,9 @@ pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
 pub const SIDE_WIDTH: f32 = 220.0;
 
-/// The labels of the placeholder regions, in drawing order. UI tests look them up by name.
-pub const REGIONS: [&str; 4] = ["Status bar", "Notebooks", "Add Page", "Canvas"];
+/// Labels of the main regions with mock notebooks open, in drawing order. UI tests look them
+/// up by name.
+pub const REGIONS: [&str; 4] = ["Zoom 100%", "Notebooks", "Add Page", "Canvas"];
 
 /// File commands that open something, and close the File backstage when they do.
 const FILE_OPENS: [CommandId; 3] = [
@@ -271,11 +272,11 @@ impl AppShell {
             .show(ui, |ui| self.ribbon.show(ui, look, collapsed))
             .inner;
 
+        let session = &self.session;
         egui::Panel::bottom("status_bar")
             .exact_size(STATUS_HEIGHT)
             .frame(panel.fill(tokens.ribbon_bg))
-            .show(ui, |ui| placeholder(ui, "Status bar"));
-        let session = &self.session;
+            .show(ui, |ui| status::show(ui, session, &tokens, &mut clicked));
         if session.notebooks().is_empty() {
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
@@ -377,12 +378,6 @@ impl AppShell {
             self.dispatch(command.as_str(), args);
         }
     }
-}
-
-fn placeholder(ui: &mut egui::Ui, name: &str) {
-    ui.centered_and_justified(|ui| {
-        ui.weak(name);
-    });
 }
 
 #[cfg(test)]
@@ -1288,6 +1283,37 @@ mod tests {
         harness.run();
         assert!(shows_chrome(&harness));
         assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn status_bar_shows_the_page_and_zoom_menu() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let position = status::page_position(harness.state().session()).unwrap();
+        let _ = harness.get_by_label(&position);
+        harness.get_by_label("Grocery list").click();
+        harness.run();
+        let _ = harness.get_by_label("Page 2 of 5");
+
+        harness.get_by_label("Zoom 100%").click();
+        harness.run();
+        harness.get_by_label("Zoom In").click();
+        harness.run();
+        assert_eq!(harness.state().session().view().zoom_percent, 125);
+        harness.get_by_label("Zoom 125%").click();
+        harness.run();
+        harness.get_by_label("200%").click();
+        harness.run();
+        let _ = harness.get_by_label("Zoom 200%");
+        assert_eq!(harness.state().canvas().viewport().percent(), 200);
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn status_bar_is_empty_on_the_start_page() {
+        let mut harness = harness(AppShell::empty(), WINDOW);
+        harness.run();
+        assert!(harness.query_by_label("Zoom 100%").is_none());
     }
 
     #[test]

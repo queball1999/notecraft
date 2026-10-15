@@ -18,6 +18,7 @@ pub mod picker;
 pub mod ribbon;
 pub mod shortcuts;
 pub mod start;
+pub mod status;
 pub mod themes;
 pub mod toast;
 
