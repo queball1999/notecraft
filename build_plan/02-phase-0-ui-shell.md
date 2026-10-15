@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.7 recorded: canvas pan, zoom, and paper.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.8 recorded: start page, recents, and file picker.
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
 
@@ -283,6 +283,8 @@ Commits:
 
 PR title: `feat(ui): add the start page, recents, and file picker`.
 
+PR 0.8 (PR #14) landed with these changes to the plan. `file.open_notebook` and `file.recent.clear` are new ids; `file.open` now opens page files only, and Ctrl+O moved to `file.open_notebook` (the shortcut is bound in PR 0.9). The recent list lives in the engine session (`notecraft-engine/src/recent.rs`) and the app saves it in `config.toml`; the mock notebooks moved into `notecraft-engine/src/mock.rs` so the open commands can show them. `rfd` is used only in the desktop app crate (L7), behind a `FilePicker` trait in the UI crate, so tests run with a fake picker. The File backstage's New and Open entries show pages with their own buttons (and the recent list on Open). At launch the app reopens the newest recent notebook or page, as OneNote reopens what was open; with nothing recent it shows the start page. Commits: the engine commands first, then one UI commit for the start page and backstage pages, one app commit for the dialogs and saved recents, and a small fix giving the page buttons a visible frame.
+
 ## PR 0.9: status bar, full page view, shortcut map
 
 | | |
@@ -382,3 +384,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | 0 | PR 0.5 split into 0.5a (widget, icons, File, Home) and 0.5b (other tabs, collapse, key tips). |
 | 2026-10-14 | 0 | PR 0.5b recorded: the other five tabs, collapse, and key tips (PR #10). |
 | 2026-10-14 | 0 | PR 0.7 recorded: canvas pan, zoom, and paper (PR #13). |
+| 2026-10-14 | 0 | PR 0.8 recorded: start page, recents, and file picker (PR #14). |

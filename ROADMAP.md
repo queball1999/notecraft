@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: canvas pan, zoom, and paper styles (PR 0.7). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: start page, recents, and open dialogs (PR 0.8). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
 
@@ -96,3 +96,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-14 | Phase 0 PR 0.6: notebook pane, colored section tabs, and page list on mock notebooks (two notebooks, five sections, a section group, twenty pages); nav.notebook.select, nav.section.select, and nav.page.select; the page list follows the preset's side (PR #11). |
 | 2026-10-14 | Ribbon fixes: buttons sit on the ribbon background in every preset; color choices (font, highlight, ink, page) are real pickers with a swatch grid and a full custom color picker; Insert Table is a size grid; pen, highlighter, and width menus show previews (PR #12). |
 | 2026-10-14 | Phase 0 PR 0.7: the page canvas pans (wheel, scroll bars, middle-drag, Space+drag) and zooms 10% to 400% (ribbon, Ctrl+wheel, pinch, all through view.zoom); rule lines and grids, page color, and paper size are Ready and drawn for the visible area only; the page title, date, and time area is drawn on mock data; Viewport in notecraft-canvas with property tests (PR #13). |
+| 2026-10-14 | Phase 0 PR 0.8: start page while nothing is open (New Notebook, Open Notebook, Open File, recent list); File backstage New and Open pages; file.new_notebook, file.open_notebook, file.open, and file.recent.clear Ready; OS open dialogs through rfd in the app; the last 10 notebooks and pages saved in config.toml, and the newest reopened at launch (PR #14). |
