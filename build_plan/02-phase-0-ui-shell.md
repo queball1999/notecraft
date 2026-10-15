@@ -330,6 +330,72 @@ PR title: `feat(ui): add keyboard navigation and screen reader labels`.
 
 PR 0.10 (PR #16) landed both commits. An audit of the AccessKit tree found the ribbon, menus, navigation, backstage, and start page already named; the panel resize handles were the only unnamed focus stops and now carry the Splitter role and a name. The status bar's contents are drawn after the page so it comes last in the Tab order without changing the layout. Ribbon, navigation, and egui buttons already drew an accent focus ring; the canvas and the start page's recent rows now do too. The Narrator and VoiceOver runs could not be done from an agent session and stay open in gaps rank 14, so SH-15 is P.
 
+## PR 0.5c to 0.5f: ribbon parity follow-ups
+
+A review against OneNote (Microsoft 365 screenshots) and against WordCraft's ribbon, the related craft app with the same egui stack, found four gaps in the PR 0.5 ribbon. Each is its own PR, stacked in this order. Rows: SH-02 and SH-05 (and TX-10 for the highlight palette, whose command stays Coming Soon until Phase 1).
+
+### PR 0.5c: ribbon display options and the simplified ribbon
+
+| | |
+|---|---|
+| Branch | `feat/ribbon-display` |
+| Hours | 20-32 |
+| Rows | SH-05 |
+
+Steps: the chevron at the ribbon's lower right opens OneNote's Ribbon Display Options menu: Ribbon Layout (Classic Ribbon, Simplified Ribbon) and Show Ribbon (Full-screen mode, Show tabs only, Always show Ribbon), each a command (`view.ribbon.layout`, `view.ribbon.show`) with the current choice checked. Simplified Ribbon is one row of icon buttons built from the same spec as the classic ribbon, groups separated by a divider, with a "More Options" overflow menu for what does not fit. Show tabs only is today's collapsed state (peek on a tab click); Full-screen mode hides tabs and ribbon until the pointer reaches the top edge. Ctrl+F1 switches between Always show and Show tabs only, as in OneNote. The layout and show mode persist in settings (the existing `ribbon.collapsed` key reads as Show tabs only).
+
+Commits:
+
+1. `feat(engine): add ribbon layout and show mode commands`
+2. `feat(ui): add the ribbon display options menu`
+3. `feat(ui): add the simplified ribbon`
+
+### PR 0.5d: font and size boxes
+
+| | |
+|---|---|
+| Branch | `feat/ribbon-font-boxes` |
+| Hours | 12-20 |
+| Rows | SH-02 |
+
+Steps: replace the Font and Size dropdown buttons with editable combo boxes that show the current value, as in OneNote and WordCraft (`widgets::font_combo`, `combo`). The font box lists the installed families (craft-ui/OS fonts; the fixed list is the fallback), each in its own face, building only visible rows; typing filters (exact, then prefix, then contains), Up and Down move, Enter applies, Esc restores; text matching no family is applied as typed. The size box takes any typed size (1 to 1638 pt, kept as typed). Both run `format.font.family` and `format.font.size`.
+
+Commits:
+
+1. `feat(ui): add an editable combo box for the ribbon`
+2. `feat(ui): use font and size boxes on the home tab`
+
+### PR 0.5e: color pickers
+
+| | |
+|---|---|
+| Branch | `feat/ribbon-colors` |
+| Hours | 16-28 |
+| Rows | SH-02, TX-10 |
+
+Steps: color menus follow Office's layout: Automatic (or No Color), Theme Colors (ten hues and five tint and shade rows, original values), Standard Colors (one row), Recent Colors (the last ten picked, saved in settings), and More Colors, which opens a Colors dialog (a standard swatch tab and a custom tab with a hue and saturation field, lightness, RGB, HSL, hex, and alpha, plus a new over current preview) instead of expanding inside the menu. Split color buttons draw a bar in the last color used under the icon, and clicking the button applies it. Text Highlight Color offers OneNote's fifteen highlighter colors with No Color last. Alpha stays (OneNote has none; listed in docs/post-parity.md).
+
+Commits:
+
+1. `feat(ui): lay out color menus with theme, standard, and recent colors`
+2. `feat(ui): add the colors dialog`
+3. `feat(ui): show the last color on split color buttons`
+
+### PR 0.5f: style and tag galleries, Help tab
+
+| | |
+|---|---|
+| Branch | `feat/ribbon-galleries` |
+| Hours | 16-24 |
+| Rows | SH-02 |
+
+Steps: Styles and Tags become in-ribbon galleries as in OneNote: a bordered box showing two entries drawn in their own style (Heading 1, Heading 2; To Do, Important with their icons and shortcuts), up and down arrows to scroll, and a More arrow that opens the full list. Add the Help tab (Help, Support, Feedback, Show Training) with each command Coming Soon or opening the docs.
+
+Commits:
+
+1. `feat(ui): add ribbon galleries for styles and tags`
+2. `feat(ui): add the help tab`
+
 ## PR 0.11: minimal control channel for UI tests
 
 | | |
@@ -364,6 +430,10 @@ Follow 00-conventions.md section 6. Also:
 | 0.3 theme tokens | 16-28 |
 | 0.4 presets | 24-40 |
 | 0.5 ribbon | 60-100 |
+| 0.5c ribbon display options | 20-32 |
+| 0.5d font boxes | 12-20 |
+| 0.5e color pickers | 16-28 |
+| 0.5f galleries and Help tab | 16-24 |
 | 0.6 navigation | 24-40 |
 | 0.7 canvas viewport | 24-40 |
 | 0.8 start page | 12-20 |
@@ -371,7 +441,7 @@ Follow 00-conventions.md section 6. Also:
 | 0.10 accessibility | 10-16 |
 | 0.11 control minimal | 8-14 |
 | 0.12 close and 0.0.1 | 4-8 |
-| Total | 214-360 |
+| Total | 278-464 |
 
 ## Exit criteria
 
@@ -391,3 +461,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | 0 | PR 0.8 recorded: start page, recents, and file picker (PR #14). |
 | 2026-10-14 | 0 | PR 0.9 recorded: status bar, full page view, and shortcuts (PR #15). |
 | 2026-10-14 | 0 | PR 0.10 recorded: keyboard navigation and screen reader labels (PR #16). |
+| 2026-10-15 | 0 | Added PR 0.5c to 0.5f (ribbon display options and simplified ribbon, font boxes, color pickers, galleries and Help tab) after a review against OneNote and WordCraft. |

@@ -12,13 +12,13 @@ The spec is [SCRD.md](../SCRD.md). The rules are [AGENTS.md](../AGENTS.md). Prog
 |---|---|---|---|
 | [00-conventions.md](00-conventions.md) | all | n/a | branch, commit, PR, and review rules |
 | [01-phase-minus-1-scaffolding.md](01-phase-minus-1-scaffolding.md) | -1 | 55-98 | done 2026-10-14 |
-| [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 214-360 | next |
+| [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 278-464 | next |
 | [03-phase-1-core-engine.md](03-phase-1-core-engine.md) | 1 | 444-756 | not started |
 | [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 130-222 | not started |
 | [05-phase-3-polish-parity.md](05-phase-3-polish-parity.md) | 3, plus beta-to-1.0 hardening | 356-606, plus 80-160 | not started |
 | [06-phase-4-advanced.md](06-phase-4-advanced.md) | 4 | 644-1,228 | not started |
 
-Totals: 1,279-2,202 hours to v1.0; 1,923-3,430 hours to full OneNote parity. Each file's "Estimate" table is the source; ROADMAP.md sums them.
+Totals: 1,343-2,306 hours to v1.0; 1,987-3,534 hours to full OneNote parity. Each file's "Estimate" table is the source; ROADMAP.md sums them.
 
 ## Scope
 

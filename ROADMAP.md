@@ -33,7 +33,7 @@ Hours are summed bottom-up from every PR in `build_plan/` (each PR carries a gen
 | Ink and drawing | 0% | 154-262 | 140-256 | 294-518 | [parity](docs/target-app-parity.md#2-ink-and-drawing) |
 | Text and markdown editing | 0% | 156-268 | 0 | 156-268 | [markdown](docs/markdown.md) |
 | Notebook structure | 0% | 118-198 | 40-80 | 158-278 | [parity](docs/target-app-parity.md#4-notebook-structure) |
-| Ribbon, chrome, accessibility | 0% | 126-210 | 16-28 | 142-238 | [parity](docs/target-app-parity.md#5-ribbon-and-chrome) |
+| Ribbon, chrome, accessibility | 0% | 190-314 | 16-28 | 206-342 | [parity](docs/target-app-parity.md#5-ribbon-and-chrome) |
 | Themes (4 presets x 2 modes) | 0% | 40-68 | 0 | 40-68 | [themes](docs/themes.md) |
 | Attachments and media | 0% | 52-91 | 100-180 | 152-271 | [parity](docs/target-app-parity.md#7-attachments-and-media) |
 | Page links, search, note tags | 0% | 92-154 | 0 | 92-154 | [markdown](docs/markdown.md#5-page-links) |
@@ -44,9 +44,9 @@ Hours are summed bottom-up from every PR in `build_plan/` (each PR carries a gen
 | Performance and 1.0 hardening | 0% | 110-210 | 0 | 110-210 | [roadmap](docs/roadmap.md) |
 | Browser build and sync research | 0% | 0 | 100-190 | 100-190 | [Phase 4](build_plan/06-phase-4-advanced.md) |
 | Scaffolding, CI, release | 100% | 87-156 | 8-14 | 95-170 | [Phase -1](build_plan/01-phase-minus-1-scaffolding.md) |
-| Total | 0% | 1,279-2,202 | 644-1,228 | 1,923-3,430 | |
+| Total | 0% | 1,343-2,306 | 644-1,228 | 1,987-3,534 | |
 
-Calendar, at about 30 focused hours a week: v1.0 in 43-74 weeks; full parity in 64-115 weeks.
+Calendar, at about 30 focused hours a week: v1.0 in 45-77 weeks; full parity in 66-118 weeks.
 
 **Overall: 0% ready for users.** Phase -1 is closed: the workspace, the eight `cargo xtask ci` gates, packaging, and logging exist, and CI runs on GitHub. Every feature is "Coming Soon" until Phase 0 (UI shell) and Phase 1 (core engine) land.
 
@@ -55,7 +55,7 @@ Calendar, at about 30 focused hours a week: v1.0 in 43-74 weeks; full parity in 
 | Phase | Theme | Hours | Ends with |
 |---|---|---|---|
 | -1 | Scaffolding and CI/CD | 55-98 | CI green, release pipeline proven |
-| 0 | UI shell | 214-360 | internal 0.0.1 |
+| 0 | UI shell | 278-464 | internal 0.0.1 |
 | 1 | Core engine | 444-756 | v0.1.0 alpha |
 | 2 | Page links, search, note tags | 130-222 | v0.2.0 |
 | 3 | Polish and parity | 356-606 | v0.9.0 beta |

@@ -249,14 +249,14 @@ Hours are summed bottom-up from every PR in [build_plan/](build_plan/README.md);
 | Phase | Theme | Hours | Calendar | Ends with |
 |---|---|---|---|---|
 | -1 | Scaffolding and CI/CD | 55-98 | 2-4 weeks | CI green, release pipeline proven |
-| 0 | UI shell | 214-360 | 7-12 weeks | internal 0.0.1 |
+| 0 | UI shell | 278-464 | 9-16 weeks | internal 0.0.1 |
 | 1 | Core engine | 444-756 | 15-26 weeks | v0.1.0 alpha |
 | 2 | Page links, search, note tags | 130-222 | 4-8 weeks | v0.2.0 |
 | 3 | Polish and parity | 356-606 | 12-21 weeks | v0.9.0 beta |
 | Hardening | Beta to 1.0 | 80-160 | 3-6 weeks | v1.0.0 |
 | 4 | Remaining parity | 644-1,228 | 22-41 weeks | full OneNote parity |
-| Total to 1.0 | | 1,279-2,202 | 43-74 weeks | |
-| Total to full parity | | 1,923-3,430 | 64-115 weeks | |
+| Total to 1.0 | | 1,343-2,306 | 45-77 weeks | |
+| Total to full parity | | 1,987-3,534 | 66-118 weeks | |
 
 ### Phase -1: scaffolding and CI/CD
 
