@@ -1,6 +1,9 @@
 //! View state that commands change and the front end draws: the theme preset and color mode
-//! (docs/themes.md section 5) and whether the ribbon is collapsed. The colors themselves live
-//! in the front end.
+//! (docs/themes.md section 5), whether the ribbon is collapsed, the canvas zoom, and how a
+//! page looks (rule lines, page color, paper size). The colors themselves live in the front
+//! end.
+
+use notecraft_canvas::{PaperSize, RuleLines};
 
 /// One of the four theme presets. Ids are the `theme.preset` setting values.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -71,8 +74,18 @@ impl ThemeMode {
     }
 }
 
-/// What the view looks like.
+/// How a page looks behind its content. Phase 0 keeps one per page in the session; Phase 1
+/// stores it in the page file.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PageStyle {
+    pub rule_lines: RuleLines,
+    /// Background color as RGBA, or `None` for the theme's canvas color.
+    pub color: Option<[u8; 4]>,
+    pub paper_size: PaperSize,
+}
+
+/// What the view looks like.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ViewState {
     pub theme_preset: ThemePreset,
     pub theme_mode: ThemeMode,
@@ -81,6 +94,24 @@ pub struct ViewState {
     pub system_dark: bool,
     /// The ribbon shows only its tab names (`view.ribbon.toggle`, Ctrl+F1).
     pub ribbon_collapsed: bool,
+    /// Canvas zoom in percent, 10 to 400 (`view.zoom` and friends).
+    pub zoom_percent: u16,
+    /// Width of the canvas in screen points, as last reported by the front end. Only used
+    /// by `view.zoom_page_width`; zero until the canvas is first drawn.
+    pub canvas_width: u32,
+}
+
+impl Default for ViewState {
+    fn default() -> Self {
+        Self {
+            theme_preset: ThemePreset::default(),
+            theme_mode: ThemeMode::default(),
+            system_dark: false,
+            ribbon_collapsed: false,
+            zoom_percent: 100,
+            canvas_width: 0,
+        }
+    }
 }
 
 impl ViewState {
@@ -115,6 +146,8 @@ mod tests {
         let view = ViewState::default();
         assert_eq!(view.theme_preset.id(), "m365");
         assert_eq!(view.theme_mode.id(), "system");
+        assert_eq!(view.zoom_percent, 100);
+        assert_eq!(PageStyle::default().rule_lines, RuleLines::None);
     }
 
     #[test]

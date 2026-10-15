@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 notecraft-core.workspace = true
+notecraft-canvas.workspace = true
 notecraft-engine.workspace = true
 notecraft-model.workspace = true
 egui.workspace = true

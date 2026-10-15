@@ -9,5 +9,9 @@
 )]
 #![forbid(unsafe_code)]
 
+pub mod geometry;
+
+pub use geometry::Vec2;
+
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 0;

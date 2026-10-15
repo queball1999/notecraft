@@ -916,7 +916,7 @@ const REVIEW_GROUPS: &[Group] = &[
 
 // View tab
 
-const RULE_LINES: &[Item] = &[
+pub(crate) const RULE_LINES: &[Item] = &[
     Item::new("None", ids::VIEW_RULE_LINES).args(&[str_arg("style", "none")]),
     Item::new("Narrow Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "narrow")]),
     Item::new("College Ruled", ids::VIEW_RULE_LINES).args(&[str_arg("style", "college")]),
@@ -925,9 +925,10 @@ const RULE_LINES: &[Item] = &[
     Item::new("Small Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_small")]),
     Item::new("Medium Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_medium")]),
     Item::new("Large Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_large")]),
+    Item::new("Very Large Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_xlarge")]),
 ];
 
-const PAPER_SIZES: &[Item] = &[
+pub(crate) const PAPER_SIZES: &[Item] = &[
     Item::new("Auto", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "auto")]),
     Item::new("Letter", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "letter")]),
     Item::new("Legal", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "legal")]),
@@ -935,7 +936,7 @@ const PAPER_SIZES: &[Item] = &[
     Item::new("A5", ids::VIEW_PAPER_SIZE).args(&[str_arg("size", "a5")]),
 ];
 
-const ZOOM_LEVELS: &[Item] = &[
+pub(crate) const ZOOM_LEVELS: &[Item] = &[
     Item::new("50%", ids::VIEW_ZOOM).args(&[int_arg("percent", 50)]),
     Item::new("75%", ids::VIEW_ZOOM).args(&[int_arg("percent", 75)]),
     Item::new("100%", ids::VIEW_ZOOM).args(&[int_arg("percent", 100)]),

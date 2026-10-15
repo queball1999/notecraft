@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.5b recorded: remaining tabs, collapse, and key tips.
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: PR 0.7 recorded: canvas pan, zoom, and paper.
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
 
@@ -259,6 +259,8 @@ Commits:
 
 PR title: `feat(canvas): add pan, zoom, and paper styles`.
 
+PR 0.7 (PR #13) landed with these changes to the plan. The command ids are the ones the View tab has used since PR 0.5b: `view.zoom_in`, `view.zoom_out`, `view.zoom`, `view.zoom_actual`, `view.zoom_page_width`, `view.rule_lines`, `view.page_color`, and `view.paper_size` (not `view.zoom_100`, `view.zoom_fit_width`, or `view.paper.set`). Paper styles follow OneNote's Rule Lines menu (none, narrow, college, standard, and wide ruled; small, medium, large, and very large grid); dotted was left out because OneNote does not appear to have it, pending the maintainer's confirmation. The rule color is `canvas_rule`. The engine commit came before the UI commits, because the widget reads the zoom from the session, and the paper styles got their own `feat(canvas)` commit. Zoom is session state set only by commands, so Ctrl+wheel and pinch dispatch `view.zoom`; the scroll position stays in the front end.
+
 ## PR 0.8: start page, recent files, file picker
 
 | | |
@@ -379,3 +381,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | 0 | PR 0.5 split into 0.5a (widget, icons, File, Home) and 0.5b (other tabs, collapse, key tips). |
 | 2026-10-14 | 0 | PR 0.5b recorded: the other five tabs, collapse, and key tips (PR #10). |
+| 2026-10-14 | 0 | PR 0.7 recorded: canvas pan, zoom, and paper (PR #13). |

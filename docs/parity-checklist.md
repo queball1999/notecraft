@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SH-06, SH-07, SH-08 scored D (navigation on mock notebooks, PR 0.6).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: CV-01 and CV-02 scored D, CV-03 scored P (canvas pan, zoom, paper, PR 0.7).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -20,7 +20,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
 | Shell | 5 | 3 | 12 | 20 | 25% |
 | Themes | 5 | 1 | 0 | 6 | 83% |
-| Canvas | 0 | 0 | 12 | 12 | 0% |
+| Canvas | 2 | 1 | 9 | 12 | 16% |
 | Ink | 0 | 0 | 12 | 12 | 0% |
 | Text | 0 | 0 | 12 | 12 | 0% |
 | Structure | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +28,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 20 | 4 | 89 | 113 | 17% |
+| Total | 22 | 5 | 86 | 113 | 19% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -86,9 +86,9 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| CV-01 | Canvas | Pan (scroll, middle drag, space drag) | 0 | M | |
-| CV-02 | Canvas | Zoom 10% to 400%, Ctrl+wheel, pinch | 0 | M | |
-| CV-03 | Canvas | Rule lines and grid (blank, lined, grid, dotted) | 0 | M | |
+| CV-01 | Canvas | Pan (scroll, middle drag, space drag) | 0 | D | PR 0.7 (#13): canvas widget scrolls with the wheel and scroll bars, pans with middle-drag and Space+drag; Viewport property tests; app_shell tests middle_drag_and_space_drag_pan_the_canvas, wheel_scrolls_the_canvas |
+| CV-02 | Canvas | Zoom 10% to 400%, Ctrl+wheel, pinch | 0 | D | PR 0.7 (#13): view.zoom_in, view.zoom_out, view.zoom, view.zoom_actual, view.zoom_page_width Ready; Ctrl+wheel and pinch zoom about the pointer through view.zoom; tests zoom_buttons_zoom_the_canvas, ctrl_wheel_and_pinch_zoom_about_the_pointer (pinch tested with synthetic zoom events only) |
+| CV-03 | Canvas | Rule lines and grid (blank, lined, grid, dotted) | 0 | P | PR 0.7 (#13): view.rule_lines (none, 4 ruled, 4 grid sizes), view.page_color, view.paper_size Ready and drawn for the visible area only; per page in the session. Missing: dotted, which OneNote does not appear to have; the maintainer to confirm and drop it from this row |
 | CV-04 | Canvas | Click anywhere to create a note container | 1 | M | |
 | CV-05 | Canvas | Move and resize containers | 1 | M | |
 | CV-06 | Canvas | Page grows with content | 1 | M | |
@@ -219,3 +219,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | 0 | SH-02 scored P; SH-03 and SH-04 evidence updated (ribbon File and Home tabs, PR 0.5a). |
 | 2026-10-14 | 0 | SH-02 and SH-03 scored D; SH-05 scored P; SH-04 evidence updated (PR 0.5b). |
 | 2026-10-14 | 0 | SH-06, SH-07, SH-08 scored D (navigation on mock notebooks, PR 0.6). |
+| 2026-10-14 | 0 | CV-01 and CV-02 scored D, CV-03 scored P (canvas pan, zoom, paper, PR 0.7). |

@@ -1,11 +1,12 @@
 //! The window's top-level layout. PR 0.1 lays out empty, labeled regions where the ribbon,
 //! navigation, canvas, and status bar land in the next Phase 0 PRs (build_plan/02). PR 0.2 adds
 //! command dispatch and toasts; PR 0.3 installs the theme; PR 0.5 adds the ribbon; PR 0.6 adds
-//! the notebook pane, section tabs, and page list on mock notebooks.
+//! the notebook pane, section tabs, and page list on mock notebooks; PR 0.7 adds the canvas.
 
 use notecraft_engine::cmd::{ids, CommandError, Registry, Value};
 use notecraft_engine::Session;
 
+use crate::canvas::{self, CanvasUi};
 use crate::nav::{self, NavUi};
 use crate::ribbon::{self, Clicked, Ribbon};
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
@@ -29,6 +30,7 @@ pub struct AppShell {
     toasts: Toasts,
     ribbon: Ribbon,
     nav: NavUi,
+    canvas: CanvasUi,
     /// The preset and mode last installed into egui, so it is redone only on a change.
     installed: Option<(Preset, Mode)>,
     /// The OS UI fonts, if the app loaded them (tests run with egui's built-in font).
@@ -53,6 +55,7 @@ impl AppShell {
             toasts: Toasts::new(),
             ribbon: Ribbon::new(),
             nav: NavUi::default(),
+            canvas: CanvasUi::default(),
             installed: None,
             fonts: OsFonts::default(),
             installed_font: None,
@@ -83,6 +86,10 @@ impl AppShell {
 
     pub fn ribbon_mut(&mut self) -> &mut Ribbon {
         &mut self.ribbon
+    }
+
+    pub fn canvas(&self) -> &CanvasUi {
+        &self.canvas
     }
 
     /// Set the theme without a command, for restoring saved settings at startup.
@@ -179,6 +186,7 @@ impl AppShell {
             .show(ui, |ui| placeholder(ui, "Status bar"));
         let session = &self.session;
         let nav_ui = &mut self.nav;
+        let canvas_ui = &mut self.canvas;
         egui::Panel::left("notebooks")
             .default_size(SIDE_WIDTH)
             .resizable(true)
@@ -197,7 +205,7 @@ impl AppShell {
             .resizable(true)
             .frame(panel.fill(tokens.sidebar_bg))
             .show(ui, |ui| nav::page_list(ui, session, &tokens, &mut clicked));
-        egui::CentralPanel::default()
+        let canvas_width = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
             .show(ui, |ui| {
                 let full = ui.max_rect();
@@ -207,17 +215,11 @@ impl AppShell {
                 );
                 nav::section_tabs(ui, strip, session, &tokens, &mut clicked);
                 let page = egui::Rect::from_min_max(egui::pos2(full.min.x, strip.max.y), full.max);
-                ui.scope_builder(egui::UiBuilder::new().max_rect(page.shrink(24.0)), |ui| {
-                    if let Some(page) = session.current_page() {
-                        ui.label(
-                            egui::RichText::new(page.display_title())
-                                .size(22.0)
-                                .color(tokens.text),
-                        );
-                    }
-                    placeholder(ui, "Canvas");
-                });
-            });
+                canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
+            })
+            .inner;
+        // Like the OS dark mode, the canvas width is reported, not commanded.
+        self.session.view_mut().canvas_width = canvas_width.max(0.0) as u32;
         self.dispatch_all(clicked);
         self.toasts.show(ui.ctx());
     }
@@ -555,9 +557,44 @@ mod tests {
         harness.get_by_label("Page Color").click();
         harness.run();
         let _ = harness.get_by_label("#DCEBF7");
+        harness.get_by_label("#DCEBF7").click();
+        harness.run();
+        let style = harness.state().session().page_style();
+        assert_eq!(style.color, Some([0xDC, 0xEB, 0xF7, 0xFF]));
+        harness.get_by_label("Page Color").click();
+        harness.run();
         harness.get_by_label("No Color").click();
         harness.run();
-        assert_eq!(toasts(&harness), ["Coming Soon: Page Color"]);
+        assert_eq!(harness.state().session().page_style().color, None);
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn every_page_setup_and_zoom_menu_item_runs() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("View").click();
+        harness.run();
+        let menus = [
+            ("Rule Lines", crate::ribbon::spec::RULE_LINES),
+            ("Paper Size", crate::ribbon::spec::PAPER_SIZES),
+            ("Zoom", crate::ribbon::spec::ZOOM_LEVELS),
+        ];
+        for (button, items) in menus {
+            for item in items {
+                harness.get_by_label(button).click();
+                harness.run();
+                // The 100% item shares its label with the 100% button; the menu is drawn last.
+                let found = harness.get_all_by_label(item.label).last();
+                found.unwrap().click();
+                harness.run();
+                assert!(toasts(&harness).is_empty(), "{button}: {}", item.label);
+            }
+        }
+        let view = harness.state().session();
+        assert_eq!(view.view().zoom_percent, 200);
+        assert_eq!(view.page_style().paper_size.id(), "a5");
+        assert_eq!(view.page_style().rule_lines.id(), "grid_xlarge");
     }
 
     #[test]
@@ -706,6 +743,143 @@ mod tests {
         assert_eq!(harness.ctx.theme(), egui::Theme::Light);
         assert!(!harness.state().session().view().system_dark);
         assert!(!harness.state().tokens(&harness.ctx).dark);
+    }
+
+    /// A point well inside the canvas, and the page point under it.
+    fn canvas_point(harness: &egui_kittest::Harness<'_, AppShell>) -> egui::Pos2 {
+        harness.get_by_label("Canvas").rect().min + egui::vec2(300.0, 200.0)
+    }
+
+    fn origin(harness: &egui_kittest::Harness<'_, AppShell>) -> egui::Vec2 {
+        let origin = harness.state().canvas().viewport().origin();
+        egui::vec2(origin.x, origin.y)
+    }
+
+    #[test]
+    fn zoom_buttons_zoom_the_canvas() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("View").click();
+        harness.run();
+        harness.get_by_label("Zoom In").click();
+        harness.run();
+        assert_eq!(harness.state().session().view().zoom_percent, 125);
+        assert_eq!(harness.state().canvas().viewport().percent(), 125);
+        harness.get_by_label("Zoom Out").click();
+        harness.get_by_label("Zoom Out").click();
+        harness.run();
+        assert_eq!(harness.state().canvas().viewport().percent(), 75);
+        harness.get_by_label("Page Width").click();
+        harness.run();
+        let width = harness.state().session().view().canvas_width;
+        let expected = notecraft_canvas::viewport::fit_width_percent(816.0, width as f32);
+        assert!(width > 300, "the canvas reports its width: {width}");
+        assert_eq!(harness.state().canvas().viewport().percent(), expected);
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn ctrl_wheel_and_pinch_zoom_about_the_pointer() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let pointer = canvas_point(&harness);
+        harness.hover_at(pointer);
+        harness.run();
+        let before = harness.state().canvas().viewport();
+        let rect_min = harness.get_by_label("Canvas").rect().min;
+        let anchor = pointer - rect_min;
+        let page = before.screen_to_page(notecraft_core::Vec2::new(anchor.x, anchor.y));
+
+        harness.event(egui::Event::Zoom(2.0));
+        harness.run();
+        harness.run();
+        assert_eq!(harness.state().session().view().zoom_percent, 200);
+        let after = harness.state().canvas().viewport();
+        assert_eq!(after.percent(), 200);
+        let moved = after.screen_to_page(notecraft_core::Vec2::new(anchor.x, anchor.y));
+        assert!(
+            (moved.x - page.x).abs() < 1.0 && (moved.y - page.y).abs() < 1.0,
+            "{page:?} drifted to {moved:?}"
+        );
+
+        // Ctrl+wheel down zooms out.
+        harness.event_modifiers(
+            egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Line,
+                delta: egui::vec2(0.0, -3.0),
+                modifiers: egui::Modifiers::CTRL,
+                phase: egui::TouchPhase::Move,
+            },
+            egui::Modifiers::CTRL,
+        );
+        harness.run();
+        assert!(harness.state().session().view().zoom_percent < 200);
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn middle_drag_and_space_drag_pan_the_canvas() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let start = canvas_point(&harness);
+        assert_eq!(origin(&harness), egui::Vec2::ZERO);
+        let press = |pos, button, pressed| egui::Event::PointerButton {
+            pos,
+            button,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let end = start - egui::vec2(120.0, 80.0);
+        harness.event(press(start, egui::PointerButton::Middle, true));
+        harness.run();
+        for step in 1..=4 {
+            harness.hover_at(start - egui::vec2(30.0, 20.0) * step as f32);
+            harness.run();
+        }
+        harness.event(press(end, egui::PointerButton::Middle, false));
+        harness.run();
+        let panned = origin(&harness);
+        assert!(
+            (panned - egui::vec2(120.0, 80.0)).length() < 2.0,
+            "{panned:?}"
+        );
+
+        // A primary drag pans only while Space is held.
+        harness.drag_at(end);
+        harness.hover_at(end - egui::vec2(50.0, 0.0));
+        harness.run();
+        harness.drop_at(end - egui::vec2(50.0, 0.0));
+        harness.run();
+        assert_eq!(origin(&harness), panned);
+        harness.key_down(egui::Key::Space);
+        harness.drag_at(end);
+        harness.run();
+        harness.hover_at(end - egui::vec2(25.0, 0.0));
+        harness.run();
+        harness.hover_at(end - egui::vec2(50.0, 0.0));
+        harness.run();
+        harness.drop_at(end - egui::vec2(50.0, 0.0));
+        harness.key_up(egui::Key::Space);
+        harness.run();
+        let spaced = origin(&harness);
+        assert!((spaced.x - panned.x - 50.0).abs() < 2.0, "{spaced:?}");
+    }
+
+    #[test]
+    fn wheel_scrolls_the_canvas() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.hover_at(canvas_point(&harness));
+        harness.run();
+        harness.event(egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -200.0),
+            modifiers: egui::Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+        });
+        harness.run_steps(30);
+        assert!(origin(&harness).y > 50.0, "{:?}", origin(&harness));
+        assert_eq!(harness.state().session().view().zoom_percent, 100);
     }
 
     #[test]

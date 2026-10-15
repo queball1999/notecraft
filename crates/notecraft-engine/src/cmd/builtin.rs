@@ -2,7 +2,7 @@
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
-use super::{ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler};
+use super::{canvas, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler};
 
 const NAV_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "id",
@@ -75,12 +75,12 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
 const RULE_LINE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "style",
     ArgKind::String,
-    "none, narrow, college, standard, wide, or a grid size.",
+    "none, narrow, college, standard, wide, grid_small, grid_medium, grid_large, or grid_xlarge.",
 )];
 const PAPER_SIZE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "size",
     ArgKind::String,
-    "auto, letter, a4, or another named size.",
+    "auto, letter, legal, a4, or a5.",
 )];
 const ZOOM_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "percent",
@@ -671,14 +671,16 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Set the background color of the page.",
     )
     .undoable()
-    .args(REQUIRED_COLOR_ARGS),
+    .args(REQUIRED_COLOR_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::VIEW_RULE_LINES,
         "Rule Lines",
         "Show rule lines or a grid on the page.",
     )
     .undoable()
-    .args(RULE_LINE_ARGS),
+    .args(RULE_LINE_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::VIEW_HIDE_TITLE,
         "Hide Page Title",
@@ -691,17 +693,24 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Set the paper size of the page.",
     )
     .undoable()
-    .args(PAPER_SIZE_ARGS),
-    CommandSpec::new(ids::VIEW_ZOOM_IN, "Zoom In", "Zoom in on the page.").shortcut("Ctrl+Alt+="),
+    .args(PAPER_SIZE_ARGS)
+    .ready(),
+    CommandSpec::new(ids::VIEW_ZOOM_IN, "Zoom In", "Zoom in on the page.")
+        .shortcut("Ctrl+Alt+=")
+        .ready(),
     CommandSpec::new(ids::VIEW_ZOOM_OUT, "Zoom Out", "Zoom out of the page.")
-        .shortcut("Ctrl+Alt+-"),
-    CommandSpec::new(ids::VIEW_ZOOM, "Zoom", "Set the zoom level.").args(ZOOM_ARGS),
-    CommandSpec::new(ids::VIEW_ZOOM_ACTUAL, "100%", "Zoom to 100 percent."),
+        .shortcut("Ctrl+Alt+-")
+        .ready(),
+    CommandSpec::new(ids::VIEW_ZOOM, "Zoom", "Set the zoom level.")
+        .args(ZOOM_ARGS)
+        .ready(),
+    CommandSpec::new(ids::VIEW_ZOOM_ACTUAL, "100%", "Zoom to 100 percent.").ready(),
     CommandSpec::new(
         ids::VIEW_ZOOM_PAGE_WIDTH,
         "Page Width",
         "Zoom so the page fills the window width.",
-    ),
+    )
+    .ready(),
     CommandSpec::new(
         ids::VIEW_NEW_WINDOW,
         "New Window",
@@ -773,6 +782,14 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
     (ids::VIEW_RIBBON_TOGGLE, layout::ribbon_toggle),
+    (ids::VIEW_PAGE_COLOR, canvas::page_color),
+    (ids::VIEW_RULE_LINES, canvas::rule_lines),
+    (ids::VIEW_PAPER_SIZE, canvas::paper_size),
+    (ids::VIEW_ZOOM_IN, canvas::zoom_in),
+    (ids::VIEW_ZOOM_OUT, canvas::zoom_out),
+    (ids::VIEW_ZOOM, canvas::zoom),
+    (ids::VIEW_ZOOM_ACTUAL, canvas::zoom_actual),
+    (ids::VIEW_ZOOM_PAGE_WIDTH, canvas::zoom_page_width),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
