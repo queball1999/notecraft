@@ -10,6 +10,7 @@ pub mod ids;
 mod layout;
 mod nav;
 mod registry;
+pub mod shortcuts;
 #[cfg(test)]
 mod tests;
 mod theme;

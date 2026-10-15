@@ -803,6 +803,7 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .undoable()
     .shortcut("Ctrl+N"),
+    CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
 /// The handler of every Ready command.

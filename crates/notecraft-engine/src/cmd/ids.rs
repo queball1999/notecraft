@@ -292,4 +292,8 @@ command_ids! {
     SECTION_NEW = "section.new";
     /// Add a page to the current section.
     PAGE_NEW = "page.new";
+
+    // Search (Phase 2)
+    /// Search every open notebook.
+    SEARCH_ALL = "search.all";
 }
