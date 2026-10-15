@@ -2,13 +2,20 @@
 //! and `name` table are read, never the whole font, and the scan runs on a background thread
 //! so a large font folder never holds up the window. Until it finishes, or if it finds
 //! nothing, the font box offers a short fixed list.
+//!
+//! The font box shows each family in its own face once that face is loaded into egui:
+//! [`request_preview`] asks for one and [`FontList::load_previews`] loads a few per
+//! frame, small files only and within a memory budget. Drawing checks that the face is
+//! installed right now (a theme change reinstalls egui's fonts), so a row never names a
+//! family egui does not have.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use egui::{FontFamily, FontId};
 use skrifa::raw::tables::name::Name;
 use skrifa::raw::{FontData, FontRead};
 
@@ -22,11 +29,31 @@ const MAX_IN_COLLECTION: u32 = 64;
 const MAX_NAME_TABLE: u32 = 1024 * 1024;
 /// Deepest folder level searched under a font folder.
 const MAX_DEPTH: usize = 6;
+/// Largest font file loaded for a preview; bigger faces (CJK) show in the UI font.
+const MAX_PREVIEW_BYTES: u64 = 4 * 1024 * 1024;
+/// Most preview faces loaded in one frame.
+const PREVIEWS_PER_FRAME: usize = 4;
+/// Most font data loaded for previews in one run.
+const PREVIEW_BUDGET: u64 = 64 * 1024 * 1024;
+
+/// Where a family's face is: the file and the face index inside a collection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Face {
+    pub path: PathBuf,
+    pub index: u32,
+}
+
+/// What a scan found.
+#[derive(Debug, Default)]
+struct Found {
+    names: Vec<String>,
+    faces: BTreeMap<String, Face>,
+}
 
 /// The family list, filled in by a background scan.
 #[derive(Clone, Default)]
 pub struct FontList {
-    families: Arc<Mutex<Option<Vec<String>>>>,
+    found: Arc<Mutex<Option<Arc<Found>>>>,
 }
 
 impl std::fmt::Debug for FontList {
@@ -43,10 +70,17 @@ impl FontList {
         Self::default()
     }
 
-    /// A list that is already known (tests).
+    /// A list that is already known, with no faces to load (tests).
     pub fn from_families(families: Vec<String>) -> Self {
+        Self::from_found(Found {
+            names: families,
+            faces: BTreeMap::new(),
+        })
+    }
+
+    fn from_found(found: Found) -> Self {
         Self {
-            families: Arc::new(Mutex::new(Some(families))),
+            found: Arc::new(Mutex::new(Some(Arc::new(found)))),
         }
     }
 
@@ -54,14 +88,14 @@ impl FontList {
     /// list is ready (the app asks for a repaint).
     pub fn scan_in_background(on_done: impl FnOnce() + Send + 'static) -> Self {
         let list = Self::default();
-        let slot = Arc::clone(&list.families);
+        let slot = Arc::clone(&list.found);
         let spawned = std::thread::Builder::new()
             .name("font-list".to_owned())
             .spawn(move || {
-                let families = scan(&font_folders());
-                tracing::info!(families = families.len(), "installed fonts listed");
+                let found = scan_faces(&font_folders());
+                tracing::info!(families = found.names.len(), "installed fonts listed");
                 if let Ok(mut slot) = slot.lock() {
-                    *slot = Some(families);
+                    *slot = Some(Arc::new(found));
                 }
                 on_done();
             });
@@ -71,28 +105,147 @@ impl FontList {
         list
     }
 
+    fn found(&self) -> Option<Arc<Found>> {
+        self.found.lock().ok()?.clone()
+    }
+
     /// The families found, sorted, or `None` while the scan runs or when it found nothing.
     pub fn families(&self) -> Option<Vec<String>> {
-        let slot = self.families.lock().ok()?;
-        slot.as_ref().filter(|list| !list.is_empty()).cloned()
+        self.found()
+            .filter(|found| !found.names.is_empty())
+            .map(|found| found.names.clone())
     }
+
+    /// Where `family`'s face is, if the scan found it.
+    pub fn face(&self, family: &str) -> Option<Face> {
+        self.found()?.faces.get(family).cloned()
+    }
+
+    /// Load the oldest requested preview face, if any (call once per frame). A face that
+    /// cannot be read, is too big, or would pass the budget is marked failed and shows in
+    /// the UI font.
+    pub fn load_previews(&self, ctx: &egui::Context) {
+        // egui applies every face added in a frame in one rebuild, so take a few at once.
+        for _ in 0..PREVIEWS_PER_FRAME {
+            if !self.load_one_preview(ctx) {
+                return;
+            }
+        }
+    }
+
+    /// Load the oldest requested face; false when nothing was queued.
+    fn load_one_preview(&self, ctx: &egui::Context) -> bool {
+        let Some(name) = ctx.data_mut(|data| {
+            let queue = data.get_temp_mut_or_default::<Vec<String>>(queue_id());
+            (!queue.is_empty()).then(|| queue.remove(0))
+        }) else {
+            return false;
+        };
+        let used = ctx.data(|data| data.get_temp::<u64>(budget_id()).unwrap_or(0));
+        let bytes = self.face(&name).and_then(|face| {
+            let size = std::fs::metadata(&face.path).ok()?.len();
+            (size <= MAX_PREVIEW_BYTES && used + size <= PREVIEW_BUDGET).then_some(())?;
+            Some((std::fs::read(&face.path).ok()?, face.index))
+        });
+        let Some((bytes, index)) =
+            bytes.filter(|(b, i)| skrifa::FontRef::from_index(b, *i).is_ok())
+        else {
+            mark(ctx, failed_id(), &name);
+            return true;
+        };
+        let size = bytes.len() as u64;
+        let key = preview_key(&name);
+        let mut data = egui::FontData::from_owned(bytes);
+        data.index = index;
+        ctx.add_font(egui::epaint::text::FontInsert::new(
+            &key,
+            data,
+            vec![egui::epaint::text::InsertFontFamily {
+                family: FontFamily::Name(key.clone().into()),
+                priority: egui::epaint::text::FontPriority::Highest,
+            }],
+        ));
+        ctx.data_mut(|data| data.insert_temp(budget_id(), used + size));
+        ctx.request_repaint();
+        true
+    }
+}
+
+fn queue_id() -> egui::Id {
+    egui::Id::new("font_preview_queue")
+}
+
+fn failed_id() -> egui::Id {
+    egui::Id::new("font_preview_failed")
+}
+
+fn budget_id() -> egui::Id {
+    egui::Id::new("font_preview_budget")
+}
+
+fn mark(ctx: &egui::Context, set: egui::Id, name: &str) {
+    ctx.data_mut(|data| {
+        data.get_temp_mut_or_default::<HashSet<String>>(set)
+            .insert(name.to_owned());
+    });
+}
+
+fn preview_key(name: &str) -> String {
+    format!("preview:{name}")
+}
+
+/// The font to draw `family`'s name in: its own face when egui has it installed now,
+/// otherwise the UI font, and the face is requested (unless it failed before).
+pub fn preview_font(ctx: &egui::Context, family: &str, size: f32) -> FontId {
+    let key = FontFamily::Name(preview_key(family).into());
+    if ctx.fonts(|fonts| fonts.definitions().families.contains_key(&key)) {
+        return FontId::new(size, key);
+    }
+    ctx.data_mut(|data| {
+        let failed = data
+            .get_temp::<HashSet<String>>(failed_id())
+            .is_some_and(|set| set.contains(family));
+        let queue = data.get_temp_mut_or_default::<Vec<String>>(queue_id());
+        if !failed && !queue.iter().any(|queued| queued == family) {
+            queue.push(family.to_owned());
+        }
+    });
+    FontId::proportional(size)
 }
 
 /// The family names in every font file under `folders`, sorted and without repeats.
 pub fn scan(folders: &[PathBuf]) -> Vec<String> {
+    scan_faces(folders).names
+}
+
+/// The families under `folders` and a face for each: the one in the file with the shortest
+/// name, usually the regular face (`arial.ttf` before `arialbd.ttf`).
+fn scan_faces(folders: &[PathBuf]) -> Found {
     let mut files = Vec::new();
     for folder in folders {
         collect(folder, 0, &mut files);
     }
-    let mut names = BTreeSet::new();
-    for file in &files {
-        for name in families_in(file) {
-            names.insert(name);
+    let mut faces: BTreeMap<String, Face> = BTreeMap::new();
+    for path in &files {
+        for (name, index) in faces_in(path) {
+            let shorter = |old: &Face| {
+                let len = |p: &Path| p.file_name().map_or(usize::MAX, |n| n.len());
+                len(path) < len(&old.path)
+            };
+            if faces.get(&name).is_none_or(shorter) {
+                faces.insert(
+                    name,
+                    Face {
+                        path: path.clone(),
+                        index,
+                    },
+                );
+            }
         }
     }
-    let mut sorted: Vec<String> = names.into_iter().collect();
-    sorted.sort_by_key(|name| name.to_lowercase());
-    sorted
+    let mut names: Vec<String> = faces.keys().cloned().collect();
+    names.sort_by_key(|name| name.to_lowercase());
+    Found { names, faces }
 }
 
 fn collect(folder: &Path, depth: usize, out: &mut Vec<PathBuf>) {
@@ -127,6 +280,11 @@ fn is_font_file(path: &Path) -> bool {
 
 /// The family names of the fonts in one file; empty when it cannot be read.
 pub fn families_in(path: &Path) -> Vec<String> {
+    faces_in(path).into_iter().map(|(name, _)| name).collect()
+}
+
+/// The family name and face index of each font in one file.
+fn faces_in(path: &Path) -> Vec<(String, u32)> {
     let Ok(mut file) = File::open(path) else {
         return Vec::new();
     };
@@ -146,7 +304,8 @@ pub fn families_in(path: &Path) -> Vec<String> {
     };
     offsets
         .into_iter()
-        .filter_map(|offset| family_at(&mut file, u64::from(offset)))
+        .zip(0_u32..)
+        .filter_map(|(offset, index)| Some((family_at(&mut file, u64::from(offset))?, index)))
         .collect()
 }
 
@@ -300,6 +459,70 @@ mod tests {
         assert!(families_in(&junk).is_empty());
         assert!(families_in(&dir.join("missing.ttf")).is_empty());
         assert!(scan(&[dir.join("no such folder")]).is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// One egui pass running `f`.
+    fn pass(ctx: &egui::Context, mut f: impl FnMut(&egui::Context)) {
+        ctx.begin_pass(egui::RawInput::default());
+        f(ctx);
+        // A test has no renderer to hand the font atlas to.
+        ctx.end_pass().textures_delta.clear();
+    }
+
+    #[test]
+    fn previews_load_a_requested_face_and_fall_back_until_then() {
+        let dir = std::env::temp_dir().join(format!("notecraft-preview-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        // egui's own UI font is a real font file to load.
+        let defs = egui::FontDefinitions::default();
+        let bytes = defs
+            .font_data
+            .values()
+            .next()
+            .map(|data| data.font.to_vec())
+            .unwrap_or_default();
+        let path = dir.join("sample.ttf");
+        let _ = std::fs::write(&path, &bytes);
+        let mut faces = BTreeMap::new();
+        faces.insert("Sample".to_owned(), Face { path, index: 0 });
+        faces.insert(
+            "Missing".to_owned(),
+            Face {
+                path: dir.join("missing.ttf"),
+                index: 0,
+            },
+        );
+        let list = FontList::from_found(Found {
+            names: vec!["Missing".to_owned(), "Sample".to_owned()],
+            faces,
+        });
+
+        let ctx = egui::Context::default();
+        let mut font = None;
+        pass(&ctx, |ctx| font = Some(preview_font(ctx, "Sample", 13.0)));
+        assert_eq!(
+            font.clone().map(|f| f.family),
+            Some(FontFamily::Proportional)
+        );
+        pass(&ctx, |ctx| list.load_previews(ctx));
+        pass(&ctx, |_| {});
+        pass(&ctx, |ctx| font = Some(preview_font(ctx, "Sample", 13.0)));
+        assert_eq!(
+            font.clone().map(|f| f.family),
+            Some(FontFamily::Name("preview:Sample".into()))
+        );
+
+        // A face that cannot be read stays in the UI font and is not asked for again.
+        pass(&ctx, |ctx| font = Some(preview_font(ctx, "Missing", 13.0)));
+        pass(&ctx, |ctx| list.load_previews(ctx));
+        pass(&ctx, |ctx| font = Some(preview_font(ctx, "Missing", 13.0)));
+        assert_eq!(
+            font.clone().map(|f| f.family),
+            Some(FontFamily::Proportional)
+        );
+        let queued = ctx.data(|data| data.get_temp::<Vec<String>>(queue_id()));
+        assert_eq!(queued, Some(Vec::new()));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

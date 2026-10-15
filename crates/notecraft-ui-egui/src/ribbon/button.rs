@@ -196,6 +196,7 @@ fn show_combo(
             combo.current,
             items,
             combo.search,
+            combo.fonts && !look.fonts.is_empty(),
             look,
         ) else {
             return;

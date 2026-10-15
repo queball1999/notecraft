@@ -67,6 +67,7 @@ pub(super) fn show(
     current: &str,
     items: &[String],
     search: bool,
+    previews: bool,
     look: Look<'_>,
 ) -> Option<String> {
     let t = look.tokens;
@@ -204,7 +205,7 @@ pub(super) fn show(
             .show(ui.ctx(), |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_width(width.max(120.0));
-                    list(ui, &shown, items, current, &mut state, look)
+                    list(ui, &shown, items, current, &mut state, previews, look)
                 })
             });
         if let Some(picked) = area.inner.inner {
@@ -241,6 +242,7 @@ fn list(
     items: &[String],
     current: &str,
     state: &mut State,
+    previews: bool,
     look: Look<'_>,
 ) -> Option<String> {
     let t = look.tokens;
@@ -286,7 +288,11 @@ fn list(
                 egui::pos2(rect.min.x + 6.0, rect.center().y),
                 Align2::LEFT_CENTER,
                 item,
-                FontId::proportional(13.0),
+                if previews {
+                    crate::font_list::preview_font(ui.ctx(), item, 13.0)
+                } else {
+                    FontId::proportional(13.0)
+                },
                 ui.visuals().text_color(),
             );
             if response.clicked() {

@@ -284,6 +284,7 @@ impl AppShell {
         let tokens = self.tokens(ui.ctx());
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
+        self.font_list.load_previews(ui.ctx());
         if self.families.is_empty() {
             if let Some(families) = self.font_list.families() {
                 self.families = families;
