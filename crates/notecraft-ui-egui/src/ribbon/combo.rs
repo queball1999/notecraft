@@ -16,6 +16,8 @@ pub(super) const HEIGHT: f32 = 22.0;
 const ROW: f32 = 22.0;
 /// Width of the arrow part.
 const ARROW: f32 = 16.0;
+/// Space above and below the text inside the field.
+const EDIT_MARGIN_Y: f32 = 1.0;
 /// Most of the list shown at once.
 const LIST_HEIGHT: f32 = 300.0;
 
@@ -93,13 +95,21 @@ pub(super) fn show(
         && ui.input(|input| input.key_pressed(Key::Escape));
 
     let mut text = state.text.clone().unwrap_or_else(|| current.to_owned());
+    // The text field is one line tall plus a small margin, centered in the box, so the text
+    // sits in the middle whatever the font's line height.
+    let font = FontId::proportional(12.0);
+    let line = ui.ctx().fonts_mut(|fonts| fonts.row_height(&font));
+    let edit_rect = Rect::from_center_size(
+        field.center(),
+        egui::vec2(field.width(), (line + 2.0 * EDIT_MARGIN_Y).min(HEIGHT)),
+    );
     let edit = egui::TextEdit::singleline(&mut text)
         .id(edit_id)
-        .font(FontId::proportional(12.0))
-        .margin(egui::vec2(4.0, 3.0))
+        .font(font)
+        .margin(egui::vec2(4.0, EDIT_MARGIN_Y))
         .frame(egui::Frame::NONE)
         .desired_width(field.width() - 8.0);
-    let response = ui.put(field, edit);
+    let response = ui.put(edit_rect, edit);
     ui.ctx()
         .accesskit_node_builder(edit_id, |node| node.set_label(label));
     let enter = response.lost_focus() && ui.input(|input| input.key_pressed(Key::Enter));

@@ -635,6 +635,20 @@ mod tests {
     }
 
     #[test]
+    fn box_text_is_centered_in_the_box() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        for label in ["Font", "Font Size"] {
+            let text = harness.get_by_label(label).rect();
+            let arrow = harness.get_by_label(&format!("{label} list")).rect();
+            assert!(
+                (text.center().y - arrow.center().y).abs() <= 0.5,
+                "{label}: text {text:?} box {arrow:?}"
+            );
+        }
+    }
+
+    #[test]
     fn size_box_takes_typed_sizes_and_ignores_text() {
         use egui_kittest::kittest::NodeT;
         let mut harness = harness(AppShell::new(), WINDOW);
