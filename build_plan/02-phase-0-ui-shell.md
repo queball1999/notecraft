@@ -367,6 +367,8 @@ Commits:
 1. `feat(ui): add an editable combo box for the ribbon`
 2. `feat(ui): use font and size boxes on the home tab`
 
+PR 0.5d landed with these changes to the plan. The installed families come from NoteCraft's own scan (`font_list.rs`), since craft-ui has none: it reads only each file's table directory and `name` table on a background thread, with the fixed list until it finishes. Names are listed in the UI font; drawing each in its own face (loading every visible font into egui) is left for later and listed in gaps rank 9. The Size button is renamed Font Size, OneNote's name and the command's label. Commits: the font scan, the combo box with its spec variant, and the Home tab change land as one commit.
+
 ### PR 0.5e: color pickers
 
 | | |
