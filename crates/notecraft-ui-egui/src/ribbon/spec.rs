@@ -1056,6 +1056,7 @@ pub(crate) const RULE_LINES: &[Item] = &[
     Item::new("Medium Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_medium")]),
     Item::new("Large Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_large")]),
     Item::new("Very Large Grid", ids::VIEW_RULE_LINES).args(&[str_arg("style", "grid_xlarge")]),
+    Item::new("Dotted", ids::VIEW_RULE_LINES).args(&[str_arg("style", "dotted")]),
 ];
 
 pub(crate) const PAPER_SIZES: &[Item] = &[

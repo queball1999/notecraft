@@ -1347,7 +1347,7 @@ mod tests {
         let view = harness.state().session();
         assert_eq!(view.view().zoom_percent, 200);
         assert_eq!(view.page_style().paper_size.id(), "a5");
-        assert_eq!(view.page_style().rule_lines.id(), "grid_xlarge");
+        assert_eq!(view.page_style().rule_lines.id(), "dotted");
     }
 
     #[test]
