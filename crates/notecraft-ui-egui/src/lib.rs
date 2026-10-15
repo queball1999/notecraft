@@ -16,6 +16,7 @@ pub mod icons;
 pub mod nav;
 pub mod picker;
 pub mod ribbon;
+pub mod shortcuts;
 pub mod start;
 pub mod themes;
 pub mod toast;
