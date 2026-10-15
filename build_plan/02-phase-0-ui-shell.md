@@ -387,6 +387,8 @@ Commits:
 
 PR 0.5e landed with these changes to the plan. The theme block reuses the existing original grid (ten hues over four rows of tints and shades); the Standard page of the dialog is computed (twelve hues by six lightness steps and a grey row). Draw's Color menu takes the Office layout too; Page Color and Text Highlight Color keep one plain grid, as in OneNote. Every color menu fills its icon's accent bar with the last color. The three commits land as one, since the menu, the dialog, and the last color share the same state.
 
+PR 0.5f landed with these changes to the plan. A gallery is data in the ribbon spec (`Column::Gallery`): it wraps a dropdown button holding the full list, so the simplified ribbon, the More Options menu, key tips, and the command tests treat it as that one dropdown, and only the classic ribbon draws the box. The arrows scroll the leading entries (all styles; the ten tags that apply, not Customize Tags or Remove Tag) two at a time. The large Styles and Tags buttons and the stacked Heading, Normal, To Do, Important, and Question buttons were removed since the galleries replace them; To Do Tag and Find Tags stay. The Help commands are Coming Soon with no shortcut yet (OneNote's F1 is left to Phase 1), and the Help tab's key tip is Y.
+
 ### PR 0.5f: style and tag galleries, Help tab
 
 | | |
