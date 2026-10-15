@@ -529,7 +529,9 @@ mod tests {
             shell.set_theme(preset, Mode::Dark);
             let mut harness = harness(shell, WINDOW);
             harness.run();
-            for tab in ["Home", "Insert", "Draw", "History", "Review", "View"] {
+            for tab in [
+                "Home", "Insert", "Draw", "History", "Review", "View", "Help",
+            ] {
                 harness.get_by_label(tab).click();
                 harness.run();
                 assert_eq!(harness.state().ribbon().selected(), tab);
@@ -795,6 +797,151 @@ mod tests {
             .toasts()
             .texts()
             .any(|t| t == "Coming Soon: Meeting Details"));
+    }
+
+    fn last_toast_text(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
+        harness.state().toasts().texts().last().map(str::to_owned)
+    }
+
+    #[test]
+    fn gallery_entries_run_their_commands() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Heading 2").click();
+        harness.run();
+        assert_eq!(
+            last_toast_text(&harness).as_deref(),
+            Some("Coming Soon: Styles")
+        );
+        harness.get_by_label("Important").click();
+        harness.run();
+        assert_eq!(
+            last_toast_text(&harness).as_deref(),
+            Some("Coming Soon: Tags")
+        );
+        // The separate large buttons stay beside the Tags gallery.
+        let _ = harness.get_by_label("To Do Tag");
+        let _ = harness.get_by_label("Find Tags");
+    }
+
+    #[test]
+    fn gallery_arrows_scroll_two_entries_at_a_time() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        assert!(harness.query_by_label("Heading 3").is_none());
+        harness.get_by_label("Styles down").click();
+        harness.run();
+        assert!(harness.query_by_label("Heading 1").is_none());
+        let _ = harness.get_by_label("Heading 3");
+        let _ = harness.get_by_label("Heading 4");
+        harness.get_by_label("Styles up").click();
+        harness.run();
+        let _ = harness.get_by_label("Heading 1");
+        assert!(harness.query_by_label("Heading 3").is_none());
+
+        assert!(harness.query_by_label("Question").is_none());
+        harness.get_by_label("Tags down").click();
+        harness.run();
+        let _ = harness.get_by_label("Question");
+        let _ = harness.get_by_label("Remember for Later");
+        assert!(harness.query_by_label("Important").is_none());
+        harness.get_by_label("Tags down").click();
+        harness.get_by_label("Tags down").click();
+        harness.run();
+        harness.run();
+        // Customize Tags and Remove Tag are in the More list only.
+        assert!(harness.query_by_label("Customize Tags").is_none());
+        assert!(toasts(&harness).is_empty(), "scrolling runs nothing");
+    }
+
+    #[test]
+    fn gallery_more_arrow_opens_the_full_list() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        assert!(harness.query_by_label("Page Title").is_none());
+        harness.get_by_label("More Styles").click();
+        harness.run();
+        let _ = harness.get_by_label("Heading 6");
+        harness.get_by_label("Page Title").click();
+        harness.run();
+        assert_eq!(
+            last_toast_text(&harness).as_deref(),
+            Some("Coming Soon: Styles")
+        );
+        assert!(harness.query_by_label("Heading 6").is_none(), "menu closes");
+
+        harness.get_by_label("More Tags").click();
+        harness.run();
+        let _ = harness.get_by_label("Customize Tags");
+        harness.get_by_label("Idea").click();
+        harness.run();
+        assert_eq!(
+            last_toast_text(&harness).as_deref(),
+            Some("Coming Soon: Tags")
+        );
+    }
+
+    #[test]
+    fn galleries_are_one_dropdown_each_in_the_simplified_ribbon() {
+        let mut shell = AppShell::new();
+        shell.set_ribbon(RibbonLayout::Simplified, RibbonShow::Always);
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        assert!(harness.query_by_label("Styles up").is_none());
+        harness.get_by_label("Styles").click();
+        harness.run();
+        harness.get_by_label("Quote").click();
+        harness.run();
+        assert_eq!(
+            last_toast_text(&harness).as_deref(),
+            Some("Coming Soon: Styles")
+        );
+        harness.get_by_label("Tags").click();
+        harness.run();
+        harness.get_by_label("Idea").click();
+        harness.run();
+        assert_eq!(
+            last_toast_text(&harness).as_deref(),
+            Some("Coming Soon: Tags")
+        );
+    }
+
+    #[test]
+    fn galleries_are_in_the_more_options_menu_when_the_window_is_narrow() {
+        let mut shell = AppShell::new();
+        shell.set_ribbon(RibbonLayout::Simplified, RibbonShow::Always);
+        let mut harness = harness(shell, egui::vec2(700.0, 1400.0));
+        harness.run();
+        assert!(harness.query_by_label("Tags").is_none());
+        harness.get_by_label("More Options").click();
+        harness.run();
+        // A button with a menu is a submenu here; egui adds an arrow to its name.
+        harness.get_by_label("Tags \u{23F5}").click();
+        harness.run();
+        harness.get_by_label("Remember for Later").click();
+        harness.run();
+        assert_eq!(
+            last_toast_text(&harness).as_deref(),
+            Some("Coming Soon: Tags")
+        );
+    }
+
+    #[test]
+    fn help_tab_has_its_four_buttons() {
+        use egui::accesskit::Role;
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Help").click();
+        harness.run();
+        assert_eq!(harness.state().ribbon().selected(), "Help");
+        for label in ["Help", "Support", "Feedback", "Show Training"] {
+            harness.get_by_role_and_label(Role::Button, label).click();
+            harness.run();
+            assert_eq!(
+                last_toast_text(&harness),
+                Some(format!("Coming Soon: {label}"))
+            );
+        }
     }
 
     #[test]
@@ -1822,7 +1969,9 @@ mod tests {
     fn every_control_has_a_screen_reader_name() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        for tab in ["Home", "Insert", "Draw", "History", "Review", "View"] {
+        for tab in [
+            "Home", "Insert", "Draw", "History", "Review", "View", "Help",
+        ] {
             harness.get_by_label(tab).click();
             harness.run();
             assert_eq!(unnamed(&harness), Vec::<String>::new(), "{tab} tab");
@@ -1917,7 +2066,9 @@ mod tests {
     fn every_control_can_be_pressed_by_a_screen_reader() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        for tab in ["Home", "Insert", "Draw", "History", "Review", "View"] {
+        for tab in [
+            "Home", "Insert", "Draw", "History", "Review", "View", "Help",
+        ] {
             harness.get_by_label(tab).click();
             harness.run();
             assert_eq!(unpressable(&harness), Vec::<String>::new(), "{tab} tab");

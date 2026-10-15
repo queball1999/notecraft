@@ -13,6 +13,7 @@
 mod backstage;
 mod button;
 mod combo;
+mod gallery;
 mod group;
 pub(crate) mod keytips;
 mod menus;
