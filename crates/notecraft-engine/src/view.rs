@@ -94,6 +94,8 @@ pub struct ViewState {
     pub system_dark: bool,
     /// The ribbon shows only its tab names (`view.ribbon.toggle`, Ctrl+F1).
     pub ribbon_collapsed: bool,
+    /// Full Page View (`view.full_page`, F11): only the page shows.
+    pub full_page: bool,
     /// Canvas zoom in percent, 10 to 400 (`view.zoom` and friends).
     pub zoom_percent: u16,
     /// Width of the canvas in screen points, as last reported by the front end. Only used
@@ -108,6 +110,7 @@ impl Default for ViewState {
             theme_mode: ThemeMode::default(),
             system_dark: false,
             ribbon_collapsed: false,
+            full_page: false,
             zoom_percent: 100,
             canvas_width: 0,
         }

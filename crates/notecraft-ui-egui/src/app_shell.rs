@@ -6,13 +6,17 @@
 use notecraft_engine::cmd::{ids, CommandError, CommandId, Map, Registry, Value};
 use notecraft_engine::Session;
 
+use craft_ui::buttons::IconButton;
+
 use crate::canvas::{self, CanvasUi};
+use crate::icons::{self, Icon, IconColors};
 use crate::nav::{self, NavUi};
 use crate::picker::{FilePicker, NoPicker};
 use crate::ribbon::{self, Clicked, Ribbon};
-use crate::start;
+use crate::shortcuts::Shortcuts;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
+use crate::{start, status};
 
 /// Height of the ribbon region (tab strip and body), in points.
 pub const RIBBON_HEIGHT: f32 = ribbon::HEIGHT;
@@ -21,8 +25,9 @@ pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
 pub const SIDE_WIDTH: f32 = 220.0;
 
-/// The labels of the placeholder regions, in drawing order. UI tests look them up by name.
-pub const REGIONS: [&str; 4] = ["Status bar", "Notebooks", "Add Page", "Canvas"];
+/// Labels of the main regions with mock notebooks open, in drawing order. UI tests look them
+/// up by name.
+pub const REGIONS: [&str; 4] = ["Zoom 100%", "Notebooks", "Add Page", "Canvas"];
 
 /// File commands that open something, and close the File backstage when they do.
 const FILE_OPENS: [CommandId; 3] = [
@@ -42,6 +47,7 @@ pub struct AppShell {
     canvas: CanvasUi,
     /// Asked for a path when a file command arrives without one.
     picker: Box<dyn FilePicker>,
+    shortcuts: Shortcuts,
     /// The preset and mode last installed into egui, so it is redone only on a change.
     installed: Option<(Preset, Mode)>,
     /// The OS UI fonts, if the app loaded them (tests run with egui's built-in font).
@@ -78,6 +84,7 @@ impl AppShell {
             nav: NavUi::default(),
             canvas: CanvasUi::default(),
             picker: Box::new(NoPicker),
+            shortcuts: Shortcuts::new(),
             installed: None,
             fonts: OsFonts::default(),
             installed_font: None,
@@ -209,6 +216,10 @@ impl AppShell {
 
     /// Per-frame work that must run even when the window is hidden (eframe `logic`).
     pub fn logic(&mut self, ctx: &egui::Context) {
+        // Ctrl+=, Ctrl+-, and Ctrl+0 belong to OneNote's shortcuts, not to egui's UI scaling.
+        if ctx.options(|options| options.zoom_with_keyboard) {
+            ctx.options_mut(|options| options.zoom_with_keyboard = false);
+        }
         self.session.view_mut().system_dark = ctx.system_theme() == Some(egui::Theme::Dark);
         let view = self.session.view();
         let wanted = (view.theme_preset, view.theme_mode);
@@ -231,6 +242,8 @@ impl AppShell {
     /// Draw the window contents (eframe `ui`).
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let tokens = self.tokens(ui.ctx());
+        let pressed = self.shortcuts.pressed(ui.ctx());
+        self.dispatch_all(pressed);
         let look = ribbon::Look {
             tokens: &tokens,
             registry: &self.registry,
@@ -241,10 +254,11 @@ impl AppShell {
             self.toasts.show(ui.ctx());
             return;
         }
-        // Ctrl+F1 collapses or expands the ribbon, as in OneNote. The full shortcut map
-        // arrives in PR 0.9.
-        let toggle_ribbon =
-            ui.input_mut(|input| input.consume_key(egui::Modifiers::CTRL, egui::Key::F1));
+        if self.session.view().full_page && !self.session.notebooks().is_empty() {
+            self.full_page_ui(ui, &tokens);
+            return;
+        }
+
         let collapsed = self.session.view().ribbon_collapsed;
         let panel = egui::Frame::side_top_panel(ui.style());
         let height = if collapsed {
@@ -257,17 +271,12 @@ impl AppShell {
             .frame(egui::Frame::NONE.fill(tokens.ribbon_bg))
             .show(ui, |ui| self.ribbon.show(ui, look, collapsed))
             .inner;
-        if toggle_ribbon {
-            clicked.push(Clicked {
-                command: ids::VIEW_RIBBON_TOGGLE,
-                args: Value::Null,
-            });
-        }
+
+        let session = &self.session;
         egui::Panel::bottom("status_bar")
             .exact_size(STATUS_HEIGHT)
             .frame(panel.fill(tokens.ribbon_bg))
-            .show(ui, |ui| placeholder(ui, "Status bar"));
-        let session = &self.session;
+            .show(ui, |ui| status::show(ui, session, &tokens, &mut clicked));
         if session.notebooks().is_empty() {
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
@@ -317,17 +326,58 @@ impl AppShell {
         self.toasts.show(ui.ctx());
     }
 
+    /// Full Page View: only the page, with a button at the top right (and Esc or F11) to go
+    /// back to the normal view.
+    fn full_page_ui(&mut self, ui: &mut egui::Ui, tokens: &ThemeTokens) {
+        let mut clicked = Vec::new();
+        let leave =
+            ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+        let session = &self.session;
+        let canvas_ui = &mut self.canvas;
+        let canvas_width = egui::CentralPanel::default()
+            .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
+            .show(ui, |ui| {
+                let page = ui.max_rect();
+                let width = canvas::show(ui, page, session, canvas_ui, tokens, &mut clicked);
+                let size = egui::vec2(32.0, 32.0);
+                // Left of the vertical scroll bar.
+                let at = egui::pos2(page.max.x - size.x - 20.0, page.min.y + 8.0);
+                let rect = egui::Rect::from_min_size(at, size);
+                let style = ribbon::button_style(tokens);
+                let exit = ui
+                    .scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                        IconButton::new("Normal View", size, &style).show(ui, |ui, rect, color| {
+                            let colors = IconColors {
+                                fg: color,
+                                accent: tokens.accent,
+                            };
+                            icons::paint(ui.painter(), rect.shrink(6.0), Icon::NormalView, colors);
+                        })
+                    })
+                    .inner;
+                if exit
+                    .on_hover_text("Exit Full Page View (F11 or Esc)")
+                    .clicked()
+                    || leave
+                {
+                    clicked.push(Clicked {
+                        command: ids::VIEW_NORMAL,
+                        args: Value::Null,
+                    });
+                }
+                width
+            })
+            .inner;
+        self.session.view_mut().canvas_width = canvas_width.max(0.0) as u32;
+        self.dispatch_all(clicked);
+        self.toasts.show(ui.ctx());
+    }
+
     fn dispatch_all(&mut self, clicked: Vec<Clicked>) {
         for Clicked { command, args } in clicked {
             self.dispatch(command.as_str(), args);
         }
     }
-}
-
-fn placeholder(ui: &mut egui::Ui, name: &str) {
-    ui.centered_and_justified(|ui| {
-        ui.weak(name);
-    });
 }
 
 #[cfg(test)]
@@ -412,7 +462,7 @@ mod tests {
     fn ribbon_collapses_with_ctrl_f1_and_the_chevron() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.key_press_modifiers(egui::Modifiers::CTRL, egui::Key::F1);
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F1);
         harness.run();
         assert!(harness.state().session().view().ribbon_collapsed);
         assert!(harness.query_by_label("Paste").is_none());
@@ -430,7 +480,7 @@ mod tests {
             .texts()
             .any(|t| t == "Coming Soon: Bold"));
 
-        harness.key_press_modifiers(egui::Modifiers::CTRL, egui::Key::F1);
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F1);
         harness.run();
         assert!(!harness.state().session().view().ribbon_collapsed);
         harness.get_by_label("Collapse the Ribbon").click();
@@ -1151,6 +1201,119 @@ mod tests {
         assert!(shell.reopen_last());
         assert_eq!(shell.session().notebooks().len(), 2);
         assert_eq!(recent_paths(&shell), ["/n/Plans.md", "/n/Work"]);
+    }
+
+    #[test]
+    fn shortcuts_run_their_commands() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let command = egui::Modifiers::COMMAND;
+        harness.key_press_modifiers(command, egui::Key::N);
+        harness.run();
+        harness.key_press_modifiers(command, egui::Key::Num3);
+        harness.run();
+        assert_eq!(
+            toasts(&harness),
+            ["Coming Soon: Add Page", "Coming Soon: Tags"]
+        );
+
+        // Ctrl+Alt+= zooms in; the more specific chord wins over Ctrl+=.
+        harness.key_press_modifiers(command | egui::Modifiers::ALT, egui::Key::Equals);
+        harness.run();
+        assert_eq!(harness.state().session().view().zoom_percent, 125);
+        assert!(!toasts(&harness).iter().any(|t| t.contains("Zoom")));
+    }
+
+    #[test]
+    fn shortcuts_wait_while_a_text_field_has_focus() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Draw").click();
+        harness.run();
+        harness.get_by_label("Color").click();
+        harness.run();
+        harness.get_by_label("More Colors").click();
+        harness.run();
+        harness
+            .get_by_role(egui::accesskit::Role::TextInput)
+            .focus();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::N);
+        harness.run();
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn full_page_view_shows_only_the_page() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let shows_chrome = |harness: &egui_kittest::Harness<'_, AppShell>| {
+            harness.query_by_label("Home").is_some()
+                && harness.query_by_label("Notebooks").is_some()
+                && harness.query_all_by_label("Quick Notes").next().is_some()
+        };
+        assert!(shows_chrome(&harness));
+
+        // F11 in, F11 out.
+        harness.key_press(egui::Key::F11);
+        harness.run();
+        assert!(harness.state().session().view().full_page);
+        assert!(harness.query_by_label("Home").is_none());
+        assert!(harness.query_by_label("Notebooks").is_none());
+        assert!(harness.query_all_by_label("Quick Notes").next().is_none());
+        let _ = harness.get_by_label("Canvas");
+        harness.key_press(egui::Key::F11);
+        harness.run();
+        assert!(shows_chrome(&harness));
+
+        // The View tab button in, Esc out.
+        harness.get_by_label("View").click();
+        harness.run();
+        harness.get_by_label("Full Page View").click();
+        harness.run();
+        assert!(harness.state().session().view().full_page);
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert!(!harness.state().session().view().full_page);
+
+        // The corner button out.
+        harness.key_press(egui::Key::F11);
+        harness.run();
+        harness.get_by_label("Normal View").click();
+        harness.run();
+        assert!(shows_chrome(&harness));
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn status_bar_shows_the_page_and_zoom_menu() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let position = status::page_position(harness.state().session()).unwrap();
+        let _ = harness.get_by_label(&position);
+        harness.get_by_label("Grocery list").click();
+        harness.run();
+        let _ = harness.get_by_label("Page 2 of 5");
+
+        harness.get_by_label("Zoom 100%").click();
+        harness.run();
+        harness.get_by_label("Zoom In").click();
+        harness.run();
+        assert_eq!(harness.state().session().view().zoom_percent, 125);
+        harness.get_by_label("Zoom 125%").click();
+        harness.run();
+        harness.get_by_label("200%").click();
+        harness.run();
+        let _ = harness.get_by_label("Zoom 200%");
+        assert_eq!(harness.state().canvas().viewport().percent(), 200);
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn status_bar_is_empty_on_the_start_page() {
+        let mut harness = harness(AppShell::empty(), WINDOW);
+        harness.run();
+        assert!(harness.query_by_label("Zoom 100%").is_none());
     }
 
     #[test]

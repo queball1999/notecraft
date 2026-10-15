@@ -674,8 +674,11 @@ pub(super) static SPECS: &[CommandSpec] = &[
         ids::VIEW_NORMAL,
         "Normal View",
         "Show the ribbon and the navigation panes.",
-    ),
-    CommandSpec::new(ids::VIEW_FULL_PAGE, "Full Page View", "Show only the page.").shortcut("F11"),
+    )
+    .ready(),
+    CommandSpec::new(ids::VIEW_FULL_PAGE, "Full Page View", "Show only the page.")
+        .shortcut("F11")
+        .ready(),
     CommandSpec::new(
         ids::VIEW_DOCK,
         "Dock to Desktop",
@@ -803,6 +806,7 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .undoable()
     .shortcut("Ctrl+N"),
+    CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
 /// The handler of every Ready command.
@@ -815,6 +819,8 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
     (ids::VIEW_RIBBON_TOGGLE, layout::ribbon_toggle),
+    (ids::VIEW_FULL_PAGE, layout::full_page),
+    (ids::VIEW_NORMAL, layout::normal),
     (ids::VIEW_PAGE_COLOR, canvas::page_color),
     (ids::VIEW_RULE_LINES, canvas::rule_lines),
     (ids::VIEW_PAPER_SIZE, canvas::paper_size),

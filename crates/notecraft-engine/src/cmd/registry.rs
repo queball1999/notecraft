@@ -109,6 +109,24 @@ impl Registry {
         self.entries.is_empty()
     }
 
+    /// Check that `id` exists and `args` fit its schema, without running it. A Coming Soon
+    /// command is reported as such, after the argument check.
+    pub fn validate(&self, id: &str, args: &Value) -> Result<(), CommandError> {
+        let Some(entry) = self.entries.get(id) else {
+            return Err(CommandError::NotFound {
+                id: id.chars().take(MAX_ECHOED_ID).collect(),
+            });
+        };
+        check_args(&entry.spec, args.clone())?;
+        match (entry.spec.status, entry.handler) {
+            (Status::Ready, Some(_)) => Ok(()),
+            _ => Err(CommandError::ComingSoon {
+                id: entry.spec.id,
+                label: entry.spec.label,
+            }),
+        }
+    }
+
     /// Run a command. `args` is a JSON object (or null for no arguments). Unknown ids, Coming
     /// Soon commands, and bad arguments are errors. The handler runs inside the command
     /// guard, so a panic or failure leaves `session` as it was.
