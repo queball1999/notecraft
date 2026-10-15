@@ -350,6 +350,8 @@ Commits:
 2. `feat(ui): add the ribbon display options menu`
 3. `feat(ui): add the simplified ribbon`
 
+PR 0.5c landed with these changes to the plan. The view state keeps the layout and the show mode instead of a collapsed flag; `view.ribbon.toggle` (Ctrl+F1) switches between always and tabs only, and from full-screen mode shows the whole ribbon. The engine commands, the menu, and the simplified ribbon land as one commit, `feat(ui): add ribbon display options and the simplified ribbon`, so every commit builds (the view state's collapsed flag is replaced). While peeking with tabs only, the chevron is a pin that shows the ribbon again. A separate fix makes the canvas report only its visible part to screen readers; it reported the whole scrollable content, so a click at its accessible center landed on a scroll bar.
+
 ### PR 0.5d: font and size boxes
 
 | | |

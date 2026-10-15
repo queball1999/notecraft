@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: SH-15 evidence: push buttons, selectable rows, splitter focus ring, named scroll bars (PR 0.10).
+> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: SH-05 evidence: ribbon display options and simplified ribbon (PR 0.5c).
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -54,7 +54,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | D | PR 0.5a and 0.5b: data-driven ribbon with original icons drawn in code; File backstage and all seven OneNote tabs with their groups; egui_kittest tests click every tab in every preset |
 | SH-03 | Shell | Every ribbon button bound to a command id | 0 | D | PR 0.2, 0.5a, 0.5b: every button, menu item, and backstage entry on all tabs runs a registered command with arguments its schema accepts (unit test); clicks dispatch through the registry (egui_kittest tests) |
 | SH-04 | Shell | "Coming Soon" badge and toast for unimplemented commands | 0 | P | PR 0.2 and 0.5: clicking a Coming Soon button shows "Coming Soon: <label>" for 3 s and its tooltip says Coming Soon (egui_kittest tests). The per-button badge was dropped at the maintainer's request; decide whether this row still needs one |
-| SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | P | PR 0.5b: view.ribbon.toggle (Ctrl+F1, chevron, double-click a tab), peek while collapsed, collapsed state saved; key tips on tabs and buttons (Alt, F10, Alt plus letter, Esc); egui_kittest tests. Not yet tried with a physical keyboard: Windows can claim a lone Alt tap for its menu mode |
+| SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | P | PR 0.5b: view.ribbon.toggle (Ctrl+F1, chevron, double-click a tab), peek while collapsed, collapsed state saved; key tips on tabs and buttons (Alt, F10, Alt plus letter, Esc); egui_kittest tests. PR 0.5c: Ribbon Display Options menu on the chevron (Classic or Simplified Ribbon; Full-screen mode, Show tabs only, Always show Ribbon) through view.ribbon.layout and view.ribbon.show, both saved (the old collapsed key still read); the simplified ribbon is one row of icon buttons with a More Options menu for what does not fit; full-screen mode shows the ribbon while the pointer is at the top; checked in the running app on Windows 11. A lone Alt tap sent as OS keyboard input (keybd_event) showed the key tips on Windows 11; not yet tried by hand on a physical keyboard |
 | SH-06 | Shell | Navigation: notebook list | 0 | D | PR 0.6: notebook pane with color swatches, expandable notebooks and section groups; clicks run nav.notebook.select and nav.section.select (egui_kittest and engine tests). Shows mock notebooks until Phase 1 reads real ones (ST-01) |
 | SH-07 | Shell | Section tabs with colors | 0 | D | PR 0.6: colored section tabs across the page, softened in dark mode, "+" tab (section.new, Coming Soon), overflow menu; clicks run nav.section.select (egui_kittest tests) |
 | SH-08 | Shell | Page list with subpage indent | 0 | D | PR 0.6: page list with Add Page (page.new, Coming Soon), subpages indented two levels, current page highlighted; right of the page in 2016 and 2019, left in 2021 and Microsoft 365; clicks run nav.page.select (egui_kittest tests) |
@@ -224,3 +224,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | 0 | SH-09, SH-13, SH-14 scored D (status bar, full page view, shortcut map, PR 0.9). |
 | 2026-10-14 | 0 | SH-15 scored P (screen reader names, keyboard order, focus ring, PR 0.10). |
 | 2026-10-15 | 0 | SH-15 evidence: buttons are push buttons, navigation rows selectable list items, splitter focus ring, named scroll bars; checked in the running app (PR 0.10). |
+| 2026-10-15 | 0 | SH-05 evidence: Ribbon Display Options, simplified ribbon, full-screen mode (PR 0.5c); Alt key tips seen with OS keyboard input. |
