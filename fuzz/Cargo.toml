@@ -17,6 +17,8 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 notecraft-core = { path = "../crates/notecraft-core" }
 notecraft-markdown = { path = "../crates/notecraft-markdown" }
+notecraft-storage = { path = "../crates/notecraft-storage" }
+tempfile = "3"
 
 [[bin]]
 name = "markdown"
@@ -35,6 +37,34 @@ bench = false
 [[bin]]
 name = "containers"
 path = "fuzz_targets/containers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "canvas_block"
+path = "fuzz_targets/canvas_block.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "notebook_toml"
+path = "fuzz_targets/notebook_toml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "section_toml"
+path = "fuzz_targets/section_toml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "recovery_journal"
+path = "fuzz_targets/recovery_journal.rs"
 test = false
 doc = false
 bench = false
