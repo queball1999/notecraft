@@ -47,6 +47,10 @@ cargo xtask ci              # everything CI runs
 
 These commands work once Phase -1 of the [build plan](build_plan/README.md) lands.
 
+## Installing
+
+Release builds (Linux `.deb`, `.rpm`, AppImage, tarball, and Flatpak bundle; Windows; macOS) are on the [Releases](https://github.com/Queball1999/notecraft/releases) page. Steps per artifact, and a fix for Flatpak's "ldconfig failed, exit status 256", are in [docs/install.md](docs/install.md).
+
 ## Documentation
 
 | Doc | What it covers |
@@ -55,6 +59,7 @@ These commands work once Phase -1 of the [build plan](build_plan/README.md) land
 | [ROADMAP.md](ROADMAP.md) | Stage summary and progress log |
 | [AGENTS.md](AGENTS.md) | Binding rules for contributors and agents |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to set up, build, test, and send a PR |
+| [docs/install.md](docs/install.md) | Installing release builds, Linux troubleshooting |
 | [docs/](docs/) | Parity, format, architecture, automation, release docs |
 | [build_plan/](build_plan/README.md) | Phase-by-phase execution plan |
 
