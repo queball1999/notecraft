@@ -50,7 +50,8 @@ pub(super) fn draw(
         if let Some(color) = page_color {
             painter.rect_filled(page, 0.0, color);
         }
-        paint_rules(painter, page, map, style.rule_lines, tokens);
+        let margin = margin_x(page, map, style.rule_lines);
+        paint_rules(painter, page, map, style.rule_lines, margin, tokens);
     }
     if let Some(edge) = edge {
         let stroke = Stroke::new(1.0, tokens.border);
@@ -59,12 +60,15 @@ pub(super) fn draw(
 }
 
 /// Draw the rule lines, grid, margin line, or dots of `rules` inside `page`, a part of the
-/// paper on screen. Shared by the canvas and the Rule Lines menu thumbnails.
+/// paper on screen. Shared by the canvas and the Rule Lines menu thumbnails. `margin` is the
+/// screen x of the red margin line, if it shows (the canvas computes it from the page; a
+/// thumbnail places it by [`thumbnail_margin_x`]).
 fn paint_rules(
     painter: &Painter,
     page: Rect,
     map: PageToScreen,
     rules: RuleLines,
+    margin: Option<f32>,
     tokens: &ThemeTokens,
 ) {
     let stroke = Stroke::new(1.0, tokens.canvas_rule);
@@ -76,7 +80,7 @@ fn paint_rules(
         painter.vline(painter.round_to_pixel_center(x), page.y_range(), stroke);
     }
     // The margin goes after the horizontal rules so it sits on top of them.
-    if let Some(x) = margin_x(page, map, rules) {
+    if let Some(x) = margin {
         let stroke = Stroke::new(1.0, tokens.canvas_margin_rule);
         painter.vline(painter.round_to_pixel_center(x), page.y_range(), stroke);
     }
@@ -89,6 +93,19 @@ fn paint_rules(
 /// Zoom of a Rule Lines menu thumbnail: a thumbnail shows the top left corner of the page at
 /// this scale, so ruled and grid spacings keep their real ratios.
 pub(crate) const THUMBNAIL_ZOOM: f32 = 0.45;
+
+/// Where a thumbnail's margin line sits, as a fraction of the card width from its left edge.
+/// A real page is 816 units wide and the margin is 96 from the left (about 12%), so the line
+/// stays near the left edge whatever the card size.
+pub(crate) const THUMBNAIL_MARGIN_FRACTION: f32 = 0.18;
+
+/// Screen x of the margin line in a thumbnail card `rect`: near the left edge, only for ruled
+/// styles. The thumbnail shows the top left corner of a page at [`THUMBNAIL_ZOOM`], which is
+/// too small to hold the real 1 inch margin, so the line is placed by fraction instead.
+pub(crate) fn thumbnail_margin_x(rect: Rect, rules: RuleLines) -> Option<f32> {
+    rules.margin()?;
+    Some(rect.min.x + rect.width() * THUMBNAIL_MARGIN_FRACTION)
+}
 
 /// Paint a miniature page in `rect` with `rules`, using the same drawing as the canvas.
 pub(crate) fn paint_thumbnail(
@@ -103,7 +120,14 @@ pub(crate) fn paint_thumbnail(
         origin: rect.min,
         zoom: THUMBNAIL_ZOOM,
     };
-    paint_rules(&painter, rect, map, rules, tokens);
+    paint_rules(
+        &painter,
+        rect,
+        map,
+        rules,
+        thumbnail_margin_x(rect, rules),
+        tokens,
+    );
 }
 
 /// The paper on screen, or `None` for an auto-sized page, which fills the canvas.
@@ -339,11 +363,14 @@ mod tests {
                     RuleKind::Dots => assert!(dots.len() >= 4, "{style:?} dots"),
                     RuleKind::Lines => {
                         assert!(rows.len() >= 4, "{style:?} rows");
-                        assert!(margin_x(area, thumb, style).is_some(), "{style:?} margin");
+                        assert!(
+                            thumbnail_margin_x(area, style).is_some(),
+                            "{style:?} margin"
+                        );
                     }
                     RuleKind::Grid => {
                         assert!(!rows.is_empty(), "{style:?} rows");
-                        assert!(margin_x(area, thumb, style).is_none());
+                        assert!(thumbnail_margin_x(area, style).is_none());
                     }
                 }
                 rows.len()
@@ -352,6 +379,36 @@ mod tests {
         // Narrow ruled paper is denser than wide, and small grids denser than extra large.
         assert!(counts[1] >= counts[4]);
         assert!(counts[5] > counts[8]);
+    }
+
+    #[test]
+    fn thumbnail_margin_is_in_the_left_quarter_of_the_card() {
+        // The Rule Lines menu cards are 68 x 48 points with a 1 point border.
+        let card = Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(66.0, 46.0));
+        for style in RuleLines::ALL {
+            match thumbnail_margin_x(card, style) {
+                Some(x) => {
+                    assert!(style.margin().is_some(), "{style:?}");
+                    assert!(
+                        x > card.min.x && x <= card.min.x + card.width() / 4.0,
+                        "{style:?} margin at {x}"
+                    );
+                }
+                None => assert!(style.margin().is_none(), "{style:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn the_canvas_margin_is_one_inch_from_the_left_page_edge() {
+        // A fixed size page and an auto-sized one both start at the map origin.
+        let area = Rect::from_min_size(egui::pos2(100.0, 50.0), egui::vec2(600.0, 100.0));
+        for size in [PaperSize::Letter, PaperSize::Auto] {
+            let left = page_rect(map(1.0), size).map_or(area.min.x, |edge| edge.min.x);
+            assert_eq!(left, 100.0);
+            let x = margin_x(area, map(1.0), RuleLines::College);
+            assert_eq!(x, Some(left + 96.0));
+        }
     }
 
     #[test]
