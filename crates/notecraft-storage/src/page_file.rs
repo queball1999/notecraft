@@ -1,9 +1,14 @@
-//! Reading one page file from disk: bounded and lenient (docs/markdown.md sections 1 and 9).
+//! Reading and writing one page file: bounded and lenient reads, crash-safe writes
+//! (docs/markdown.md sections 1 and 9).
 //!
 //! The read never loads more than the size cap into memory. A file over the cap is read up to
 //! the cap and flagged `truncated`, so the caller can show it read-only as plain text. Bytes
 //! that are not valid UTF-8 are replaced with U+FFFD and flagged `lossy`. A missing or
 //! unreadable file is a [`PageReadError`], never a panic.
+//!
+//! Writes go through `craft-atomic` (temp file, flush, rename), so a crash or a full disk never
+//! leaves a half-written page. The text comes from `notecraft-markdown`; this module only moves
+//! bytes.
 //!
 //! The read is synchronous. Pages are read when they are shown, so a slow disk can stall the
 //! UI for one frame; moving it to a worker comes with auto-save and outside-edit watching
@@ -12,7 +17,7 @@
 use std::borrow::Cow;
 use std::fmt;
 use std::fs::File;
-use std::io::Read;
+use std::io::{self, Read};
 use std::path::Path;
 
 /// Page file size cap: 64 MiB (docs/markdown.md section 9).
@@ -113,6 +118,27 @@ pub fn read_page_file_with(path: &Path, max_bytes: u64) -> Result<PageText, Page
     })
 }
 
+/// What [`write_page_text`] did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WriteOutcome {
+    /// The file already held exactly these bytes; nothing was written.
+    Unchanged,
+    /// The file was written.
+    Written,
+}
+
+/// Write `text` to the page file at `path` atomically. If the file already holds exactly
+/// these bytes it is left alone (no write, no new modified time).
+pub fn write_page_text(path: &Path, text: &str) -> io::Result<WriteOutcome> {
+    if let Ok(existing) = std::fs::read(path) {
+        if existing == text.as_bytes() {
+            return Ok(WriteOutcome::Unchanged);
+        }
+    }
+    craft_atomic::atomic_write(path, text.as_bytes())?;
+    Ok(WriteOutcome::Written)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,5 +201,67 @@ mod tests {
             read_page_file(dir.path()),
             Err(PageReadError::NotAFile | PageReadError::Io(_))
         ));
+    }
+
+    #[test]
+    fn write_new_and_replace_existing() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("page.md");
+        assert_eq!(
+            write_page_text(
+                &path, "# A
+"
+            )
+            .unwrap(),
+            WriteOutcome::Written
+        );
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"# A
+"
+        );
+        assert_eq!(
+            write_page_text(
+                &path, "# B
+"
+            )
+            .unwrap(),
+            WriteOutcome::Written
+        );
+        assert_eq!(
+            read_page_file(&path).unwrap().text,
+            "# B
+"
+        );
+    }
+
+    #[test]
+    fn identical_bytes_are_not_rewritten() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = write(
+            &dir, "page.md", b"same
+",
+        );
+        assert_eq!(
+            write_page_text(
+                &path, "same
+"
+            )
+            .unwrap(),
+            WriteOutcome::Unchanged
+        );
+    }
+
+    #[test]
+    fn no_temp_files_are_left_behind() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("page.md");
+        write_page_text(&path, "x").unwrap();
+        write_page_text(&path, "y").unwrap();
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("page.md")]);
     }
 }
