@@ -4,6 +4,7 @@
 
 mod builtin;
 mod canvas;
+mod draw;
 mod file;
 mod guard;
 pub mod ids;
@@ -59,6 +60,8 @@ pub enum ArgKind {
     Integer,
     Number,
     String,
+    /// A JSON array; the handler checks the elements.
+    Array,
 }
 
 impl ArgKind {
@@ -68,6 +71,7 @@ impl ArgKind {
             Self::Integer => value.is_i64() || value.is_u64(),
             Self::Number => value.is_number(),
             Self::String => value.is_string(),
+            Self::Array => value.is_array(),
         }
     }
 }

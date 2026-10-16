@@ -117,6 +117,7 @@ fn kind_name(kind: ArgKind) -> &'static str {
         ArgKind::Integer => "integer",
         ArgKind::Number => "number",
         ArgKind::String => "string",
+        ArgKind::Array => "array",
     }
 }
 

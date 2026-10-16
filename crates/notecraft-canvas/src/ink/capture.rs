@@ -180,8 +180,19 @@ pub fn velocity_pressures(samples: &[(Vec2, f64)]) -> Vec<f32> {
         let before = i.checked_sub(1).and_then(|j| samples.get(j));
         let speed = match before {
             Some(&(prev, prev_time)) => {
-                let dt = ((time - prev_time) as f32).max(1.0e-3);
-                prev.distance(pos) / dt
+                let dt = (time - prev_time) as f32;
+                let dt = if dt.is_finite() {
+                    dt.max(1.0e-3)
+                } else {
+                    1.0e-3
+                };
+                let speed = prev.distance(pos) / dt;
+                // Absurd input (a jump of 1e30 units) counts as fast, never as NaN.
+                if speed.is_finite() {
+                    speed
+                } else {
+                    FAST_SPEED
+                }
             }
             None => 0.0,
         };
