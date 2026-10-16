@@ -181,6 +181,11 @@ impl<'a> Editor<'a> {
     /// Replace the bytes in `span` with `markdown`.
     pub fn replace(&mut self, span: Span, markdown: &str) -> Result<(), EditError> {
         check_span(self.source, span)?;
+        // Putting back the bytes that are already there changes nothing, even in a file that
+        // mixes line endings (normalizing would rewrite them).
+        if span.slice(self.source) == markdown {
+            return Ok(());
+        }
         let text = self.style.eol.normalize(markdown);
         self.edits.push(Edit { span, text });
         Ok(())
