@@ -1,6 +1,6 @@
 # OneNote parity assessment
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: rule lines row mentions the margin line and dotted paper.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.10: the pen and input rows are partial.
 
 Target: OneNote for Windows as shipped around 2020 (OneNote 2016 desktop and the Microsoft 365 app of that era), with theme presets for 2016, 2019, 2021, and Microsoft 365. NoteCraft matches OneNote's workflow and layout one to one. It differs on purpose in one place: storage. OneNote keeps notebooks in a binary format; NoteCraft keeps them as markdown folders (docs/markdown.md).
 
@@ -48,14 +48,14 @@ Shared work not tied to one area (file formats, command registry, localization, 
 
 | OneNote behavior | NoteCraft plan | Phase | Score |
 |---|---|---|---|
-| Pens with color and thickness, pressure-sensitive | Pen tool with pressure from pen tablets and touch | 1 | M |
+| Pens with color and thickness, pressure-sensitive | Pen tool with pressure from pen tablets and touch | 1 | P |
 | Highlighter | Semi-transparent multiply-blend stroke | 1 | M |
 | Stroke eraser and point eraser | Both | 1 | M |
 | Lasso select ink, move, recolor | Same | 3 | M |
 | Ink to Shape | Recognize lines, rectangles, ellipses, triangles, arrows | 3 | M |
 | Shapes gallery | 16 presets | 3 | M |
 | Ruler | Straight-edge guide for ink | 3 | M |
-| Draw with mouse, pen, or touch; palm rejection | Input normalized in `notecraft-core` | 1 (mouse, pen), 3 (touch) | M |
+| Draw with mouse, pen, or touch; palm rejection | Input normalized in `notecraft-core` | 1 (mouse, pen), 3 (touch) | P |
 | Ink to Text (handwriting recognition) | On-device recognizer | 4 | M |
 | Search handwritten notes | Index recognized text | 4 | M |
 | Ink to Math, ink replay | Not planned for 1.x | n/a | M |
@@ -171,3 +171,4 @@ Four presets, each in light and dark (docs/themes.md). Palettes are original col
 | 2026-10-14 | -1 | Created. Re-scoped the same day to OneNote features only; recording, password sections, OCR, Find Tags, timestamps added; hours re-assessed bottom-up. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Rule lines row: ruled paper has the red margin line; dotted paper is a kept extra. |
+| 2026-10-15 | 1 | Pen and input normalization rows scored P (PR 1.10): pen, smoothing, and mouse and touch capture work; strokes are not saved yet and no real pen was tried. |

@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -22,14 +22,14 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Shell | 14 | 0 | 6 | 20 | 70% |
 | Themes | 6 | 0 | 0 | 6 | 100% |
 | Canvas | 3 | 0 | 9 | 12 | 25% |
-| Ink | 0 | 0 | 12 | 12 | 0% |
+| Ink | 1 | 2 | 9 | 12 | 8% |
 | Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 0 | 0 | 12 | 12 | 0% |
+| Structure | 1 | 0 | 11 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
 | Format | 0 | 2 | 7 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 33 | 2 | 78 | 113 | 29% |
+| Total | 35 | 4 | 74 | 113 | 30% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -56,7 +56,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | SH-03 | Shell | Every ribbon button bound to a command id | 0 | D | PR 0.2, 0.5a, 0.5b: every button, menu item, and backstage entry on all tabs runs a registered command with arguments its schema accepts (unit test); clicks dispatch through the registry (egui_kittest tests) |
 | SH-04 | Shell | "Coming Soon" tooltip and toast for unimplemented commands | 0 | D | PR 0.2 and 0.5: clicking a Coming Soon button shows "Coming Soon: <label>" for 3 s and its tooltip says Coming Soon (egui_kittest tests). The per-button badge was dropped at the maintainer's request and stays dropped (decision, 2026-10-15) |
 | SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | D | PR 0.5b: view.ribbon.toggle (Ctrl+F1, chevron, double-click a tab), peek while collapsed, collapsed state saved; key tips on tabs and buttons (Alt, F10, Alt plus letter, Esc); egui_kittest tests. PR 0.5c: Ribbon Display Options menu on the chevron (Classic or Simplified Ribbon; Full-screen mode, Show tabs only, Always show Ribbon) through view.ribbon.layout and view.ribbon.show, both saved (the old collapsed key still read); the simplified ribbon is one row of icon buttons with a More Options menu for what does not fit; full-screen mode shows the ribbon while the pointer is at the top; checked in the running app on Windows 11. A lone Alt tap sent as OS keyboard input (keybd_event) showed the key tips on Windows 11; not yet tried by hand on a physical keyboard. Scored D on the Windows evidence by maintainer decision, 2026-10-15; the physical keyboard check is in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0) |
-| SH-06 | Shell | Navigation: notebook list | 0 | D | PR 0.6: notebook pane with color swatches, expandable notebooks and section groups; clicks run nav.notebook.select and nav.section.select (egui_kittest and engine tests). Shows mock notebooks until Phase 1 reads real ones (ST-01) |
+| SH-06 | Shell | Navigation: notebook list | 0 | D | PR 0.6: notebook pane with color swatches, expandable notebooks and section groups; clicks run nav.notebook.select and nav.section.select (egui_kittest and engine tests). Shows the mock notebooks at start; opening a real folder replaces them (ST-01, PR 1.1) |
 | SH-07 | Shell | Section tabs with colors | 0 | D | PR 0.6: colored section tabs across the page, softened in dark mode, "+" tab (section.new, Coming Soon), overflow menu; clicks run nav.section.select (egui_kittest tests) |
 | SH-08 | Shell | Page list with subpage indent | 0 | D | PR 0.6: page list with Add Page (page.new, Coming Soon), subpages indented two levels, current page highlighted; right of the page in 2016 and 2019, left in 2021 and Microsoft 365; clicks run nav.page.select (egui_kittest tests) |
 | SH-09 | Shell | Status bar (zoom, page info) | 0 | D | PR 0.9 (#15): Page n of m and the zoom, which opens a zoom menu through the zoom commands; test status_bar_shows_the_page_and_zoom_menu. Save state joins with auto-save (FM-05) |
@@ -104,9 +104,9 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| IN-01 | Ink | Pen with color and width | 1 | M | |
-| IN-02 | Ink | Pressure from pen tablets | 1 | M | |
-| IN-03 | Ink | Stroke smoothing | 1 | M | |
+| IN-01 | Ink | Pen with color and width | 1 | P | PR 1.10: draw.pen, draw.color, draw.thickness, and ink.add_stroke are Ready; Draw tab pen gallery; tests `canvas::ink_tests::dragging_with_the_pen_makes_a_stroke`, `a_tap_makes_a_dot`, `the_stroke_is_painted_as_a_mesh`, `draw::tests::the_pen_takes_a_color_and_a_width`. Missing: strokes are not saved to the page file yet (PR 1.9) |
+| IN-02 | Ink | Pressure from pen tablets | 1 | P | PR 1.10: touch force becomes stroke pressure (tests `a_touch_force_becomes_pressure`, `touch_force_becomes_pen_pressure_and_hides_the_emulated_mouse`); speed-based width when there is none (`speed_sets_width_when_there_is_no_pressure`). Missing: no real pen or tablet was tried; from the winit source only Windows reports pressure, macOS and Linux need a wrapper crate (build_plan/03 PR 1.10 notes) |
+| IN-03 | Ink | Stroke smoothing | 1 | D | PR 1.10: one-euro filter; tests `filter::tests::jitter_at_rest_is_cut_by_more_than_half`, `a_fast_line_is_followed_closely`, `capture::tests::smoothing_cuts_jitter_on_a_slow_line`, `a_quick_flick_is_not_flattened`. Feel on a real pen is part of the deferred hands-on checks (gaps rank 25) |
 | IN-04 | Ink | Highlighter | 1 | M | |
 | IN-05 | Ink | Stroke eraser | 1 | M | |
 | IN-06 | Ink | Point eraser | 1 | M | |
@@ -138,7 +138,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| ST-01 | Structure | Open a folder as a notebook | 1 | M | |
+| ST-01 | Structure | Open a folder as a notebook | 1 | D | PR 1.1: notecraft-storage scans a folder into groups, sections, and pages (notebook.toml and .section.toml read leniently, ordering, depth 8, warning at 50,000 files); file.open_notebook shows the real tree in the navigation. Tests: storage unit tests, basic_notebook (testdata/notebooks/basic), engine file command tests, opening_a_real_folder_shows_its_real_sections_and_pages |
 | ST-02 | Structure | Create, rename, delete notebooks | 1 | M | |
 | ST-03 | Structure | Create, rename, delete, color sections | 1 | M | |
 | ST-04 | Structure | Section groups | 1 | M | |
@@ -233,4 +233,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 0 | CV-03 scored D: ruled paper draws the red margin line; dotted paper kept as an extra (docs/post-parity.md). |
 | 2026-10-15 | 0 | CV-03 evidence: the Rule Lines menu shows thumbnail cards of each paper style. |
 | 2026-10-15 | 0 | Phase 0 close (maintainer decisions, 2026-10-15): SH-01, SH-05, SH-12, SH-15, and TH-06 scored D on the Windows evidence (SH-01 also on the maintainer's Linux run), and SH-14 stays D, with their macOS, Linux dark mode, physical keyboard, screen reader, and real OS dialog runs moved to one deferred hands-on checks gap in docs/gaps.md; SH-04 reworded to the Coming Soon tooltip and toast and scored D (the per-button badge stays dropped); SH-12 scored D on the harness tests. |
+| 2026-10-15 | 1 | ST-01 scored D and SH-06 evidence updated: the folder reader and the real navigation tree (PR 1.1). |
+| 2026-10-15 | 1 | IN-01 and IN-02 scored P and IN-03 scored D (PR 1.10, ink engine and pen): pen, smoothing, and stroke capture work and are tested with synthetic events; saving strokes waits for PR 1.9 and no real pen has been tried. |
 | 2026-10-15 | 1 | PR 1.3: FM-01 scored P (page text parses into blocks and renders in flow layout; folder reading waits for PR 1.1); FM-04 scored P (frontmatter read; write waits for PR 1.4). |

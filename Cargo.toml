@@ -43,6 +43,8 @@ notecraft-engine = { path = "crates/notecraft-engine" }
 notecraft-ui-egui = { path = "crates/notecraft-ui-egui" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+toml = { version = "0.9", default-features = false, features = ["std", "parse", "serde"] }
+tempfile = "3"
 tracing = "0.1"
 # Markdown parser, behind notecraft-markdown. BSD-2-Clause (permissive, compatible with MIT OR Apache-2.0); builds for wasm32.
 comrak = { version = "0.56", default-features = false }

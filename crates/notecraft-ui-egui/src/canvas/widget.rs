@@ -5,9 +5,9 @@ use egui::containers::scroll_area::{DragScroll, ScrollSource};
 use egui::{CursorIcon, PointerButton, Rect, ScrollArea, Sense, UiBuilder};
 use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
-use notecraft_engine::{mock, Session};
+use notecraft_engine::{mock, DrawTool, Session};
 
-use super::{flow, paper, title, CanvasUi, PageToScreen};
+use super::{flow, ink, paper, title, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -91,6 +91,7 @@ pub fn show(
                 if let Some(flow) = &flow {
                     flow::paint(ui.painter(), map, flow, tokens);
                 }
+                draw_ink(ui, &response, session, state, map, shown, clicked);
                 if response.has_focus() {
                     // Keyboard focus: a ring just inside the visible part of the page.
                     let stroke = egui::Stroke::new(2.0, tokens.accent);
@@ -125,6 +126,37 @@ pub fn show(
         ui.ctx().set_cursor_icon(CursorIcon::Grab);
     }
     output.inner_rect.width()
+}
+
+/// Capture pen strokes and paint the page's ink. The pen draws only while it is the active
+/// tool; Space held means the user is panning, so it does not start a stroke.
+fn draw_ink(
+    ui: &egui::Ui,
+    response: &egui::Response,
+    session: &Session,
+    state: &mut CanvasUi,
+    map: PageToScreen,
+    shown: Rect,
+    clicked: &mut Vec<Clicked>,
+) {
+    let tool = session.ink().tool();
+    let pen = (tool == DrawTool::Pen && !space_held(ui)).then(|| session.ink().pen());
+    let layer_id = ui.layer_id();
+    let ctx = ui.ctx().clone();
+    let can_start = |at: egui::Pos2| shown.contains(at) && ctx.layer_id_at(at) == Some(layer_id);
+    let capture = state.ink.capture(ui, map, pen, can_start, clicked);
+    if tool == DrawTool::Pen && response.hovered() {
+        ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
+    }
+    let preview = capture.preview.as_deref().zip(pen);
+    state.ink.paint(
+        ui.painter(),
+        map,
+        ink::visible_box(map, shown),
+        session.selection().page.as_deref(),
+        session.current_ink(),
+        preview,
+    );
 }
 
 /// Ctrl+wheel and pinch over the canvas zoom about the pointer.

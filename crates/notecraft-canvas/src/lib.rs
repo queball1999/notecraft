@@ -9,6 +9,7 @@
 )]
 #![forbid(unsafe_code)]
 
+pub mod ink;
 pub mod paper;
 pub mod viewport;
 
