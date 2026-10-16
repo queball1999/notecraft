@@ -58,6 +58,7 @@ skrifa = "0.44"
 rfd = "0.15"
 image = { version = "0.25", default-features = false, features = ["png"] }
 # craft-libs: every crate from one pinned commit (docs/craft-libs.md section 5).
+craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
 craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
 craft-quit = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
 craft-settings = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
