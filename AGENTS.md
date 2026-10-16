@@ -112,3 +112,15 @@ Follow the conventions in [`build_plan/00-conventions.md`](build_plan/00-convent
 - Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, `refactor:`, `ci:`), imperative mood, scoped, subject at most 72 characters.
 - PRs: one logical change per PR, small enough to review in one sitting. Every PR passes `cargo xtask ci`. UI changes require screenshots. Link the issue and the `build_plan` phase.
 - Agents never commit, push, or open PRs unless the maintainer asks for that in the current session.
+
+## 10. Clean up before you finish
+
+Before an agent reports a task done or hands off, it removes what it created and no longer needs. Leave the repo, the disk, and the running system as you found them, plus the intended change.
+
+- Delete scratch files, throwaway test notebooks, temporary scripts, logs, screenshots, and probe or debug code that is not part of the change. Remove temporary tests that only served an investigation; keep tests that guard the change.
+- Remove debug output (`dbg!`, stray `println!`, extra log lines) and commented-out experiments before committing.
+- Delete build output you made outside the shared target folders, and the build output of worktrees whose work has landed. Remove worktrees and local branches whose PRs have merged.
+- Stop every process you started: the app, servers, watchers, and background CI runs. Close any OS dialog you opened.
+- Drop any stash entry you created (never use bare `git stash`), and do not leave stray WIP commits.
+- Keep what later work needs: work in progress, unmerged branches, notes a handoff depends on, and logs a maintainer asked for. Say in the final report or handoff what was kept and why, where it is, and when it can be deleted.
+- Never delete what you did not create, or what another session or agent is using. If unsure, list it in the report instead of deleting it.
