@@ -3,6 +3,7 @@
 //! pointer events into [`notecraft_core::PointerSample`]s and meshes into its own vertices.
 
 pub mod capture;
+pub mod erase;
 pub mod filter;
 pub mod index;
 pub mod layer;

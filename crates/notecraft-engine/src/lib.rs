@@ -18,7 +18,7 @@ pub mod session;
 pub mod undo;
 pub mod view;
 
-pub use ink::{DrawTool, InkState, PenStyle};
+pub use ink::{DrawTool, EraserMode, InkState, PenStyle};
 pub use session::{PageNotice, PageSource, Selection, Session};
 pub use view::PageStyle;
 
