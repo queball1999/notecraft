@@ -93,7 +93,18 @@ pub fn show(
                         node.set_value(text.clone());
                     }
                 });
+                let frame = capture_ink(ui, &response, session, state, map, shown, clicked);
                 paper::draw(ui.painter(), screen, map, style, tokens);
+                // Highlighter ink goes above the paper and under the text.
+                paint_highlights(
+                    ui,
+                    session,
+                    state,
+                    map,
+                    shown,
+                    &frame,
+                    paper::paper_color(style, tokens),
+                );
                 if let Some(page) = session.current_page() {
                     title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
                 }
@@ -111,7 +122,7 @@ pub fn show(
                         tokens.accent,
                     );
                 }
-                draw_ink(ui, &response, session, state, map, shown, clicked);
+                paint_pens(ui, &response, session, state, map, shown, &frame, tokens);
                 if response.has_focus() {
                     // Keyboard focus: a ring just inside the visible part of the page.
                     let stroke = egui::Stroke::new(2.0, tokens.accent);
@@ -148,9 +159,18 @@ pub fn show(
     output.inner_rect.width()
 }
 
-/// Capture pen strokes and paint the page's ink. The pen draws only while it is the active
-/// tool; Space held means the user is panning, so it does not start a stroke.
-fn draw_ink(
+/// What one frame of ink capture found, for the two paint passes.
+struct InkFrame {
+    tool: DrawTool,
+    /// The pen or highlighter style while one is drawing.
+    style: Option<notecraft_engine::PenStyle>,
+    /// The stroke being drawn, if any.
+    preview: Option<Vec<notecraft_core::InkPoint>>,
+}
+
+/// Capture strokes and eraser drags. The tools work only while they are the active tool; Space
+/// held means the user is panning, so none of them starts.
+fn capture_ink(
     ui: &egui::Ui,
     response: &egui::Response,
     session: &Session,
@@ -158,18 +178,76 @@ fn draw_ink(
     map: PageToScreen,
     shown: Rect,
     clicked: &mut Vec<Clicked>,
-) {
+) -> InkFrame {
     let tool = session.ink().tool();
-    let pen = (tool == DrawTool::Pen && !space_held(ui)).then(|| session.ink().pen());
+    let style = match tool {
+        DrawTool::Pen => Some(session.ink().pen()),
+        DrawTool::Highlighter => Some(session.ink().highlighter()),
+        DrawTool::Type | DrawTool::Eraser => None,
+    };
+    let capture_tool = match (tool, style) {
+        _ if space_held(ui) => ink::Tool::Off,
+        (DrawTool::Eraser, _) => ink::Tool::Erase(session.ink().eraser().id()),
+        (_, Some(style)) => ink::Tool::Draw(style),
+        _ => ink::Tool::Off,
+    };
     let layer_id = ui.layer_id();
     let ctx = ui.ctx().clone();
     let can_start = |at: egui::Pos2| shown.contains(at) && ctx.layer_id_at(at) == Some(layer_id);
-    let capture = state.ink.capture(ui, map, pen, can_start, clicked);
-    if tool == DrawTool::Pen && response.hovered() {
+    let capture = state.ink.capture(ui, map, capture_tool, can_start, clicked);
+    if tool != DrawTool::Type && response.hovered() {
         ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
     }
-    let preview = capture.preview.as_deref().zip(pen);
-    state.ink.paint(
+    InkFrame {
+        tool,
+        style,
+        preview: capture.preview,
+    }
+}
+
+/// The highlighter pass: under the page text.
+fn paint_highlights(
+    ui: &egui::Ui,
+    session: &Session,
+    state: &mut CanvasUi,
+    map: PageToScreen,
+    shown: Rect,
+    frame: &InkFrame,
+    paper: egui::Color32,
+) {
+    let preview = frame
+        .preview
+        .as_deref()
+        .zip(frame.style)
+        .filter(|_| frame.tool == DrawTool::Highlighter);
+    state.ink.paint_highlights(
+        ui.painter(),
+        map,
+        ink::visible_box(map, shown),
+        session.selection().page.as_deref(),
+        session.current_ink(),
+        preview,
+        paper,
+    );
+}
+
+/// The pen pass: over the page text, and the eraser's circle at the pointer.
+fn paint_pens(
+    ui: &egui::Ui,
+    response: &egui::Response,
+    session: &Session,
+    state: &mut CanvasUi,
+    map: PageToScreen,
+    shown: Rect,
+    frame: &InkFrame,
+    tokens: &ThemeTokens,
+) {
+    let preview = frame
+        .preview
+        .as_deref()
+        .zip(frame.style)
+        .filter(|_| frame.tool == DrawTool::Pen);
+    state.ink.paint_pens(
         ui.painter(),
         map,
         ink::visible_box(map, shown),
@@ -177,6 +255,14 @@ fn draw_ink(
         session.current_ink(),
         preview,
     );
+    if frame.tool == DrawTool::Eraser && response.hovered() && !space_held(ui) {
+        let hover = ui.input(|input| input.pointer.hover_pos());
+        if let Some(at) = hover.filter(|at| shown.contains(*at)) {
+            let radius = ink::eraser_reach_px(session.ink().eraser().id());
+            ui.painter()
+                .circle_stroke(at, radius, egui::Stroke::new(1.0, tokens.text));
+        }
+    }
 }
 
 /// Ctrl+wheel and pinch over the canvas zoom about the pointer.

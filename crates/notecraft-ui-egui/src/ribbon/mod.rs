@@ -88,8 +88,19 @@ pub struct Look<'a> {
 /// The pen the Draw tab has selected, for marking it in the menus.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ActivePen {
+    pub tool: ActiveTool,
+    /// The color as 0xRRGGBB and the width in points; unused by the eraser.
     pub color: u32,
     pub width_pt: f32,
+}
+
+/// Which Draw tab tool is in use, for marking its menu entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ActiveTool {
+    Pen,
+    Highlighter,
+    /// The eraser, with its mode id (`stroke` or `point`).
+    Eraser(&'static str),
 }
 
 /// A command a ribbon button or menu item asked to run.

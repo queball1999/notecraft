@@ -568,16 +568,22 @@ impl AppShell {
     }
 }
 
-/// The pen to mark in the Draw tab menus: only while the pen is the tool in use.
+/// The tool to mark in the Draw tab menus: the pen, highlighter, or eraser while it is the
+/// tool in use, and nothing while typing.
 fn active_pen(ink: &notecraft_engine::InkState) -> Option<ribbon::ActivePen> {
-    if ink.tool() != notecraft_engine::DrawTool::Pen {
-        return None;
-    }
-    let pen = ink.pen();
-    let [r, g, b, _] = pen.color.0;
+    use notecraft_engine::DrawTool;
+    let tool = match ink.tool() {
+        DrawTool::Type => return None,
+        DrawTool::Pen => ribbon::ActiveTool::Pen,
+        DrawTool::Highlighter => ribbon::ActiveTool::Highlighter,
+        DrawTool::Eraser => ribbon::ActiveTool::Eraser(ink.eraser().id()),
+    };
+    let style = ink.brush();
+    let [r, g, b, _] = style.color.0;
     Some(ribbon::ActivePen {
+        tool,
         color: u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
-        width_pt: pen.width_pt,
+        width_pt: style.width_pt,
     })
 }
 

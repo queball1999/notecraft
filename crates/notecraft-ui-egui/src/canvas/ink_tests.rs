@@ -221,3 +221,98 @@ fn a_stroke_belongs_to_its_page() {
     harness.step();
     assert_eq!(stroke_count(&harness), 0);
 }
+
+fn tool(harness: &mut Harness, id: &str, args: Value) {
+    assert!(harness.state_mut().dispatch(id, args));
+    harness.step();
+}
+
+fn draw_line(harness: &mut Harness, dy: f32) {
+    let start = canvas_center(harness) + egui::vec2(0.0, dy);
+    drag(harness, start, start + egui::vec2(100.0, 0.0), 10);
+}
+
+fn mesh_colors(harness: &Harness) -> Vec<egui::Color32> {
+    harness
+        .output()
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::Shape::Mesh(mesh) => Some(mesh.vertices.iter().map(|v| v.color)),
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}
+
+#[test]
+fn dragging_with_the_highlighter_makes_a_highlighter_stroke() {
+    let mut harness = harness();
+    tool(&mut harness, "draw.highlighter", Value::Null);
+    let start = canvas_center(&harness);
+    drag(&mut harness, start, start + egui::vec2(200.0, 0.0), 20);
+    assert_eq!(stroke_count(&harness), 1);
+    harness.step();
+    let session = harness.state().session();
+    let stroke = session
+        .current_ink()
+        .and_then(|layer| layer.strokes().first())
+        .expect("one stroke");
+    assert_eq!(stroke.tool, notecraft_core::InkTool::Highlighter);
+    assert_eq!(stroke.color.to_hex(), "#FFF176");
+    // The stroke is stored as picked but painted opaque and blended with the paper, so it
+    // cannot darken where its own triangles overlap.
+    let yellow = egui::Color32::from_rgb(0xFF, 0xF1, 0x76);
+    let colors = mesh_colors(&harness);
+    assert!(!colors.contains(&yellow), "the raw color was painted");
+    let tokens = harness.state().tokens(&harness.ctx);
+    let paper = super::paper::paper_color(session.page_style(), &tokens);
+    let [r, g, b, a] = super::ink::highlight_color(stroke.color, paper).0;
+    assert!(colors.contains(&egui::Color32::from_rgba_unmultiplied(r, g, b, a)));
+}
+
+#[test]
+fn the_stroke_eraser_removes_what_it_crosses_in_one_undo_step() {
+    let mut harness = harness();
+    pen(&mut harness, Value::Null);
+    for dy in [0.0, 40.0, 80.0] {
+        draw_line(&mut harness, dy);
+    }
+    assert_eq!(stroke_count(&harness), 3);
+    tool(&mut harness, "draw.eraser", json!({ "mode": "stroke" }));
+    let from = canvas_center(&harness) + egui::vec2(50.0, -25.0);
+    drag(&mut harness, from, from + egui::vec2(0.0, 150.0), 30);
+    assert_eq!(stroke_count(&harness), 0);
+    // One drag, one step: a single undo brings all three back.
+    tool(&mut harness, "edit.undo", Value::Null);
+    assert_eq!(stroke_count(&harness), 3);
+    tool(&mut harness, "edit.redo", Value::Null);
+    assert_eq!(stroke_count(&harness), 0);
+}
+
+#[test]
+fn the_point_eraser_splits_a_stroke() {
+    let mut harness = harness();
+    pen(&mut harness, Value::Null);
+    draw_line(&mut harness, 0.0);
+    assert_eq!(stroke_count(&harness), 1);
+    tool(&mut harness, "draw.eraser", json!({ "mode": "point" }));
+    let from = canvas_center(&harness) + egui::vec2(50.0, -30.0);
+    drag(&mut harness, from, from + egui::vec2(0.0, 60.0), 20);
+    assert_eq!(stroke_count(&harness), 2);
+    tool(&mut harness, "edit.undo", Value::Null);
+    assert_eq!(stroke_count(&harness), 1);
+}
+
+#[test]
+fn an_eraser_far_from_the_ink_changes_nothing() {
+    let mut harness = harness();
+    pen(&mut harness, Value::Null);
+    draw_line(&mut harness, 0.0);
+    tool(&mut harness, "draw.eraser", json!({ "mode": "stroke" }));
+    let revision = harness.state().session().revision();
+    let from = canvas_center(&harness) + egui::vec2(0.0, 200.0);
+    drag(&mut harness, from, from + egui::vec2(100.0, 0.0), 10);
+    assert_eq!(stroke_count(&harness), 1);
+    assert_eq!(harness.state().session().revision(), revision);
+}

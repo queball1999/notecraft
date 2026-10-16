@@ -15,7 +15,8 @@ use egui::epaint::{Mesh, Vertex, WHITE_UV};
 use egui::{Color32, Painter, Shape};
 use notecraft_canvas::ink::{tessellate, Edge, InkLayer, StrokeBuilder, StrokeMesh, TessParams};
 use notecraft_core::{
-    Aabb, InkColor, InkPoint, PointerEvent, PointerKind, PointerPhase, PointerSample, Stroke,
+    Aabb, InkColor, InkPoint, InkTool, PointerEvent, PointerKind, PointerPhase, PointerSample,
+    Stroke, Vec2,
 };
 use notecraft_engine::cmd::{ids, Value};
 use notecraft_engine::PenStyle;
@@ -133,9 +134,43 @@ pub(crate) fn points_arg(points: &[InkPoint]) -> Value {
 #[derive(Debug, Default)]
 pub(crate) struct InkUi {
     active: Option<StrokeBuilder>,
+    /// The eraser drag in progress: the last page position sent and whether the next batch is
+    /// the drag's first (which starts an undo step; later ones join it).
+    erasing: Option<EraseDrag>,
     touch: Option<egui::TouchId>,
     last_time: Option<f64>,
     cache: MeshCache,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct EraseDrag {
+    last: Vec2,
+    first: bool,
+}
+
+/// What the pointer does on the canvas this frame.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Tool {
+    /// Nothing is captured.
+    Off,
+    /// Draw strokes with this style (pen or highlighter).
+    Draw(PenStyle),
+    /// Erase; the mode id is `stroke` or `point`.
+    Erase(&'static str),
+}
+
+/// How far the stroke eraser reaches past a stroke's edge, in screen pixels.
+pub(crate) const STROKE_ERASER_REACH_PX: f32 = 6.0;
+/// The radius of the point eraser's circle, in screen pixels.
+pub(crate) const POINT_ERASER_RADIUS_PX: f32 = 10.0;
+
+/// The eraser's reach in screen pixels for a mode id.
+pub(crate) fn eraser_reach_px(mode: &str) -> f32 {
+    if mode == "point" {
+        POINT_ERASER_RADIUS_PX
+    } else {
+        STROKE_ERASER_REACH_PX
+    }
 }
 
 /// What a frame of capture decided.
@@ -146,15 +181,17 @@ pub(crate) struct Capture {
 }
 
 impl InkUi {
-    /// Read this frame's pointer events. While `pen` is `Some` (the pen is the active tool),
-    /// a press on the canvas starts a stroke, moves extend it, and a release finishes it and
-    /// pushes `ink.add_stroke` onto `clicked`. `can_start` says whether a press at a screen
-    /// position may start a stroke (inside the canvas, not under a menu).
+    /// Read this frame's pointer events. While drawing (`Tool::Draw`), a press on the canvas
+    /// starts a stroke, moves extend it, and a release finishes it and pushes `ink.add_stroke`
+    /// onto `clicked`. While erasing (`Tool::Erase`), a press starts a drag, and each frame of
+    /// it pushes one `ink.erase` with the path the pointer took; only the first of a drag
+    /// starts an undo step and the rest join it. `can_start` says whether a press at a screen
+    /// position may start (inside the canvas, not under a menu).
     pub fn capture(
         &mut self,
         ui: &egui::Ui,
         map: PageToScreen,
-        pen: Option<PenStyle>,
+        tool: Tool,
         can_start: impl Fn(egui::Pos2) -> bool,
         clicked: &mut Vec<Clicked>,
     ) -> Capture {
@@ -162,6 +199,16 @@ impl InkUi {
         let previous = self.last_time.replace(now);
         let events =
             ui.input(|input| pointer_events(&input.events, map, previous, now, &mut self.touch));
+        let pen = match tool {
+            Tool::Draw(pen) => Some(pen),
+            Tool::Off | Tool::Erase(_) => None,
+        };
+        if let Tool::Erase(mode) = tool {
+            self.active = None;
+            self.capture_erase(ui, map, mode, events, can_start, clicked);
+            return Capture { preview: None };
+        }
+        self.erasing = None;
         if pen.is_none() {
             self.active = None;
             return Capture { preview: None };
@@ -224,8 +271,125 @@ impl InkUi {
         Capture { preview: None }
     }
 
-    /// Paint the page's strokes that touch `visible` (page units) and then the preview.
-    pub fn paint(
+    /// Turn one frame of pointer events into an `ink.erase` command for the drag in progress.
+    fn capture_erase(
+        &mut self,
+        ui: &egui::Ui,
+        map: PageToScreen,
+        mode: &'static str,
+        events: Vec<PointerEvent>,
+        can_start: impl Fn(egui::Pos2) -> bool,
+        clicked: &mut Vec<Clicked>,
+    ) {
+        // The path the eraser took this frame, starting where the last batch ended.
+        let mut path: Vec<Vec2> = Vec::new();
+        if let Some(drag) = self.erasing {
+            path.push(drag.last);
+        }
+        let mut ended = false;
+        for event in events {
+            let at = event.sample.pos;
+            match event.phase {
+                PointerPhase::Down => {
+                    if self.erasing.is_none() && can_start(map.pos(at)) {
+                        self.erasing = Some(EraseDrag {
+                            last: at,
+                            first: true,
+                        });
+                        path.push(at);
+                    }
+                }
+                PointerPhase::Move => {
+                    if self.erasing.is_some() {
+                        path.push(at);
+                    }
+                }
+                PointerPhase::Up => {
+                    if self.erasing.is_some() {
+                        path.push(at);
+                        ended = true;
+                    }
+                }
+                PointerPhase::Cancel => {
+                    self.erasing = None;
+                    path.clear();
+                }
+            }
+        }
+        // A release the window never saw (focus lost mid-drag) still ends the drag.
+        let down = ui.input(|input| input.pointer.primary_down());
+        if !ended && !down && self.touch.is_none() && self.erasing.is_some() {
+            ended = true;
+        }
+        if let (Some(drag), Some(last)) = (self.erasing.as_mut(), path.last().copied()) {
+            // A lone start point still erases (a tap); a path that did not move since the
+            // last batch has nothing new to say.
+            let moved = path.len() > 1 && path.iter().any(|p| *p != drag.last);
+            if drag.first || moved {
+                let radius = eraser_reach_px(mode) / map.zoom.max(f32::EPSILON);
+                clicked.push(Clicked {
+                    command: ids::INK_ERASE,
+                    args: erase_args(&path, radius, mode, !drag.first),
+                });
+                drag.first = false;
+            }
+            drag.last = last;
+        }
+        if ended {
+            self.erasing = None;
+        }
+        if self.erasing.is_some() {
+            ui.ctx().request_repaint();
+        }
+    }
+
+    /// Paint the page's highlighter strokes that touch `visible` (page units), and then the
+    /// highlighter stroke being drawn. This pass goes under the page text.
+    ///
+    /// Each stroke is one opaque mesh in its color blended with the paper at about half
+    /// strength, so a stroke cannot darken itself where its own triangles overlap and the
+    /// anti-aliased fringe stays valid. True multiply (strokes darkening each other, images
+    /// tinted) would be an `egui_wgpu` callback later; nothing stored changes.
+    pub fn paint_highlights(
+        &mut self,
+        painter: &Painter,
+        map: PageToScreen,
+        visible: Aabb,
+        page: Option<&str>,
+        layer: Option<&InkLayer>,
+        preview: Option<(&[InkPoint], PenStyle)>,
+        paper: Color32,
+    ) {
+        self.cache.set_page(page);
+        let half_pixel = 0.5 / painter.ctx().pixels_per_point();
+        let mut mesh = Mesh::default();
+        if let Some(layer) = layer {
+            for stroke in layer.strokes_in(visible) {
+                if stroke.tool != InkTool::Highlighter {
+                    continue;
+                }
+                let tessellated = self.cache.mesh_for(stroke, map.zoom);
+                let color = highlight_color(stroke.color, paper);
+                append(&mut mesh, &tessellated, map, color, half_pixel);
+            }
+        }
+        if let Some((points, style)) = preview {
+            let params = TessParams {
+                fringe: true,
+                ..TessParams::for_screen_radius(style.width_units() / 2.0 * map.zoom)
+            };
+            let tessellated = tessellate(points, style.width_units(), params);
+            let color = highlight_color(style.color, paper);
+            append(&mut mesh, &tessellated, map, color, half_pixel);
+        }
+        if !mesh.is_empty() {
+            painter.add(Shape::mesh(mesh));
+        }
+    }
+
+    /// Paint the page's pen strokes that touch `visible` (page units) and then the pen stroke
+    /// being drawn. This pass goes over the page text.
+    pub fn paint_pens(
         &mut self,
         painter: &Painter,
         map: PageToScreen,
@@ -239,6 +403,9 @@ impl InkUi {
         let mut mesh = Mesh::default();
         if let Some(layer) = layer {
             for stroke in layer.strokes_in(visible) {
+                if stroke.tool == InkTool::Highlighter {
+                    continue;
+                }
                 let tessellated = self.cache.mesh_for(stroke, map.zoom);
                 append(&mut mesh, &tessellated, map, stroke.color, half_pixel);
             }
@@ -255,6 +422,47 @@ impl InkUi {
             painter.add(Shape::mesh(mesh));
         }
     }
+}
+
+/// Strength of the highlighter over the paper when the stroke's color has no alpha of its own.
+const HIGHLIGHT_ALPHA: f32 = 0.5;
+
+/// The opaque color a highlighter stroke is drawn in: `color` over `paper` at the stroke's own
+/// alpha, or at [`HIGHLIGHT_ALPHA`] when the stroke is stored opaque.
+pub(crate) fn highlight_color(color: InkColor, paper: Color32) -> InkColor {
+    let [r, g, b, a] = color.0;
+    let alpha = if a == u8::MAX {
+        HIGHLIGHT_ALPHA
+    } else {
+        f32::from(a) / 255.0
+    };
+    let mix = |over: u8, under: u8| {
+        (f32::from(over) * alpha + f32::from(under) * (1.0 - alpha)).round() as u8
+    };
+    InkColor([
+        mix(r, paper.r()),
+        mix(g, paper.g()),
+        mix(b, paper.b()),
+        u8::MAX,
+    ])
+}
+
+/// The arguments of `ink.erase` for a path of page positions.
+pub(crate) fn erase_args(path: &[Vec2], radius: f32, mode: &str, join: bool) -> Value {
+    let round = |v: f32| (f64::from(v) * 100.0).round() / 100.0;
+    let mut args = notecraft_engine::cmd::Map::new();
+    args.insert(
+        "points".to_owned(),
+        Value::Array(
+            path.iter()
+                .map(|p| Value::from(vec![round(p.x), round(p.y)]))
+                .collect(),
+        ),
+    );
+    args.insert("radius".to_owned(), Value::from(round(radius)));
+    args.insert("mode".to_owned(), Value::from(mode));
+    args.insert("join".to_owned(), Value::from(join));
+    Value::Object(args)
 }
 
 /// Add a page-space triangle list to an egui mesh, in screen space and one color.
@@ -331,8 +539,9 @@ impl MeshCache {
 
     fn mesh_for(&mut self, stroke: &Stroke, zoom: f32) -> Arc<StrokeMesh> {
         let cap_segments = TessParams::for_screen_radius(stroke.width / 2.0 * zoom).cap_segments;
-        // A translucent stroke overlaps itself, so a fringe would show through: it gets none.
-        let fringe = stroke.color.0[3] == u8::MAX;
+        // A translucent pen stroke overlaps itself, so a fringe would show through: it gets
+        // none. A highlighter stroke is painted opaque (pre-blended), so it always has one.
+        let fringe = stroke.color.0[3] == u8::MAX || stroke.tool == InkTool::Highlighter;
         let fresh = |cached: &CachedMesh| {
             cached.points == stroke.points.len()
                 && cached.last == stroke.points.last().copied()
@@ -543,6 +752,42 @@ mod tests {
                 assert!(vertex.pos.y.abs() < 1.0e-4, "{:?}", vertex.pos);
             }
         }
+    }
+
+    #[test]
+    fn a_highlighter_color_is_blended_with_the_paper_and_opaque() {
+        let paper = Color32::from_rgb(255, 255, 255);
+        let yellow = InkColor::parse("#FFF176").unwrap();
+        // Half way to white: 0xF1 and 0x76 move toward 0xFF.
+        assert_eq!(highlight_color(yellow, paper).0, [255, 248, 187, 255]);
+        // On a dark page the same highlighter is darker: it follows the paper.
+        let dark = Color32::from_rgb(30, 30, 30);
+        assert_eq!(highlight_color(yellow, dark).0, [143, 136, 74, 255]);
+        // A color stored with its own alpha uses that alpha.
+        let faint = InkColor([200, 0, 0, 51]);
+        assert_eq!(highlight_color(faint, paper).0, [244, 204, 204, 255]);
+    }
+
+    #[test]
+    fn erase_arguments_round_to_two_places() {
+        let args = erase_args(
+            &[Vec2::new(1.234, 5.0), Vec2::new(2.0, 3.0)],
+            7.777,
+            "point",
+            true,
+        );
+        assert_eq!(args["points"][0][0], 1.23);
+        assert_eq!(args["points"][1][1], 3.0);
+        assert_eq!(args["radius"], 7.78);
+        assert_eq!(args["mode"], "point");
+        assert_eq!(args["join"], true);
+    }
+
+    #[test]
+    fn the_eraser_reach_is_in_screen_pixels() {
+        assert_eq!(eraser_reach_px("point"), POINT_ERASER_RADIUS_PX);
+        assert_eq!(eraser_reach_px("stroke"), STROKE_ERASER_REACH_PX);
+        assert_eq!(eraser_reach_px("anything"), STROKE_ERASER_REACH_PX);
     }
 
     #[test]
