@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -65,6 +65,8 @@ user picks folder
 ```
 
 Navigation must appear in under 500 ms for 1,000 pages (SCRD section 11). Page bodies are parsed lazily, except in the background reindex.
+
+The index (PR 1.2) is `notecraft_storage::index::Index`, native only (SQLite compiles from C, so the module is cfg-ed out on wasm32 and `cargo xtask wasm` stays green). `Index::open_or_rebuild` deletes and recreates a file that is not a database, fails `PRAGMA quick_check`, or has a newer `user_version`. `Index::refresh(root)` scans the folder, stats every page, and reads and hashes only pages whose modified time or size changed, in one transaction; it reports added, changed, and removed page ids so the Phase 2 reparse knows what to visit. `IndexWorker` runs open and refresh on a named thread and hands back a `WorkerReport` through a channel. The sidebar reads sections and pages straight from the tables.
 
 ### 3.2 Editing
 
@@ -222,7 +224,8 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | 2026-10-15 | 0 | CLI and MCP server are in the build plan, not post-parity. |
 | 2026-10-15 | 1 | Section 4: ink capture, strokes, and pen commands (PR 1.10). |
 | 2026-10-15 | 1 | Section 4: page text enters through `Session::set_page_source` (one page id and its source text; the folder reader calls it in PR 1.1); the canvas parses with `notecraft_markdown::parse`, caches the result per page and text revision, and lays blocks out in flow layout (PR 1.3). |
-| 2026-10-15 | 1 | Section 4: page writing is span replacements (`Editor`) plus `page_file::write_page_text` over craft-atomic (PR 1.4). |
 | 2026-10-15 | 1 | Section 4: page text is read from disk by `Session::load_current_page` (storage `read_page_file`), with a `PageNotice` for cut or unreadable pages. |
+| 2026-10-15 | 1 | Index design (PR 1.2): rebuild on corruption, incremental refresh, background worker, native only. |
+| 2026-10-15 | 1 | Section 4: page writing is span replacements (`Editor`) plus `page_file::write_page_text` over craft-atomic (PR 1.4). |
 | 2026-10-15 | 1 | Sections 5 and 6: transactions, stacks, merge, typing coalescing, notebook-level steps, and the guard restoring the history (PR 1.8). |
 | 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |

@@ -17,5 +17,16 @@ notecraft-core.workspace = true
 tracing.workspace = true
 toml.workspace = true
 
+# SQLite compiles from C, so the index is native only; the wasm32 build skips it.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rusqlite.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "sidebar"
+harness = false
