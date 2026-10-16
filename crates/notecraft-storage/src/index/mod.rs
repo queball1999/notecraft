@@ -5,6 +5,7 @@
 
 mod refresh;
 mod schema;
+mod worker;
 
 use std::path::Path;
 
@@ -14,6 +15,7 @@ use crate::notebook_dir::PageKind;
 
 pub use refresh::{IndexError, RefreshStats};
 pub use schema::SCHEMA_VERSION;
+pub use worker::{IndexWorker, WorkerReport};
 
 /// One section or group row, in sidebar order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,6 +54,16 @@ pub struct Sidebar {
     pub pages: Vec<PageRow>,
 }
 
+/// Remove the database and its sidecar files. Missing files are fine.
+fn delete_database_files(path: &Path) {
+    let _ = std::fs::remove_file(path);
+    for suffix in ["-wal", "-shm", "-journal"] {
+        let mut name = path.as_os_str().to_owned();
+        name.push(suffix);
+        let _ = std::fs::remove_file(std::path::PathBuf::from(name));
+    }
+}
+
 /// An open index database.
 pub struct Index {
     conn: Connection,
@@ -67,6 +79,40 @@ impl Index {
                 | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         Self::init(conn)
+    }
+
+    /// Open the database at `path`, deleting and recreating it when it cannot be used:
+    /// not a database, corrupt (`PRAGMA quick_check` fails), or from a newer schema.
+    /// The index is a cache of the folder, so this loses nothing. Returns the index and
+    /// whether it was rebuilt. Fails only if a fresh database cannot be created.
+    pub fn open_or_rebuild(path: &Path) -> rusqlite::Result<(Self, bool)> {
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if path.exists() {
+            match Self::open(path).and_then(|index| index.check().map(|()| index)) {
+                Ok(index) => return Ok((index, false)),
+                Err(err) => tracing::warn!("index unusable, rebuilding: {err}"),
+            }
+            delete_database_files(path);
+            return Self::open(path).map(|index| (index, true));
+        }
+        Self::open(path).map(|index| (index, false))
+    }
+
+    /// Run SQLite's quick integrity check.
+    fn check(&self) -> rusqlite::Result<()> {
+        let verdict: String = self
+            .conn
+            .query_row("PRAGMA quick_check(1)", [], |row| row.get(0))?;
+        if verdict == "ok" {
+            Ok(())
+        } else {
+            Err(rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
+                Some(verdict),
+            ))
+        }
     }
 
     /// A throwaway index in memory.
@@ -213,6 +259,66 @@ mod tests {
         Connection::open(&path).expect("create");
         let index = Index::open(&path).expect("open");
         assert_eq!(index.schema_version().expect("version"), SCHEMA_VERSION);
+    }
+
+    fn small_notebook(dir: &Path) -> std::path::PathBuf {
+        let root = dir.join("nb");
+        std::fs::create_dir_all(root.join("S")).expect("mkdir");
+        for i in 0..40 {
+            std::fs::write(root.join(format!("S/p{i}.md")), format!("page {i}\n")).expect("w");
+        }
+        root
+    }
+
+    #[test]
+    fn garbage_file_is_rebuilt() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join(".notecraft/index.sqlite");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+        std::fs::write(&path, vec![0x5a_u8; 8192]).expect("garbage");
+        let (index, rebuilt) = Index::open_or_rebuild(&path).expect("open");
+        assert!(rebuilt);
+        assert_eq!(index.schema_version().expect("version"), SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn newer_schema_is_rebuilt() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("index.sqlite");
+        {
+            let conn = Connection::open(&path).expect("create");
+            conn.pragma_update(None, "user_version", SCHEMA_VERSION + 5)
+                .expect("set version");
+        }
+        let (index, rebuilt) = Index::open_or_rebuild(&path).expect("open");
+        assert!(rebuilt);
+        assert_eq!(index.schema_version().expect("version"), SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn damaged_database_is_rebuilt_by_the_worker() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = small_notebook(dir.path());
+        let db = root.join(".notecraft/index.sqlite");
+        let first = IndexWorker::spawn(root.clone(), db.clone()).wait().expect("first");
+        assert!(!first.rebuilt);
+        assert_eq!(first.stats.added.len(), 40);
+        // Overwrite the middle of the file with junk.
+        let mut bytes = std::fs::read(&db).expect("read");
+        let mid = bytes.len() / 2;
+        for b in bytes.iter_mut().skip(mid).take(4096) {
+            *b = 0xff;
+        }
+        // Also clobber the header so the damage is certain to be seen.
+        for b in bytes.iter_mut().take(100) {
+            *b = 0x00;
+        }
+        std::fs::write(&db, bytes).expect("damage");
+        let second = IndexWorker::spawn(root.clone(), db.clone()).wait().expect("second");
+        assert!(second.rebuilt);
+        assert_eq!(second.stats.added.len(), 40);
+        let (index, _) = Index::open_or_rebuild(&db).expect("open");
+        assert_eq!(index.sidebar().expect("sidebar").pages.len(), 40);
     }
 
     #[test]
