@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -100,14 +100,21 @@ The watcher (`notify`) reports a changed page. If NoteCraft has no unsaved edits
 
 ## 5. Undo and redo
 
-Each command produces a transaction: a list of reversible model operations. Undo history is per page, capped at 500 steps or 64 MiB. Cross-page commands (rename with link updates, moves) produce a notebook-level transaction that undoes as one step.
+A change to the document is a `Transaction` (`notecraft_engine::undo`): a labeled list of reversible `Op`s. `Session::commit` applies the ops in order, then records the transaction. If an op does not fit the document as it is (a stale stroke index, a text range that no longer matches), the ones already applied are reversed and nothing is recorded. Undo applies the inverses of a step in reverse order; redo applies the step again. Today's ops are `InsertStroke`, `DeleteStroke`, `ReplaceText`, `SetPageStyle`, and `MovePage`; each later PR adds the ops its commands need.
+
+- Stacks: history is per page, capped at 500 steps or 64 MiB (an estimate of each op's size), oldest dropped first and the newest always kept. A second stack holds notebook-level transactions (`Scope::Notebook`: moves, renames with link updates) that touch several pages and undo as one step. Starting a new step clears the redo steps of its own stack only.
+- Order: Undo takes the newest step among the shown page's stack and the notebook stack, so steps undo in the order they happened, from any page. Redo mirrors it. A step that can no longer be reversed (the file was reloaded under it) is dropped.
+- Merge: a transaction marked `merge_into_previous()` joins the previous step of its stack, so the two undo together. The stroke eraser (PR 1.11) uses it: the first stroke a drag erases starts a step and the rest join it, so one drag is one undo step. With no previous step it starts one.
+- Typing: `Session::edit_page_text` is the engine call text editing (PR 1.5) makes. With `typing` set, consecutive insertions in one place coalesce into one step up to a word boundary (a word and the space after it), runs of Backspace or Delete coalesce, and a run is capped at 512 bytes. Another step, a moved caret, or an undo starts a new step.
+- Commands: `edit.undo` and `edit.redo` (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) are not themselves steps. The Undo and Redo buttons at the right of the tab strip run them and are disabled while their stack is empty (`Session::can_undo`, `can_redo`). The History tab keeps OneNote's contents (unread notes, authors, page versions, recycle bin), so the stack is not listed there; `History::undo_steps` and `redo_steps` return the labeled steps for any view that wants them.
+- Opening a different set of notebooks clears the history.
 
 ## 6. Never crash
 
 - Lints: every `lib.rs` denies `unwrap_used`, `expect_used`, `panic`, `unimplemented`, `todo`, `unreachable`. `unsafe` is forbidden workspace-wide, so OS integrations (pen pressure, spell check, camera) go through safe wrapper crates.
 - Parsers are lenient and bounded (limits in docs/markdown.md section 9). Fuzz targets for the markdown, frontmatter, canvas, and toml parsers land in Phase 1.
 - The command guard wraps each command in `std::panic::catch_unwind`. If a dependency panics anyway, the guard rolls back the transaction, logs the error, and shows a toast. The document stays as it was before the command.
-- Today (PR 0.2) the guard rolls back by restoring a snapshot of the session taken before the command, which is cheap while the session holds no notes. Phase 1 replaces the snapshot with transaction rollback (section 5). A command that returns an error is rolled back the same way.
+- The guard rolls back by restoring a snapshot of the session taken before the command. The snapshot includes the undo history, so a command that panics or fails after recording a step leaves both the document and the undo and redo stacks as they were. The snapshot stays cheap because ink layers and history steps are shared (`Arc`), not copied; page text is a string per page, so a very large notebook is a reason to revisit this (a transaction-level rollback is the alternative, since every change is already a reversible `Op`). A command that returns an error is rolled back the same way.
 - All writes use `craft-atomic`. A crash mid-save leaves the old file intact.
 
 ## 7. Threads
@@ -218,3 +225,4 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | 2026-10-15 | 1 | Section 4: page writing is span replacements (`Editor`) plus `page_file::write_page_text` over craft-atomic (PR 1.4). |
 | 2026-10-15 | 1 | Section 4: page text is read from disk by `Session::load_current_page` (storage `read_page_file`), with a `PageNotice` for cut or unreadable pages. |
 | 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |
+| 2026-10-15 | 1 | Sections 5 and 6: transactions, stacks, merge, typing coalescing, notebook-level steps, and the guard restoring the history (PR 1.8). |

@@ -95,6 +95,10 @@ pub const WITH_ARGS: [(&str, CommandId, &str, &str); 8] = [
     ("Ctrl+9", ids::TAG_APPLY, "tag", "phone"),
 ];
 
+/// Second shortcuts for commands that already have a `default_shortcut`: Ctrl+Shift+Z also
+/// redoes.
+pub const ALIASES: [(&str, CommandId); 1] = [("Ctrl+Shift+Z", ids::EDIT_REDO)];
+
 /// Every default shortcut, most modifiers first. A shortcut that does not parse is left out
 /// (and fails the tests).
 pub fn default_map() -> Vec<Binding> {
@@ -119,7 +123,15 @@ pub fn default_map() -> Vec<Binding> {
                 args: Value::Object(args),
             })
         });
-    let mut map: Vec<Binding> = plain.chain(with_args).collect();
+    let aliases = ALIASES.iter().filter_map(|&(text, command)| {
+        Some(Binding {
+            text,
+            chord: Chord::parse(text)?,
+            command,
+            args: Value::Null,
+        })
+    });
+    let mut map: Vec<Binding> = plain.chain(with_args).chain(aliases).collect();
     map.sort_by_key(|binding| std::cmp::Reverse(binding.chord.modifier_count()));
     map
 }
@@ -136,7 +148,8 @@ mod tests {
         let declared = builtin::SPECS
             .iter()
             .filter_map(|spec| spec.default_shortcut)
-            .chain(WITH_ARGS.iter().map(|(text, ..)| *text));
+            .chain(WITH_ARGS.iter().map(|(text, ..)| *text))
+            .chain(ALIASES.iter().map(|(text, _)| *text));
         for text in declared {
             assert!(Chord::parse(text).is_some(), "{text} does not parse");
         }
@@ -144,7 +157,10 @@ mod tests {
             .iter()
             .filter(|spec| spec.default_shortcut.is_some())
             .count();
-        assert_eq!(default_map().len(), declared_count + WITH_ARGS.len());
+        assert_eq!(
+            default_map().len(),
+            declared_count + WITH_ARGS.len() + ALIASES.len()
+        );
     }
 
     #[test]
@@ -191,6 +207,9 @@ mod tests {
             ("Alt+Shift+T", "insert.time"),
             ("F11", "view.full_page"),
             ("Ctrl+O", "file.open_notebook"),
+            ("Ctrl+Z", "edit.undo"),
+            ("Ctrl+Y", "edit.redo"),
+            ("Ctrl+Shift+Z", "edit.redo"),
         ] {
             assert_eq!(command(text), Some(id), "{text}");
         }

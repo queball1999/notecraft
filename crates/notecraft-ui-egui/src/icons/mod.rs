@@ -40,6 +40,9 @@ macro_rules! icons {
 icons! {
     // Backstage
     Back => |p, _| home::back(p);
+    // Quick access
+    Undo => |p, _| home::history_arrow(p, false);
+    Redo => |p, _| home::history_arrow(p, true);
     // Home: Clipboard
     Paste => |p, _| home::paste(p);
     Cut => |p, _| home::cut(p);
