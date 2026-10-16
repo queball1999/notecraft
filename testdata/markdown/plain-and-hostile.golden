@@ -1,0 +1,12 @@
+frontmatter none
+body 0
+0..64 paragraph "Just text, no frontmatter and no structure beyond one paragraph."
+  source "Just text, no frontmatter and no structure\nbeyond one paragraph."
+66..69 rule
+  source "---"
+70..90 heading(2) "not: frontmatter"
+  source "not: frontmatter\n---"
+92..138 paragraph "[unclosed link( **unclosed bold `unclosed code"
+  source "[unclosed link(\n**unclosed bold\n`unclosed code"
+140..160 paragraph "| broken | table |--"
+  source "| broken | table\n|--"

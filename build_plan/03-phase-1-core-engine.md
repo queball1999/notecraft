@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; anti-aliased edges and the marked pen added; PR 1.11 design added.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -92,6 +92,16 @@ Commits:
 4. `test(markdown): golden tests for gfm sample pages`
 
 PR title: `feat(markdown): read and render markdown pages`.
+
+Done (2026-10-15), with these deviations from the steps above:
+
+- PR 1.1 was built in parallel, so the canvas does not read files. The seam is `Session::set_page_source(page_id, text)` (also `AppShell::set_page_source`); the mock Welcome page carries a sample until PR 1.1 calls it. FM-01 is scored P until then.
+- Block model for PR 1.4: `Block { span, kind }` with `Span { start, end }` as page byte offsets (end exclusive). Lists keep one `ListItem` span per item and tables one span per cell. The comrak positions needed two fixes (last list item reached past its line; an indented code block started after its indent), covered by the golden tests. Inline runs carry no spans, so PR 1.4 edits at block, item, and cell level.
+- Task lists are a `ListKind::Task` list whose items carry `task: Some(checked)`, not a separate block type.
+- The frontmatter reader is hand-written (no YAML crate). A value outside the subset (block scalars, deeper maps, flow maps) becomes `Value::Raw`, and every entry keeps its source span so PR 1.4 can rewrite single keys.
+- Bold is drawn by overstriking, because egui ships no bold face; a real bold face can replace it with the font work in Phase 3.
+- The canvas also sets the page text as the accessibility value of the canvas node (screen readers read it; harness tests use it).
+- `comrak` is BSD-2-Clause, with `default-features = false`; it builds for wasm32 (checked by `cargo xtask wasm`). Recorded in ATTRIBUTION.md.
 
 ## PR 1.4: minimal-diff markdown write
 
@@ -418,5 +428,6 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: PR 1.15 raised to 10-18 hours (deferred hands-on checks, gaps rank 25); Phase 1 is 456-776 hours. |
 | 2026-10-15 | 1 | PR 1.1 landed; deviations recorded under PR 1.1. |
 | 2026-10-15 | 1 | PR 1.10 landed: deviations (stroke storage moved to PR 1.9) and per-OS pressure notes added. |
+| 2026-10-15 | 1 | PR 1.3 done: deviations (page text seam instead of the folder reader, block model for PR 1.4, hand-written frontmatter reader) noted under PR 1.3. |
 | 2026-10-15 | 1 | PR 1.10 follow-ups from the WordCraft survey: anti-aliased stroke edges and a marked current pen; PR 1.11 gains its highlighter and eraser design. Hours unchanged. |
 | 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |

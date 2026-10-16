@@ -1,0 +1,48 @@
+frontmatter none
+body 0
+0..45 list Bullet tight=true items=3
+  source "- Apples\n- Bread\n  - Rye\n  - Sourdough\n- Milk"
+  item 0..8 "- Apples"
+    2..8 paragraph "Apples"
+      source "Apples"
+  item 9..38 "- Bread\n  - Rye\n  - Sourdough"
+    11..16 paragraph "Bread"
+      source "Bread"
+    19..38 list Bullet tight=true items=2
+      source "- Rye\n  - Sourdough"
+      item 19..24 "- Rye"
+        21..24 paragraph "Rye"
+          source "Rye"
+      item 27..38 "- Sourdough"
+        29..38 paragraph "Sourdough"
+          source "Sourdough"
+  item 39..45 "- Milk"
+    41..45 paragraph "Milk"
+      source "Milk"
+47..65 list Ordered(3) tight=true items=2
+  source "3. Third\n4. Fourth"
+  item 47..55 "3. Third"
+    50..55 paragraph "Third"
+      source "Third"
+  item 56..65 "4. Fourth"
+    59..65 paragraph "Fourth"
+      source "Fourth"
+67..136 list Task tight=true items=3
+  source "* [ ] Call the plumber\n* [x] Book the venue\n* [ ] Send the **agenda**"
+  item 67..89 task=false "* [ ] Call the plumber"
+    73..89 paragraph "Call the plumber"
+      source "Call the plumber"
+  item 90..110 task=true "* [x] Book the venue"
+    96..110 paragraph "Book the venue"
+      source "Book the venue"
+  item 111..136 task=false "* [ ] Send the **agenda**"
+    117..136 paragraph "Send the " + "agenda"[b]
+      source "Send the **agenda**"
+138..172 list Bullet tight=false items=2
+  source "- Loose item one\n\n- Loose item two"
+  item 138..154 "- Loose item one"
+    140..154 paragraph "Loose item one"
+      source "Loose item one"
+  item 156..172 "- Loose item two"
+    158..172 paragraph "Loose item two"
+      source "Loose item two"

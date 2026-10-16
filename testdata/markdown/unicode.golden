@@ -1,0 +1,17 @@
+frontmatter 0..88 oversize=false
+  "title" 4..25 scalar "Café notes"
+  "aliases" 25..55 list ["Cafe", "It's"]
+  "mood" 55..84 raw " |\n  multi line\n  value"
+body 88
+88..109 heading(1) "Café ☕ 日本語"
+  source "# Café ☕ 日本語"
+111..166 paragraph "Naïve " + "façade"[b] + " with emoji 😀 inside " + "über"[i] + " text."
+  source "Naïve **façade** with emoji 😀 inside *über* text."
+168..192 list Task tight=true items=2
+  source "- élève\n- [x] ✓ done"
+  item 168..177 "- élève"
+    170..177 paragraph "élève"
+      source "élève"
+  item 178..192 task=true "- [x] ✓ done"
+    184..192 paragraph "✓ done"
+      source "✓ done"

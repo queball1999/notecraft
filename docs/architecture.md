@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: section 10 (ink and drawing design) added.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -93,6 +93,8 @@ The watcher (`notify`) reports a changed page. If NoteCraft has no unsaved edits
 - File commands (PR 0.8) take an optional `path`. A button sends them without one, and the shell asks its `FilePicker` (the OS dialogs through `rfd` in the desktop app, a fake in tests) and runs the command again with the chosen path; canceling runs nothing. The control channel always passes a path. The recent list lives in the session and the app saves it in `config.toml`.
 - Shortcuts (PR 0.9) are data in the engine: `cmd::shortcuts::default_map()` turns each command's `default_shortcut` (plus a few bindings with arguments, such as Ctrl+2 to Ctrl+9 for note tags) into key chords, most modifiers first. The egui shell matches them each frame, with Ctrl as egui's command modifier (Cmd on macOS), and dispatches the commands; nothing is matched while a text field has focus. Tests reject duplicate chords and bindings with invalid arguments.
 - Ink (PR 1.10) follows the same split. The front end turns egui events into `notecraft_core::PointerSample`s (page units, time, optional pressure, source kind) and feeds a `notecraft_canvas::ink::StrokeBuilder`, which smooths with a one-euro filter and gives a stroke a speed-based width when the device reports no pressure. When the pen lifts, the canvas sends `ink.add_stroke { points }`; the session keeps one `InkLayer` (strokes in paint order plus a grid index) per page id, and the active tool and pen (`draw.type`, `draw.pen`, `draw.color`, `draw.thickness`). Drawing is a renderer-agnostic triangle list (`tessellate`) that the egui layer turns into a `Mesh`. The `Stroke` type serializes to the canvas block's `ink` entries (docs/markdown.md section 3.4); writing it to the file is PR 1.9.
+
+- Page text (PR 1.3) enters the session through `Session::set_page_source(page_id, text)`, which is not a command: the folder reader (PR 1.1) calls it when it loads a page. The canvas parses the text of the page shown with `notecraft_markdown::parse` (frontmatter, then blocks that keep their source byte spans), caches the result per page and text revision, and draws the blocks in flow layout from theme tokens. The markdown crate has no egui types; `canvas/flow.rs` is the only place blocks meet the painter.
 
 ## 5. Undo and redo
 
@@ -210,4 +212,5 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | 2026-10-14 | 0 | Section 4: the default shortcut map lives in the engine; the shell matches and dispatches it (PR 0.9). |
 | 2026-10-15 | 0 | CLI and MCP server are in the build plan, not post-parity. |
 | 2026-10-15 | 1 | Section 4: ink capture, strokes, and pen commands (PR 1.10). |
+| 2026-10-15 | 1 | Section 4: page text enters through `Session::set_page_source` (one page id and its source text; the folder reader calls it in PR 1.1); the canvas parses with `notecraft_markdown::parse`, caches the result per page and text revision, and lays blocks out in flow layout (PR 1.3). |
 | 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |

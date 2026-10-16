@@ -18,7 +18,7 @@ pub mod session;
 pub mod view;
 
 pub use ink::{DrawTool, InkState, PenStyle};
-pub use session::{Selection, Session};
+pub use session::{PageSource, Selection, Session};
 pub use view::PageStyle;
 
 /// Layer number, read by `cargo xtask layers`.
