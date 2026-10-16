@@ -9,7 +9,7 @@ use notecraft_core::{InkColor, InkPoint, InkTool, Stroke, Vec2};
 use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
-use crate::ink::{DrawTool, EraserMode, MAX_PEN_POINTS, MIN_PEN_POINTS};
+use crate::ink::{DrawTool, EraserMode, EraserSize, MAX_PEN_POINTS, MIN_PEN_POINTS};
 use crate::session::Session;
 use crate::undo::Op;
 
@@ -65,6 +65,7 @@ fn pen_output(session: &Session) -> CommandOutput {
             "color": brush.color.to_hex(),
             "width": brush.width_pt,
             "mode": ink.eraser().id(),
+            "size": ink.eraser_size().id(),
         })
     } else {
         json!({
@@ -133,8 +134,9 @@ pub(super) fn draw_highlighter(
     Ok(pen_output(session))
 }
 
-/// `draw.eraser { mode? }`: pick up the eraser, `stroke` (whole strokes) or `point` (the part
-/// under the eraser). Without a mode the last one stays.
+/// `draw.eraser { mode?, size? }`: pick up the eraser, `stroke` (whole strokes) or `point` (the
+/// part under the eraser), and for the point eraser a `size` of `small`, `medium`, or `large`.
+/// Without a mode the last one stays; a size without a mode means the point eraser.
 pub(super) fn draw_eraser(
     session: &mut Session,
     args: &Map<String, Value>,
@@ -154,13 +156,34 @@ pub(super) fn draw_eraser(
             }
         }
     };
-    let before = (session.ink().tool, session.ink().eraser);
+    let size = match args.get("size") {
+        None => None,
+        Some(value) => match value.as_str().and_then(EraserSize::parse) {
+            Some(size) => Some(size),
+            None => {
+                return Err(invalid(
+                    ids::DRAW_ERASER,
+                    "size must be \"small\", \"medium\", or \"large\"".to_owned(),
+                ))
+            }
+        },
+    };
+    let before = (
+        session.ink().tool,
+        session.ink().eraser,
+        session.ink().eraser_size,
+    );
     let ink = session.ink_mut();
     ink.tool = DrawTool::Eraser;
     if let Some(mode) = mode {
         ink.eraser = mode;
+    } else if size.is_some() {
+        ink.eraser = EraserMode::Point;
     }
-    if (ink.tool, ink.eraser) != before {
+    if let Some(size) = size {
+        ink.eraser_size = size;
+    }
+    if (ink.tool, ink.eraser, ink.eraser_size) != before {
         session.mark_changed();
     }
     Ok(pen_output(session))
@@ -419,7 +442,7 @@ mod tests {
     use serde_json::{json, Value};
 
     use crate::cmd::Registry;
-    use crate::ink::{DrawTool, EraserMode};
+    use crate::ink::{DrawTool, EraserMode, EraserSize};
     use crate::session::Session;
 
     fn run(session: &mut Session, id: &str, args: Value) -> Result<Value, &'static str> {
@@ -638,7 +661,10 @@ mod tests {
         let out = run(&mut session, "draw.eraser", json!(null));
         assert_eq!(
             out,
-            Ok(json!({ "tool": "eraser", "color": "#1F1F1F", "width": 1.0, "mode": "stroke" }))
+            Ok(json!({
+                "tool": "eraser", "color": "#1F1F1F", "width": 1.0,
+                "mode": "stroke", "size": "medium"
+            }))
         );
         run(&mut session, "draw.eraser", json!({ "mode": "point" })).unwrap();
         assert_eq!(session.ink().eraser(), EraserMode::Point);
@@ -759,6 +785,43 @@ mod tests {
         run(&mut session, "edit.undo", json!(null)).unwrap();
         assert_eq!(ids_on_page(&session), ["s1", "s2", "s3"]);
         assert_eq!(session.current_ink().unwrap().get("s2"), Some(&original));
+    }
+
+    #[test]
+    fn the_point_eraser_has_three_sizes() {
+        let mut session = with_page();
+        assert_eq!(session.ink().eraser_size(), EraserSize::Medium);
+        // A size alone means the point eraser.
+        let out = run(&mut session, "draw.eraser", json!({ "size": "large" })).unwrap();
+        assert_eq!(out["mode"], "point");
+        assert_eq!(out["size"], "large");
+        run(&mut session, "draw.eraser", json!({ "mode": "stroke" })).unwrap();
+        // The size is kept while the stroke eraser is picked, and with no arguments.
+        assert_eq!(session.ink().eraser_size(), EraserSize::Large);
+        run(&mut session, "draw.eraser", json!(null)).unwrap();
+        assert_eq!(session.ink().eraser(), EraserMode::Stroke);
+        run(
+            &mut session,
+            "draw.eraser",
+            json!({ "mode": "point", "size": "small" }),
+        )
+        .unwrap();
+        assert_eq!(session.ink().eraser_size(), EraserSize::Small);
+        let before = session.clone();
+        for bad in [json!("huge"), json!(2), json!(null)] {
+            let result = run(&mut session, "draw.eraser", json!({ "size": bad }));
+            assert_eq!(result, Err("invalid_args"));
+        }
+        assert_eq!(session, before);
+        // Picking the same eraser again changes nothing.
+        let revision = session.revision();
+        run(
+            &mut session,
+            "draw.eraser",
+            json!({ "mode": "point", "size": "small" }),
+        )
+        .unwrap();
+        assert_eq!(session.revision(), revision);
     }
 
     #[test]

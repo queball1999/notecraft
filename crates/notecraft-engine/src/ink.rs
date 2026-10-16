@@ -66,6 +66,35 @@ impl EraserMode {
     }
 }
 
+/// How big the point eraser is (OneNote's Small, Medium, and Large erasers). The front end
+/// maps a size to a radius in screen pixels; the stroke eraser has no size.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum EraserSize {
+    Small,
+    #[default]
+    Medium,
+    Large,
+}
+
+impl EraserSize {
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Small => "small",
+            Self::Medium => "medium",
+            Self::Large => "large",
+        }
+    }
+
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "small" => Some(Self::Small),
+            "medium" => Some(Self::Medium),
+            "large" => Some(Self::Large),
+            _ => None,
+        }
+    }
+}
+
 /// The pen or highlighter the Draw tab has selected.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PenStyle {
@@ -104,6 +133,7 @@ pub struct InkState {
     pub(crate) pen: PenStyle,
     pub(crate) highlighter: PenStyle,
     pub(crate) eraser: EraserMode,
+    pub(crate) eraser_size: EraserSize,
     /// Strokes by page id.
     pub(crate) layers: BTreeMap<String, Arc<InkLayer>>,
 }
@@ -115,6 +145,7 @@ impl Default for InkState {
             pen: PenStyle::default(),
             highlighter: DEFAULT_HIGHLIGHTER,
             eraser: EraserMode::default(),
+            eraser_size: EraserSize::default(),
             layers: BTreeMap::new(),
         }
     }
@@ -135,6 +166,11 @@ impl InkState {
 
     pub fn eraser(&self) -> EraserMode {
         self.eraser
+    }
+
+    /// The point eraser's size.
+    pub fn eraser_size(&self) -> EraserSize {
+        self.eraser_size
     }
 
     /// The style `draw.color` and `draw.thickness` change: the highlighter's while it is the

@@ -65,11 +65,14 @@ const PEN_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
 ];
-const ERASER_ARGS: &[ArgSpec] = &[ArgSpec::optional(
-    "mode",
-    ArgKind::String,
-    "stroke or point.",
-)];
+const ERASER_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional("mode", ArgKind::String, "stroke or point."),
+    ArgSpec::optional(
+        "size",
+        ArgKind::String,
+        "small, medium, or large; the size of the point eraser.",
+    ),
+];
 const ERASE_ARGS: &[ArgSpec] = &[
     ArgSpec::required(
         "points",
