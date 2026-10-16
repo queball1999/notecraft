@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -92,6 +92,16 @@ Commits:
 4. `test(markdown): golden tests for gfm sample pages`
 
 PR title: `feat(markdown): read and render markdown pages`.
+
+Done (2026-10-15), with these deviations from the steps above:
+
+- PR 1.1 was built in parallel, so the canvas does not read files. The seam is `Session::set_page_source(page_id, text)` (also `AppShell::set_page_source`); the mock Welcome page carries a sample. FM-01 was scored P until the follow-up "page text from disk" change (branch `feat/page-text-from-disk`) landed: `notecraft-storage::read_page_file` (bounded at 64 MiB, lossy UTF-8) and `Session::load_current_page`, which the command registry calls after every command, read the shown `.md` page of a notebook opened with `file.open_notebook` and call `set_page_source`. A page cut at the cap is read-only; an unreadable page gets a short error line on the canvas (`Session::current_page_notice`). Reads are synchronous until PR 1.7 (auto-save and outside edits). FM-01 is now D.
+- Block model for PR 1.4: `Block { span, kind }` with `Span { start, end }` as page byte offsets (end exclusive). Lists keep one `ListItem` span per item and tables one span per cell. The comrak positions needed two fixes (last list item reached past its line; an indented code block started after its indent), covered by the golden tests. Inline runs carry no spans, so PR 1.4 edits at block, item, and cell level.
+- Task lists are a `ListKind::Task` list whose items carry `task: Some(checked)`, not a separate block type.
+- The frontmatter reader is hand-written (no YAML crate). A value outside the subset (block scalars, deeper maps, flow maps) becomes `Value::Raw`, and every entry keeps its source span so PR 1.4 can rewrite single keys.
+- Bold is drawn by overstriking, because egui ships no bold face; a real bold face can replace it with the font work in Phase 3.
+- The canvas also sets the page text as the accessibility value of the canvas node (screen readers read it; harness tests use it).
+- `comrak` is BSD-2-Clause, with `default-features = false`; it builds for wasm32 (checked by `cargo xtask wasm`). Recorded in ATTRIBUTION.md.
 
 ## PR 1.4: minimal-diff markdown write
 
@@ -188,7 +198,7 @@ PR title: `feat(storage): auto-save and recover safely`.
 | Hours | 20-34 |
 | Rows | ST-08 |
 
-Steps: transactions of reversible operations (docs/architecture.md section 5); per-page history (500 steps or 64 MiB); typing coalesces into word-sized steps; notebook-level transactions for moves; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z; History tab shows the stack.
+Steps: transactions of reversible operations (docs/architecture.md section 5); per-page history (500 steps or 64 MiB); typing coalesces into word-sized steps; a transaction can be marked to merge into the previous one (the stroke eraser uses it so one drag is one undo step; maintainer decision, 2026-10-15); notebook-level transactions for moves; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z; History tab shows the stack.
 
 Commits:
 
@@ -240,6 +250,36 @@ Commits:
 
 PR title: `feat(canvas): draw with the pen`.
 
+### PR 1.10 notes: deviations and what each OS gives
+
+Built on `feat/ink-pen` (2026-10-15). What differs from the steps above:
+
+- Stroke storage in the canvas block moved to PR 1.9. Strokes live in the session (`Session::ink()`, one `InkLayer` per page id) and are lost on exit until PR 1.9 writes them. `notecraft_core::Stroke` already serializes to the `ink` entries of docs/markdown.md section 3.4 (`InkPoint` is `[x, y, pressure]`, `InkColor` is `#RRGGBB`), so PR 1.9 only needs a reader and a writer.
+- The stroke types are in `notecraft-core` (L0, as AGENTS.md section 5 lists them), not `notecraft-model`; the pointer sample type is there too.
+- New command ids: `ink.add_stroke` (the canvas sends it when a pen gesture ends; undoable by spec, undo itself lands in PR 1.8). `draw.type`, `draw.pen`, `draw.color`, and `draw.thickness` are Ready. `draw.highlighter` and `draw.eraser` stay Coming Soon until PR 1.11. `ArgKind::Array` was added for the stroke's points.
+- The pen gallery is the existing Draw tab gallery (Phase 0); it now runs real commands, and the pen and thickness menus check the entry that matches the pen in use (`ribbon::ActivePen`).
+- Widths are points on the ribbon and page units (px96) in a stroke: 1 pt is 1.33 units.
+- Velocity-based width (the docs/gaps.md fallback) is applied at capture: a stroke with no pressure gets a stand-in pressure from speed (1.0 when slow, 0.4 at 1,500 units per second), so it reloads looking the same. The format has no flag saying a pressure was synthesized.
+- The command guard snapshots the whole session before each command, strokes included. Layers are shared copies (`Arc`), so commands that do not touch ink stay cheap, but adding a stroke copies that page's layer once. PR 1.8 replaces the snapshot with transactions.
+- Mesh edges are anti-aliased with a one-pixel fringe (`Edge` tags from the tessellator, moved by half a device pixel in `canvas/ink.rs`); see docs/architecture.md section 10.2. Translucent strokes get no fringe, which the highlighter design in section 10.3 accounts for.
+- Touch and a mouse both draw while the pen is the tool. OneNote's palm rejection and touch-to-pan are IN-10 (Phase 3).
+
+WordCraft survey (2026-10-15): the related WordCraft app draws live ink as a constant-width polyline, does no smoothing, and scans strokes linearly, so the pipeline above is ahead of it. What is worth taking from it is recorded in docs/architecture.md section 10 and under PR 1.11, 3.1, 3.2, and 3.3.
+
+Smoothing: a one-euro filter on position (minimum cutoff 2.5 Hz, beta 0.1, derivative cutoff 1 Hz) and a light one on pressure (6 Hz). The tests assert that jitter at rest drops by more than half and that lag at steady speeds from 100 to 1,500 units per second stays under 2 units. These are numbers on synthetic input; they have not been tuned by hand on a real pen.
+
+What each OS gives for pressure, read from the source of winit 0.30.13, egui-winit 0.36.2, and egui 0.36.2 (the versions in Cargo.lock). **None of this was tested on a real pen or tablet**; the only evidence is source reading and synthetic egui events.
+
+| Platform | What reaches egui | Pressure |
+|---|---|---|
+| All | egui mouse events (`PointerButton`, `PointerMoved`) carry no pressure. Only `Event::Touch { force }` can. | n/a |
+| Windows | winit handles `WM_POINTER` and sends pen and touch input as `Touch` events, walking the frame history so several samples per frame arrive. `force` is the pointer's pressure (1 to 1024) divided by 1024; a pressure outside that range, such as 0, gives `None`. A mouse sends mouse events. | Yes, if the driver reports it through Windows Ink. A pen cannot be told from a touch screen in egui: a touch with force is treated as a pen. |
+| macOS | winit 0.30 sends tablet and trackpad input as mouse events. It has a `TouchpadPressure` event for force-touch trackpads, which egui-winit ignores (a TODO in its source). | No. Strokes use speed-based width. |
+| Linux, X11 | Touch screens arrive through XInput2 as `Touch` events with `force: None` (marked TODO in winit). A tablet pen appears as a mouse. | No. |
+| Linux, Wayland | winit 0.30 handles touch with `force: None` and has no tablet protocol support. | No. |
+
+To get pressure on macOS and Linux, the plan is a safe wrapper crate for each OS (the risk table in docs/gaps.md) or a newer winit that exposes tablet data. Newer winit releases may add it, but that was not checked here. Neither is part of this PR.
+
 ## PR 1.11: highlighter and erasers
 
 | | |
@@ -247,6 +287,13 @@ PR title: `feat(canvas): draw with the pen`.
 | Branch | `feat/ink-erase` |
 | Hours | 24-40 |
 | Rows | IN-04, IN-05, IN-06 |
+
+Design (docs/architecture.md sections 10.3 and 10.4, from the WordCraft survey):
+
+- Highlighter: a pass of its own behind the text containers, each stroke an opaque mesh in the color pre-blended with the theme's paper color at about 0.5 alpha, so a stroke cannot darken itself and the anti-aliased fringe still applies. True multiply (overlapping strokes darken, images tint) is a later `egui_wgpu` callback and needs no format change. The stored stroke keeps `tool: "highlighter"`.
+- Stroke eraser: hit test through `InkLayer::hit_test` with the pointer reach in screen pixels; one drag is one undo step (the first erased stroke starts the step and later ones join it, which needs a merge flag on PR 1.8's transactions).
+- Point eraser: cut the points inside the eraser circle and split the stroke into the remaining runs (color, width, and pressure kept; runs under two points dropped).
+- The eraser and highlighter entries keep the Draw tab menus; the menu marks the current one the way the pen menu does (`ribbon::ActivePen`).
 
 Commits:
 
@@ -380,3 +427,7 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 0 | Added PR 1.16 (command line info, text, check, and run on notebooks) after the maintainer decision of 2026-10-15; Phase 1 estimate 454-772 hours. |
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: PR 1.15 raised to 10-18 hours (deferred hands-on checks, gaps rank 25); Phase 1 is 456-776 hours. |
 | 2026-10-15 | 1 | PR 1.1 landed; deviations recorded under PR 1.1. |
+| 2026-10-15 | 1 | PR 1.10 landed: deviations (stroke storage moved to PR 1.9) and per-OS pressure notes added. |
+| 2026-10-15 | 1 | PR 1.3 done: deviations (page text seam instead of the folder reader, block model for PR 1.4, hand-written frontmatter reader) noted under PR 1.3. |
+| 2026-10-15 | 1 | PR 1.10 follow-ups from the WordCraft survey: anti-aliased stroke edges and a marked current pen; PR 1.11 gains its highlighter and eraser design. Hours unchanged. |
+| 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |

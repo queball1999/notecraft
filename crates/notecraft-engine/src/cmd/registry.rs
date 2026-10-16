@@ -152,7 +152,13 @@ impl Registry {
             }
         };
         let args = check_args(spec, args)?;
-        guard::run_guarded(spec.id, session, |session| handler(session, &args))
+        guard::run_guarded(spec.id, session, |session| {
+            let output = handler(session, &args)?;
+            // Whatever the command changed (a page picked, a notebook opened), the page
+            // shown now gets its text from disk if it has not been read yet.
+            session.load_current_page();
+            Ok(output)
+        })
     }
 }
 

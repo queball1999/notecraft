@@ -106,6 +106,10 @@ impl AppShell {
     pub fn new() -> Self {
         let mut session = Session::new();
         session.set_notebooks(notecraft_engine::mock::notebooks());
+        session.set_page_source(
+            notecraft_engine::mock::WELCOME_ID,
+            notecraft_engine::mock::WELCOME_SOURCE,
+        );
         Self::with_session(session)
     }
 
@@ -233,6 +237,12 @@ impl AppShell {
 
     pub fn session(&self) -> &Session {
         &self.session
+    }
+
+    /// Give page `id` its markdown source text (the whole file). The canvas shows it in flow
+    /// layout when that page is open. The folder reader (PR 1.1) calls this when it loads a page.
+    pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
+        self.session.set_page_source(id, text);
     }
 
     pub fn ribbon(&self) -> &Ribbon {
@@ -408,6 +418,7 @@ impl AppShell {
             registry: &self.registry,
             fonts: &self.families,
             rule_lines: self.session.page_style().rule_lines.id(),
+            pen: active_pen(self.session.ink()),
         };
         if self.ribbon.backstage_open() {
             let clicked = self
@@ -555,6 +566,19 @@ impl AppShell {
     }
 }
 
+/// The pen to mark in the Draw tab menus: only while the pen is the tool in use.
+fn active_pen(ink: &notecraft_engine::InkState) -> Option<ribbon::ActivePen> {
+    if ink.tool() != notecraft_engine::DrawTool::Pen {
+        return None;
+    }
+    let pen = ink.pen();
+    let [r, g, b, _] = pen.color.0;
+    Some(ribbon::ActivePen {
+        color: u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
+        width_pt: pen.width_pt,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -698,6 +722,39 @@ mod tests {
         harness.get_by_label("Canvas").click();
         harness.run();
         assert_eq!(harness.state().canvas().viewport().origin(), before);
+    }
+
+    /// What a screen reader gets for the canvas: the page text, once a page has markdown.
+    fn canvas_text(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
+        use egui_kittest::kittest::NodeT;
+        harness.get_by_label("Canvas").accesskit_node().value()
+    }
+
+    #[test]
+    fn a_page_with_markdown_shows_its_text_on_the_canvas() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let text = canvas_text(&harness).expect("the welcome page has text");
+        assert!(text.contains("Welcome to NoteCraft"), "{text}");
+        assert!(text.contains("plain markdown"), "{text}");
+        assert!(!text.contains("**"), "{text}");
+
+        // Another page has no text yet; replacing the source of the shown page redraws it.
+        harness.state_mut().set_page_source(
+            notecraft_engine::mock::WELCOME_ID,
+            "---\ntitle: Welcome\n---\nOnly this line.\n",
+        );
+        harness.run();
+        assert_eq!(canvas_text(&harness).as_deref(), Some("Only this line.\n"));
+    }
+
+    #[test]
+    fn a_page_without_text_has_no_canvas_text() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Grocery list").click();
+        harness.run();
+        assert_eq!(canvas_text(&harness), None);
     }
 
     fn type_into(harness: &mut egui_kittest::Harness<'_, AppShell>, label: &str, text: &str) {
@@ -1216,7 +1273,12 @@ mod tests {
         harness.run();
         harness.get_by_label("#C62828").click();
         harness.run();
-        assert_eq!(toasts(&harness), ["Coming Soon: Color"]);
+        // draw.color is Ready (PR 1.10): it sets the pen color, with no toast.
+        assert!(toasts(&harness).is_empty());
+        assert_eq!(
+            harness.state().session().ink().pen().color.to_hex(),
+            "#C62828"
+        );
         assert!(harness.query_by_label("#C62828").is_none(), "picker closes");
 
         // The pick joins Recent Colors.
@@ -1553,9 +1615,9 @@ mod tests {
         harness.run();
         harness.get_by_label("2 pt").click();
         harness.run();
-        assert!(toasts(&harness)
-            .iter()
-            .any(|t| t == "Coming Soon: Thickness"));
+        // draw.thickness is Ready (PR 1.10): it sets the pen width, with no toast.
+        assert!(!toasts(&harness).iter().any(|t| t.contains("Thickness")));
+        assert_eq!(harness.state().session().ink().pen().width_pt, 2.0);
     }
 
     #[test]
@@ -1936,6 +1998,54 @@ mod tests {
             harness.state().session().selection().page.as_deref(),
             Some("nb_basic_sample/Reference/Recipes.md")
         );
+    }
+
+    #[test]
+    fn opened_pages_show_their_text_from_disk() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Notes");
+        std::fs::create_dir_all(&section).unwrap();
+        std::fs::write(section.join("First.md"), "# First\n\nHello from disk.\n").unwrap();
+        std::fs::write(section.join("Second.md"), "Second page text.\n").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the first page has text");
+        assert!(text.contains("Hello from disk."), "{text}");
+        // Picking another page reads that file.
+        harness.get_by_label("Second").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the second page has text");
+        assert!(text.contains("Second page text."), "{text}");
+        assert!(!text.contains("Hello from disk."), "{text}");
+        // Going back keeps the page that was read.
+        harness.get_by_label("First").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("text");
+        assert!(text.contains("Hello from disk."), "{text}");
+    }
+
+    #[test]
+    fn an_unreadable_page_shows_a_short_error_on_the_canvas() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Notes");
+        std::fs::create_dir_all(&section).unwrap();
+        std::fs::write(section.join("Here.md"), "Here.\n").unwrap();
+        std::fs::write(section.join("Vanishing.md"), "Soon gone.\n").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        std::fs::remove_file(section.join("Vanishing.md")).unwrap();
+        harness.get_by_label("Vanishing").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the error is on the canvas");
+        assert!(text.contains("could not be opened"), "{text}");
+        assert!(harness.state().session().current_page_notice().is_some());
+        assert!(toasts(&harness).is_empty());
     }
 
     #[test]

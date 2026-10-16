@@ -3,7 +3,7 @@
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
 use super::{
-    canvas, file, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
+    canvas, draw, file, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
 const NOTEBOOK_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
@@ -78,6 +78,11 @@ const PEN_WIDTH_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "width",
     ArgKind::Number,
     "Stroke width in points.",
+)];
+const STROKE_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "points",
+    ArgKind::Array,
+    "The stroke's points in page units, each [x, y] or [x, y, pressure] with pressure 0 to 1.",
 )];
 const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "kind",
@@ -503,7 +508,8 @@ pub(super) static SPECS: &[CommandSpec] = &[
         ids::DRAW_TYPE,
         "Type",
         "Switch to typing and selecting text.",
-    ),
+    )
+    .ready(),
     CommandSpec::new(
         ids::DRAW_LASSO,
         "Lasso Select",
@@ -514,7 +520,9 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Panning Hand",
         "Move around the page by dragging.",
     ),
-    CommandSpec::new(ids::DRAW_PEN, "Pen", "Draw with a pen.").args(PEN_ARGS),
+    CommandSpec::new(ids::DRAW_PEN, "Pen", "Draw with a pen.")
+        .args(PEN_ARGS)
+        .ready(),
     CommandSpec::new(
         ids::DRAW_HIGHLIGHTER,
         "Highlighter",
@@ -532,13 +540,23 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Color",
         "Set the color of the current pen.",
     )
-    .args(REQUIRED_COLOR_ARGS),
+    .args(REQUIRED_COLOR_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::DRAW_THICKNESS,
         "Thickness",
         "Set the width of the current pen.",
     )
-    .args(PEN_WIDTH_ARGS),
+    .args(PEN_WIDTH_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::INK_ADD_STROKE,
+        "Add Stroke",
+        "Add a stroke drawn with the current pen to the page.",
+    )
+    .args(STROKE_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::DRAW_RULER,
         "Ruler",
@@ -881,6 +899,11 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_ZOOM, canvas::zoom),
     (ids::VIEW_ZOOM_ACTUAL, canvas::zoom_actual),
     (ids::VIEW_ZOOM_PAGE_WIDTH, canvas::zoom_page_width),
+    (ids::DRAW_TYPE, draw::draw_type),
+    (ids::DRAW_PEN, draw::draw_pen),
+    (ids::DRAW_COLOR, draw::draw_color),
+    (ids::DRAW_THICKNESS, draw::draw_thickness),
+    (ids::INK_ADD_STROKE, draw::add_stroke),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),

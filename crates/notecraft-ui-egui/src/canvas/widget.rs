@@ -5,11 +5,14 @@ use egui::containers::scroll_area::{DragScroll, ScrollSource};
 use egui::{CursorIcon, PointerButton, Rect, ScrollArea, Sense, UiBuilder};
 use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
-use notecraft_engine::{mock, Session};
+use notecraft_engine::{mock, DrawTool, Session};
 
-use super::{paper, title, CanvasUi, PageToScreen};
+use super::{flow, ink, paper, title, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
+
+/// Top of the page notice, in page units: under the title area, above the text.
+const NOTICE_TOP: f32 = 96.0;
 
 /// The accessible name of the canvas, which UI tests look up.
 pub const LABEL: &str = "Canvas";
@@ -31,7 +34,23 @@ pub fn show(
     let origin = state.viewport.origin();
     let view_size = Vec2::new(rect.width(), rect.height()) / zoom;
     let style = session.page_style();
-    let extent = content_extent(origin, view_size, style.paper_size.size()) * zoom;
+    // The page text, laid out in flow layout (read-only). One seam: the page source text.
+    let flow = session
+        .current_page_source()
+        .map(|source| flow::layout(ui.painter(), state.document(source), zoom, tokens));
+    let mut extent = content_extent(origin, view_size, style.paper_size.size());
+    if let Some(flow) = &flow {
+        extent.x = extent.x.max(flow::LEFT * 2.0 + flow::COLUMN_WIDTH);
+        extent.y = extent.y.max(flow.height);
+    }
+    let extent = extent * zoom;
+    let notice = session.current_page_notice().map(|n| n.text.clone());
+    let reader_text = match (&notice, &flow) {
+        (Some(notice), Some(_)) => Some(format!("{notice}\n{}", state.reader_text())),
+        (Some(notice), None) => Some(notice.clone()),
+        (None, Some(_)) => Some(state.reader_text().to_owned()),
+        (None, None) => None,
+    };
 
     let mut area = ScrollArea::both()
         .id_salt("canvas")
@@ -70,11 +89,29 @@ pub fn show(
                         x1: shown.max.x.into(),
                         y1: shown.max.y.into(),
                     });
+                    if let Some(text) = &reader_text {
+                        node.set_value(text.clone());
+                    }
                 });
                 paper::draw(ui.painter(), screen, map, style, tokens);
                 if let Some(page) = session.current_page() {
                     title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
                 }
+                if let Some(flow) = &flow {
+                    flow::paint(ui.painter(), map, flow, tokens);
+                }
+                if let Some(text) = &notice {
+                    // A read-only or error line under the title (the page could not be read
+                    // cleanly).
+                    ui.painter().text(
+                        map.pos(Vec2::new(flow::LEFT, NOTICE_TOP)),
+                        egui::Align2::LEFT_TOP,
+                        text,
+                        egui::FontId::proportional(flow::BODY_SIZE * zoom),
+                        tokens.accent,
+                    );
+                }
+                draw_ink(ui, &response, session, state, map, shown, clicked);
                 if response.has_focus() {
                     // Keyboard focus: a ring just inside the visible part of the page.
                     let stroke = egui::Stroke::new(2.0, tokens.accent);
@@ -109,6 +146,37 @@ pub fn show(
         ui.ctx().set_cursor_icon(CursorIcon::Grab);
     }
     output.inner_rect.width()
+}
+
+/// Capture pen strokes and paint the page's ink. The pen draws only while it is the active
+/// tool; Space held means the user is panning, so it does not start a stroke.
+fn draw_ink(
+    ui: &egui::Ui,
+    response: &egui::Response,
+    session: &Session,
+    state: &mut CanvasUi,
+    map: PageToScreen,
+    shown: Rect,
+    clicked: &mut Vec<Clicked>,
+) {
+    let tool = session.ink().tool();
+    let pen = (tool == DrawTool::Pen && !space_held(ui)).then(|| session.ink().pen());
+    let layer_id = ui.layer_id();
+    let ctx = ui.ctx().clone();
+    let can_start = |at: egui::Pos2| shown.contains(at) && ctx.layer_id_at(at) == Some(layer_id);
+    let capture = state.ink.capture(ui, map, pen, can_start, clicked);
+    if tool == DrawTool::Pen && response.hovered() {
+        ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
+    }
+    let preview = capture.preview.as_deref().zip(pen);
+    state.ink.paint(
+        ui.painter(),
+        map,
+        ink::visible_box(map, shown),
+        session.selection().page.as_deref(),
+        session.current_ink(),
+        preview,
+    );
 }
 
 /// Ctrl+wheel and pinch over the canvas zoom about the pointer.

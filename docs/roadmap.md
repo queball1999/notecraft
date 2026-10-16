@@ -1,6 +1,6 @@
 # Roadmap: focus, alpha plan, milestones
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed (notebook folder reader); navigation alpha gate row updated.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc says what we are doing now, what the alpha needs, and the milestones after it. The step-by-step execution plan is in [build_plan/](../build_plan/README.md). Optional features OneNote does not have are in [post-parity.md](post-parity.md) and are not on this roadmap.
 
@@ -22,11 +22,11 @@ Hours are summed from every PR in the build plan. They assume one experienced Ru
 | 0 | UI shell | 284-474 | 9-16 weeks | [02](../build_plan/02-phase-0-ui-shell.md) |
 | 1 | Core engine | 456-776 | 15-26 weeks | [03](../build_plan/03-phase-1-core-engine.md) |
 | 2 | Page links, search, note tags | 134-230 | 4-8 weeks | [04](../build_plan/04-phase-2-links-search-tags.md) |
-| 3 | Polish and parity | 392-666 | 13-23 weeks | [05](../build_plan/05-phase-3-polish-parity.md) |
+| 3 | Polish and parity | 404-686 | 13-23 weeks | [05](../build_plan/05-phase-3-polish-parity.md) |
 | Hardening | Beta to 1.0 | 80-160 | 3-6 weeks | [05](../build_plan/05-phase-3-polish-parity.md#beta-to-10-hardening) |
-| To 1.0 | | 1,401-2,404 | 47-80 weeks | |
+| To 1.0 | | 1,413-2,424 | 47-80 weeks | |
 | 4 | Remaining parity (post-1.0) | 644-1,228 | 22-41 weeks | [06](../build_plan/06-phase-4-advanced.md) |
-| Full parity | | 2,045-3,632 | 68-121 weeks | |
+| Full parity | | 2,057-3,652 | 68-121 weeks | |
 
 ### What changed in the 2026-10-14 re-assessment
 
@@ -46,7 +46,7 @@ v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux.
 | Canvas | Pan and zoom on an empty page, rule lines and grid | 0 | CV-01 to CV-03 | CV-01 to CV-03 scored D (PR 0.7, #13; margin line and dotted paper #23; Rule Lines thumbnails #25). Tests: middle_drag_and_space_drag_pan_the_canvas, wheel_scrolls_the_canvas, zoom_buttons_zoom_the_canvas, ctrl_wheel_and_pinch_zoom_about_the_pointer, Viewport property tests. Pinch tested with synthetic zoom events only |
 | Notebook navigation | Notebook list, section tabs, page list from a real folder | 0, 1 | SH-06 to SH-08, ST-01 | Phase 0 part: SH-06 to SH-08 scored D on mock notebooks (PR 0.6, #11; tests section_groups_collapse_in_the_notebook_pane, page_list_side_follows_the_preset, add_page_and_new_section_are_coming_soon). ST-01 scored D (PR 1.1): opening a folder shows its real sections and pages. Tests: opening_a_real_folder_shows_its_real_sections_and_pages, an_empty_folder_opens_as_an_empty_notebook, a_folder_with_a_bad_settings_file_opens_with_a_toast, and the storage tests over testdata/notebooks/basic |
 | Theme switching | All four presets switch live | 0 | TH-01 to TH-05 | TH-01 to TH-05 scored D (PR 0.3 and 0.4, #7, #8). Tests: palettes_match_the_themes_doc, presets_are_distinct, theme_commands_switch_the_theme_live, view_tab_switches_the_theme_with_no_toast, themes_switch_and_screenshot_over_tcp; ignored real-window test every_theme_screenshots_through_the_control_channel (PR 0.11, #22). WCAG AA contrast checked over all eight variants. All four presets in light and dark were switched through the control channel and screenshotted on Windows 11 with no errors in the log |
-| Markdown read | Open a `.md` file, render it on the canvas | 1 | FM-01 | |
+| Markdown read | Open a `.md` file, render it on the canvas | 1 | FM-01 | FM-01 scored D: the shown page of an opened folder is read from disk and rendered. Tests: opened_pages_show_their_text_from_disk, an_unreadable_page_shows_a_short_error_on_the_canvas |
 | Markdown write | Type in a container, save to `.md` | 1 | TX-01, FM-02 | |
 | Open dialog | Open a notebook folder, `.md`, or `.notecraft` | 0 | SH-12 | SH-12 scored D on the harness tests (PR 0.8, #14): file.new_notebook, file.open_notebook, and file.open are Ready and tested with a fake picker (maintainer decision, 2026-10-15). Trying the real OS dialogs on Windows, macOS, and Linux is in gaps rank 25. Phase 0 opens the mock notebooks; Phase 1 loads real ones |
 | Auto-save | Every 30 seconds and on focus loss | 1 | FM-05 | |
@@ -83,3 +83,4 @@ v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux.
 | 2026-10-15 | 0 | Command line PRs added (0.13, 1.16, 2.11, 3.14, 3.15) after the maintainer decision of 2026-10-15; totals 1,399-2,400 hours to 1.0 and 2,043-3,628 to full parity. |
 | 2026-10-15 | 0 | Phase 0 closed (SH-12 now D on the harness tests; the Linux launch was checked by the maintainer). Alpha gate evidence filled for the Phase 0 rows. Current focus moved to Phase 1. No actual hours were recorded during Phase 0 (no time log exists), so Phases 1 to 4 keep their estimates, except PR 1.15 (+2-4 hours for the hands-on checks deferred from Phase 0, gaps rank 25): Phase 1 is 456-776 hours, 1,401-2,404 to 1.0, 2,045-3,632 to full parity (maintainer decisions, 2026-10-15). |
 | 2026-10-15 | 1 | PR 1.1 landed: current focus moves to PR 1.2 and PR 1.3; the navigation alpha gate row has its ST-01 evidence. |
+| 2026-10-15 | 1 | Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15): Phase 3 404-686 hours, 1,413-2,424 to v1.0, 2,057-3,652 to full parity; calendar ranges unchanged. |
