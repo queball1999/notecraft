@@ -8,6 +8,8 @@ use notecraft_model::section::MAX_GROUP_DEPTH;
 use notecraft_model::{Section, SectionNode};
 
 use crate::session::Session;
+
+use super::fsops::FsOp;
 use crate::view::PageStyle;
 
 /// One reversible change to the document.
@@ -53,6 +55,10 @@ pub enum Op {
         /// out of `from`, and may be at most that count (the move is refused otherwise).
         to: Place,
     },
+    /// A change to the files of a notebook: create, move, rewrite a settings file, or take a
+    /// notebook out of the list. Structure editing (PR 1.13) builds on it; see
+    /// [`FsOp`].
+    Fs(FsOp),
 }
 
 /// A spot in a notebook's page lists.
@@ -180,6 +186,29 @@ impl Op {
                 from: to.clone(),
                 to: from.clone(),
             },
+            Op::Fs(op) => Op::Fs(op.inverse()),
+        }
+    }
+
+    /// Point ids this operation names at their new values. `map` gives the new id for an old
+    /// one, or `None` to keep it. Used when a rename or move changes the ids of pages.
+    pub(crate) fn rekey(&mut self, map: &dyn Fn(&str) -> Option<String>) {
+        let change = |id: &mut String| {
+            if let Some(new) = map(id) {
+                *id = new;
+            }
+        };
+        match self {
+            Op::InsertStroke { page, .. }
+            | Op::DeleteStroke { page, .. }
+            | Op::ReplaceText { page, .. }
+            | Op::SetPageStyle { page, .. } => change(page),
+            Op::MovePage { page, from, to, .. } => {
+                change(page);
+                change(&mut from.section);
+                change(&mut to.section);
+            }
+            Op::Fs(_) => {}
         }
     }
 
@@ -203,6 +232,7 @@ impl Op {
                 from,
                 to,
             } => BASE + notebook.len() + page.len() + from.section.len() + to.section.len(),
+            Op::Fs(op) => op.bytes(),
         }
     }
 
@@ -285,6 +315,7 @@ impl Op {
                 from,
                 to,
             } => move_page(session, notebook, page, from, to),
+            Op::Fs(op) => op.apply(session),
         }
     }
 }
