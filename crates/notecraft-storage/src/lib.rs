@@ -14,6 +14,7 @@ pub const LAYER: u8 = 1;
 
 pub mod notebook_dir;
 pub mod notebook_toml;
+pub mod paths;
 pub mod section_toml;
 
 pub use notebook_dir::{
