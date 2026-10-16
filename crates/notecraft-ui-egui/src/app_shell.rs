@@ -2001,6 +2001,54 @@ mod tests {
     }
 
     #[test]
+    fn opened_pages_show_their_text_from_disk() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Notes");
+        std::fs::create_dir_all(&section).unwrap();
+        std::fs::write(section.join("First.md"), "# First\n\nHello from disk.\n").unwrap();
+        std::fs::write(section.join("Second.md"), "Second page text.\n").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the first page has text");
+        assert!(text.contains("Hello from disk."), "{text}");
+        // Picking another page reads that file.
+        harness.get_by_label("Second").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the second page has text");
+        assert!(text.contains("Second page text."), "{text}");
+        assert!(!text.contains("Hello from disk."), "{text}");
+        // Going back keeps the page that was read.
+        harness.get_by_label("First").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("text");
+        assert!(text.contains("Hello from disk."), "{text}");
+    }
+
+    #[test]
+    fn an_unreadable_page_shows_a_short_error_on_the_canvas() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Notes");
+        std::fs::create_dir_all(&section).unwrap();
+        std::fs::write(section.join("Here.md"), "Here.\n").unwrap();
+        std::fs::write(section.join("Vanishing.md"), "Soon gone.\n").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        std::fs::remove_file(section.join("Vanishing.md")).unwrap();
+        harness.get_by_label("Vanishing").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the error is on the canvas");
+        assert!(text.contains("could not be opened"), "{text}");
+        assert!(harness.state().session().current_page_notice().is_some());
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
     fn an_empty_folder_opens_as_an_empty_notebook() {
         let dir = tempfile::TempDir::new().unwrap();
         let path = dir.path().to_string_lossy().into_owned();

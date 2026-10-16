@@ -14,6 +14,7 @@ pub const LAYER: u8 = 1;
 
 pub mod notebook_dir;
 pub mod notebook_toml;
+pub mod page_file;
 pub mod paths;
 pub mod section_toml;
 
@@ -22,4 +23,5 @@ pub use notebook_dir::{
     ScanLimits, ScanWarning, SectionEntry, TreeNode, WarningKind,
 };
 pub use notebook_toml::{NotebookConfig, ReadOutcome};
+pub use page_file::{read_page_file, read_page_file_with, PageReadError, PageText, MAX_PAGE_BYTES};
 pub use section_toml::{PageListing, SectionConfig, SectionKind};
