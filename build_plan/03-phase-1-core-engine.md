@@ -271,6 +271,19 @@ Commits:
 
 PR title: `feat(storage): add the .notecraft page format`.
 
+### PR 1.9 notes: what was built and the calls made
+
+Built on `feat/notecraft-format` (2026-10-16). Ink saving (IN-01, IN-02) and the container and canvas readers are done; positions for the other canvas objects are not.
+
+- Markdown crate: `read_containers`, `fix_container_ids` (an invalid, `c0`, or duplicate id gets a fresh `cN`; only the id bytes change), `remove_container_markers`. Markers inside code fences and frontmatter do not count; at most 10,000 are read.
+- Storage: `canvas_block` finds the last top-level `notecraft-canvas` fence, reads ink with a streaming lenient reader (unknown fields skipped, bad numbers fall back, coordinates clamped to 1,000,000, ids cut to 64 characters, strokes over 20,000 points simplified with Ramer-Douglas-Peucker in `notecraft_core::simplify`, nesting over 32 refused) and writes only the `"ink"` value, so every other key and all spacing stay byte for byte. A page with no block and no ink stays as it is; the first stroke appends a block. Identical strokes (after rounding to 2 places) leave the text untouched.
+- Failure policy: a block that does not parse, is over 48 MiB, has a newer `format`, or has over 100,000 strokes opens read-only with a notice (`CanvasProblem`), text shown in flow layout, and a copy goes to `.notecraft/history/<page path>/canvas-unreadable.notecraft`. The writer refuses (never rewrites) such a block, and refuses to append a block to a page that ends inside an unclosed code fence.
+- `.md` pages: the spec keeps a markdown page plain, so it has no canvas block. The sensible call: the first stroke on a `.md` page promotes it (`change_page_kind`: atomic write of the `.notecraft` file, then the `.md` file is removed, and a quoted file name in `.section.toml` is rewritten). The page id changes, so the session re-keys everything it holds and clears the undo history.
+- Engine: `load_current_page` reads `.notecraft` pages (whole file text in the session, strokes into the ink layer); `Session::save_page(id)` writes text and strokes in one atomic write; `PageSource::visible_text` hides the block from the layout; `page.convert_to_markdown { confirm }` (destructive, not undoable) returns the warning until `confirm` is true, then drops the markers and the block.
+- Auto-save hook (PR 1.7, #39): the worker should call `Session::save_page(id)` for each page `mark_page_dirty` reported, in place of writing text itself, and treat `SaveOutcome::Promoted { new_id }` as a page id change.
+
+Open questions: a read-only page whose block did not parse cannot be repaired or saved from the app yet (the copy under history is the way back); positions of containers, shapes, images, and files in the block wait for the PRs that draw them; there is no UI button or warning bar for Convert yet.
+
 ## PR 1.10: ink engine and pen
 
 | | |
