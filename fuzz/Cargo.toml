@@ -1,0 +1,40 @@
+[package]
+name = "notecraft-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "MIT OR Apache-2.0"
+authors = ["The NoteCraft Contributors"]
+description = "cargo-fuzz targets for every NoteCraft page parser (PR 1.14). Not part of the workspace."
+
+[package.metadata]
+cargo-fuzz = true
+
+# Own workspace: `cargo xtask ci`, `cargo build`, and the wasm check never see this crate.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+notecraft-core = { path = "../crates/notecraft-core" }
+notecraft-markdown = { path = "../crates/notecraft-markdown" }
+
+[[bin]]
+name = "markdown"
+path = "fuzz_targets/markdown.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "frontmatter"
+path = "fuzz_targets/frontmatter.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "containers"
+path = "fuzz_targets/containers.rs"
+test = false
+doc = false
+bench = false
