@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4 done; deviations noted under PR 1.4.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P); also: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4 done; deviations noted under PR 1.4.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -367,6 +367,17 @@ Commits:
 
 PR title: `feat(canvas): embed images and files`.
 
+Done (2026-10-16), with these deviations from the steps above:
+
+- Commits were regrouped: storage copy; markdown images as runs; engine insert commands; canvas picture decoding; canvas drawing; UI insert, drop, paste, and open; app wiring; docs. Names follow the layers (pictures are decoded in `notecraft-canvas::picture`, drawn in `notecraft-ui-egui`).
+- Naming: `<6 hex of an FNV-1a content hash>-<sanitized name>`; a taken name gets ` 2`, ` 3`; the same bytes under the same name are reused; the name is reserved with `create_new`, so nothing is ever overwritten. Links are percent-encoded (`attachments/3f9a2c-My%20file.pdf`). Files over 100 MiB are linked in place by absolute path; the `notecraft: linked` canvas-block marker waits for PR 1.9 (the canvas block).
+- An insert appends one paragraph (`![name](link)` or `[name](link)`) at the end of the page text through `Session::insert_attachment`, which uses the PR 1.8 transaction (one undo step, label "Insert picture" or "Insert file"). Undo takes the paragraph out and leaves the copied file in `attachments/`, so Redo works; unused attachments are cleaned up in a later task. Placement at the click point needs the canvas block (PR 1.9).
+- The text change is minimal: `Editor::insert` at the end of the page, in the file's own line ending. `Run` gained `image: bool` so the parser keeps `![alt](target)` as a run (it was flattened to a link before) and the canonical writer prints it back.
+- New commands: `attachment.open { src }` (new id; resolves the link inside the notebook, refuses programs and scripts such as exe, bat, sh, and returns the path for the app to open); `insert.picture`, `insert.file_attachment`, and `edit.paste_picture` are Ready with an optional `path`. The shell asks the picker (`pick_picture`, `pick_attachment`, `clipboard_picture`) when the path is missing, as the Phase 0 pattern does. The OS dialogs, the `open` crate, and `arboard` live in the app (L7); the engine never calls the OS.
+- Bounds: picture file 32 MiB, 16,384 px on a side, 36 million pixels, texture shrunk to 2,048 px on its long side, 256 pictures per page, one decode per frame. A missing, unsupported, damaged, or too-large picture draws a placeholder with the reason.
+- Not built: SVG (needs `resvg`), resize handles, selecting and moving pictures (both need the object model of PR 1.5 and 1.9), and Ctrl+V routing of images (waits for text paste in PR 1.5). Drag and drop works anywhere on the window, not at the drop point. Pictures linked from the web are not loaded.
+- Open questions: should Undo also delete a copied attachment that nothing refers to? Should SVG wait for Phase 3 with the other vector work?
+
 ## PR 1.13: structure editing
 
 | | |
@@ -475,3 +486,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |
 | 2026-10-15 | 1 | PR 1.4 done: deviations (Editor API, canonical serializer scope, minimal save path in storage, corpus location) noted under PR 1.4. |
 | 2026-10-15 | 1 | PR 1.2 done: deviations (native only, mtime and size then hash, titles from file names, worker not yet wired) noted under PR 1.2. |
+| 2026-10-16 | 1 | PR 1.12 done: deviations (markdown image runs, picture bounds, link-in-place threshold, open command safety, clipboard path) noted under PR 1.12. |

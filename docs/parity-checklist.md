@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); PR 1.2 landed (rebuildable notebook index).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P); also: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); PR 1.2 landed (rebuildable notebook index).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -25,11 +25,11 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Ink | 1 | 2 | 10 | 13 | 7% |
 | Text | 0 | 0 | 12 | 12 | 0% |
 | Structure | 1 | 2 | 9 | 12 | 8% |
-| Attachments | 0 | 0 | 8 | 8 | 0% |
+| Attachments | 0 | 5 | 3 | 8 | 0% |
 | Format | 1 | 2 | 6 | 9 | 11% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 36 | 6 | 72 | 114 | 31% |
+| Total | 36 | 11 | 67 | 114 | 31% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -156,11 +156,11 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| AT-01 | Attachments | Insert pictures (PNG, JPEG, WebP, SVG) | 1 | M | |
-| AT-02 | Attachments | Insert any file as an attachment icon | 1 | M | |
-| AT-03 | Attachments | Drag and drop onto the page | 1 | M | |
-| AT-04 | Attachments | Paste picture from clipboard | 1 | M | |
-| AT-05 | Attachments | Open attachment in default app | 1 | M | |
+| AT-01 | Attachments | Insert pictures (PNG, JPEG, WebP, SVG) | 1 | P | PR 1.12: insert.picture (Insert tab Pictures) copies a PNG, JPEG, or WebP file into the section attachments folder and adds a markdown image; the canvas draws it (bounded decode: 32 MiB file, 16384 px side, 36 million pixels, texture shrunk to 2048 px; a bad image shows a placeholder). SVG and resize handles are not built; the page file is written once auto-save (PR 1.7) lands |
+| AT-02 | Attachments | Insert any file as an attachment icon | 1 | P | PR 1.12: insert.file_attachment copies any file (or links one over 100 MiB in place) and shows an icon with the name and extension; written to disk with the page by PR 1.7 |
+| AT-03 | Attachments | Drag and drop onto the page | 1 | P | PR 1.12: files dropped on the window become pictures or attachments, one undo step each (harness test); written to disk with the page by PR 1.7 |
+| AT-04 | Attachments | Paste picture from clipboard | 1 | P | PR 1.12: Paste as Picture (edit.paste_picture) takes the clipboard image; Ctrl+V does not route images until text paste (PR 1.5) lands |
+| AT-05 | Attachments | Open attachment in default app | 1 | P | PR 1.12: clicking an attachment runs attachment.open, which resolves the file inside the notebook, refuses programs and scripts, and the app opens it with the OS default app (open crate in L7); no real-OS check run (GUI automation is off limits for this PR) |
 | AT-06 | Attachments | File printout (PDF pages as images) | 3 | M | |
 | AT-08 | Attachments | Audio and video recording | 4 | M | |
 | AT-09 | Attachments | Copy text from picture (OCR) | 4 | M | |
@@ -243,3 +243,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 1 | PR 1.4: FM-02 scored P (span-replacement write, canonical serializer, atomic page write; editor wiring waits for PR 1.5 and 1.7); FM-04 evidence updated for the frontmatter write. |
 | 2026-10-15 | 1 | ST-08 scored P (PR 1.8, undo and redo): ink strokes and page setup undo exactly, text and notebook moves are built against the engine API; SH-16 evidence notes the Undo and Redo buttons. |
 | 2026-10-15 | 1 | ST-07 scored P (PR 1.2): rebuildable `index.sqlite`, incremental refresh, 1,000-page sidebar in about 27 ms; the navigation is not wired to it yet. |
+| 2026-10-16 | 1 | PR 1.12: AT-01 to AT-05 scored P (pictures, file attachments, drop, Paste as Picture, open in default app); page write waits for PR 1.7. |

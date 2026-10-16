@@ -1,6 +1,6 @@
 # Roadmap: focus, alpha plan, milestones
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: markdown write library landed; page text read from disk when a page is shown (FM-01 scored D). PR 1.8 landed (undo and redo); PR 1.2 landed (rebuildable notebook index).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P); also: PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: markdown write library landed; page text read from disk when a page is shown (FM-01 scored D). PR 1.8 landed (undo and redo); PR 1.2 landed (rebuildable notebook index).
 
 The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc says what we are doing now, what the alpha needs, and the milestones after it. The step-by-step execution plan is in [build_plan/](../build_plan/README.md). Optional features OneNote does not have are in [post-parity.md](post-parity.md) and are not on this roadmap.
 
@@ -87,3 +87,4 @@ v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux.
 | 2026-10-15 | 1 | PR 1.4 landed: minimal-diff markdown write (library and atomic page writes); typing into containers and auto-save wire it to the UI. |
 | 2026-10-15 | 1 | PR 1.8 landed (undo and redo): current focus text and alpha gate unchanged; the remaining callers of the undo API are PR 1.5, 1.11, and 1.13. |
 | 2026-10-15 | 1 | PR 1.2 landed (notebook index, ST-07 scored P): current focus moves to PR 1.4. |
+| 2026-10-16 | 1 | PR 1.12 landed (pictures and attachments): current focus text unchanged; the remaining Phase 1 work is PR 1.5, 1.6, 1.7, 1.9, 1.11, 1.13, 1.14. |
