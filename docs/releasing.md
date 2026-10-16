@@ -1,6 +1,6 @@
 # Releasing
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-14. Change: releases run NoteCraft's own workflow on free standard runners.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: linked docs/install.md for per-artifact install steps.
 
 Pushing to the `release` branch runs `.github/workflows/release.yml`, which builds, signs (when secrets exist), notarizes, packages, and drafts a GitHub Release. The release flow and packaging scripts follow the related craft apps, but the workflow itself is NoteCraft's own: the shared release workflow in craft-common-actions builds macOS on a paid `macos-15-xlarge` runner, and it has no license, so NoteCraft cannot copy it. NoteCraft's workflow uses only GitHub's standard hosted runners, which are free for public repositories.
 
@@ -41,6 +41,8 @@ Test run without releasing: run the Release workflow manually (workflow_dispatch
 | Flatpak x86_64 and aarch64 | `ubuntu-24.04`, `ubuntu-24.04-arm` | `.flatpak` bundle |
 | FreeBSD x86_64 | `ubuntu-24.04` with a FreeBSD VM | `.tar.gz` |
 | Release | `ubuntu-24.04` | draft GitHub Release with every artifact and `SHA256SUMS.txt` |
+
+Install steps per artifact are in [install.md](install.md).
 
 Not built yet: Linux riscv64 (needs a cross toolchain; add if users ask) and the web build (Phase 4).
 
@@ -110,3 +112,4 @@ Set in the repo's `release` environment, same names as the related craft apps:
 | 2026-10-14 | -1 | Contract implemented; version info, MSI identity, file types, and DMG notes recorded. |
 | 2026-10-14 | -1 | App ID is now io.github.queball1999.notecraft and the repo is github.com/Queball1999/notecraft. |
 | 2026-10-14 | -1 | Releases run NoteCraft's own workflow on free standard runners. |
+| 2026-10-15 | 1 | Linked install.md from section 3; the Flatpak smoke test also runs the desktop binary. |
