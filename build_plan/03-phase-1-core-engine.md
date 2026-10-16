@@ -210,6 +210,26 @@ Commits:
 
 PR title: `feat(storage): auto-save and recover safely`.
 
+### PR 1.7 notes: deviations and open questions
+
+Built on `feat/autosave` (2026-10-16), on top of `wip/phase1-base`. What differs from the steps above:
+
+- Commits: the plan listed five. The storage pieces (recovery journal, folder watcher, and a page reader thread) are one commit; dirty tracking, timed auto-save, and the outside edit logic are one engine commit, because the engine ties them together; the bars are one UI commit; the crash and outside-edit simulations live in the engine tests (`io::tests`) next to the code they exercise, since the session is where the pieces meet. Auto-save and the session logic are in `notecraft-engine` (`session/saving.rs`, `io.rs`), not `notecraft-storage`: storage stays a set of file tools (journal, watcher, reader), and the engine owns the session state. The design is in docs/architecture.md sections 3.2 to 3.4.
+- Dirty tracking API for PR 1.5: `Session::mark_page_dirty(page_id)`. Edits through `commit`, `undo`, and `redo` (page text and strokes) call it already.
+- Only page text is written. Strokes mark a page dirty but add no bytes until PR 1.9 saves the canvas block.
+- Pages whose notice is read-only are never saved or journaled. A page with invalid UTF-8 is editable and saves with the replacement characters (the notice said so when it was shown).
+- Conflict bar (maintainer-visible decision): Keep my version and Use outside version. A side-by-side compare is left out: OneNote has no such view, and the architecture doc's "compare" was a placeholder. A save never writes over a file that changed since NoteCraft last read or wrote it; it turns into the same conflict. While a conflict is open the page is not saved and stays in the journal.
+- Outside reload drops the page's undo steps and logs a line, with no toast (maintainer decision, 2026-10-15).
+- Saves run on the UI thread; page reads and the watcher run on worker threads. Moving saves off the UI thread is possible later; one atomic write of a small file is fast, and doing it inline keeps the quit path simple.
+- The journal is refreshed every 2 s while text changes (the plan gave no interval). It is a JSON file per page, not an append-only log, so a crash loses at most 2 s of edits and replay is a straight text restore.
+- `notify` 8 (CC0-1.0) is a new dependency of notecraft-storage, native only.
+- Quit: `AppShell::flush_unsaved` runs on a close request and from the app's `on_exit`. craft-quit has no save hook of its own; it already runs before eframe closes, so the close request path covers the prompt case.
+
+Open questions:
+
+- Should a deleted page file (outside delete while open) show a bar too? Today it is only logged and the page stays open; the next save recreates the file.
+- Should Restore also offer a per-page choice? Today it restores every offered page.
+
 ## PR 1.8: undo and redo
 
 | | |

@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.7: FM-02, FM-04, FM-05, FM-06, and FM-07 scored D (auto-save, crash recovery, outside edits); duplicate FM-02, ST-07, and ST-08 rows from merges removed; ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -24,12 +24,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Canvas | 3 | 0 | 9 | 12 | 25% |
 | Ink | 1 | 2 | 10 | 13 | 7% |
 | Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 1 | 2 | 11 | 14 | 7% |
+| Structure | 1 | 2 | 9 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
-| Format | 1 | 2 | 7 | 10 | 10% |
+| Format | 6 | 0 | 3 | 9 | 66% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 36 | 6 | 75 | 117 | 30% |
+| Total | 41 | 4 | 69 | 114 | 35% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -146,8 +146,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | M | |
 | ST-06 | Structure | Drag to reorder and move pages and sections | 1 | M | |
 | ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | P | PR 1.2: notecraft-storage keeps a rebuildable `.notecraft/index.sqlite` (sections, pages, attachments; links, tags, and FTS tables created empty), refreshes it by modified time, size, and hash, and rebuilds it when it is corrupt or from a newer schema. Listing 1,000 pages from the index takes about 27 ms (criterion bench `sidebar`). The navigation does not read the index yet; wiring it in is gaps rank 15 |
-| ST-08 | Structure | Undo and redo | 1 | M | |
-| ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | M | |
 | ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Missing: text commands (PR 1.5), structure commands (PR 1.13), and the eraser (PR 1.11) are the callers; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
 | ST-09 | Structure | Notebook Recycle Bin with restore | 3 | M | |
 | ST-10 | Structure | Page versions | 3 | M | |
@@ -172,13 +170,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
 | FM-01 | Format | Read `.md` pages | 1 | D | PR 1.3: notecraft-markdown parses a page into blocks with exact source spans (golden tests on 6 sample pages, hostile-input tests) and the canvas renders them in flow layout (harness test); opening a folder reads the shown page from disk through notecraft-storage (64 MiB cap, lenient UTF-8, read-only when cut short, short error on the canvas when unreadable). Tests: page_file storage unit tests, session page_load_tests, opened_pages_show_their_text_from_disk, an_unreadable_page_shows_a_short_error_on_the_canvas |
-| FM-02 | Format | Write `.md` pages with minimal diffs | 1 | M | |
-| FM-02 | Format | Write `.md` pages with minimal diffs | 1 | P | PR 1.4: edits are span replacements on the original text (blocks, list items, table cells, frontmatter keys); canonical serializer for new blocks; atomic page writes in notecraft-storage; property tests over 73 corpus pages and CRLF copies (byte-identical round trip, edits touch only their span); saving from the editor waits for PR 1.5 and 1.7 |
+| FM-02 | Format | Write `.md` pages with minimal diffs | 1 | D | PR 1.4: edits are span replacements on the original text (blocks, list items, table cells, frontmatter keys); canonical serializer for new blocks; atomic page writes in notecraft-storage; property tests over 73 corpus pages and CRLF copies (byte-identical round trip, edits touch only their span). PR 1.7: unsaved pages are written through `Session::save_page` (write_page_text over craft-atomic, which skips unchanged bytes), so an edit changes only its bytes on disk; tests in session saving_tests and io tests. The editor that produces the span edits from typing is PR 1.5 |
 | FM-03 | Format | Read and write `.notecraft` pages (containers, canvas block) | 1 | M | |
-| FM-04 | Format | Frontmatter read and write | 1 | P | PR 1.3: bounded YAML-subset frontmatter reader (scalars, lists, one level of maps, 64 KiB cap, unknown keys kept as raw text; unit and hostile-input tests); PR 1.4 added the write side (set and remove keys rewrite only their own lines); reading and saving real page files waits for PR 1.1 and 1.7 |
-| FM-05 | Format | Auto-save every 30 s and on focus loss | 1 | M | |
-| FM-06 | Format | Crash recovery of unsaved edits | 1 | M | |
-| FM-07 | Format | Outside edit detection and conflict bar | 1 | M | |
+| FM-04 | Format | Frontmatter read and write | 1 | D | PR 1.3: bounded YAML-subset frontmatter reader (scalars, lists, one level of maps, 64 KiB cap, unknown keys kept as raw text; unit and hostile-input tests); PR 1.4 added the write side (set and remove keys rewrite only their own lines); PR 1.1 and 1.7: real page files are read when shown and saved back through the session, frontmatter included, with only the edited bytes changing |
+| FM-05 | Format | Auto-save every 30 s and on focus loss | 1 | D | PR 1.7: `Session` tracks unsaved pages (`mark_page_dirty`; commit, undo, and redo of page text and strokes set it); `SessionIo` saves them every 30 s, on focus loss, on page switch, and on quit (`AppShell::flush_unsaved` from the app's on_exit and on a close request); the status bar shows Saved or Unsaved changes; a read-only page is never written, and a page whose file changed outside is not written over. Only page text is written until PR 1.9 saves strokes. Tests: engine io::tests (pages_load_on_the_worker_and_save_on_the_timer, losing_focus_and_switching_pages_save, flush_on_quit_saves_and_leaves_no_journal), session saving_tests |
+| FM-06 | Format | Crash recovery of unsaved edits | 1 | D | PR 1.7: a journal in the settings folder (`recovery/`, one JSON file per unsaved page, written through craft-atomic every 2 s while the text changes, deleted on save) is checked when a notebook opens; text that differs from the file is offered on a bar with Restore and Discard (file.restore_unsaved, file.discard_unsaved). Tests: recovery storage tests, io::tests::a_crash_leaves_a_journal_that_the_next_run_offers_back, recovery_is_offered_only_when_it_differs_and_can_be_restored_or_discarded, the_recovery_bar_restores_the_unsaved_text |
+| FM-07 | Format | Outside edit detection and conflict bar | 1 | D | PR 1.7: a `notify` watcher per notebook folder with a 300 ms debounce; page files are read on a worker thread; a changed clean page reloads (its undo steps are dropped and logged, no toast); a changed page with unsaved edits keeps the user's text and shows a bar with Keep my version and Use outside version (file.keep_my_version, file.use_outside_version); a save also checks the file first, so nothing is overwritten silently. A side-by-side Compare is not built (OneNote has none). Tests: storage watch::tests, engine io::tests::the_watcher_reloads_a_clean_page_and_flags_a_dirty_one, taking_the_outside_version_replaces_the_text_and_drops_undo_steps, the_conflict_bar_offers_both_versions_and_runs_commands |
 | FM-08 | Format | Fuzzed parsers (no panic on any input) | 1 | M | |
 | FM-09 | Format | Import OneNote `.one` sections | 4 | M | |
 
@@ -246,3 +243,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 1 | PR 1.4: FM-02 scored P (span-replacement write, canonical serializer, atomic page write; editor wiring waits for PR 1.5 and 1.7); FM-04 evidence updated for the frontmatter write. |
 | 2026-10-15 | 1 | IN-01 evidence: anti-aliased stroke edges and the marked current pen (PR 1.10 follow-ups). Scores unchanged. |
 | 2026-10-15 | 1 | Added IN-13 ink replay (Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15)). |
+| 2026-10-16 | 1 | PR 1.7: FM-05, FM-06, and FM-07 scored D (auto-save, recovery journal, outside edit watcher and bars); FM-02 and FM-04 scored D (pages are saved through the session). Stale duplicate rows for FM-02, ST-07, and ST-08 removed. |
