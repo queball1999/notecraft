@@ -29,7 +29,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 1 | 1 | 7 | 9 | 11% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 36 | 4 | 73 | 113 | 31% |
+| Total | 36 | 4 | 74 | 114 | 31% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
