@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: PR 0.11 landed on feat/control-minimal: the minimal control channel; About page recorded; PR 0.7 follow-up: Rule Lines menu thumbnails.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 0.12 landed; status table with every PR number.
 
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
@@ -12,7 +12,36 @@ Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon b
 | Checklist rows | SH-01 to SH-09, SH-11 to SH-15, TH-01 to TH-06, CV-01 to CV-03 |
 | Gaps | ranks 6 to 15 |
 
-## Entry criteria
+## Status
+
+Phase 0 is closed (2026-10-15). Every PR below is merged into `phase/0-ui-shell`.
+
+| PR | Branch | Landed as |
+|---|---|---|
+| 0.1 app scaffold | `feat/app-scaffold` | #4 |
+| 0.2 command registry | `feat/command-registry` | #6 |
+| 0.3 theme tokens | `feat/theme-tokens` | #7 |
+| 0.4 presets | `feat/theme-presets` | #8 |
+| 0.5a ribbon: widget, icons, File, Home | `feat/ribbon` | #9 |
+| 0.5b ribbon: other tabs, collapse, key tips | `feat/ribbon-tabs` | #10 |
+| 0.6 navigation | `feat/navigation` | #11 |
+| ribbon fixes (backgrounds, pickers) | `fix/ribbon-pickers` | #12 |
+| 0.7 canvas viewport | `feat/canvas-viewport` | #13 |
+| 0.8 start page | `feat/start-page` | #14 |
+| 0.9 status and shortcuts | `feat/status-shortcuts` | #15 |
+| 0.10 accessibility | `feat/accessibility` | #16 |
+| 0.5c ribbon display options | `feat/ribbon-display` | #17 |
+| 0.5d font boxes | `feat/ribbon-font-boxes` | #18 |
+| 0.5e color pickers | `feat/ribbon-colors` | #19 |
+| 0.13 command line core | `feat/cli-core` | #20 |
+| 0.5f galleries and Help tab | `feat/ribbon-galleries` | #21 |
+| 0.11 control minimal | `feat/control-minimal` | #22 |
+| 0.7 follow-up: dotted paper and margin line | `feat/paper-dotted-margin` | #23 |
+| About page | `feat/about-page` | #24 |
+| 0.7 follow-up: Rule Lines thumbnails | `feat/rule-lines-thumbnails` | #25 |
+| 0.12 close Phase 0 | `docs/phase-0-close` | landed on `docs/phase-0-close` (docs only; this PR) |
+
+Actual hours were not recorded during Phase 0 (no time log exists), so the Estimate table below still shows the planned ranges and Phases 1 to 4 keep theirs; see docs/roadmap.md.
 
 - Phase -1 exit criteria met; `phase/0-ui-shell` created from `main`.
 
@@ -453,6 +482,8 @@ Follow 00-conventions.md section 6. Also:
 - Cut internal test release 0.0.1 (docs/releasing.md section 2) to prove the pipeline end to end with real UI.
 - Re-estimate Phases 1 to 4 from actual Phase 0 hours.
 
+PR 0.12 landed on `docs/phase-0-close`. The alpha gate evidence is filled for the Phase 0 rows. Release 0.0.1 is cut right after the Phase 0 PR merges into `main`; its release evidence is to be filled at release. No actual hours were recorded during Phase 0, so Phases 1 to 4 keep their estimates, with one change: PR 1.15 gains 2-4 hours for the hands-on checks deferred from Phase 0 (docs/gaps.md rank 25). Maintainer decisions of 2026-10-15: SH-01, SH-05, SH-12, SH-15, and TH-06 are scored D on the Windows evidence, and the harness tests for SH-12 (SH-14 stays D; the maintainer also ran the app on Linux); SH-04 is reworded to the Coming Soon tooltip and toast and scored D, with the per-button badge dropped for good; dotted paper stays a kept extra; the real OS dialogs are in the deferred gap.
+
 ## Estimate
 
 | PR | Hours |
@@ -478,7 +509,7 @@ Follow 00-conventions.md section 6. Also:
 
 ## Exit criteria
 
-- SH-01 to SH-09 and SH-11 to SH-15, TH-01 to TH-06, CV-01 to CV-03 scored D.
+- SH-01 to SH-09, SH-11 to SH-15, TH-01 to TH-06, CV-01 to CV-03 scored D (the hands-on checks are gaps rank 25).
 - Internal release 0.0.1 built from `release`.
 - Every ribbon button runs a command or shows Coming Soon; none does nothing.
 
@@ -500,3 +531,4 @@ Follow 00-conventions.md section 6. Also:
 | 2026-10-15 | 0 | About page recorded (feat/about-page); no change to hours. |
 | 2026-10-15 | 0 | PR 0.7 follow-up recorded: dotted paper kept as an extra, and the ruled margin line. |
 | 2026-10-15 | 0 | PR 0.7 follow-up: the Rule Lines dropdown is a gallery of paper thumbnail cards drawn with the canvas paper code. |
+| 2026-10-15 | 0 | PR 0.12 landed on docs/phase-0-close: Phase 0 closed; status table with every PR number added; no actual hours recorded; hands-on checks moved to gaps rank 25 and PR 1.15. |

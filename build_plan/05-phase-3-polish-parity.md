@@ -1,6 +1,6 @@
 # Phase 3: polish and parity
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: reviewed and re-estimated at the Phase 0 close; no change.
 
 Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, and performance. Ends with the v0.9.0 beta.
 
@@ -331,3 +331,4 @@ Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 | 2026-10-14 | -1 | Created. Control channel, MCP, CLI, and plugins moved to docs/post-parity.md (not OneNote features). |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Added PR 3.14 (command line render, export, print) and PR 3.15 (MCP server) after the maintainer decision of 2026-10-15; Phase 3 estimate 392-666 hours. |
+| 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |

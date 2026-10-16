@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: the command line (and its MCP server) joins the build plan (PR 0.13, 1.16, 2.11, 3.14, 3.15); the desktop app opens a notebook or page passed at launch; the About page; Rule Lines menu shows paper thumbnails (PR 0.7 follow-up). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Phase 0 closed; stage, numbers, and progress log updated. Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor.
 
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
@@ -34,7 +34,7 @@ Hours are summed bottom-up from every PR in `build_plan/` (each PR carries a gen
 | Ink and drawing | 0% | 154-262 | 140-256 | 294-518 | [parity](docs/target-app-parity.md#2-ink-and-drawing) |
 | Text and markdown editing | 0% | 156-268 | 0 | 156-268 | [markdown](docs/markdown.md) |
 | Notebook structure | 0% | 118-198 | 40-80 | 158-278 | [parity](docs/target-app-parity.md#4-notebook-structure) |
-| Ribbon, chrome, accessibility | 0% | 190-314 | 16-28 | 206-342 | [parity](docs/target-app-parity.md#5-ribbon-and-chrome) |
+| Ribbon, chrome, accessibility | 0% | 192-318 | 16-28 | 208-346 | [parity](docs/target-app-parity.md#5-ribbon-and-chrome) |
 | Themes (4 presets x 2 modes) | 0% | 40-68 | 0 | 40-68 | [themes](docs/themes.md) |
 | Attachments and media | 0% | 52-91 | 100-180 | 152-271 | [parity](docs/target-app-parity.md#7-attachments-and-media) |
 | Page links, search, note tags | 0% | 92-154 | 0 | 92-154 | [markdown](docs/markdown.md#5-page-links) |
@@ -45,7 +45,7 @@ Hours are summed bottom-up from every PR in `build_plan/` (each PR carries a gen
 | Performance and 1.0 hardening | 0% | 110-210 | 0 | 110-210 | [roadmap](docs/roadmap.md) |
 | Browser build and sync research | 0% | 0 | 100-190 | 100-190 | [Phase 4](build_plan/06-phase-4-advanced.md) |
 | Scaffolding, CI, release | 100% | 87-156 | 8-14 | 95-170 | [Phase -1](build_plan/01-phase-minus-1-scaffolding.md) |
-| Total | 0% | 1,399-2,400 | 644-1,228 | 2,043-3,628 | |
+| Total | 0% | 1,401-2,404 | 644-1,228 | 2,045-3,632 | |
 
 Calendar, at about 30 focused hours a week: v1.0 in 47-80 weeks; full parity in 68-121 weeks.
 
@@ -57,7 +57,7 @@ Calendar, at about 30 focused hours a week: v1.0 in 47-80 weeks; full parity in 
 |---|---|---|---|
 | -1 | Scaffolding and CI/CD | 55-98 | CI green, release pipeline proven |
 | 0 | UI shell | 284-474 | internal 0.0.1 |
-| 1 | Core engine | 454-772 | v0.1.0 alpha |
+| 1 | Core engine | 456-776 | v0.1.0 alpha |
 | 2 | Page links, search, note tags | 134-230 | v0.2.0 |
 | 3 | Polish and parity | 392-666 | v0.9.0 beta |
 | Hardening | Beta to 1.0 | 80-160 | v1.0.0 |
@@ -111,3 +111,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-15 | Phase 0: the File backstage About page is real (feat/about-page): version, commit, build date, profile, target, app ID, copyright, MIT and Apache texts, third-party notices, links, settings and log folders, a Copy button for bug reports (file.copy_about_info), and the Microsoft trademark notice. |
 | 2026-10-15 | Phase 0 PR 0.7 follow-up: dotted paper (a kept extra, `view.rule_lines` style `dotted`) and the thin red margin line on ruled paper (theme token `canvas_margin_rule`); CV-03 scored D. |
 | 2026-10-15 | Phase 0 PR 0.7 follow-up: the View > Rule Lines dropdown is a gallery of thumbnail cards, as in OneNote: each card is a miniature page drawn by the same paper code as the canvas (rules, margin line, dots; current theme), grouped under Ruled Lines and Grid Lines, with the current style highlighted; every card is keyboard reachable and named for screen readers. |
+| 2026-10-15 | Phase 0 closed (PR 0.12, docs/phase-0-close): every Phase 0 PR (#6 to #25) is merged into phase/0-ui-shell; SH-01, SH-04, SH-05, SH-12, SH-15, and TH-06 scored D (maintainer decisions, 2026-10-15; the maintainer also ran NoteCraft on Linux and it works like Windows); parity is 33 of 113 rows done (29%); alpha gate evidence filled for the Phase 0 rows; the hands-on checks agents cannot run (macOS, Linux dark mode, physical keyboard, Narrator and VoiceOver, Cmd on a Mac, the real OS file dialogs) are one gap to do before v0.1.0 (docs/gaps.md rank 25, 2-4 hours, added to PR 1.15). No actual hours were recorded, so Phases 1 to 4 keep their estimates; Phase 1 is 456-776 hours, 1,401-2,404 to 1.0, 2,045-3,632 to full parity. Phase 1 (core engine) is next. |

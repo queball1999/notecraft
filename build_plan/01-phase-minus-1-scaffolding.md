@@ -1,6 +1,6 @@
 # Phase -1: scaffolding and CI/CD
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: phase closed; release workflow change and GitHub settings recorded.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: reviewed at the Phase 0 close; no change.
 
 Goal: an empty but complete workspace. Every crate exists and builds, `cargo xtask ci` runs every gate, CI matches the related craft apps, and the release workflow can build packages from the `release` branch. No features.
 
@@ -425,3 +425,4 @@ Done once, right after section 0. Uses `gh` with admin rights.
 | 2026-10-14 | -1 | PR -1.1 landed; sample Cargo.toml now lists members explicitly. |
 | 2026-10-14 | -1 | Repo and app ID moved off the ArtCraft namespace. |
 | 2026-10-14 | -1 | Phase closed; release workflow change and GitHub settings recorded. |
+| 2026-10-15 | 0 | Reviewed at the Phase 0 close; no content change. |

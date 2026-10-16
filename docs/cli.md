@@ -1,6 +1,6 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 

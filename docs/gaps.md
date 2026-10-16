@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: rank 11: dotted paper decision made; only the real pinch check remains.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Phase 0 closed; ranks 6, 9, 11, 12, and 14 replaced by one deferred hands-on checks gap (rank 25).
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -10,11 +10,6 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
-| 6 | Window launch, system dark mode, and the OS UI font not yet verified on macOS and Linux (Windows done); shortcuts using Cmd not yet tried on a Mac | SH-01, SH-14, TH-06 | 1-2 | build_plan/02, PR 0.1, 0.3, 0.4, 0.9 |
-| 9 | Ribbon key tips not yet tried by hand on a physical keyboard (a lone Alt tap sent as OS keyboard input does show them on Windows 11); SH-04 needs a decision now that the per-button badge is gone; typing into the font and size boxes is tested in the harness but not yet by hand in the running app | SH-04, SH-05 | 1-2 | build_plan/02, PR 0.5 |
-| 11 | Canvas pan, zoom, and paper landed (PR 0.7). Left: try pinch zoom on a real touchpad or touch screen (only synthetic zoom events tested) | CV-02 | 0-1 | build_plan/02, PR 0.7 |
-| 12 | Start page, recents, and open dialogs landed (PR 0.8). Left: try the OS folder and file dialogs in the running app on Windows, macOS, and Linux (tests use a fake picker) | SH-12 | 1 | build_plan/02, PR 0.8 |
-| 14 | Screen reader names, keyboard order, and focus rings landed (PR 0.10). Left: try the app with Narrator (Windows) and VoiceOver (macOS) and record the results | SH-15 | 1-2 | build_plan/02, PR 0.10 |
 
 ## Next (Phase 1: core engine, rest of alpha gate)
 
@@ -30,6 +25,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | 22 | No pictures or attachments | AT-01 to AT-05 | 40-70 | build_plan/03, PR 1.12 |
 | 23 | No structure editing (create, rename, move) | ST-02 to ST-06 | 30-50 | build_plan/03, PR 1.13 |
 | 24 | Parsers not fuzzed | FM-08 | 10-16 | build_plan/03, PR 1.14 |
+| 25 | Hands-on checks deferred from Phase 0 (one pass, 2-4 hours, before the v0.1.0 alpha): launch the window and follow system dark mode and the OS UI font on macOS (SH-01, TH-06); follow system dark mode on Linux (TH-06; Linux launch was checked by the maintainer); shortcuts using Cmd on a Mac (SH-14); ribbon key tips on a physical keyboard (SH-05); Narrator on Windows and VoiceOver on macOS runs (SH-15); the real OS folder and file dialogs on Windows, macOS, and Linux (SH-12); also pinch zoom on a real touchpad (CV-02) and typing into the font and size boxes by hand (SH-02). Record each result in the row evidence. Note: the screen reader checks may be partly automated in Phase 1 (UI Automation, AX, and AT-SPI tree checks in CI, and VoiceOver through Guidepup); a note only, not a build plan item | SH-01, SH-05, SH-12, SH-14, SH-15, TH-06 (plus CV-02, SH-02 notes) | 2-4 | build_plan/03, PR 1.15 |
 
 ## Later
 
@@ -95,3 +91,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-15 | 0 | Rank 9: font names now show in their own face (PR 0.5d) and the Colors dialog shows one set of R, G, B, A fields (PR 0.5e); a hand check of typing in the boxes added. |
 | 2026-10-15 | 0 | Rank 9 narrowed: style and tag galleries and the Help tab landed (PR 0.5f); ribbon parity follow-ups 0.5c to 0.5f are done. |
 | 2026-10-15 | 0 | Rank 11 narrowed: dotted paper kept as an extra and built with the ruled margin line (CV-03 done); only the real pinch check remains. |
+| 2026-10-15 | 0 | Phase 0 close (maintainer decisions, 2026-10-15): ranks 6, 9, 11, and 14 removed; their rows (SH-01, SH-05, SH-14, SH-15, TH-06) are scored D on the Windows evidence and the hands-on checks move to one new gap, rank 25, to do before the v0.1.0 alpha (2-4 hours, PR 1.15). SH-04 scored D with the per-button badge dropped for good. Dotted paper stays a kept extra. Rank 12 (OS dialogs, SH-12) also removed on the same decision: SH-12 is scored D on the harness tests and the real-dialog check joins rank 25; the Linux launch was checked by the maintainer. |

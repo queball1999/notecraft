@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: CLI and MCP server are in the build plan.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: CLI and MCP server are in the build plan.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 

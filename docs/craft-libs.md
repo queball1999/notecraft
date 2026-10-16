@@ -1,6 +1,6 @@
 # Shared craft libraries
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: craft-fonts not adopted (PR 0.4 font decision).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-14. Change: craft-fonts not adopted (PR 0.4 font decision).
 
 NoteCraft uses the shared crates in [storytold/craft-libs](https://github.com/storytold/craft-libs) instead of writing its own versions. This doc says which ones, where, and how to update them. For each crate's API, read its docs at the pinned commit; this doc does not repeat them.
 
