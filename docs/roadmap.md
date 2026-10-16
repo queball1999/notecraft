@@ -1,6 +1,6 @@
 # Roadmap: focus, alpha plan, milestones
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4: markdown write library landed; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc says what we are doing now, what the alpha needs, and the milestones after it. The step-by-step execution plan is in [build_plan/](../build_plan/README.md). Optional features OneNote does not have are in [post-parity.md](post-parity.md) and are not on this roadmap.
 
@@ -83,4 +83,5 @@ v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux.
 | 2026-10-15 | 0 | Command line PRs added (0.13, 1.16, 2.11, 3.14, 3.15) after the maintainer decision of 2026-10-15; totals 1,399-2,400 hours to 1.0 and 2,043-3,628 to full parity. |
 | 2026-10-15 | 0 | Phase 0 closed (SH-12 now D on the harness tests; the Linux launch was checked by the maintainer). Alpha gate evidence filled for the Phase 0 rows. Current focus moved to Phase 1. No actual hours were recorded during Phase 0 (no time log exists), so Phases 1 to 4 keep their estimates, except PR 1.15 (+2-4 hours for the hands-on checks deferred from Phase 0, gaps rank 25): Phase 1 is 456-776 hours, 1,401-2,404 to 1.0, 2,045-3,632 to full parity (maintainer decisions, 2026-10-15). |
 | 2026-10-15 | 1 | PR 1.1 landed: current focus moves to PR 1.2 and PR 1.3; the navigation alpha gate row has its ST-01 evidence. |
+| 2026-10-15 | 1 | PR 1.4 landed: minimal-diff markdown write (library and atomic page writes); typing into containers and auto-save wire it to the UI. |
 | 2026-10-15 | 1 | Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15): Phase 3 404-686 hours, 1,413-2,424 to v1.0, 2,057-3,652 to full parity; calendar ranges unchanged. |
