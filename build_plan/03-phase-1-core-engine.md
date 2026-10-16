@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -44,6 +44,16 @@ Commits:
 5. `feat(ui): load navigation from a real notebook folder`
 
 PR title: `feat(storage): open a folder as a notebook`.
+
+Landed 2026-10-15 with these deviations from the plan:
+
+- The storage crate (L1) sits below the model crate (L2), so `notecraft-storage` returns its own tree types (`NotebookTree`, `TreeNode`, `SectionEntry`, `PageEntry`) and the engine converts them to model types in the new `notecraft-engine::open` module. Extra files: `notebook_dir.rs` also holds the ordering and limits; the plan's four files all exist.
+- The fifth commit also holds the engine side (`Session::open_notebook`, `file.open_notebook` scanning the folder), because the navigation reads the session, not the storage crate.
+- `file.open_notebook` with a path that does not exist keeps the Phase 0 behavior (record it, show the mock notebooks if nothing is open), so stale recent entries and the existing harness tests with made-up paths still work. A path that exists but is not a readable folder is `invalid_args`. `file.new_notebook` and `file.open` still show the mock; creating notebook files is PR 1.13.
+- Ids: a section or group id is `<notebook id>/<folder path>`, a page id is `<notebook id>/<file path>`; the notebook id is `id` from `notebook.toml`, else `dir-` plus a hash of the folder path. `notebook.toml` is only read, never created, in this PR.
+- Extra limits beyond the plan: the scan stops at 500,000 entries (warning), settings files over 1 MiB are not read, and `sections` and `pages` lists keep at most 100,000 entries. Symbolic links are not followed. Hidden names and `attachments` folders are skipped.
+- A page title is the file name without its extension until PR 1.3 reads frontmatter titles.
+- A final `docs:` commit carries the progress doc updates (build_plan/00-conventions.md section 5).
 
 ## PR 1.2: index.sqlite
 
@@ -397,4 +407,5 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Added PR 1.16 (command line info, text, check, and run on notebooks) after the maintainer decision of 2026-10-15; Phase 1 estimate 454-772 hours. |
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: PR 1.15 raised to 10-18 hours (deferred hands-on checks, gaps rank 25); Phase 1 is 456-776 hours. |
+| 2026-10-15 | 1 | PR 1.1 landed; deviations recorded under PR 1.1. |
 | 2026-10-15 | 1 | PR 1.10 landed: deviations (stroke storage moved to PR 1.9) and per-OS pressure notes added. |

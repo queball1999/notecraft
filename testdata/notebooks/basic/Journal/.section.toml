@@ -1,0 +1,10 @@
+format = 1
+kind = "section"
+color = "#3C8DBC"
+pages = [
+  { file = "Welcome.md", level = 0 },
+  { file = "Daily log.md", level = 0 },
+  { file = "Monday.md", level = 1 },
+  { file = "Morning run.md", level = 2 },
+  { file = "Tuesday.md", level = 1 },
+]

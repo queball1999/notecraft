@@ -12,6 +12,7 @@
 pub mod cmd;
 pub mod ink;
 pub mod mock;
+pub mod open;
 pub mod recent;
 pub mod session;
 pub mod view;
