@@ -39,6 +39,18 @@ fn spans_are_offset_by_base_and_survive_multibyte_text() {
 }
 
 #[test]
+fn last_list_item_and_indented_code_have_tight_spans() {
+    let text = "- one\n- two\n\ntext\n\n    code\n";
+    let blocks = parse_blocks(text, 0);
+    let Some(BlockKind::List { items, .. }) = blocks.first().map(|b| &b.kind) else {
+        panic!("expected a list");
+    };
+    assert_eq!(items.last().map(|i| i.span.slice(text)), Some("- two"));
+    // An indented code block owns its whole first line, indent included.
+    assert_eq!(blocks.get(2).map(|b| b.source(text)), Some("    code"));
+}
+
+#[test]
 fn crlf_text_keeps_spans_on_line_starts() {
     let text = "first\r\n\r\nsecond\r\n";
     let blocks = parse_blocks(text, 0);

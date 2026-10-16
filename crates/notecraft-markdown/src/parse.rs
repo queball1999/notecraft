@@ -48,6 +48,14 @@ impl<'a> Lines<'a> {
         self.starts.get(index).copied().unwrap_or(self.text.len())
     }
 
+    /// The page offset of the start of the line that holds page offset `offset`.
+    fn line_start_of(&self, offset: usize) -> usize {
+        let local = offset.saturating_sub(self.base).min(self.text.len());
+        let before = self.text.get(..local).unwrap_or("");
+        let start = before.rfind('\n').map_or(0, |i| i + 1);
+        start + self.base
+    }
+
     /// Move `offset` forward to a character boundary and clamp it to the text.
     fn snap(&self, offset: usize) -> usize {
         let mut offset = offset.min(self.text.len());
@@ -59,10 +67,17 @@ impl<'a> Lines<'a> {
 
     fn span(&self, pos: Sourcepos) -> Span {
         let start = self.snap(self.start_of(pos.start.line) + pos.start.column.saturating_sub(1));
-        // The end position is the last byte, inclusive.
-        let end = self
-            .snap(self.start_of(pos.end.line) + pos.end.column)
-            .max(start);
+        // The end position is the last byte, inclusive. Column 0 means "the line before ended
+        // the node" (comrak does this for the last item of a list), so step back over the
+        // line ending.
+        let mut end = self.snap(self.start_of(pos.end.line) + pos.end.column);
+        if pos.end.column == 0 {
+            let bytes = self.text.as_bytes();
+            while end > start && matches!(bytes.get(end - 1), Some(b'\n' | b'\r')) {
+                end -= 1;
+            }
+        }
+        let end = end.max(start);
         Span::new(start + self.base, end + self.base)
     }
 
@@ -99,10 +114,14 @@ fn blocks_of<'a>(parent: &'a AstNode<'a>, lines: &Lines<'_>, depth: usize) -> Ve
 }
 
 fn block_of<'a>(node: &'a AstNode<'a>, lines: &Lines<'_>, depth: usize) -> Option<Block> {
-    let (span, value) = {
+    let (mut span, value) = {
         let data = node.data.borrow();
         (lines.span(data.sourcepos), data.value.clone())
     };
+    // comrak starts an indented code block after its indent; the block owns the whole line.
+    if matches!(&value, NodeValue::CodeBlock(code) if !code.fenced) {
+        span.start = lines.line_start_of(span.start);
+    }
     if depth >= MAX_DEPTH {
         return Some(Block {
             span,
