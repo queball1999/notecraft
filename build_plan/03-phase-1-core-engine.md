@@ -229,6 +229,28 @@ Commits:
 
 PR title: `feat(engine): add undo and redo`.
 
+### PR 1.8 notes: deviations and open questions
+
+Built on `feat/undo` (2026-10-15), on top of `feat/markdown-read`. What differs from the steps above:
+
+- The design is in docs/architecture.md section 5. Transactions are `notecraft_engine::undo::Transaction` (scope, label, merge mode, ops); `Session::commit`, `undo`, `redo`, `can_undo`, and `can_redo` are the API. Ops so far: `InsertStroke`, `DeleteStroke`, `ReplaceText`, `SetPageStyle`, `MovePage`. Later PRs add ops (PR 1.13 will want create, rename, and delete).
+- Merge into the previous step (maintainer decision, 2026-10-15): `Transaction::merge_into_previous()`. The stroke eraser in PR 1.11 builds its first erase as an ordinary step and each further stroke of the same drag with this flag. Tested directly (`a_merged_transaction_undoes_with_the_previous_one` and neighbors). A merge never crosses stacks, and after an undo it joins the step that is then on top.
+- Typing coalescing is built and tested against `Session::edit_page_text(page, at, remove_len, inserted, typing)`, not against a command, because container text editing is PR 1.5. That PR calls it from its commands. The rule: a word and the space after it are one step; Backspace or Delete runs coalesce; a run caps at 512 bytes; a moved caret, another kind of step, or an undo starts a new step. There is no clock: the plan did not ask for a pause timeout, and a pure rule is easier to test. Add one in PR 1.5 if hand testing wants it.
+- Notebook-level steps are `Scope::Notebook` transactions with `MovePage` and any other ops. `Session::move_page` is the move API for PR 1.13; it clamps the index and records one step. Rename with link updates (Phase 2) is a notebook transaction of one move plus `ReplaceText` ops, tested as `a_cross_page_command_undoes_as_one_step`.
+- Which stack Undo uses: the newest step among the shown page's stack and the notebook stack. A notebook step is therefore undoable from any page, and page and notebook steps undo in the order they happened.
+- The command guard still restores a snapshot of the session, and the snapshot now includes the history (entries are `Arc`s, so cloning it copies pointers). A panic or error after a command recorded a step restores the stacks too (`a_rolled_back_command_leaves_the_history_as_it_was`). Replacing the snapshot with transaction rollback is possible now that every change is an op, but is not needed yet; docs/architecture.md section 6 says when to revisit it.
+- `view.rule_lines`, `view.page_color`, and `view.paper_size` were marked undoable in Phase 0 but did not record anything; they now record `SetPageStyle`. `InkLayer::insert` (notecraft-canvas) puts a stroke back at its paint-order index.
+- The test "undo and redo every Phase 1 command" is a table (`UNDO_CASES`): every Ready, undoable command must have a row, and each row is checked to undo, redo, and chain exactly. A later PR that makes a command Ready and undoable fails the test until it adds a row.
+- Shortcuts: Ctrl+Z and Ctrl+Y are the commands' `default_shortcut`; Ctrl+Shift+Z is a second binding (`shortcuts::ALIASES`). Matching tries more modifiers first, so Ctrl+Shift+Z does not fire Undo.
+- UI: Phase 0 had no Undo or Redo buttons anywhere (the Quick Access Toolbar, SH-16, is Phase 3). Undo and Redo icon buttons now sit at the right of the tab strip, disabled while their stack is empty. They are not the customizable toolbar.
+- History tab: not built. NoteCraft's History tab has OneNote's contents (Next Unread, Mark as Read, Show Unread, Find by Author, Hide Authors, Page Versions, Notebook Recycle Bin, Recent Edits), and OneNote shows no undo list anywhere, so a stack view would be an extra. `History::undo_steps` and `redo_steps` return the labeled steps if a view is ever wanted; a list would go to docs/post-parity.md.
+
+Decisions on the open questions (coordinator, 2026-10-15):
+
+- A typing pause ending a word step is decided in PR 1.5, when real typing exists.
+- A notebook-level redo surviving a page edit is fine as built.
+- No toast when PR 1.7 drops a stale step after an outside edit; a log line is enough.
+
 ## PR 1.9: `.notecraft` pages
 
 | | |

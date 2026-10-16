@@ -1,7 +1,6 @@
 //! The editing session: the state commands read and change. Phase 0 holds the view state,
 //! the open notebooks (read from disk, or the mock notebooks until one is opened), which notebook,
-//! section, and page are shown, and each page's style; page content and undo history land
-//! in Phase 1.
+//! section, and page are shown, each page's style and strokes, and the undo history (`undo`).
 
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
@@ -12,6 +11,7 @@ use notecraft_storage::{read_page_file, PageReadError};
 use crate::ink::InkState;
 use crate::mock;
 use crate::recent::Recents;
+use crate::undo::History;
 use crate::view::{PageStyle, ViewState};
 
 /// Which notebook, section, and page are shown, by id.
@@ -58,6 +58,7 @@ pub struct Session {
     notebook_roots: BTreeMap<String, PathBuf>,
     recents: Recents,
     ink: InkState,
+    pub(crate) history: History,
 }
 
 impl Session {
@@ -89,6 +90,10 @@ impl Session {
         &self.notebooks
     }
 
+    pub(crate) fn notebooks_mut(&mut self) -> &mut [Notebook] {
+        &mut self.notebooks
+    }
+
     /// Replace the open notebooks and show the first page of the first section of the first
     /// notebook.
     pub fn set_notebooks(&mut self, notebooks: Vec<Notebook>) {
@@ -100,6 +105,7 @@ impl Session {
             page: section.and_then(|s| s.pages.first()).map(|p| p.id.clone()),
         };
         self.notebooks = notebooks;
+        self.history.clear();
     }
 
     /// Open `notebook` read from disk and show it. The mock notebooks are dropped. A notebook
@@ -252,6 +258,11 @@ impl Session {
         self.page_sources.insert(id.to_owned(), (next, text.into()));
     }
 
+    /// The source text of page `id`, if it has any.
+    pub fn page_text(&self, id: &str) -> Option<&str> {
+        self.page_sources.get(id).map(|(_, text)| text.as_str())
+    }
+
     /// The source text of the page shown now, with a number that changes whenever the text
     /// does (for caching what is derived from it).
     pub fn current_page_source(&self) -> Option<PageSource<'_>> {
@@ -292,18 +303,19 @@ impl Session {
         &mut self.recents
     }
 
-    /// Set the style of the page shown now. Returns false, changing nothing, when no page
-    /// is shown.
-    pub(crate) fn set_page_style(&mut self, style: PageStyle) -> bool {
-        let Some(id) = self.selection.page.clone() else {
-            return false;
-        };
+    /// The style of page `id` (the default style for a page that never had one set).
+    pub(crate) fn style_of(&self, id: &str) -> PageStyle {
+        self.page_styles.get(id).copied().unwrap_or_default()
+    }
+
+    /// Set the style of page `id`.
+    pub(crate) fn set_style_of(&mut self, id: &str, style: PageStyle) {
+        let id = id.to_owned();
         if style == PageStyle::default() {
             self.page_styles.remove(&id);
         } else {
             self.page_styles.insert(id, style);
         }
-        true
     }
 }
 

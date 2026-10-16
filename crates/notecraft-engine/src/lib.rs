@@ -15,6 +15,7 @@ pub mod mock;
 pub mod open;
 pub mod recent;
 pub mod session;
+pub mod undo;
 pub mod view;
 
 pub use ink::{DrawTool, InkState, PenStyle};

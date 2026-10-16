@@ -80,6 +80,9 @@ pub struct Look<'a> {
     /// The pen in use (the Draw tab's Pen is the tool): its color as 0xRRGGBB and its width in
     /// points. The pen, color, and thickness menus mark the entry that matches.
     pub pen: Option<ActivePen>,
+    /// Whether Undo and Redo have a step; the quick access buttons are disabled when not.
+    pub can_undo: bool,
+    pub can_redo: bool,
 }
 
 /// The pen the Draw tab has selected, for marking it in the menus.
@@ -311,6 +314,8 @@ impl Ribbon {
                 self.selected = event.index;
             }
         }
+
+        out.extend(tab::show_quick_access(ui, strip, look));
 
         let keys = KeyFrame {
             tips: match self.keytips.mode {
