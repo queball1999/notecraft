@@ -4,8 +4,12 @@
 
 pub mod capture;
 pub mod filter;
+pub mod index;
+pub mod layer;
 pub mod tessellate;
 
 pub use capture::{velocity_pressures, CaptureParams, StrokeBuilder};
 pub use filter::{OneEuro, OneEuroParams};
+pub use index::GridIndex;
+pub use layer::{stroke_distance, InkLayer, MAX_STROKES};
 pub use tessellate::{tessellate, width_at, StrokeMesh, TessParams};
