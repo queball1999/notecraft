@@ -22,3 +22,9 @@ Rust dependencies are tracked in `Cargo.lock`; only crates under MIT, Apache-2.0
 |---|---|---|---|
 | `packaging/` | Scripts, WiX installer, Linux and macOS metadata adapted from [GridCraft](https://github.com/storytold/gridcraft) `packaging/`. Copyright (c) 2026 ArtCraft Team and the GridCraft contributors | MIT OR Apache-2.0 | Renamed for NoteCraft; new MSI GUIDs; file types, descriptions, and links rewritten; GridCraft DMG artwork not included |
 | `xtask/src/` | Command layout, process helpers, and CI step summary adapted from the [GridCraft](https://github.com/storytold/gridcraft) xtask. Copyright (c) 2026 ArtCraft Team and the GridCraft contributors | MIT OR Apache-2.0 | Rewritten for NoteCraft; no code copied verbatim |
+
+### Dependency licenses worth noting
+
+| Crate | License | Notes |
+|---|---|---|
+| `comrak` | BSD-2-Clause | Markdown parser behind `notecraft-markdown` (PR 1.3). Permissive and compatible with MIT OR Apache-2.0; its copyright notice must travel with binary releases. Builds for `wasm32-unknown-unknown` (checked by `cargo xtask wasm`). |
