@@ -2,6 +2,7 @@
 //! docs/architecture.md section 4). The ribbon, shortcuts, and the UI test control channel
 //! all dispatch by id through [`Registry::run`].
 
+mod attach;
 mod builtin;
 mod canvas;
 mod draw;

@@ -146,6 +146,8 @@ command_ids! {
     INSERT_FILE_PRINTOUT = "insert.file_printout";
     /// Insert a picture from a file.
     INSERT_PICTURE = "insert.picture";
+    /// Open an attached file in its default app.
+    ATTACHMENT_OPEN = "attachment.open";
     /// Capture part of the screen and insert it as a picture.
     INSERT_SCREEN_CLIPPING = "insert.screen_clipping";
     /// Insert a link to a web page, file, or another page.

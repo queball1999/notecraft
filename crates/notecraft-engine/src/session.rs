@@ -8,6 +8,10 @@ use std::path::{Component, Path, PathBuf};
 use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError};
 
+mod attach;
+
+pub use attach::{AttachKind, Attached, InsertError};
+
 use crate::ink::InkState;
 use crate::mock;
 use crate::recent::Recents;
