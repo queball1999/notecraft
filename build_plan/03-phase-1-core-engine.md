@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.4 done; deviations noted under PR 1.4.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -95,7 +95,7 @@ PR title: `feat(markdown): read and render markdown pages`.
 
 Done (2026-10-15), with these deviations from the steps above:
 
-- PR 1.1 was built in parallel, so the canvas does not read files. The seam is `Session::set_page_source(page_id, text)` (also `AppShell::set_page_source`); the mock Welcome page carries a sample until PR 1.1 calls it. FM-01 is scored P until then.
+- PR 1.1 was built in parallel, so the canvas does not read files. The seam is `Session::set_page_source(page_id, text)` (also `AppShell::set_page_source`); the mock Welcome page carries a sample. FM-01 was scored P until the follow-up "page text from disk" change (branch `feat/page-text-from-disk`) landed: `notecraft-storage::read_page_file` (bounded at 64 MiB, lossy UTF-8) and `Session::load_current_page`, which the command registry calls after every command, read the shown `.md` page of a notebook opened with `file.open_notebook` and call `set_page_source`. A page cut at the cap is read-only; an unreadable page gets a short error line on the canvas (`Session::current_page_notice`). Reads are synchronous until PR 1.7 (auto-save and outside edits). FM-01 is now D.
 - Block model for PR 1.4: `Block { span, kind }` with `Span { start, end }` as page byte offsets (end exclusive). Lists keep one `ListItem` span per item and tables one span per cell. The comrak positions needed two fixes (last list item reached past its line; an indented code block started after its indent), covered by the golden tests. Inline runs carry no spans, so PR 1.4 edits at block, item, and cell level.
 - Task lists are a `ListKind::Task` list whose items carry `task: Some(checked)`, not a separate block type.
 - The frontmatter reader is hand-written (no YAML crate). A value outside the subset (block scalars, deeper maps, flow maps) becomes `Value::Raw`, and every entry keeps its source span so PR 1.4 can rewrite single keys.
@@ -127,7 +127,7 @@ Done (2026-10-15), with these deviations from the steps above:
 - The write side is an `Editor` over the original text. Callers hand it spans from the parsed `Document` (block, list item, table cell, frontmatter entry) and new markdown; `finish()` splices and returns the page. A replacement that equals the bytes already there is dropped, so putting back a span's own text is a no-op even in a file with mixed line endings. New text takes the file's dominant line ending (LF on a tie).
 - Edit granularity matches the PR 1.3 block model: block, list item, table cell, and top-level frontmatter key. Inline runs have no spans, so text editing in containers (PR 1.5) replaces the whole block.
 - `canonical.rs` serializes a `Block` tree (and a whole fresh page with frontmatter) in the canonical style: ATX headings, `-` bullets, `1.` numbering, `*`/`**`/`~~` emphasis, backtick fences that grow past backticks in the code, and escapes for text that would read as another block. Existing text is never re-serialized through it.
-- `notecraft-storage::page_file` is the minimal save path: `read_page_text` (lossy UTF-8, 64 MiB cap) and `write_page_text` (craft-atomic, skips the write when the bytes are unchanged). L1 does not depend on L3, so it moves text, not blocks. The engine-facing save path, auto-save, and the conflict check stay in PR 1.7.
+- `notecraft-storage::page_file` is the minimal save path: `read_page_file` (PR 1.1 page text read: lossy UTF-8, 64 MiB cap) beside `write_page_text` (craft-atomic, skips the write when the bytes are unchanged). L1 does not depend on L3, so it moves text, not blocks. The engine-facing save path, auto-save, and the conflict check stay in PR 1.7.
 - The corpus is `testdata/markdown/corpus/` (73 original pages: CRLF, BOM, lone CR, mixed endings, unusual list markers, setext headings, frontmatter shapes, hostile input, and seeded generated pages), kept byte-exact by a `-text` rule in `.gitattributes`. The property tests also run each page with CRLF endings and use a small seeded generator instead of a new crate.
 - `craft-atomic` was added to the workspace dependencies at the pinned craft-libs commit.
 

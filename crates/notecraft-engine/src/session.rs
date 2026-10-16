@@ -4,8 +4,10 @@
 //! in Phase 1.
 
 use std::collections::BTreeMap;
+use std::path::{Component, Path, PathBuf};
 
 use notecraft_model::{Notebook, PageRef, Section};
+use notecraft_storage::{read_page_file, PageReadError};
 
 use crate::ink::InkState;
 use crate::mock;
@@ -29,6 +31,15 @@ pub struct PageSource<'a> {
     pub text: &'a str,
 }
 
+/// Why the page shown now cannot be edited or did not read cleanly. It is shown on the canvas
+/// as a short plain-text line.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PageNotice {
+    pub text: String,
+    /// The page must not be edited or saved over (it was cut short, or it did not read).
+    pub read_only: bool,
+}
+
 /// Everything a command can see and change. Commands run on the thread that owns it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Session {
@@ -41,6 +52,10 @@ pub struct Session {
     /// Markdown source text by page id, with a counter that goes up on every change. Pages
     /// missing here have no text. Phase 1 fills this from the folder reader (PR 1.1).
     page_sources: BTreeMap<String, (u64, String)>,
+    /// Notices from reading page files, by page id. A page with a notice has been tried.
+    page_notices: BTreeMap<String, PageNotice>,
+    /// The folder of each notebook read from disk, by notebook id.
+    notebook_roots: BTreeMap<String, PathBuf>,
     recents: Recents,
     ink: InkState,
 }
@@ -114,6 +129,87 @@ impl Session {
             section: section.map(|s| s.id.clone()),
             page: section.and_then(|s| s.pages.first()).map(|p| p.id.clone()),
         };
+    }
+
+    /// Remember the folder `notebook_id` was read from, so its pages can be read from disk.
+    pub fn set_notebook_root(&mut self, notebook_id: &str, folder: &Path) {
+        self.notebook_roots
+            .insert(notebook_id.to_owned(), folder.to_path_buf());
+        // Pages of a notebook that is opened again are read again.
+        let prefix = format!("{notebook_id}/");
+        self.page_sources.retain(|id, _| !id.starts_with(&prefix));
+        self.page_notices.retain(|id, _| !id.starts_with(&prefix));
+    }
+
+    /// Read the page shown now from disk if it comes from a notebook folder and has not been
+    /// read yet, and hand its text to [`Self::set_page_source`]. Only `.md` pages are read. A
+    /// page cut at the size cap is read-only; one that cannot be read gets a short error
+    /// notice. Never fails and never panics. Returns whether a read was tried.
+    pub fn load_current_page(&mut self) -> bool {
+        let Some(page_id) = self.selection.page.clone() else {
+            return false;
+        };
+        if self.page_sources.contains_key(&page_id) || self.page_notices.contains_key(&page_id) {
+            return false;
+        }
+        let Some(notebook_id) = self.selection.notebook.as_deref() else {
+            return false;
+        };
+        let Some(root) = self.notebook_roots.get(notebook_id) else {
+            return false;
+        };
+        let Some(rel) = page_id
+            .strip_prefix(notebook_id)
+            .and_then(|rest| rest.strip_prefix('/'))
+        else {
+            return false;
+        };
+        let rel = Path::new(rel);
+        let is_markdown = rel
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+        if !is_markdown {
+            return false;
+        }
+        let notice = |text: &str| PageNotice {
+            text: text.to_owned(),
+            read_only: true,
+        };
+        if !rel.components().all(|c| matches!(c, Component::Normal(_))) {
+            let text = "This page could not be opened: its path is not valid.";
+            self.page_notices.insert(page_id, notice(text));
+            return true;
+        }
+        match read_page_file(&root.join(rel)) {
+            Ok(page) => {
+                if let Some(text) = page.warning() {
+                    let read_only = page.truncated;
+                    self.page_notices
+                        .insert(page_id.clone(), PageNotice { text, read_only });
+                }
+                self.set_page_source(&page_id, page.text);
+            }
+            Err(err) => {
+                tracing::warn!(page = %page_id, "cannot read page: {err}");
+                let text = match err {
+                    PageReadError::NotFound => {
+                        "This page could not be opened: the file is missing."
+                    }
+                    PageReadError::NotAFile => "This page could not be opened: it is not a file.",
+                    PageReadError::Io(_) => {
+                        "This page could not be opened: the file cannot be read."
+                    }
+                };
+                self.page_notices.insert(page_id, notice(text));
+            }
+        }
+        true
+    }
+
+    /// The notice for the page shown now: a read-only or error line, if it has one.
+    pub fn current_page_notice(&self) -> Option<&PageNotice> {
+        self.page_notices.get(self.selection.page.as_deref()?)
     }
 
     pub fn selection(&self) -> &Selection {
@@ -232,5 +328,85 @@ mod page_source_tests {
         // A page without text shows none.
         session.selection_mut().page = Some("p-grocery".to_owned());
         assert_eq!(session.current_page_source(), None);
+    }
+}
+
+#[cfg(test)]
+mod page_load_tests {
+    use super::*;
+    use crate::open::open_folder;
+
+    fn open(dir: &tempfile::TempDir) -> Session {
+        let mut session = Session::new();
+        let opened = open_folder(dir.path()).expect("scan");
+        let id = opened.notebook.id.clone();
+        session.open_notebook(opened.notebook);
+        session.set_notebook_root(&id, dir.path());
+        session
+    }
+
+    fn notebook(files: &[(&str, &[u8])]) -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        for (name, bytes) in files {
+            let path = dir.path().join(name);
+            std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+            std::fs::write(path, bytes).expect("write");
+        }
+        dir
+    }
+
+    #[test]
+    fn the_shown_page_is_read_once_from_disk() {
+        let dir = notebook(&[("Sec/A.md", b"# Hello\n")]);
+        let mut session = open(&dir);
+        assert!(session.load_current_page());
+        let source = session.current_page_source().expect("text");
+        assert_eq!(source.text, "# Hello\n");
+        let rev = source.revision;
+        assert_eq!(session.current_page_notice(), None);
+        // Already read: nothing happens, even if the file changes.
+        std::fs::write(dir.path().join("Sec/A.md"), "changed").expect("write");
+        assert!(!session.load_current_page());
+        assert_eq!(session.current_page_source().expect("text").revision, rev);
+    }
+
+    #[test]
+    fn a_missing_page_file_gets_an_error_notice() {
+        let dir = notebook(&[("Sec/A.md", b"x")]);
+        let mut session = open(&dir);
+        std::fs::remove_file(dir.path().join("Sec/A.md")).expect("remove");
+        assert!(session.load_current_page());
+        assert_eq!(session.current_page_source(), None);
+        let notice = session.current_page_notice().expect("notice");
+        assert!(
+            notice.read_only && notice.text.contains("missing"),
+            "{notice:?}"
+        );
+        assert!(!session.load_current_page());
+    }
+
+    #[test]
+    fn bad_bytes_show_text_with_a_warning_and_stay_editable() {
+        let dir = notebook(&[("Sec/A.md", b"ok \xff")]);
+        let mut session = open(&dir);
+        session.load_current_page();
+        assert_eq!(
+            session.current_page_source().expect("text").text,
+            "ok \u{fffd}"
+        );
+        let notice = session.current_page_notice().expect("notice");
+        assert!(!notice.read_only);
+    }
+
+    #[test]
+    fn mock_pages_and_other_file_types_are_not_read() {
+        let mut session = Session::new();
+        session.set_notebooks(crate::mock::notebooks());
+        assert!(!session.load_current_page());
+        let dir = notebook(&[("Sec/Sketch.notecraft", b"PK")]);
+        let mut session = open(&dir);
+        assert!(!session.load_current_page());
+        assert_eq!(session.current_page_source(), None);
+        assert_eq!(session.current_page_notice(), None);
     }
 }

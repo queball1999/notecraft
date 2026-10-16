@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -26,10 +26,10 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Text | 0 | 0 | 12 | 12 | 0% |
 | Structure | 1 | 0 | 11 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
-| Format | 0 | 3 | 6 | 9 | 0% |
+| Format | 1 | 2 | 6 | 9 | 11% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 35 | 5 | 73 | 113 | 30% |
+| Total | 36 | 4 | 73 | 113 | 31% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -168,7 +168,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| FM-01 | Format | Read `.md` pages | 1 | P | PR 1.3: notecraft-markdown parses a page into blocks with exact source spans (golden tests on 6 sample pages, hostile-input tests) and the canvas renders them in flow layout (harness test); reading page files from a notebook folder waits for PR 1.1 |
+| FM-01 | Format | Read `.md` pages | 1 | D | PR 1.3: notecraft-markdown parses a page into blocks with exact source spans (golden tests on 6 sample pages, hostile-input tests) and the canvas renders them in flow layout (harness test); opening a folder reads the shown page from disk through notecraft-storage (64 MiB cap, lenient UTF-8, read-only when cut short, short error on the canvas when unreadable). Tests: page_file storage unit tests, session page_load_tests, opened_pages_show_their_text_from_disk, an_unreadable_page_shows_a_short_error_on_the_canvas |
 | FM-02 | Format | Write `.md` pages with minimal diffs | 1 | P | PR 1.4: edits are span replacements on the original text (blocks, list items, table cells, frontmatter keys); canonical serializer for new blocks; atomic page writes in notecraft-storage; property tests over 73 corpus pages and CRLF copies (byte-identical round trip, edits touch only their span); saving from the editor waits for PR 1.5 and 1.7 |
 | FM-03 | Format | Read and write `.notecraft` pages (containers, canvas block) | 1 | M | |
 | FM-04 | Format | Frontmatter read and write | 1 | P | PR 1.3: bounded YAML-subset frontmatter reader (scalars, lists, one level of maps, 64 KiB cap, unknown keys kept as raw text; unit and hostile-input tests); PR 1.4 added the write side (set and remove keys rewrite only their own lines); reading and saving real page files waits for PR 1.1 and 1.7 |
@@ -235,5 +235,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 0 | Phase 0 close (maintainer decisions, 2026-10-15): SH-01, SH-05, SH-12, SH-15, and TH-06 scored D on the Windows evidence (SH-01 also on the maintainer's Linux run), and SH-14 stays D, with their macOS, Linux dark mode, physical keyboard, screen reader, and real OS dialog runs moved to one deferred hands-on checks gap in docs/gaps.md; SH-04 reworded to the Coming Soon tooltip and toast and scored D (the per-button badge stays dropped); SH-12 scored D on the harness tests. |
 | 2026-10-15 | 1 | ST-01 scored D and SH-06 evidence updated: the folder reader and the real navigation tree (PR 1.1). |
 | 2026-10-15 | 1 | IN-01 and IN-02 scored P and IN-03 scored D (PR 1.10, ink engine and pen): pen, smoothing, and stroke capture work and are tested with synthetic events; saving strokes waits for PR 1.9 and no real pen has been tried. |
+| 2026-10-15 | 1 | Page text from disk: FM-01 scored D (the shown page of an opened folder is read and rendered). |
 | 2026-10-15 | 1 | PR 1.3: FM-01 scored P (page text parses into blocks and renders in flow layout; folder reading waits for PR 1.1); FM-04 scored P (frontmatter read; write waits for PR 1.4). |
 | 2026-10-15 | 1 | PR 1.4: FM-02 scored P (span-replacement write, canonical serializer, atomic page write; editor wiring waits for PR 1.5 and 1.7); FM-04 evidence updated for the frontmatter write. |

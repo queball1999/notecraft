@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.4 landed; rank 16 removed, the write is wired to saving under rank 18.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: duplicate rank 15 and 16 rows from a merge removed; page text read from disk when a page is shown (FM-01); PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write; also: PR 1.4 landed; rank 16 removed, the write is wired to saving under rank 18.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -15,7 +15,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
-| 15 | No notebook index (the folder reader landed in PR 1.1) | ST-07 | 18-30 | build_plan/03, PR 1.2 |
+| 15 | No notebook index (the folder reader and reading page text from disk have landed) | ST-07 | 18-30 | build_plan/03, PR 1.2 |
 | 17 | No text editing in containers | TX-01 to TX-06, CV-04 to CV-06 | 104-180 | build_plan/03, PR 1.5, 1.6 |
 | 18 | No auto-save, crash recovery, outside edit handling (also wires the minimal-diff write, PR 1.4, into page saving; FM-02 and FM-04 stay P until then) | FM-05 to FM-07 (plus FM-02, FM-04) | 24-40 | build_plan/03, PR 1.7 |
 | 19 | No undo and redo | ST-08 | 20-34 | build_plan/03, PR 1.8 |
@@ -92,6 +92,7 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-15 | 0 | Rank 11 narrowed: dotted paper kept as an extra and built with the ruled margin line (CV-03 done); only the real pinch check remains. |
 | 2026-10-15 | 0 | Phase 0 close (maintainer decisions, 2026-10-15): ranks 6, 9, 11, and 14 removed; their rows (SH-01, SH-05, SH-14, SH-15, TH-06) are scored D on the Windows evidence and the hands-on checks move to one new gap, rank 25, to do before the v0.1.0 alpha (2-4 hours, PR 1.15). SH-04 scored D with the per-button badge dropped for good. Dotted paper stays a kept extra. Rank 12 (OS dialogs, SH-12) also removed on the same decision: SH-12 is scored D on the harness tests and the real-dialog check joins rank 25; the Linux launch was checked by the maintainer. |
 | 2026-10-15 | 1 | Rank 15 narrowed to the index (ST-07, 18-30 hours): the notebook folder reader landed (PR 1.1). |
+| 2026-10-15 | 1 | Page text from disk landed (FM-01 done): a page shown from an opened folder is read through notecraft-storage (64 MiB cap, lenient UTF-8) and fed to the canvas. Duplicate rank 15 and 16 rows from a merge removed; rank 15 is the index only, rank 16 the minimal-diff write only. |
 | 2026-10-15 | 1 | Rank 21 narrowed: pen, smoothing, stroke capture, tessellation, and the spatial index landed (PR 1.10); real-pen checks added to rank 25; pressure risk updated. |
-| 2026-10-15 | 1 | Rank 16 shrunk: markdown read, frontmatter read, and flow-layout rendering landed (PR 1.3); only the minimal-diff write remains. Rank 15 now also carries FM-01 (reading page files into the canvas). |
+| 2026-10-15 | 1 | Rank 16 shrunk: markdown read, frontmatter read, and flow-layout rendering landed (PR 1.3); only the minimal-diff write remains. |
 | 2026-10-15 | 1 | Rank 16 removed: the minimal-diff markdown write landed (PR 1.4: span-replacement editor, canonical serializer, atomic page writes). FM-02 and FM-04 stay P until PR 1.7 saves pages from the editor; that is noted on rank 18. The duplicated rank 15 and 16 lines left by the merge were dropped. |
