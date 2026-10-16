@@ -18,7 +18,12 @@ pub mod notebook_dir;
 pub mod notebook_toml;
 pub mod page_file;
 pub mod paths;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod reader;
+pub mod recovery;
 pub mod section_toml;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod watch;
 
 pub use notebook_dir::{
     scan_notebook, scan_notebook_with, GroupEntry, NotebookTree, PageEntry, PageKind, ScanError,
@@ -29,4 +34,5 @@ pub use page_file::{
     read_page_file, read_page_file_with, write_page_text, PageReadError, PageText, WriteOutcome,
     MAX_PAGE_BYTES,
 };
+pub use recovery::{Journal, RecoveryEntry};
 pub use section_toml::{PageListing, SectionConfig, SectionKind};

@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; PR 1.2 landed (rebuildable notebook index).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.7: dirty tracking, auto-save, recovery journal, and outside edit handling (sections 3.2 to 3.4, 7); ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -80,9 +80,21 @@ ribbon click, shortcut, gesture, or control channel (tests)
   -> notecraft-markdown serializes with minimal diffs; notecraft-storage writes via craft-atomic
 ```
 
+Dirty tracking (PR 1.7) is a set of page ids in the session. The call an editing path makes is `Session::mark_page_dirty(page_id)`; it ignores pages with no file (the sample notebooks). Anything that goes through `Session::commit`, `undo`, or `redo` already calls it for page text (`ReplaceText`) and strokes (`InsertStroke`, `DeleteStroke`), so PR 1.5 only has to call `edit_page_text` or `commit`; a path that changes page content some other way calls `mark_page_dirty` itself. `Session::save_page(id)` and `save_dirty()` write the page text (strokes join in PR 1.9) with `write_page_text` and return a `SaveOutcome`. Rules: a page whose `PageNotice` is read-only is never written; a page whose file changed since NoteCraft last read or wrote it is not written over (the file is read first and compared by hash; a difference becomes a conflict, section 3.3); a failed write leaves the page dirty.
+
+`notecraft_engine::io::SessionIo` is the clock and the threads. The front end calls `pump(session, now, focused)` once per frame and `flush(session)` on quit. It saves every 30 s (`AUTOSAVE_EVERY`), when focus is lost, and when another page is shown; it keeps the recovery journal fresh every 2 s; and it owns the watcher and the page reader. `AppShell::with_io` turns it on (the desktop app does; tests do not, so they read pages inline and never write). The quit path is the close request seen in `AppShell::logic` plus the app's `on_exit`, both calling `flush_unsaved`; on macOS, `on_exit` ends the process after the flush (craft-quit). Saves run on the UI thread (a save is one small atomic write); reads do not.
 ### 3.3 Outside edits
 
-The watcher (`notify`) reports a changed page. If NoteCraft has no unsaved edits to it, NoteCraft reloads it. If it does, NoteCraft keeps both: the user's version stays open, and a bar offers to compare, keep mine, or take theirs. Nothing is overwritten silently.
+The watcher (`notify`, `notecraft_storage::watch::FolderWatcher`) reports changed paths after the folder has been quiet for 300 ms. NoteCraft's own saves show up too; the session tells them apart by comparing a hash of the file text with the hash of what it last read or wrote, so they change nothing. `Session::note_outside_change(path)` maps a path to a page and queues a read; the read happens on the reader thread (`notecraft_storage::reader::PageReader`), and `Session::finish_read` applies it.
+
+- A page with no unsaved edits reloads. Its undo steps refer to the old text, so they are dropped; this is logged, with no toast (maintainer decision, 2026-10-15).
+- A page with unsaved edits keeps the user's text. The outside version is held (`Session::current_conflict`) and a bar over the page offers Keep my version (`file.keep_my_version`: the next save replaces the file) or Use outside version (`file.use_outside_version`: the text is replaced, undo steps dropped). The page is not saved while the question is open, and its text stays in the recovery journal. If the outside version equals the user's text there is nothing to ask. Nothing is overwritten silently. A side-by-side Compare is not built: OneNote has none.
+- A page that is shown but not yet read, or that failed to read, just reads again when it is next shown.
+- Page loading uses the same reader thread: with `Session::set_background_reads(true)` (which `SessionIo` sets), `load_current_page` queues a `ReadRequest` instead of reading inline, and the page appears when the answer arrives. With it off (tests, the command line), reads are inline.
+
+### 3.4 Crash recovery
+
+`notecraft_storage::Journal` keeps one JSON file per unsaved page in `recovery/` inside the settings folder, named by a hash of the page file's path, written with craft-atomic. `SessionIo` refreshes an entry every 2 s while the page text changes and deletes it when the page is saved, replaced by the outside version, or discarded; on quit it also journals any page that could not be saved (for example one in conflict). When a notebook folder is opened, entries for pages in it are compared with the files; an entry that equals its file is deleted, any other is offered (`Session::pending_recovery`) on a bar with Restore (`file.restore_unsaved`: the text comes back as unsaved changes) and Discard (`file.discard_unsaved`). Entries for notebooks that are not open wait. The journal reads at most 2,000 entries and skips any that do not parse.
 
 ## 4. Commands
 
@@ -98,7 +110,7 @@ The watcher (`notify`) reports a changed page. If NoteCraft has no unsaved edits
 
 - Page text (PR 1.3) enters the session through `Session::set_page_source(page_id, text)`, which is not a command: `Session::load_current_page` calls it after every command when the page shown comes from a notebook folder and has not been read yet (read through `notecraft_storage::read_page_file`, bounded at 64 MiB; a cut or unreadable page gets a `PageNotice` the canvas draws under the title). The canvas parses the text of the page shown with `notecraft_markdown::parse` (frontmatter, then blocks that keep their source byte spans), caches the result per page and text revision, and draws the blocks in flow layout from theme tokens. The markdown crate has no egui types; `canvas/flow.rs` is the only place blocks meet the painter.
 
-- Page writing (PR 1.4): `notecraft_markdown::Editor` collects span replacements against the page text and `finish()` splices them, so bytes outside the edited spans never change; `canonical` serializes new blocks. `notecraft_storage::page_file::write_page_text` writes the result through `craft-atomic` and skips the write when the bytes are unchanged. Auto-save and the conflict check come with PR 1.7.
+- Page writing (PR 1.4): `notecraft_markdown::Editor` collects span replacements against the page text and `finish()` splices them, so bytes outside the edited spans never change; `canonical` serializes new blocks. `notecraft_storage::page_file::write_page_text` writes the result through `craft-atomic` and skips the write when the bytes are unchanged. Auto-save, the recovery journal, and the conflict check landed in PR 1.7 (sections 3.2 to 3.4).
 
 ## 5. Undo and redo
 
@@ -124,7 +136,7 @@ A change to the document is a `Transaction` (`notecraft_engine::undo`): a labele
 | Thread | Does |
 |---|---|
 | UI (main) | egui frame, input, command dispatch |
-| IO worker | file reads and writes, index updates, reindexing |
+| IO worker | page file reads (PR 1.7), index updates, reindexing |
 | Watcher | file system events, debounced and forwarded to the IO worker |
 | Control listener (tests only, `--control`) | accepts connections, forwards commands to the UI thread through a channel |
 
@@ -224,8 +236,9 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | 2026-10-15 | 0 | CLI and MCP server are in the build plan, not post-parity. |
 | 2026-10-15 | 1 | Section 4: ink capture, strokes, and pen commands (PR 1.10). |
 | 2026-10-15 | 1 | Section 4: page text enters through `Session::set_page_source` (one page id and its source text; the folder reader calls it in PR 1.1); the canvas parses with `notecraft_markdown::parse`, caches the result per page and text revision, and lays blocks out in flow layout (PR 1.3). |
-| 2026-10-15 | 1 | Section 4: page writing is span replacements (`Editor`) plus `page_file::write_page_text` over craft-atomic (PR 1.4). |
 | 2026-10-15 | 1 | Section 4: page text is read from disk by `Session::load_current_page` (storage `read_page_file`), with a `PageNotice` for cut or unreadable pages. |
-| 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |
-| 2026-10-15 | 1 | Sections 5 and 6: transactions, stacks, merge, typing coalescing, notebook-level steps, and the guard restoring the history (PR 1.8). |
 | 2026-10-15 | 1 | Index design (PR 1.2): rebuild on corruption, incremental refresh, background worker, native only. |
+| 2026-10-15 | 1 | Section 4: page writing is span replacements (`Editor`) plus `page_file::write_page_text` over craft-atomic (PR 1.4). |
+| 2026-10-15 | 1 | Sections 5 and 6: transactions, stacks, merge, typing coalescing, notebook-level steps, and the guard restoring the history (PR 1.8). |
+| 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |
+| 2026-10-16 | 1 | Sections 3.2 to 3.4 and 7: dirty tracking, timed and event saves, the recovery journal, the folder watcher, and page reads on a worker thread (PR 1.7). |
