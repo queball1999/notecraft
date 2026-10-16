@@ -576,7 +576,7 @@ fn active_pen(ink: &notecraft_engine::InkState) -> Option<ribbon::ActivePen> {
         DrawTool::Type => return None,
         DrawTool::Pen => ribbon::ActiveTool::Pen,
         DrawTool::Highlighter => ribbon::ActiveTool::Highlighter,
-        DrawTool::Eraser => ribbon::ActiveTool::Eraser(ink.eraser().id()),
+        DrawTool::Eraser => ribbon::ActiveTool::Eraser(ink.eraser().id(), ink.eraser_size().id()),
     };
     let style = ink.brush();
     let [r, g, b, _] = style.color.0;

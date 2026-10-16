@@ -214,9 +214,19 @@ fn is_current_pen(item: &Item, pen: Option<ActivePen>) -> bool {
             ArgValue::Str(text) => Some(text),
             _ => None,
         });
-        return matches!(pen.tool, ActiveTool::Eraser(current) if Some(current) == mode);
+        let size = arg("size").and_then(|arg| match arg.value {
+            ArgValue::Str(text) => Some(text),
+            _ => None,
+        });
+        return match (pen.tool, mode) {
+            // A size entry (point eraser) is current when mode is point and the size matches.
+            (ActiveTool::Eraser(current, current_size), Some(mode)) => {
+                current == mode && size.is_none_or(|size| size == current_size)
+            }
+            _ => false,
+        };
     }
-    if matches!(pen.tool, ActiveTool::Eraser(_)) {
+    if matches!(pen.tool, ActiveTool::Eraser(..)) {
         return false;
     }
     let color = arg("color").and_then(|arg| match arg.value {
@@ -852,8 +862,11 @@ mod tests {
     const ONE_POINT: Item = Item::new("1 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 1.0)]);
     const STROKE_ERASER: Item =
         Item::new("Stroke Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "stroke")]);
-    const POINT_ERASER: Item =
-        Item::new("Point Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "point")]);
+    const SMALL_ERASER: Item = Item::new("Small Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "small")]);
+    const LARGE_ERASER: Item = Item::new("Large Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "large")]);
+    const POINT_ERASER: Item = LARGE_ERASER;
 
     #[test]
     fn the_menu_marks_the_pen_in_use() {
@@ -894,11 +907,12 @@ mod tests {
         assert!(!is_current_pen(&BLUE, highlighter));
         assert!(is_current_pen(&ONE_POINT, highlighter));
         let point = Some(ActivePen {
-            tool: ActiveTool::Eraser("point"),
+            tool: ActiveTool::Eraser("point", "large"),
             color: 0,
             width_pt: 0.0,
         });
-        assert!(is_current_pen(&POINT_ERASER, point));
+        assert!(is_current_pen(&LARGE_ERASER, point));
+        assert!(!is_current_pen(&SMALL_ERASER, point));
         assert!(!is_current_pen(&STROKE_ERASER, point));
         // The eraser being in use marks no pen, highlighter, or thickness.
         assert!(!is_current_pen(&BLUE, point));

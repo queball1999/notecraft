@@ -187,7 +187,10 @@ fn capture_ink(
     };
     let capture_tool = match (tool, style) {
         _ if space_held(ui) => ink::Tool::Off,
-        (DrawTool::Eraser, _) => ink::Tool::Erase(session.ink().eraser().id()),
+        (DrawTool::Eraser, _) => ink::Tool::Erase(
+            session.ink().eraser().id(),
+            session.ink().eraser_size().id(),
+        ),
         (_, Some(style)) => ink::Tool::Draw(style),
         _ => ink::Tool::Off,
     };
@@ -258,7 +261,10 @@ fn paint_pens(
     if frame.tool == DrawTool::Eraser && response.hovered() && !space_held(ui) {
         let hover = ui.input(|input| input.pointer.hover_pos());
         if let Some(at) = hover.filter(|at| shown.contains(*at)) {
-            let radius = ink::eraser_reach_px(session.ink().eraser().id());
+            let radius = ink::eraser_reach_px(
+                session.ink().eraser().id(),
+                session.ink().eraser_size().id(),
+            );
             ui.painter()
                 .circle_stroke(at, radius, egui::Stroke::new(1.0, tokens.text));
         }

@@ -155,21 +155,26 @@ pub(crate) enum Tool {
     Off,
     /// Draw strokes with this style (pen or highlighter).
     Draw(PenStyle),
-    /// Erase; the mode id is `stroke` or `point`.
-    Erase(&'static str),
+    /// Erase; the mode id (`stroke` or `point`) and the point eraser size id.
+    Erase(&'static str, &'static str),
 }
 
 /// How far the stroke eraser reaches past a stroke's edge, in screen pixels.
 pub(crate) const STROKE_ERASER_REACH_PX: f32 = 6.0;
-/// The radius of the point eraser's circle, in screen pixels.
-pub(crate) const POINT_ERASER_RADIUS_PX: f32 = 10.0;
+/// Radii of the point eraser's circle by size, in screen pixels.
+pub(crate) const POINT_ERASER_SMALL_PX: f32 = 5.0;
+pub(crate) const POINT_ERASER_MEDIUM_PX: f32 = 10.0;
+pub(crate) const POINT_ERASER_LARGE_PX: f32 = 20.0;
 
-/// The eraser's reach in screen pixels for a mode id.
-pub(crate) fn eraser_reach_px(mode: &str) -> f32 {
-    if mode == "point" {
-        POINT_ERASER_RADIUS_PX
-    } else {
-        STROKE_ERASER_REACH_PX
+/// The eraser's reach in screen pixels for a mode id and a point eraser size id.
+pub(crate) fn eraser_reach_px(mode: &str, size: &str) -> f32 {
+    if mode != "point" {
+        return STROKE_ERASER_REACH_PX;
+    }
+    match size {
+        "small" => POINT_ERASER_SMALL_PX,
+        "large" => POINT_ERASER_LARGE_PX,
+        _ => POINT_ERASER_MEDIUM_PX,
     }
 }
 
@@ -201,11 +206,11 @@ impl InkUi {
             ui.input(|input| pointer_events(&input.events, map, previous, now, &mut self.touch));
         let pen = match tool {
             Tool::Draw(pen) => Some(pen),
-            Tool::Off | Tool::Erase(_) => None,
+            Tool::Off | Tool::Erase(..) => None,
         };
-        if let Tool::Erase(mode) = tool {
+        if let Tool::Erase(mode, size) = tool {
             self.active = None;
-            self.capture_erase(ui, map, mode, events, can_start, clicked);
+            self.capture_erase(ui, map, (mode, size), events, can_start, clicked);
             return Capture { preview: None };
         }
         self.erasing = None;
@@ -276,7 +281,7 @@ impl InkUi {
         &mut self,
         ui: &egui::Ui,
         map: PageToScreen,
-        mode: &'static str,
+        eraser: (&'static str, &'static str),
         events: Vec<PointerEvent>,
         can_start: impl Fn(egui::Pos2) -> bool,
         clicked: &mut Vec<Clicked>,
@@ -326,10 +331,10 @@ impl InkUi {
             // last batch has nothing new to say.
             let moved = path.len() > 1 && path.iter().any(|p| *p != drag.last);
             if drag.first || moved {
-                let radius = eraser_reach_px(mode) / map.zoom.max(f32::EPSILON);
+                let radius = eraser_reach_px(eraser.0, eraser.1) / map.zoom.max(f32::EPSILON);
                 clicked.push(Clicked {
                     command: ids::INK_ERASE,
-                    args: erase_args(&path, radius, mode, !drag.first),
+                    args: erase_args(&path, radius, eraser.0, !drag.first),
                 });
                 drag.first = false;
             }
@@ -785,9 +790,13 @@ mod tests {
 
     #[test]
     fn the_eraser_reach_is_in_screen_pixels() {
-        assert_eq!(eraser_reach_px("point"), POINT_ERASER_RADIUS_PX);
-        assert_eq!(eraser_reach_px("stroke"), STROKE_ERASER_REACH_PX);
-        assert_eq!(eraser_reach_px("anything"), STROKE_ERASER_REACH_PX);
+        assert_eq!(eraser_reach_px("point", "small"), POINT_ERASER_SMALL_PX);
+        assert_eq!(eraser_reach_px("point", "medium"), POINT_ERASER_MEDIUM_PX);
+        assert_eq!(eraser_reach_px("point", "large"), POINT_ERASER_LARGE_PX);
+        assert_eq!(eraser_reach_px("point", "odd"), POINT_ERASER_MEDIUM_PX);
+        // The stroke eraser has one reach whatever the size is.
+        assert_eq!(eraser_reach_px("stroke", "large"), STROKE_ERASER_REACH_PX);
+        assert_eq!(eraser_reach_px("anything", "small"), STROKE_ERASER_REACH_PX);
     }
 
     #[test]

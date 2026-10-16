@@ -99,8 +99,8 @@ pub struct ActivePen {
 pub enum ActiveTool {
     Pen,
     Highlighter,
-    /// The eraser, with its mode id (`stroke` or `point`).
-    Eraser(&'static str),
+    /// The eraser, with its mode id (`stroke` or `point`) and its size id.
+    Eraser(&'static str, &'static str),
 }
 
 /// A command a ribbon button or menu item asked to run.

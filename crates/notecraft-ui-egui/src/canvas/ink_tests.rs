@@ -316,3 +316,21 @@ fn an_eraser_far_from_the_ink_changes_nothing() {
     assert_eq!(stroke_count(&harness), 1);
     assert_eq!(harness.state().session().revision(), revision);
 }
+
+#[test]
+fn the_point_eraser_size_sets_how_far_it_reaches() {
+    for (size, expected) in [("small", 1), ("large", 2)] {
+        let mut harness = harness();
+        pen(&mut harness, Value::Null);
+        draw_line(&mut harness, 0.0);
+        tool(
+            &mut harness,
+            "draw.eraser",
+            json!({ "mode": "point", "size": size }),
+        );
+        // The eraser passes 16 to 24 pixels above the line (drag() wiggles): only the large circle (20) reaches it.
+        let from = canvas_center(&harness) + egui::vec2(50.0, -24.0);
+        drag(&mut harness, from, from + egui::vec2(0.0, -2.0), 4);
+        assert_eq!(stroke_count(&harness), expected, "{size}");
+    }
+}

@@ -820,7 +820,12 @@ const HIGHLIGHTERS: &[Item] = &[
 
 const ERASERS: &[Item] = &[
     Item::new("Stroke Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "stroke")]),
-    Item::new("Point Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "point")]),
+    Item::new("Small Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "small")]),
+    Item::new("Medium Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "medium")]),
+    Item::new("Large Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "large")]),
 ];
 
 const INK_WIDTHS: &[Item] = &[
