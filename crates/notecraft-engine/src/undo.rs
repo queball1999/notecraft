@@ -115,31 +115,25 @@ struct Stack {
 }
 
 impl Stack {
-    fn undo_bytes(&self) -> usize {
-        self.undo.iter().map(|entry| entry.bytes()).sum()
-    }
-
-    /// Drop the oldest steps until the stack fits, always keeping the newest.
+    /// Drop the oldest steps of both lists until they fit, always keeping the newest.
     fn enforce(&mut self, max_steps: usize, max_bytes: usize) {
-        let mut bytes = self.undo_bytes();
-        let mut drop_count = 0;
-        while self.undo.len() - drop_count > 1
-            && (self.undo.len() - drop_count > max_steps || bytes > max_bytes)
-        {
-            bytes = bytes.saturating_sub(self.undo[drop_count].bytes());
-            drop_count += 1;
-        }
-        self.undo.drain(..drop_count);
-        let mut redo_bytes: usize = self.redo.iter().map(|entry| entry.bytes()).sum();
-        let mut drop_count = 0;
-        while self.redo.len() - drop_count > 1
-            && (self.redo.len() - drop_count > max_steps || redo_bytes > max_bytes)
-        {
-            redo_bytes = redo_bytes.saturating_sub(self.redo[drop_count].bytes());
-            drop_count += 1;
-        }
-        self.redo.drain(..drop_count);
+        trim_oldest(&mut self.undo, max_steps, max_bytes);
+        trim_oldest(&mut self.redo, max_steps, max_bytes);
     }
+}
+
+fn trim_oldest(list: &mut Vec<Arc<Entry>>, max_steps: usize, max_bytes: usize) {
+    let mut bytes: usize = list.iter().map(|entry| entry.bytes()).sum();
+    let mut drop_count = 0;
+    for entry in list.iter() {
+        let remaining = list.len() - drop_count;
+        if remaining <= 1 || (remaining <= max_steps && bytes <= max_bytes) {
+            break;
+        }
+        bytes = bytes.saturating_sub(entry.bytes());
+        drop_count += 1;
+    }
+    list.drain(..drop_count);
 }
 
 /// One line of the history for display, newest last.
