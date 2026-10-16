@@ -148,9 +148,7 @@ pub fn split_stroke(
     if centers.is_empty() {
         return None;
     }
-    let Some(first) = points.first() else {
-        return None;
-    };
+    let first = points.first()?;
     if points.len() == 1 {
         let reach = radius + half_width(width, first.pressure);
         let hit = centers.iter().any(|c| first.pos().distance(*c) <= reach);
