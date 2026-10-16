@@ -404,11 +404,9 @@ Built on `feat/structure-editing` (2026-10-16), on top of the Phase 1 base (PR 1
 - The index (PR 1.2) needs no new code: a rename or move is a removal and an addition for `Index::refresh`, which reads the folder. Tests check that the index agrees with a fresh scan after each kind of edit.
 - Not done, by plan: Recycle Bin UI (PR 3.5), password-protected sections (PR 3.x), page links and link updates on rename (Phase 2), a custom color dialog.
 
-Open questions:
+Decisions on the open questions (coordinator, 2026-10-16):
 
-- Should a new section start with one untitled page, as OneNote does? Built empty for now (the page list says "This section is empty." and Add Page is one click).
-- Should Add Page insert after the current page instead of at the end? OneNote adds at the end of the list, as built.
-- Is closing the right meaning of "delete notebook" for the alpha, or should NoteCraft offer to move the folder to the OS trash? Closing is reversible and safe, so it is built; an OS-trash option would need a craft-libs crate or a platform wrapper.
+- A new section starts with one Untitled Page, created in the same undo step and selected, as in OneNote; Add Page stays at the end of the list; closing is the right meaning of "delete notebook", with no OS trash option.
 
 ## PR 1.14: fuzzing
 

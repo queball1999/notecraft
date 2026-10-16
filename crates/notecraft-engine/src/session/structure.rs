@@ -791,6 +791,8 @@ impl Session {
             .unwrap_or(0x9FD3E8);
         let id = format!("{}/{rel}", plan.id());
         plan.create(&rel, Content::Dir);
+        // A new section starts with one untitled page, as in OneNote, in the same step.
+        let first_page = format!("{NEW_PAGE_TITLE}.md");
         plan.section_config(&rel, |c| {
             c.kind = Some(if group {
                 SectionKind::Group
@@ -798,7 +800,16 @@ impl Session {
                 SectionKind::Section
             });
             c.color = Some(color);
+            if !group {
+                c.pages = vec![PageListing {
+                    file: first_page.clone(),
+                    level: 0,
+                }];
+            }
         });
+        if !group {
+            plan.create(&join(&rel, &first_page), Content::Text(String::new()));
+        }
         plan.child_order(parent_dir.as_deref(), names);
         let label = if group {
             "New section group"

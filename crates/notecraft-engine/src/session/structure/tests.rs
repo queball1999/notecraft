@@ -462,7 +462,7 @@ fn creating_a_notebook_makes_the_folder_and_its_settings_file() {
     assert_eq!(s.notebooks().len(), 1);
     let section = s.create_section(&id, None, None).unwrap();
     s.create_page(&section, Some("First")).unwrap();
-    assert_eq!(scan_notebook(&folder).unwrap().page_count(), 1);
+    assert_eq!(scan_notebook(&folder).unwrap().page_count(), 2);
     assert!(s
         .create_notebook(&folder.join(".notecraft/notebook.toml"))
         .is_err());
@@ -546,4 +546,28 @@ fn attachment_links_are_found_leniently() {
         "![a](attachments/x1-a.png) [b](attachments/y2-b%20c.pdf) attachments/../evil attachments/dir/f attachments/",
     );
     assert_eq!(found, ["x1-a.png", "y2-b c.pdf"]);
+}
+
+#[test]
+fn a_new_section_starts_with_one_untitled_page_in_the_same_step() {
+    let (dir, mut s, nb) = sample();
+    let section = s.create_section(&nb, None, Some("Ideas")).unwrap();
+    assert!(dir.path().join("Ideas/Untitled Page.md").is_file());
+    assert_eq!(pages(&s, &section), ["Untitled Page"]);
+    assert_eq!(
+        s.selection().page.as_deref(),
+        Some(format!("{section}/Untitled Page.md").as_str())
+    );
+    assert_matches_disk(dir.path(), &s);
+    // One undo removes the section and its page; redo brings both back.
+    assert_eq!(s.undo().as_deref(), Some("New section"));
+    assert!(!dir.path().join("Ideas").exists());
+    assert_matches_disk(dir.path(), &s);
+    assert_eq!(s.redo().as_deref(), Some("New section"));
+    assert_eq!(pages(&s, &section), ["Untitled Page"]);
+    assert_matches_disk(dir.path(), &s);
+    // A group has no page.
+    let group = s.create_section_group(&nb, None, Some("Folder")).unwrap();
+    assert!(!dir.path().join("Folder/Untitled Page.md").exists());
+    assert!(s.current_notebook().unwrap().section(&group).is_none());
 }
