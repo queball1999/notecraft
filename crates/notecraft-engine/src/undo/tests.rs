@@ -943,3 +943,30 @@ fn opening_other_notebooks_clears_the_history() {
     assert!(!session.can_undo());
     assert!(session.history().undo_steps(Some("p1")).is_empty());
 }
+
+#[test]
+fn reopening_a_notebook_folder_drops_stale_text_steps() {
+    use crate::open::open_folder;
+    let dir = tempfile::TempDir::new().unwrap();
+    std::fs::create_dir_all(dir.path().join("Sec")).unwrap();
+    std::fs::write(dir.path().join("Sec/A.md"), "# Hello\n").unwrap();
+    let opened = open_folder(dir.path()).unwrap();
+    let id = opened.notebook.id.clone();
+    let mut session = Session::new();
+    session.open_notebook(opened.notebook);
+    session.set_notebook_root(&id, dir.path());
+    assert!(session.load_current_page());
+    let page = session.selection().page.clone().unwrap();
+
+    assert!(session.edit_page_text(&page, 0, 0, "x", false));
+    assert!(session.can_undo());
+    // The folder is opened again with other text on disk: the page is read again.
+    std::fs::write(dir.path().join("Sec/A.md"), "# Changed outside\n").unwrap();
+    session.set_notebook_root(&id, dir.path());
+    assert!(session.load_current_page());
+    assert_eq!(session.page_text(&page), Some("# Changed outside\n"));
+    // The old step no longer fits: it is dropped and the text is untouched.
+    assert_eq!(session.undo(), None);
+    assert_eq!(session.page_text(&page), Some("# Changed outside\n"));
+    assert!(!session.can_undo());
+}
