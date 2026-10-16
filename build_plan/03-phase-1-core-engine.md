@@ -188,7 +188,7 @@ PR title: `feat(storage): auto-save and recover safely`.
 | Hours | 20-34 |
 | Rows | ST-08 |
 
-Steps: transactions of reversible operations (docs/architecture.md section 5); per-page history (500 steps or 64 MiB); typing coalesces into word-sized steps; notebook-level transactions for moves; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z; History tab shows the stack.
+Steps: transactions of reversible operations (docs/architecture.md section 5); per-page history (500 steps or 64 MiB); typing coalesces into word-sized steps; a transaction can be marked to merge into the previous one (the stroke eraser uses it so one drag is one undo step; maintainer decision, 2026-10-15); notebook-level transactions for moves; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z; History tab shows the stack.
 
 Commits:
 
@@ -419,3 +419,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 1 | PR 1.1 landed; deviations recorded under PR 1.1. |
 | 2026-10-15 | 1 | PR 1.10 landed: deviations (stroke storage moved to PR 1.9) and per-OS pressure notes added. |
 | 2026-10-15 | 1 | PR 1.10 follow-ups from the WordCraft survey: anti-aliased stroke edges and a marked current pen; PR 1.11 gains its highlighter and eraser design. Hours unchanged. |
+| 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |

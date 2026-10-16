@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: IN-01 evidence adds anti-aliased edges and the marked pen; ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: added IN-13 (ink replay, Phase 3).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -22,14 +22,14 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Shell | 14 | 0 | 6 | 20 | 70% |
 | Themes | 6 | 0 | 0 | 6 | 100% |
 | Canvas | 3 | 0 | 9 | 12 | 25% |
-| Ink | 1 | 2 | 9 | 12 | 8% |
+| Ink | 1 | 2 | 10 | 13 | 7% |
 | Text | 0 | 0 | 12 | 12 | 0% |
 | Structure | 1 | 0 | 11 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 35 | 2 | 76 | 113 | 30% |
+| Total | 35 | 2 | 77 | 114 | 30% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -116,6 +116,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | IN-10 | Ink | Touch input and palm rejection | 3 | M | |
 | IN-11 | Ink | Ink to text (handwriting recognition) | 4 | M | |
 | IN-12 | Ink | Search handwritten ink | 4 | M | |
+| IN-13 | Ink | Ink replay | 3 | M | |
 
 ## Text
 
@@ -236,3 +237,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 1 | ST-01 scored D and SH-06 evidence updated: the folder reader and the real navigation tree (PR 1.1). |
 | 2026-10-15 | 1 | IN-01 and IN-02 scored P and IN-03 scored D (PR 1.10, ink engine and pen): pen, smoothing, and stroke capture work and are tested with synthetic events; saving strokes waits for PR 1.9 and no real pen has been tried. |
 | 2026-10-15 | 1 | IN-01 evidence: anti-aliased stroke edges and the marked current pen (PR 1.10 follow-ups). Scores unchanged. |
+| 2026-10-15 | 1 | Added IN-13 ink replay (Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15)). |

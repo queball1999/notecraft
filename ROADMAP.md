@@ -59,7 +59,7 @@ Calendar, at about 30 focused hours a week: v1.0 in 47-80 weeks; full parity in 
 | 0 | UI shell | 284-474 | internal 0.0.1 |
 | 1 | Core engine | 456-776 | v0.1.0 alpha |
 | 2 | Page links, search, note tags | 134-230 | v0.2.0 |
-| 3 | Polish and parity | 392-666 | v0.9.0 beta |
+| 3 | Polish and parity | 404-686 | v0.9.0 beta |
 | Hardening | Beta to 1.0 | 80-160 | v1.0.0 |
 | 4 | Remaining parity | 644-1,228 | full OneNote parity (1.x) |
 
@@ -115,3 +115,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-15 | Phase 1 PR 1.1: notecraft-storage scans a notebook folder into groups, sections, and pages (notebook.toml and .section.toml read leniently, listed order first, depth 8, warning at 50,000 files), with cross-platform file name rules; file.open_notebook shows the real tree in the navigation instead of the mock; original sample notebook in testdata/notebooks/basic; ST-01 scored D. |
 | 2026-10-15 | Phase 1 PR 1.10 (feat/ink-pen): draw with the pen. Pointer samples normalized in notecraft-core; one-euro smoothing and speed-based width when a device reports no pressure; variable-width stroke meshes and a grid index for hit testing in notecraft-canvas; draw.type, draw.pen, draw.color, draw.thickness, and ink.add_stroke Ready; strokes drawn on the canvas and kept in the session (saving them is PR 1.9). IN-03 scored D, IN-01 and IN-02 P; no real pen was tried, and from the winit source only Windows reports pen pressure. |
 | 2026-10-15 | Phase 1 PR 1.10 follow-ups (feat/ink-from-wordcraft), after surveying the related WordCraft app's drawing and markup code: ink meshes are anti-aliased (a one-pixel fringe along the outline, moved by half a device pixel at paint time, any zoom or display scale); the pen and thickness menus check the pen in use; design notes for the highlighter (own pass behind text, pre-blended opaque meshes), erasers (one undo step per drag), lasso (60 percent of points inside), Ink to Shape (geometric recognizer), and Add Pen recorded in docs/architecture.md section 10 and PR 1.11, 3.1, 3.2, 3.3; review markup recorded in docs/post-parity.md. Hours unchanged. |
+| 2026-10-15 | Maintainer decisions after the ink survey: Ink Replay scheduled in PR 3.2 (IN-13, plus 12-20 hours; Phase 3 now 404-686 hours, 1,413-2,424 to v1.0, 2,057-3,652 to full parity); PR 1.8 transactions gain a merge flag so one eraser drag is one undo step; Add Pen stays inside PR 3.1's estimate. |
