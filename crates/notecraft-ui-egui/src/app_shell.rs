@@ -1202,7 +1202,7 @@ mod tests {
         harness.run();
         assert!(harness.state().ribbon().key_tips_showing());
 
-        // N opens Insert; then the code for Pictures presses it.
+        // N opens Insert; then the code for Screen Clipping presses it.
         harness.key_press(egui::Key::N);
         harness.run();
         assert_eq!(harness.state().ribbon().selected(), "Insert");
@@ -1213,7 +1213,7 @@ mod tests {
         let tips = crate::ribbon::keytips::tips_for_tab(insert);
         let code = tips
             .iter()
-            .find(|(button, _)| button.label == "Pictures")
+            .find(|(button, _)| button.label == "Screen Clipping")
             .map(|(_, code)| code.clone())
             .unwrap();
         for c in code.chars() {
@@ -1225,7 +1225,7 @@ mod tests {
             .state()
             .toasts()
             .texts()
-            .any(|t| t == "Coming Soon: Pictures"));
+            .any(|t| t == "Coming Soon: Screen Clipping"));
 
         // F10, then F, opens the backstage; Esc closes it.
         harness.key_press(egui::Key::F10);

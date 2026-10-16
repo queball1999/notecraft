@@ -145,7 +145,10 @@ impl PictureSource for PictureLoader<'_> {
         self.cache.decoded_this_frame += 1;
         let entry = match load_picture(&path) {
             Ok(picture) => {
-                let size = [picture.texture_width as usize, picture.texture_height as usize];
+                let size = [
+                    picture.texture_width as usize,
+                    picture.texture_height as usize,
+                ];
                 let image = ColorImage::from_rgba_unmultiplied(size, &picture.rgba);
                 let name = format!("picture:{link}");
                 Entry::Ready {

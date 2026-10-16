@@ -317,11 +317,19 @@ impl Layout<'_> {
             run.text.clone()
         };
         let (w, h, label) = match &shown {
-            Shown::Ready { width: w, height: h, .. } => {
+            Shown::Ready {
+                width: w,
+                height: h,
+                ..
+            } => {
                 let scale = (width / w.max(1.0)).min(1.0);
                 (w * scale, h * scale, alt)
             }
-            Shown::Loading => (width.min(240.0), PLACEHOLDER_HEIGHT, "Loading picture".to_owned()),
+            Shown::Loading => (
+                width.min(240.0),
+                PLACEHOLDER_HEIGHT,
+                "Loading picture".to_owned(),
+            ),
             Shown::Failed(why) => (
                 width.min(320.0),
                 PLACEHOLDER_HEIGHT,
@@ -686,7 +694,11 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                             Stroke::new(1.0, tokens.border),
                             egui::StrokeKind::Inside,
                         );
-                        painter.galley(r.min + egui::vec2(8.0, 8.0) * z, label.clone(), tokens.text_muted);
+                        painter.galley(
+                            r.min + egui::vec2(8.0, 8.0) * z,
+                            label.clone(),
+                            tokens.text_muted,
+                        );
                     }
                 }
             }
@@ -696,16 +708,29 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                     continue;
                 }
                 painter.rect_filled(r, 4.0 * z, mix(tokens.canvas_bg, tokens.text, 0.05));
-                painter.rect_stroke(r, 4.0 * z, Stroke::new(1.0, tokens.border), egui::StrokeKind::Inside);
+                painter.rect_stroke(
+                    r,
+                    4.0 * z,
+                    Stroke::new(1.0, tokens.border),
+                    egui::StrokeKind::Inside,
+                );
                 // A page with a folded corner, drawn in code, with the extension on it.
                 let icon = Rect::from_min_size(
                     r.min + egui::vec2(8.0, 6.0) * z,
                     egui::vec2(26.0, 32.0) * z,
                 );
-                painter.rect_stroke(icon, 2.0 * z, Stroke::new(1.2, tokens.accent), egui::StrokeKind::Inside);
+                painter.rect_stroke(
+                    icon,
+                    2.0 * z,
+                    Stroke::new(1.2, tokens.accent),
+                    egui::StrokeKind::Inside,
+                );
                 let fold = 7.0 * z;
                 painter.line_segment(
-                    [icon.right_top() - egui::vec2(fold, 0.0), icon.right_top() + egui::vec2(0.0, fold)],
+                    [
+                        icon.right_top() - egui::vec2(fold, 0.0),
+                        icon.right_top() + egui::vec2(0.0, fold),
+                    ],
                     Stroke::new(1.2, tokens.accent),
                 );
                 if !ext.is_empty() {

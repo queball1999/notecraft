@@ -6,10 +6,10 @@
 
 mod flow;
 mod ink;
-pub(crate) mod pictures;
 #[cfg(test)]
 mod ink_tests;
 pub(crate) mod paper;
+pub(crate) mod pictures;
 mod title;
 mod widget;
 

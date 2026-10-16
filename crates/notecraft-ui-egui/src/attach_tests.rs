@@ -137,7 +137,12 @@ fn insert_picture_copies_links_renders_and_undoes() {
 #[test]
 fn a_corrupt_picture_shows_a_placeholder_not_a_crash() {
     let mut s = setup(None);
-    let broken = s.dir.path().join("broken.png").to_string_lossy().into_owned();
+    let broken = s
+        .dir
+        .path()
+        .join("broken.png")
+        .to_string_lossy()
+        .into_owned();
     let mut args = notecraft_engine::cmd::Map::new();
     args.insert("path".to_owned(), Value::from(broken));
     dispatch(&mut s, "insert.picture", Value::Object(args));
@@ -145,7 +150,14 @@ fn a_corrupt_picture_shows_a_placeholder_not_a_crash() {
     assert_eq!(s.harness.state().picture_counts(), (0, 1));
     // A missing file behind a link is a placeholder too (the broken one stays cached).
     let missing = "# T\n\n![gone](attachments/none.png)\n\n![web](https://example.org/a.png)\n";
-    let id = s.harness.state().session().selection().page.clone().unwrap();
+    let id = s
+        .harness
+        .state()
+        .session()
+        .selection()
+        .page
+        .clone()
+        .unwrap();
     s.harness.state_mut().set_page_source(&id, missing);
     s.harness.run_steps(6);
     assert_eq!(s.harness.state().picture_counts(), (0, 2));
