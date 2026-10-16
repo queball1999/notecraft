@@ -1,0 +1,6 @@
+<!-- notecraft:container id=c1 -->
+Only a layout, no ink yet.
+
+```notecraft-canvas
+{ "format": 1, "containers": { "c1": { "x": 48, "y": 96, "w": 420 } } }
+```

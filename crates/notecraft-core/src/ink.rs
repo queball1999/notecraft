@@ -147,6 +147,130 @@ impl Stroke {
     }
 }
 
+/// Most distance checks one [`simplify`] call may spend before it falls back to even thinning.
+const SIMPLIFY_BUDGET: usize = 20_000_000;
+
+/// Reduce `points` to at most `max` points with Ramer-Douglas-Peucker (docs/markdown.md section
+/// 3.4). The first and last points are kept. The tolerance doubles until the result fits; a
+/// huge or adversarial input falls back to even thinning, so the cost is bounded.
+pub fn simplify(points: &[InkPoint], max: usize) -> Vec<InkPoint> {
+    let max = max.max(2);
+    if points.len() <= max {
+        return points.to_vec();
+    }
+    // Thin hugely long input first so the passes below stay cheap.
+    let limit = max.saturating_mul(2);
+    let stride = points.len().div_ceil(limit).max(1);
+    let mut work: Vec<InkPoint> = points.iter().copied().step_by(stride).collect();
+    if let Some(last) = points.last() {
+        if work.last() != Some(last) {
+            work.push(*last);
+        }
+    }
+    let mut budget = SIMPLIFY_BUDGET;
+    let mut eps = 0.05_f64;
+    for _ in 0..16 {
+        match rdp(&work, eps, &mut budget) {
+            Some(kept) if kept.len() <= max => return kept,
+            Some(_) => eps *= 2.0,
+            None => break,
+        }
+    }
+    thin(&work, max)
+}
+
+/// Keep `max` evenly spaced points, always including the first and last.
+fn thin(points: &[InkPoint], max: usize) -> Vec<InkPoint> {
+    let n = points.len();
+    if n <= max {
+        return points.to_vec();
+    }
+    let denom = max.saturating_sub(1).max(1);
+    (0..max)
+        .filter_map(|i| points.get(i * (n - 1) / denom).copied())
+        .collect()
+}
+
+fn seg_distance(p: InkPoint, a: InkPoint, b: InkPoint) -> f64 {
+    let (px, py) = (f64::from(p.x), f64::from(p.y));
+    let (ax, ay) = (f64::from(a.x), f64::from(a.y));
+    let (dx, dy) = (f64::from(b.x) - ax, f64::from(b.y) - ay);
+    let len_sq = dx * dx + dy * dy;
+    let t = if len_sq <= f64::EPSILON {
+        0.0
+    } else {
+        (((px - ax) * dx + (py - ay) * dy) / len_sq).clamp(0.0, 1.0)
+    };
+    ((px - ax - dx * t).powi(2) + (py - ay - dy * t).powi(2)).sqrt()
+}
+
+/// One RDP pass. `None` when the distance budget ran out.
+fn rdp(points: &[InkPoint], eps: f64, budget: &mut usize) -> Option<Vec<InkPoint>> {
+    let n = points.len();
+    let mut keep = vec![false; n];
+    if let Some(first) = keep.first_mut() {
+        *first = true;
+    }
+    if let Some(last) = keep.last_mut() {
+        *last = true;
+    }
+    let mut stack = vec![(0usize, n.saturating_sub(1))];
+    while let Some((lo, hi)) = stack.pop() {
+        if hi <= lo + 1 {
+            continue;
+        }
+        let (a, b) = (*points.get(lo)?, *points.get(hi)?);
+        let mut far = (0.0_f64, lo);
+        for i in lo + 1..hi {
+            *budget = budget.checked_sub(1)?;
+            let d = seg_distance(*points.get(i)?, a, b);
+            if d > far.0 {
+                far = (d, i);
+            }
+        }
+        if far.0 > eps {
+            if let Some(slot) = keep.get_mut(far.1) {
+                *slot = true;
+            }
+            stack.push((lo, far.1));
+            stack.push((far.1, hi));
+        }
+    }
+    Some(
+        points
+            .iter()
+            .zip(&keep)
+            .filter_map(|(p, k)| k.then_some(*p))
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+mod simplify_tests {
+    use super::*;
+
+    #[test]
+    fn short_strokes_are_untouched_and_long_ones_fit() {
+        let pts: Vec<InkPoint> = (0..50)
+            .map(|i| InkPoint::new(i as f32, 0.0, 0.5))
+            .collect();
+        assert_eq!(simplify(&pts, 100), pts);
+        // A straight line collapses to its ends.
+        assert_eq!(simplify(&pts, 10).len(), 2);
+        let wavy: Vec<InkPoint> = (0..5000)
+            .map(|i| InkPoint::new(i as f32, ((i as f32) * 0.37).sin() * 20.0, 0.5))
+            .collect();
+        let out = simplify(&wavy, 300);
+        assert!(out.len() <= 300 && out.len() >= 2, "{}", out.len());
+        assert_eq!(out.first(), wavy.first());
+        assert_eq!(out.last(), wavy.last());
+        let huge: Vec<InkPoint> = (0..200_000)
+            .map(|i| InkPoint::new(i as f32, ((i * 7919) % 1000) as f32, 0.5))
+            .collect();
+        assert!(simplify(&huge, MAX_STROKE_POINTS).len() <= MAX_STROKE_POINTS);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

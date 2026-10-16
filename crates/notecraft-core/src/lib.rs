@@ -14,7 +14,7 @@ pub mod ink;
 pub mod input;
 
 pub use geometry::{Aabb, Vec2};
-pub use ink::{InkColor, InkPoint, InkTool, Stroke};
+pub use ink::{simplify, InkColor, InkPoint, InkTool, Stroke};
 pub use input::{PointerEvent, PointerKind, PointerPhase, PointerSample};
 
 /// Layer number, read by `cargo xtask layers`.

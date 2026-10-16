@@ -14,6 +14,7 @@ pub const LAYER: u8 = 1;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod index;
+pub mod canvas_block;
 pub mod notebook_dir;
 pub mod notebook_toml;
 pub mod page_file;
