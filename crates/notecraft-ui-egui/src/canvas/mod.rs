@@ -49,6 +49,12 @@ impl Default for CanvasUi {
 }
 
 impl CanvasUi {
+    /// Pictures decoded and pictures that could not be shown, on the page shown (tests).
+    #[cfg(test)]
+    pub(crate) fn picture_counts(&self) -> (usize, usize) {
+        self.pictures.counts()
+    }
+
     /// The parsed document for `source`, parsing again only when the page or its text changed.
     fn document(
         &mut self,

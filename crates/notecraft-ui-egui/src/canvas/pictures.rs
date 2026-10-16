@@ -86,10 +86,15 @@ impl PictureCache {
         self.decoded_this_frame = 0;
     }
 
-    /// How many pictures are held, for tests.
+    /// How many pictures are decoded and how many could not be shown, for tests.
     #[cfg(test)]
-    pub(super) fn len(&self) -> usize {
-        self.entries.len()
+    pub(super) fn counts(&self) -> (usize, usize) {
+        let ready = self
+            .entries
+            .values()
+            .filter(|e| matches!(e, Entry::Ready { .. }))
+            .count();
+        (ready, self.entries.len() - ready)
     }
 }
 

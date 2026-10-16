@@ -12,6 +12,8 @@
 mod a11y;
 pub mod about;
 mod app_shell;
+#[cfg(test)]
+mod attach_tests;
 pub mod canvas;
 pub mod color;
 pub mod font_list;
