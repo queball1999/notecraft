@@ -19,6 +19,7 @@ pub mod notebook_toml;
 pub mod page_file;
 pub mod paths;
 pub mod section_toml;
+pub mod structure;
 
 pub use notebook_dir::{
     scan_notebook, scan_notebook_with, GroupEntry, NotebookTree, PageEntry, PageKind, ScanError,
