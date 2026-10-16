@@ -316,10 +316,14 @@ impl History {
     fn pop(&mut self, scope: &Scope, redo: bool) -> Option<Arc<Entry>> {
         let stack = self.stack_mut(scope);
         if redo {
-            stack.redo.pop()
-        } else {
-            stack.undo.pop()
+            return stack.redo.pop();
         }
+        let popped = stack.undo.pop();
+        // After an undo, typing starts a new step rather than extending the one below.
+        if let Some(top) = stack.undo.last_mut().filter(|top| top.typing) {
+            Arc::make_mut(top).typing = false;
+        }
+        popped
     }
 
     /// Put an entry on the other stack after it was undone (`to_redo`) or redone.
@@ -406,6 +410,41 @@ impl Session {
         self.history.push_moved(&scope, entry, !redo);
         self.mark_changed();
         Some(label)
+    }
+
+    /// Replace `remove_len` bytes at byte offset `at` of page `page`'s markdown source with
+    /// `inserted`, as one undo step. With `typing` set, keystrokes coalesce into word-sized
+    /// steps (see [`Merge::Typing`]): consecutive typing, Backspace, or Delete in one place
+    /// undoes together, and a new word, a different place, or any other step starts a new one.
+    ///
+    /// This is the engine call container text editing (PR 1.5) makes from its commands. It is
+    /// not a command itself. Returns false, changing nothing, when the range is out of bounds
+    /// or splits a character, or when there is nothing to change.
+    pub fn edit_page_text(
+        &mut self,
+        page: &str,
+        at: usize,
+        remove_len: usize,
+        inserted: &str,
+        typing: bool,
+    ) -> bool {
+        let text = self.page_text(page).unwrap_or_default();
+        let end = at.saturating_add(remove_len);
+        let Some(removed) = text.get(at..end) else {
+            return false;
+        };
+        if removed.is_empty() && inserted.is_empty() {
+            return false;
+        }
+        let label = if typing { "Typing" } else { "Edit text" };
+        let op = Op::ReplaceText {
+            page: page.to_owned(),
+            at,
+            removed: removed.to_owned(),
+            inserted: inserted.to_owned(),
+        };
+        let tx = Transaction::new(Scope::Page(page.to_owned()), label).with(op);
+        self.commit(if typing { tx.typing() } else { tx })
     }
 
     /// Record a stroke added to the end of a page's ink, as one undo step. The helper for

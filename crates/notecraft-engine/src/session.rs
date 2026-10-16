@@ -158,6 +158,11 @@ impl Session {
         self.page_sources.insert(id.to_owned(), (next, text.into()));
     }
 
+    /// The source text of page `id`, if it has any.
+    pub fn page_text(&self, id: &str) -> Option<&str> {
+        self.page_sources.get(id).map(|(_, text)| text.as_str())
+    }
+
     /// The source text of the page shown now, with a number that changes whenever the text
     /// does (for caching what is derived from it).
     pub fn current_page_source(&self) -> Option<PageSource<'_>> {

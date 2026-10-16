@@ -231,6 +231,194 @@ fn a_merge_after_undo_starts_a_new_step() {
     assert!(ids_on(&session, "p1").is_empty());
 }
 
+// Typing
+
+/// Type `text` one character at a time at the end of page p1, as a keyboard would.
+fn type_chars(session: &mut Session, text: &str) {
+    for ch in text.chars() {
+        let at = session.page_text("p1").unwrap_or_default().len();
+        assert!(session.edit_page_text("p1", at, 0, &ch.to_string(), true));
+    }
+}
+
+fn text(session: &Session) -> String {
+    session.page_text("p1").unwrap_or_default().to_owned()
+}
+
+#[test]
+fn typing_a_word_is_one_step() {
+    let mut session = session_with_pages();
+    type_chars(&mut session, "hello");
+    assert_eq!(text(&session), "hello");
+    assert_eq!(session.history().undo_steps(Some("p1")).len(), 1);
+    assert_eq!(session.undo().as_deref(), Some("Typing"));
+    assert_eq!(text(&session), "");
+    assert_eq!(session.redo().as_deref(), Some("Typing"));
+    assert_eq!(text(&session), "hello");
+}
+
+#[test]
+fn a_new_word_starts_a_new_step() {
+    let mut session = session_with_pages();
+    // A word and the space after it are one step; the next word is another.
+    type_chars(&mut session, "hi yo there");
+    let steps = session.history().undo_steps(Some("p1")).len();
+    assert_eq!(steps, 3, "hi_ yo_ there");
+    session.undo();
+    assert_eq!(text(&session), "hi yo ");
+    session.undo();
+    assert_eq!(text(&session), "hi ");
+    session.undo();
+    assert_eq!(text(&session), "");
+    assert_eq!(session.undo(), None);
+    // Redo brings the words back one step at a time.
+    session.redo();
+    assert_eq!(text(&session), "hi ");
+}
+
+#[test]
+fn typing_somewhere_else_starts_a_new_step() {
+    let mut session = session_with_pages();
+    type_chars(&mut session, "abc");
+    // The caret jumps to the start.
+    assert!(session.edit_page_text("p1", 0, 0, "x", true));
+    assert!(session.edit_page_text("p1", 1, 0, "y", true));
+    assert_eq!(text(&session), "xyabc");
+    assert_eq!(session.history().undo_steps(Some("p1")).len(), 2);
+    session.undo();
+    assert_eq!(text(&session), "abc");
+}
+
+#[test]
+fn another_kind_of_step_ends_a_typing_run() {
+    let mut session = session_with_pages();
+    type_chars(&mut session, "ab");
+    assert!(session.commit(page_tx(
+        "p1",
+        "Ink stroke",
+        insert("p1", 0, stroke("s1", 0.0))
+    )));
+    type_chars(&mut session, "cd");
+    assert_eq!(text(&session), "abcd");
+    let labels: Vec<String> = session
+        .history()
+        .undo_steps(Some("p1"))
+        .into_iter()
+        .map(|step| step.label)
+        .collect();
+    assert_eq!(labels, ["Typing", "Ink stroke", "Typing"]);
+    // Edits that are not typing never coalesce, even when they touch.
+    assert!(session.edit_page_text("p1", 4, 0, "e", false));
+    assert!(session.edit_page_text("p1", 5, 0, "f", false));
+    assert_eq!(session.history().undo_steps(Some("p1")).len(), 5);
+}
+
+#[test]
+fn typing_after_an_undo_does_not_extend_the_older_step() {
+    let mut session = session_with_pages();
+    type_chars(&mut session, "ab");
+    assert!(session.commit(page_tx(
+        "p1",
+        "Ink stroke",
+        insert("p1", 0, stroke("s1", 0.0))
+    )));
+    session.undo();
+    // The "ab" step is on top again, and the caret is right after it, but typing is new.
+    type_chars(&mut session, "c");
+    assert_eq!(session.history().undo_steps(Some("p1")).len(), 2);
+    session.undo();
+    assert_eq!(text(&session), "ab");
+}
+
+#[test]
+fn backspace_and_delete_runs_coalesce() {
+    let mut session = session_with_pages();
+    session.set_page_source("p1", "hello world");
+    // Backspace three times from the end of "hello".
+    for at in [4, 3, 2] {
+        assert!(session.edit_page_text("p1", at, 1, "", true));
+    }
+    assert_eq!(text(&session), "he world");
+    assert_eq!(session.history().undo_steps(Some("p1")).len(), 1);
+    session.undo();
+    assert_eq!(text(&session), "hello world");
+    session.redo();
+    assert_eq!(text(&session), "he world");
+
+    // Delete three times at the same spot.
+    for _ in 0..3 {
+        assert!(session.edit_page_text("p1", 2, 1, "", true));
+    }
+    assert_eq!(text(&session), "herld");
+    session.undo();
+    assert_eq!(text(&session), "he world");
+    session.undo();
+    assert_eq!(text(&session), "hello world");
+    assert!(!session.can_undo());
+}
+
+#[test]
+fn typing_and_deleting_do_not_merge_with_each_other() {
+    let mut session = session_with_pages();
+    type_chars(&mut session, "abc");
+    assert!(session.edit_page_text("p1", 2, 1, "", true));
+    assert_eq!(session.history().undo_steps(Some("p1")).len(), 2);
+}
+
+#[test]
+fn multi_byte_text_round_trips_and_bad_offsets_are_refused() {
+    let mut session = session_with_pages();
+    session.set_page_source("p1", "caf\u{e9}!");
+    // The e-acute is two bytes, at 3..5. An offset inside it is refused.
+    assert!(!session.edit_page_text("p1", 4, 0, "x", true));
+    assert!(!session.edit_page_text("p1", 3, 1, "", true));
+    assert!(!session.edit_page_text("p1", 99, 0, "x", true));
+    assert!(!session.edit_page_text("p1", 3, 99, "", true));
+    // Nothing to change.
+    assert!(!session.edit_page_text("p1", 0, 0, "", true));
+    assert!(!session.can_undo());
+    assert!(session.edit_page_text("p1", 3, 2, "e", false));
+    assert_eq!(text(&session), "cafe!");
+    session.undo();
+    assert_eq!(text(&session), "caf\u{e9}!");
+}
+
+#[test]
+fn a_typing_run_is_bounded() {
+    let mut session = session_with_pages();
+    type_chars(&mut session, &"a".repeat(1300));
+    let steps = session.history().undo_steps(Some("p1")).len();
+    assert!((3..=4).contains(&steps), "{steps} steps");
+    while session.undo().is_some() {}
+    assert_eq!(text(&session), "");
+}
+
+#[test]
+fn a_text_step_that_no_longer_matches_is_dropped() {
+    let mut session = session_with_pages();
+    type_chars(&mut session, "abc");
+    // The file is reloaded from disk with other text.
+    session.set_page_source("p1", "something else");
+    assert_eq!(session.undo(), None);
+    assert_eq!(text(&session), "something else");
+    assert!(!session.can_undo());
+}
+
+#[test]
+fn text_and_ink_undo_in_the_order_they_happened() {
+    let mut session = session_with_pages();
+    type_chars(&mut session, "hi");
+    assert!(session.commit(page_tx(
+        "p1",
+        "Ink stroke",
+        insert("p1", 0, stroke("s1", 0.0))
+    )));
+    assert_eq!(session.undo().as_deref(), Some("Ink stroke"));
+    assert_eq!(session.undo().as_deref(), Some("Typing"));
+    assert_eq!(session.redo().as_deref(), Some("Typing"));
+    assert_eq!(session.redo().as_deref(), Some("Ink stroke"));
+}
+
 // Caps
 
 #[test]
