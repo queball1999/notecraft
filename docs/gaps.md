@@ -15,9 +15,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
-| 15 | No notebook index (the folder reader and reading page text from disk have landed) | ST-07 | 18-30 | build_plan/03, PR 1.2 |
 | 15 | The navigation does not read the index yet (the folder reader, reading page text from disk, and the index have landed) | ST-07 | 6-10 | build_plan/03, PR 1.2 (done), 1.5 |
-| 16 | No minimal-diff markdown write (markdown read and frontmatter read landed in PR 1.3) | FM-02, FM-04 | 40-70 | build_plan/03, PR 1.4 |
 | 17 | No text editing in containers | TX-01 to TX-06, CV-04 to CV-06 | 104-180 | build_plan/03, PR 1.5, 1.6 |
 | 18 | No auto-save, crash recovery, outside edit handling (also wires the minimal-diff write, PR 1.4, into page saving; FM-02 and FM-04 stay P until then) | FM-05 to FM-07 (plus FM-02, FM-04) | 24-40 | build_plan/03, PR 1.7 |
 | 19 | No undo and redo | ST-08 | 20-34 | build_plan/03, PR 1.8 |
