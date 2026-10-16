@@ -139,7 +139,14 @@ fn hostile_input_never_panics() {
         .iter()
         .all(|p| p.pressure.is_finite() && (0.0..=1.0).contains(&p.pressure)));
 
-    let mesh = tessellate(&points, f32::NAN, TessParams { cap_segments: 0 });
+    let mesh = tessellate(
+        &points,
+        f32::NAN,
+        TessParams {
+            cap_segments: 0,
+            fringe: true,
+        },
+    );
     assert!(mesh.indices.len().is_multiple_of(3));
     assert!(mesh
         .indices

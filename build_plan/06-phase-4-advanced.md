@@ -1,6 +1,6 @@
 # Phase 4: advanced (post-1.0)
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 4.5 finishes the `make server` placeholder in the new root Makefile.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 4.1 note from the WordCraft ink survey; PR 4.5 finishes the `make server` placeholder in the new root Makefile.
 
 Goal: the remaining OneNote features, which are large and independent of each other: handwriting recognition and ink search, OneNote `.one` import, a browser build (OneNote has a web version), sync research, docked window, right-to-left layout, translations, OCR (copy text from picture), audio and video recording, and password-protected sections. Together with v1.0.0 these complete full OneNote parity. Order by user demand.
 
@@ -23,7 +23,7 @@ Goal: the remaining OneNote features, which are large and independent of each ot
 | Hours | 120-220 |
 | Rows | IN-11 |
 
-Steps: on-device only (offline-first). Evaluate OS recognizers through safe wrapper crates (Windows Ink recognizer, macOS) against a bundled openly licensed model run by a pure-Rust inference crate. Recognition runs in the background per stroke group and stores text in the canvas block (`ink_text` per group) so search can use it. Draw > Ink to Text converts a selection.
+Steps: on-device only (offline-first). Evaluate OS recognizers through safe wrapper crates (Windows Ink recognizer, macOS) against a bundled openly licensed model run by a pure-Rust inference crate. Recognition runs in the background per stroke group and stores text in the canvas block (`ink_text` per group) so search can use it. Draw > Ink to Text converts a selection. Grouping strokes into words and lines can reuse the page's `GridIndex` for neighbor queries (docs/architecture.md section 10). The related WordCraft app has no handwriting recognizer, so nothing is adopted here.
 
 Commits (after design approval):
 
@@ -221,3 +221,4 @@ Follow 00-conventions.md section 6 whenever the chosen subset is done; release a
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |
 | 2026-10-15 | 0 | PR 4.5 also finishes the `make server` placeholder in the root Makefile (added at the Phase 0 close); no change to hours. |
+| 2026-10-15 | 1 | PR 4.1 note: stroke grouping can reuse the grid index; the WordCraft ink survey found nothing to adopt for recognition. Hours unchanged. |
