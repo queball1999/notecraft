@@ -60,7 +60,8 @@ egui_kittest = "0.36"
 skrifa = "0.44"
 # Native open dialogs; only the desktop app (L7) uses them.
 rfd = "0.15"
-image = { version = "0.25", default-features = false, features = ["png"] }
+# Picture decoding for the canvas (PNG, JPEG, WebP) and the app icon. MIT OR Apache-2.0; pure Rust.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 # craft-libs: every crate from one pinned commit (docs/craft-libs.md section 5).
 craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
 craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
