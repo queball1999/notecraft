@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: IN-01 evidence adds anti-aliased edges and the marked pen; ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated.
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -104,7 +104,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| IN-01 | Ink | Pen with color and width | 1 | P | PR 1.10: draw.pen, draw.color, draw.thickness, and ink.add_stroke are Ready; Draw tab pen gallery; tests `canvas::ink_tests::dragging_with_the_pen_makes_a_stroke`, `a_tap_makes_a_dot`, `the_stroke_is_painted_as_a_mesh`, `draw::tests::the_pen_takes_a_color_and_a_width`. Missing: strokes are not saved to the page file yet (PR 1.9) |
+| IN-01 | Ink | Pen with color and width | 1 | P | PR 1.10: draw.pen, draw.color, draw.thickness, and ink.add_stroke are Ready; Draw tab pen gallery; tests `canvas::ink_tests::dragging_with_the_pen_makes_a_stroke`, `a_tap_makes_a_dot`, `the_stroke_is_painted_as_a_mesh`, `draw::tests::the_pen_takes_a_color_and_a_width`. Edges are anti-aliased (`tessellate::tests::the_fringe_wraps_the_outline_and_adds_no_area`, `a_join_fringes_only_its_outer_wedge`, `canvas::ink::tests::a_fringed_mesh_fades_over_one_pixel_around_the_edge`) and the pen menus mark the pen in use (`ribbon::menus::tests::the_menu_marks_the_pen_in_use`). Missing: strokes are not saved to the page file yet (PR 1.9) |
 | IN-02 | Ink | Pressure from pen tablets | 1 | P | PR 1.10: touch force becomes stroke pressure (tests `a_touch_force_becomes_pressure`, `touch_force_becomes_pen_pressure_and_hides_the_emulated_mouse`); speed-based width when there is none (`speed_sets_width_when_there_is_no_pressure`). Missing: no real pen or tablet was tried; from the winit source only Windows reports pressure, macOS and Linux need a wrapper crate (build_plan/03 PR 1.10 notes) |
 | IN-03 | Ink | Stroke smoothing | 1 | D | PR 1.10: one-euro filter; tests `filter::tests::jitter_at_rest_is_cut_by_more_than_half`, `a_fast_line_is_followed_closely`, `capture::tests::smoothing_cuts_jitter_on_a_slow_line`, `a_quick_flick_is_not_flattened`. Feel on a real pen is part of the deferred hands-on checks (gaps rank 25) |
 | IN-04 | Ink | Highlighter | 1 | M | |
@@ -235,3 +235,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 0 | Phase 0 close (maintainer decisions, 2026-10-15): SH-01, SH-05, SH-12, SH-15, and TH-06 scored D on the Windows evidence (SH-01 also on the maintainer's Linux run), and SH-14 stays D, with their macOS, Linux dark mode, physical keyboard, screen reader, and real OS dialog runs moved to one deferred hands-on checks gap in docs/gaps.md; SH-04 reworded to the Coming Soon tooltip and toast and scored D (the per-button badge stays dropped); SH-12 scored D on the harness tests. |
 | 2026-10-15 | 1 | ST-01 scored D and SH-06 evidence updated: the folder reader and the real navigation tree (PR 1.1). |
 | 2026-10-15 | 1 | IN-01 and IN-02 scored P and IN-03 scored D (PR 1.10, ink engine and pen): pen, smoothing, and stroke capture work and are tested with synthetic events; saving strokes waits for PR 1.9 and no real pen has been tried. |
+| 2026-10-15 | 1 | IN-01 evidence: anti-aliased stroke edges and the marked current pen (PR 1.10 follow-ups). Scores unchanged. |

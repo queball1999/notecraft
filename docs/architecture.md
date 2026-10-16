@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: section 10 (ink and drawing design) added.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -139,6 +139,61 @@ Commands always run on the thread that owns the session (the UI thread in the de
 
 Other workflows mirror the related craft apps: `printing.yml` (craft-print on all three OSes), `freebsd.yml` and `windows-arm64.yml` (nightly and on the `release` branch), `packaging-lint.yml`, and `release.yml` (see docs/releasing.md).
 
+## 10. Ink and drawing design
+
+How ink works today (PR 1.10) and how the next ink PRs build on it. The WordCraft survey of 2026-10-15 informed this section: WordCraft is a related craft app with the same patterns, and its Draw tab was read for ideas (no code was copied; if a later PR ports code, it adds an ATTRIBUTION.md row first).
+
+### 10.1 Pipeline
+
+```
+egui events -> PointerSample (core, L0) -> StrokeBuilder (canvas, L4: one-euro filter,
+  speed-based width when no pressure) -> ink.add_stroke -> InkLayer per page (strokes in
+  paint order + GridIndex) -> tessellate (canvas: triangle list + Edge tags) -> egui Mesh
+  (ui-egui: color, zoom, AA fringe)
+```
+
+Engine crates never see egui. The tessellator returns page-unit positions, indices, and one `Edge` tag per vertex; the egui side picks the color and the screen-space fringe.
+
+### 10.2 Anti-aliased edges
+
+Meshes are drawn with a one-pixel fringe so edges fade instead of stair-stepping, at any zoom and display scale.
+
+- Tessellation (`ink/tessellate.rs`) adds a strip of quads along every outline chain: both ribbon sides, both caps, and, at a sharp turn, only the wedge of the join disc that shows past the ribbon (the rest of the disc lies inside the body and gets no fringe). Each outline vertex is tagged `Edge::Rim { dir, radius }` (outward direction and distance from the centerline) and gets an `Edge::Outer(dir)` twin at the same place. Everything else is `Edge::Inside`.
+- The egui side (`canvas/ink.rs`, `append`) moves a rim vertex up to half a device pixel inward (never past the centerline, so lines under one pixel wide do not invert) and an outer vertex half a pixel outward with transparent color. The result is a one-pixel ramp centered on the true edge. Half a device pixel is `0.5 / pixels_per_point` egui points; the page-to-screen map only scales and shifts, so directions carry over unchanged.
+- The fringe is built in page units, so cached meshes do not depend on zoom or display scale; only the cap segment count does.
+- It is correct for opaque strokes only: the fringe quads overlap the body and must hit the same color. A translucent stroke asks for no fringe (`TessParams::fringe`), and the mesh cache keys on it.
+
+Why not egui's own feathering: epaint feathers filled convex paths and stroked polylines, but a variable-width ribbon with round joins is neither one convex path nor a constant-width polyline, so the stroke would need its outline polygon (a self-overlapping union) first. Tagging the mesh keeps the engine free of egui and the cost to one extra vertex per outline vertex.
+
+### 10.3 Highlighter (PR 1.11 design, not built)
+
+OneNote's highlighter multiplies over the page. egui has no multiply blend in its painter, and a translucent mesh darkens wherever its own triangles overlap. The plan:
+
+1. Draw highlighter strokes in a pass of their own, behind the text containers and above the paper, so dark text stays dark over the color (the same result as multiply for dark text on a light page). WordCraft also draws its highlighter behind text and its pens in front.
+2. Draw each highlighter stroke as an opaque mesh in the color pre-blended with the paper color at the highlighter's alpha (about 0.5), so triangle overlap inside a stroke cannot show and the AA fringe stays valid. The pre-blend uses the theme's paper color at paint time, so it follows dark themes.
+3. If overlapping highlighter strokes must darken each other (true multiply), or the highlighter must tint images, add an `egui_wgpu` paint callback with a multiply blend state later; the stroke type and file format do not change.
+4. The stored stroke keeps `tool: "highlighter"`, the picked color, and its width; the blend is a rendering choice (docs/printing.md specifies multiply at 50% opacity for PDF).
+
+### 10.4 Erasers, lasso, and undo (PR 1.11, 3.3 design)
+
+- Hit testing is `InkLayer::hit_test` and `topmost_at` over the `GridIndex` (distance from the point to each stroke segment, widened by half the stroke width plus a pointer reach in screen pixels). This is already better than a linear scan; keep it for both erasers.
+- Stroke eraser: one drag is one undo step. The first stroke it removes starts a step and later ones join it (WordCraft does this with a `join_next_undo` call; PR 1.8's transactions should take a "merge with the previous step" flag for the same effect).
+- Point eraser: remove the points under the eraser circle and split the stroke into the runs that remain, each keeping color, width, and pressure; runs shorter than two points are dropped.
+- Lasso (PR 3.3): a stroke is selected when at least 60 percent of its sampled points fall inside the loop polygon (WordCraft's rule, which beats "bounding box inside" and "any point inside" for loose loops); thin long loops are down-sampled to a point cap before testing. Selected ink moves, recolors, and deletes as one undo step each.
+
+### 10.5 Ink to Shape (PR 3.2 design)
+
+WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free geometric recognizer, which is the approach the plan calls for: a stroke is a line when it stays within 6 percent of its chord, an ellipse when the RMS of the normalized radius is low, otherwise a polygon of at most 8 corners found with an iterative Ramer-Douglas-Peucker pass plus merging of crowded and near-straight corners, with arrows recognized as a shaft plus two barbs. NoteCraft ports the idea to `notecraft-canvas` (L4) over `InkPoint` and adds what OneNote needs on top: a confidence threshold with a Draw tab toggle, rotated rectangles and ellipses (WordCraft snaps to upright ones), a double arrow, and the shape model of PR 3.1 as the output. A port of its code carries an ATTRIBUTION.md row (MIT OR Apache-2.0, source files named); tests use deterministic wobble like its `around` helper.
+
+### 10.6 Other adoptable pieces
+
+| Piece | Design |
+|---|---|
+| Custom pens (Add Pen) | A pen is `{ kind, color, width }`. The gallery keeps up to 24, saved through `craft-settings`; a hand-edited settings file loses the bad pens and never the rest (lenient deserializer). PR 3.1, inside its estimate. |
+| Ink Replay | Strokes carry their drawing order (paint order already is that); replay draws each stroke up to a fraction of its length at about 400 units per second with a short gap between strokes, with a transport bar. Needs no format change. OneNote has it; docs/target-app-parity.md lists it as not planned for 1.x, so it needs a maintainer decision before it gets a PR. |
+| Caps | WordCraft caps a stroke at 5,000 points and a page at 2,000 strokes. NoteCraft keeps 20,000 points and 100,000 strokes (docs/markdown.md section 9) and simplifies with Ramer-Douglas-Peucker on import. |
+| Live preview | WordCraft paints the live stroke as a constant-width polyline and the committed one later in a different path. NoteCraft paints both with the same tessellator, so a stroke does not change look on pen-up. |
+
 ## Revision history
 
 | Date | Phase | Change |
@@ -155,3 +210,4 @@ Other workflows mirror the related craft apps: `printing.yml` (craft-print on al
 | 2026-10-14 | 0 | Section 4: the default shortcut map lives in the engine; the shell matches and dispatches it (PR 0.9). |
 | 2026-10-15 | 0 | CLI and MCP server are in the build plan, not post-parity. |
 | 2026-10-15 | 1 | Section 4: ink capture, strokes, and pen commands (PR 1.10). |
+| 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |

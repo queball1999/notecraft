@@ -1,6 +1,6 @@
 # Phase 3: polish and parity
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: reviewed and re-estimated at the Phase 0 close; no change.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 3.1, 3.2, and 3.3 notes from the WordCraft ink survey (custom pens, recognizer approach, lasso rule); hours unchanged.
 
 Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, and performance. Ends with the v0.9.0 beta.
 
@@ -26,7 +26,7 @@ Parallel tracks: PRs 3.1 to 3.5 (canvas and structure) and 3.6 to 3.8 (export) t
 | Hours | 30-50 |
 | Rows | IN-07, IN-09 |
 
-Steps: Draw tab Shapes gallery with at least 15 presets (line, arrow, double arrow, rectangle, rounded rectangle, ellipse, triangle, right triangle, diamond, pentagon, hexagon, parallelogram, trapezoid, star, cloud, axes 2D); stroke color, width, fill; resize and rotate handles; hold Shift for constrained proportions; ruler overlay that ink snaps to, rotated with two fingers or the mouse wheel.
+Steps: Draw tab Shapes gallery with at least 15 presets (line, arrow, double arrow, rectangle, rounded rectangle, ellipse, triangle, right triangle, diamond, pentagon, hexagon, parallelogram, trapezoid, star, cloud, axes 2D); stroke color, width, fill; resize and rotate handles; hold Shift for constrained proportions; ruler overlay that ink snaps to, rotated with two fingers or the mouse wheel; Add Pen on the pen gallery (a pen is kind, color, and width; up to 24 saved through `craft-settings`, parsed leniently so a damaged settings file loses only the bad pens; docs/architecture.md section 10.6). Inside the estimate.
 
 Commits:
 
@@ -46,7 +46,7 @@ PR title: `feat(canvas): add shapes and the ruler`.
 | Hours | 20-36 |
 | Rows | IN-08 |
 
-Steps: classify a finished stroke as line, rectangle, ellipse, triangle, or arrow with a geometric recognizer (corner detection and fit error); replace the stroke with a shape when confidence passes a threshold; toggle on the Draw tab; undo restores the ink.
+Steps: classify a finished stroke as line, rectangle, ellipse, triangle, or arrow with a geometric recognizer (corner detection and fit error); replace the stroke with a shape when confidence passes a threshold; toggle on the Draw tab; undo restores the ink. Approach (docs/architecture.md section 10.5, from the related WordCraft app's `crates/engine/src/cmd/ink_shape.rs`): bounded, dependency-free fits in order line, arrow (shaft plus two barbs), ellipse (RMS of the normalized radius), then a polygon of up to 8 corners from an iterative Ramer-Douglas-Peucker pass with crowded and near-straight corners merged; strokes under a minimum size stay ink. Improve on it with rotated rectangles and ellipses and a double arrow. A port of its code needs an ATTRIBUTION.md row.
 
 Commits:
 
@@ -66,7 +66,7 @@ PR title: `feat(canvas): convert ink to shapes`.
 
 Commits:
 
-1. `feat(canvas): add lasso and rectangle selection across object kinds`
+1. `feat(canvas): add lasso and rectangle selection across object kinds` (a stroke is picked when at least 60 percent of its sampled points are inside the loop, as in WordCraft's lasso; docs/architecture.md section 10.4)
 2. `feat(engine): move, delete, and recolor selections`
 3. `feat(engine): add bring forward and send backward`
 4. `feat(canvas): add grid snap and alignment guides`
@@ -332,3 +332,4 @@ Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Added PR 3.14 (command line render, export, print) and PR 3.15 (MCP server) after the maintainer decision of 2026-10-15; Phase 3 estimate 392-666 hours. |
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |
+| 2026-10-15 | 1 | Notes from the WordCraft ink survey: Add Pen in PR 3.1, the recognizer approach in PR 3.2, the lasso pick rule in PR 3.3. Hours unchanged. |

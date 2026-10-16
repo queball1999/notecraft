@@ -1,6 +1,6 @@
 # OneNote parity assessment
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.10: the pen and input rows are partial.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.10: the pen and input rows are partial; ink replay still not planned (see docs/architecture.md section 10.6).
 
 Target: OneNote for Windows as shipped around 2020 (OneNote 2016 desktop and the Microsoft 365 app of that era), with theme presets for 2016, 2019, 2021, and Microsoft 365. NoteCraft matches OneNote's workflow and layout one to one. It differs on purpose in one place: storage. OneNote keeps notebooks in a binary format; NoteCraft keeps them as markdown folders (docs/markdown.md).
 
@@ -172,3 +172,4 @@ Four presets, each in light and dark (docs/themes.md). Palettes are original col
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Rule lines row: ruled paper has the red margin line; dotted paper is a kept extra. |
 | 2026-10-15 | 1 | Pen and input normalization rows scored P (PR 1.10): pen, smoothing, and mouse and touch capture work; strokes are not saved yet and no real pen was tried. |
+| 2026-10-15 | 1 | Status line only: ink replay stays not planned; the design is in docs/architecture.md section 10.6 if the maintainer schedules it. |
