@@ -24,13 +24,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Canvas | 3 | 0 | 9 | 12 | 25% |
 | Ink | 1 | 5 | 7 | 13 | 7% |
 | Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 1 | 2 | 9 | 12 | 8% |
-| Structure | 4 | 4 | 4 | 12 | 33% |
+| Structure | 4 | 5 | 4 | 13 | 30% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
 | Format | 6 | 1 | 2 | 9 | 66% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 39 | 8 | 67 | 114 | 34% |
+| Total | 44 | 11 | 60 | 115 | 38% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
