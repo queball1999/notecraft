@@ -231,6 +231,15 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
             out.push_str("\\\n");
             continue;
         }
+        if run.image {
+            let url = run.link.as_deref().unwrap_or_default();
+            out.push_str(&format!(
+                "![{}]({})",
+                escape(&run.text, in_cell),
+                escape_url(url)
+            ));
+            continue;
+        }
         let mut text = if run.code {
             code_span(&run.text)
         } else {

@@ -261,8 +261,31 @@ fn push(runs: &mut Vec<Run>, text: &str, style: &Style, code: bool) {
         strike: style.strike,
         code,
         link: style.link.clone(),
+        image: false,
     });
 }
+
+/// The alt text of an image node: the text and code under it, up to a small cap.
+fn alt_text<'a>(node: &'a AstNode<'a>) -> String {
+    let mut alt = String::new();
+    for d in node.descendants().skip(1) {
+        let value = &d.data.borrow().value;
+        let piece: &str = match value {
+            NodeValue::Text(t) => t,
+            NodeValue::Code(c) => &c.literal,
+            NodeValue::SoftBreak | NodeValue::LineBreak => " ",
+            _ => continue,
+        };
+        if alt.len() >= MAX_ALT_BYTES {
+            break;
+        }
+        alt.push_str(piece);
+    }
+    alt
+}
+
+/// Alt text kept per image.
+const MAX_ALT_BYTES: usize = 1024;
 
 fn inline_children<'a>(node: &'a AstNode<'a>, style: &Style, depth: usize, runs: &mut Vec<Run>) {
     for child in node.children() {
@@ -295,9 +318,18 @@ fn inline_children<'a>(node: &'a AstNode<'a>, style: &Style, depth: usize, runs:
                 strike: true,
                 ..style.clone()
             }),
-            NodeValue::Link(link) | NodeValue::Image(link) => nested(Style {
+            NodeValue::Link(link) => nested(Style {
                 link: Some(link.url),
                 ..style.clone()
+            }),
+            NodeValue::Image(link) => runs.push(Run {
+                text: alt_text(child),
+                bold: style.bold,
+                italic: style.italic,
+                strike: style.strike,
+                code: false,
+                link: Some(link.url),
+                image: true,
             }),
             _ => nested(style.clone()),
         }
@@ -310,7 +342,9 @@ fn merge(runs: Vec<Run>) -> Vec<Run> {
     for run in runs {
         match out.last_mut() {
             Some(last)
-                if last.bold == run.bold
+                if !last.image
+                    && !run.image
+                    && last.bold == run.bold
                     && last.italic == run.italic
                     && last.strike == run.strike
                     && last.code == run.code

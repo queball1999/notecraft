@@ -39,6 +39,8 @@ pub struct Run {
     pub code: bool,
     /// The link target, for text inside a link (or an image, whose alt text is shown).
     pub link: Option<String>,
+    /// The run is an image (`![alt](target)`): `text` is the alt text and `link` the target.
+    pub image: bool,
 }
 
 impl Run {
@@ -51,7 +53,7 @@ impl Run {
 
     /// True if the run has no styling at all.
     pub fn is_plain(&self) -> bool {
-        !(self.bold || self.italic || self.strike || self.code) && self.link.is_none()
+        !(self.bold || self.italic || self.strike || self.code || self.image) && self.link.is_none()
     }
 }
 

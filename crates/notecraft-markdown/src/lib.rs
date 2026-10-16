@@ -26,6 +26,8 @@ mod edit_tests;
 pub mod frontmatter;
 #[cfg(test)]
 mod frontmatter_tests;
+#[cfg(test)]
+mod image_tests;
 mod parse;
 #[cfg(test)]
 mod parse_tests;
