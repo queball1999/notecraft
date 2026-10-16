@@ -1,6 +1,6 @@
 # Releasing
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: releases run NoteCraft's own workflow on free standard runners.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-14. Change: releases run NoteCraft's own workflow on free standard runners.
 
 Pushing to the `release` branch runs `.github/workflows/release.yml`, which builds, signs (when secrets exist), notarizes, packages, and drafts a GitHub Release. The release flow and packaging scripts follow the related craft apps, but the workflow itself is NoteCraft's own: the shared release workflow in craft-common-actions builds macOS on a paid `macos-15-xlarge` runner, and it has no license, so NoteCraft cannot copy it. NoteCraft's workflow uses only GitHub's standard hosted runners, which are free for public repositories.
 

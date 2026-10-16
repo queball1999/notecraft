@@ -1,6 +1,6 @@
 # Phase 4: advanced (post-1.0)
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: reviewed and re-estimated at the Phase 0 close; no change.
 
 Goal: the remaining OneNote features, which are large and independent of each other: handwriting recognition and ink search, OneNote `.one` import, a browser build (OneNote has a web version), sync research, docked window, right-to-left layout, translations, OCR (copy text from picture), audio and video recording, and password-protected sections. Together with v1.0.0 these complete full OneNote parity. Order by user demand.
 
@@ -218,3 +218,4 @@ Follow 00-conventions.md section 6 whenever the chosen subset is done; release a
 |---|---|---|
 | 2026-10-14 | -1 | Created. WASM plugins moved to docs/post-parity.md; recording and password-protected sections added for full parity. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |

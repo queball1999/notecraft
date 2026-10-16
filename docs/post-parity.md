@@ -1,6 +1,6 @@
 # Post-parity optional features
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-15. Change: Full CLI and MCP server moved into the build plan; dotted paper recorded as a kept extra.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Full CLI and MCP server moved into the build plan; dotted paper recorded as a kept extra.
 
 
 The build plan covers OneNote parity only. Everything in this doc is something OneNote does not do. None of it is scheduled. Each item is optional and is considered only after full parity (v1.0.0 and the parity items in Phase 4) is reached, and only if users ask for it.
