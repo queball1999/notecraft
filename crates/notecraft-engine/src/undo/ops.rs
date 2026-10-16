@@ -239,6 +239,21 @@ impl Op {
     /// Apply the operation. Returns false, changing nothing, when it does not fit the
     /// document as it is now.
     pub(crate) fn apply(&self, session: &mut Session) -> bool {
+        let applied = self.apply_to_document(session);
+        if applied {
+            // Page text and strokes are saved with the page, so a change to either is an
+            // unsaved edit (PR 1.7). Style and structure changes are not page text yet.
+            if let Op::InsertStroke { page, .. }
+            | Op::DeleteStroke { page, .. }
+            | Op::ReplaceText { page, .. } = self
+            {
+                session.mark_page_dirty(page);
+            }
+        }
+        applied
+    }
+
+    fn apply_to_document(&self, session: &mut Session) -> bool {
         match self {
             Op::InsertStroke {
                 page,

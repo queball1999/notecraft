@@ -151,6 +151,9 @@ pub struct History {
     pages: BTreeMap<String, Stack>,
     notebook: Stack,
     clock: u64,
+    /// True while the newest step of some stack is an erase that the rest of the same eraser
+    /// drag may join.
+    erase_chain: bool,
     max_steps: usize,
     max_bytes: usize,
 }
@@ -168,6 +171,7 @@ impl History {
             pages: BTreeMap::new(),
             notebook: Stack::default(),
             clock: 0,
+            erase_chain: false,
             max_steps: max_steps.max(1),
             max_bytes,
         }
@@ -197,6 +201,9 @@ impl History {
     pub fn record(&mut self, tx: Transaction) {
         if tx.ops.is_empty() {
             return;
+        }
+        if tx.merge != Merge::IntoPrevious {
+            self.erase_chain = false;
         }
         let tick = self.tick();
         let (max_steps, max_bytes) = (self.max_steps, self.max_bytes);
@@ -310,6 +317,7 @@ impl History {
     }
 
     fn pop(&mut self, scope: &Scope, redo: bool) -> Option<Arc<Entry>> {
+        self.erase_chain = false;
         let stack = self.stack_mut(scope);
         if redo {
             return stack.redo.pop();
@@ -360,6 +368,12 @@ impl History {
                 entry.ops.iter_mut().for_each(|op| op.rekey(map));
             }
         }
+    }
+
+    /// Forget the steps of one page, for example when its file was replaced by a newer
+    /// version from disk and the steps no longer fit the text.
+    pub fn clear_page(&mut self, page: &str) {
+        self.pages.remove(page);
     }
 
     /// Forget everything, for example when a different set of notebooks is opened.
@@ -515,6 +529,26 @@ impl Session {
                 stroke,
             });
         self.commit(tx)
+    }
+
+    /// A new eraser drag starts: the next erase is a step of its own.
+    pub(crate) fn end_erase_chain(&mut self) {
+        self.history.erase_chain = false;
+    }
+
+    /// Record the ops of one erase as one undo step. With `join` set, and when the step just
+    /// before was an erase too (an earlier part of the same eraser drag), the ops join that
+    /// step so the whole drag undoes at once. Anything else in between, such as another
+    /// command's step or an undo, ends the chain. `ops` must not be empty.
+    pub(crate) fn commit_erase(&mut self, page: &str, ops: Vec<Op>, join: bool) -> bool {
+        let mut tx = Transaction::new(Scope::Page(page.to_owned()), "Erase ink");
+        tx.ops = ops;
+        if join && self.history.erase_chain {
+            tx = tx.merge_into_previous();
+        }
+        let done = self.commit(tx);
+        self.history.erase_chain = done;
+        done
     }
 }
 

@@ -14,6 +14,20 @@ use crate::themes::{mix, ThemeTokens};
 /// only gray the page.
 pub const MIN_SCREEN_SPACING: f32 = 4.0;
 
+/// The color the paper shows: the theme's page color with the page's own color over it.
+/// The highlighter blends against this.
+pub(super) fn paper_color(style: PageStyle, tokens: &ThemeTokens) -> Color32 {
+    let base = tokens.canvas_bg;
+    let Some([r, g, b, a]) = style.color else {
+        return base;
+    };
+    let alpha = f32::from(a) / 255.0;
+    let mix = |over: u8, under: u8| {
+        (f32::from(over) * alpha + f32::from(under) * (1.0 - alpha)).round() as u8
+    };
+    Color32::from_rgb(mix(r, base.r()), mix(g, base.g()), mix(b, base.b()))
+}
+
 /// Draw the paper inside `screen`, the visible part of the canvas.
 pub(super) fn draw(
     painter: &Painter,

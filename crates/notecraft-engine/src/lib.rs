@@ -11,6 +11,8 @@
 
 pub mod cmd;
 pub mod ink;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod io;
 pub mod mock;
 pub mod open;
 pub mod recent;
@@ -18,8 +20,12 @@ pub mod session;
 pub mod undo;
 pub mod view;
 
-pub use ink::{DrawTool, InkState, PenStyle};
-pub use session::{PageNotice, PageSource, Selection, Session};
+pub use ink::{DrawTool, EraserMode, EraserSize, InkState, PenStyle};
+pub use notecraft_storage::RecoveryEntry;
+pub use session::{
+    ConvertOutcome, PageNotice, PageSource, ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome,
+    SaveState, Selection, Session,
+};
 pub use view::PageStyle;
 
 /// Layer number, read by `cargo xtask layers`.

@@ -2,6 +2,7 @@
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
+use super::page;
 use super::{
     canvas, draw, edit, file, ids, layout, nav, structure, theme, ArgKind, ArgSpec, CommandId,
     CommandSpec, Handler,
@@ -165,11 +166,36 @@ const PEN_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
 ];
-const ERASER_ARGS: &[ArgSpec] = &[ArgSpec::optional(
-    "mode",
-    ArgKind::String,
-    "stroke or point.",
-)];
+const ERASER_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional("mode", ArgKind::String, "stroke or point."),
+    ArgSpec::optional(
+        "size",
+        ArgKind::String,
+        "small, medium, or large; the size of the point eraser.",
+    ),
+];
+const ERASE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "points",
+        ArgKind::Array,
+        "The path of the eraser's center in page units, each [x, y].",
+    ),
+    ArgSpec::required(
+        "radius",
+        ArgKind::Number,
+        "The eraser's reach in page units.",
+    ),
+    ArgSpec::optional(
+        "mode",
+        ArgKind::String,
+        "stroke or point; the eraser in use when omitted.",
+    ),
+    ArgSpec::optional(
+        "join",
+        ArgKind::Bool,
+        "True to undo together with the erase before it, for the rest of one drag.",
+    ),
+];
 const REQUIRED_COLOR_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "color",
     ArgKind::String,
@@ -189,6 +215,11 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "kind",
     ArgKind::String,
     "Shape kind, for example line, arrow, rectangle, or ellipse.",
+)];
+const CONVERT_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "confirm",
+    ArgKind::Bool,
+    "True to convert; without it the command only returns the warning to show first.",
 )];
 const RULE_LINE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "style",
@@ -298,6 +329,32 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Copy About Info",
         "Copy the version, build, and system details to the clipboard for a bug report.",
     )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_RESTORE_UNSAVED,
+        "Restore Unsaved Changes",
+        "Put back the unsaved text found from the last session.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_DISCARD_UNSAVED,
+        "Discard Unsaved Changes",
+        "Throw away the unsaved text found from the last session.",
+    )
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_KEEP_MY_VERSION,
+        "Keep My Version",
+        "Keep the text on the page when the file also changed outside NoteCraft.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_USE_OUTSIDE_VERSION,
+        "Use Outside Version",
+        "Replace the text on the page with the version changed outside NoteCraft.",
+    )
+    .destructive()
     .ready(),
     // Home tab: Clipboard group
     CommandSpec::new(ids::EDIT_CUT, "Cut", "Move the selection to the clipboard.")
@@ -636,17 +693,27 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Highlighter",
         "Draw with a highlighter.",
     )
-    .args(PEN_ARGS),
+    .args(PEN_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::DRAW_ERASER,
         "Eraser",
         "Erase ink strokes or parts of strokes.",
     )
-    .args(ERASER_ARGS),
+    .args(ERASER_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::INK_ERASE,
+        "Erase Ink",
+        "Erase ink along a path: whole strokes or only the part under the eraser.",
+    )
+    .args(ERASE_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::DRAW_COLOR,
         "Color",
-        "Set the color of the current pen.",
+        "Set the color of the current pen or highlighter.",
     )
     .args(REQUIRED_COLOR_ARGS)
     .ready(),
@@ -1086,6 +1153,14 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .args(SET_COLOR_ARGS)
     .undoable()
     .ready(),
+    CommandSpec::new(
+        ids::PAGE_CONVERT_TO_MARKDOWN,
+        "Convert to Markdown",
+        "Turn the page into a plain markdown page. Ink and note positions are removed.",
+    )
+    .args(CONVERT_ARGS)
+    .destructive()
+    .ready(),
     CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
@@ -1097,6 +1172,10 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
     (ids::FILE_ABOUT, file::about),
     (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),
+    (ids::FILE_RESTORE_UNSAVED, file::restore_unsaved),
+    (ids::FILE_DISCARD_UNSAVED, file::discard_unsaved),
+    (ids::FILE_KEEP_MY_VERSION, file::keep_my_version),
+    (ids::FILE_USE_OUTSIDE_VERSION, file::use_outside_version),
     (ids::VIEW_THEME_SET, theme::theme_set),
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
@@ -1115,6 +1194,9 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_ZOOM_PAGE_WIDTH, canvas::zoom_page_width),
     (ids::DRAW_TYPE, draw::draw_type),
     (ids::DRAW_PEN, draw::draw_pen),
+    (ids::DRAW_HIGHLIGHTER, draw::draw_highlighter),
+    (ids::DRAW_ERASER, draw::draw_eraser),
+    (ids::INK_ERASE, draw::erase),
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
@@ -1139,6 +1221,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::PAGE_PROMOTE_SUBPAGE, structure::page_promote_subpage),
     (ids::NOTEBOOK_RENAME, structure::notebook_rename),
     (ids::NOTEBOOK_SET_COLOR, structure::notebook_set_color),
+    (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
 ];
 
 /// The handler for `id`, if it has one.

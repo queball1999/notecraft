@@ -44,6 +44,14 @@ command_ids! {
     FILE_ABOUT = "file.about";
     /// Copy the version, build, and system details to the clipboard for a bug report.
     FILE_COPY_ABOUT_INFO = "file.copy_about_info";
+    /// Put back the unsaved text found from the last session.
+    FILE_RESTORE_UNSAVED = "file.restore_unsaved";
+    /// Throw away the unsaved text found from the last session.
+    FILE_DISCARD_UNSAVED = "file.discard_unsaved";
+    /// Keep the text on the page when the file also changed outside NoteCraft.
+    FILE_KEEP_MY_VERSION = "file.keep_my_version";
+    /// Replace the text on the page with the version changed outside NoteCraft.
+    FILE_USE_OUTSIDE_VERSION = "file.use_outside_version";
 
     // Home tab: Clipboard group
     /// Move the selection to the clipboard.
@@ -186,6 +194,8 @@ command_ids! {
     DRAW_THICKNESS = "draw.thickness";
     /// Add a stroke drawn with the current pen to the page.
     INK_ADD_STROKE = "ink.add_stroke";
+    /// Erase ink along a path.
+    INK_ERASE = "ink.erase";
     /// Show or hide the ruler for drawing straight lines.
     DRAW_RULER = "draw.ruler";
     /// Draw a shape.
@@ -336,6 +346,8 @@ command_ids! {
     NOTEBOOK_RENAME = "notebook.rename";
     /// Set the color of a notebook.
     NOTEBOOK_SET_COLOR = "notebook.set_color";
+    /// Turn the page shown into a plain markdown page, dropping its ink and positions.
+    PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
 
     // Search (Phase 2)
     /// Search every open notebook.

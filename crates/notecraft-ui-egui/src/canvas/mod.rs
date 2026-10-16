@@ -55,7 +55,7 @@ impl CanvasUi {
             .take()
             .filter(|(id, rev, _, _)| id == source.page_id && *rev == source.revision);
         let entry = kept.unwrap_or_else(|| {
-            let doc = notecraft_markdown::parse(source.text);
+            let doc = notecraft_markdown::parse(source.visible_text());
             let text = doc.plain_text();
             (source.page_id.to_owned(), source.revision, doc, text)
         });

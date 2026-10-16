@@ -1,5 +1,5 @@
 //! The status bar under the page: which page of the section is shown, and the zoom, which
-//! opens a zoom menu when clicked. Save state joins when auto-save lands (Phase 1).
+//! opens a zoom menu when clicked. The save state (Saved or Unsaved changes) sits beside it (PR 1.7).
 
 use egui::{Align, Layout, RichText, Ui};
 use notecraft_engine::cmd::{ids, CommandId, Value};
@@ -25,6 +25,18 @@ pub fn page_position(session: &Session) -> Option<String> {
     Some(format!("Page {} of {}", index + 1, pages.len()))
 }
 
+/// The save state text: nothing for a sample page, else "Saved" or "Unsaved changes".
+pub fn save_label(session: &Session) -> Option<&'static str> {
+    let page = session.selection().page.as_deref()?;
+    session.page_file_path(page)?;
+    let state = session.save_state();
+    Some(if state.conflicts > 0 || state.unsaved > 0 {
+        "Unsaved changes"
+    } else {
+        "Saved"
+    })
+}
+
 /// The zoom button's text, for example "Zoom 100%".
 pub fn zoom_label(session: &Session) -> String {
     format!("Zoom {}%", session.view().zoom_percent)
@@ -39,6 +51,10 @@ pub fn show(ui: &mut Ui, session: &Session, tokens: &ThemeTokens, out: &mut Vec<
         ui.add_space(8.0);
         if let Some(position) = page_position(session) {
             ui.label(RichText::new(position).size(12.0).color(tokens.ribbon_text));
+        }
+        if let Some(saved) = save_label(session) {
+            ui.add_space(16.0);
+            ui.label(RichText::new(saved).size(12.0).color(tokens.ribbon_text));
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.add_space(8.0);
