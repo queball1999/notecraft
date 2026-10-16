@@ -13,11 +13,17 @@
 #![forbid(unsafe_code)]
 
 mod block;
+mod document;
+pub mod frontmatter;
+#[cfg(test)]
+mod frontmatter_tests;
 mod parse;
 #[cfg(test)]
 mod parse_tests;
 
 pub use block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Span, Table};
+pub use document::{parse, Document};
+pub use frontmatter::{parse as parse_frontmatter, Entry, Frontmatter, Value};
 pub use parse::{parse_blocks, MAX_DEPTH, MAX_PARSE_BYTES};
 
 /// Layer number, read by `cargo xtask layers`.
