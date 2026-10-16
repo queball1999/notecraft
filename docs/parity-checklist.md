@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.11: IN-04, IN-05, and IN-06 scored P; stale duplicate FM-02, ST-07, and ST-08 rows removed; ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -22,14 +22,14 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Shell | 14 | 0 | 6 | 20 | 70% |
 | Themes | 6 | 0 | 0 | 6 | 100% |
 | Canvas | 3 | 0 | 9 | 12 | 25% |
-| Ink | 1 | 2 | 10 | 13 | 7% |
+| Ink | 1 | 5 | 7 | 13 | 7% |
 | Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 1 | 2 | 11 | 14 | 7% |
+| Structure | 1 | 2 | 9 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
-| Format | 1 | 2 | 7 | 10 | 10% |
+| Format | 1 | 2 | 6 | 9 | 11% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 36 | 6 | 75 | 117 | 30% |
+| Total | 36 | 9 | 69 | 114 | 31% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -107,9 +107,9 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | IN-01 | Ink | Pen with color and width | 1 | P | PR 1.10: draw.pen, draw.color, draw.thickness, and ink.add_stroke are Ready; Draw tab pen gallery; tests `canvas::ink_tests::dragging_with_the_pen_makes_a_stroke`, `a_tap_makes_a_dot`, `the_stroke_is_painted_as_a_mesh`, `draw::tests::the_pen_takes_a_color_and_a_width`. Edges are anti-aliased (`tessellate::tests::the_fringe_wraps_the_outline_and_adds_no_area`, `a_join_fringes_only_its_outer_wedge`, `canvas::ink::tests::a_fringed_mesh_fades_over_one_pixel_around_the_edge`) and the pen menus mark the pen in use (`ribbon::menus::tests::the_menu_marks_the_pen_in_use`). Missing: strokes are not saved to the page file yet (PR 1.9) |
 | IN-02 | Ink | Pressure from pen tablets | 1 | P | PR 1.10: touch force becomes stroke pressure (tests `a_touch_force_becomes_pressure`, `touch_force_becomes_pen_pressure_and_hides_the_emulated_mouse`); speed-based width when there is none (`speed_sets_width_when_there_is_no_pressure`). Missing: no real pen or tablet was tried; from the winit source only Windows reports pressure, macOS and Linux need a wrapper crate (build_plan/03 PR 1.10 notes) |
 | IN-03 | Ink | Stroke smoothing | 1 | D | PR 1.10: one-euro filter; tests `filter::tests::jitter_at_rest_is_cut_by_more_than_half`, `a_fast_line_is_followed_closely`, `capture::tests::smoothing_cuts_jitter_on_a_slow_line`, `a_quick_flick_is_not_flattened`. Feel on a real pen is part of the deferred hands-on checks (gaps rank 25) |
-| IN-04 | Ink | Highlighter | 1 | M | |
-| IN-05 | Ink | Stroke eraser | 1 | M | |
-| IN-06 | Ink | Point eraser | 1 | M | |
+| IN-04 | Ink | Highlighter | 1 | P | PR 1.11: draw.highlighter is Ready (color and width, default yellow 8 pt); strokes keep `tool: "highlighter"` and are undoable; drawn in a pass of their own above the paper and under the page text as opaque meshes pre-blended with the paper color at 0.5 (no fringe artifacts); the menus mark the current highlighter. Tests `draw::tests::the_highlighter_has_its_own_style_and_marks_its_strokes`, `canvas::ink_tests::dragging_with_the_highlighter_makes_a_highlighter_stroke`, `canvas::ink::tests::a_highlighter_color_is_blended_with_the_paper_and_opaque`. Missing: true multiply (overlapping strokes darken, rule lines show through) is a later paint callback; strokes are not saved yet (PR 1.9) |
+| IN-05 | Ink | Stroke eraser | 1 | P | PR 1.11: draw.eraser { mode: stroke } and ink.erase are Ready; reach is 6 screen pixels past the stroke edge through `InkLayer::hit_test`, the path of a fast drag is sampled so no stroke is skipped, and one drag is one undo step (later erases join the first with merge-into-previous). Tests `draw::tests::the_stroke_eraser_removes_whole_strokes_in_one_step`, `one_drag_is_one_undo_step`, `a_new_drag_and_other_steps_start_a_new_step`, `canvas::ink_tests::the_stroke_eraser_removes_what_it_crosses_in_one_undo_step`, `undo::tests::every_undoable_command_undoes_and_redoes_exactly` (ink.erase row). Missing: strokes are not saved yet (PR 1.9) |
+| IN-06 | Ink | Point eraser | 1 | P | PR 1.11: draw.eraser { mode: point } cuts the points inside a 10 pixel circle (plus half the stroke width) and splits the stroke into the runs that remain, each keeping tool, color, width, and pressure; runs under two points are dropped; long segments are subdivided where the eraser crosses them; undo restores the stroke in its paint position. Tests `ink::erase::tests` (5), `draw::tests::the_point_eraser_splits_a_stroke_and_undo_puts_it_back`, `canvas::ink_tests::the_point_eraser_splits_a_stroke`. Missing: strokes are not saved yet (PR 1.9) |
 | IN-07 | Ink | Shapes gallery (15 or more) | 3 | M | |
 | IN-08 | Ink | Ink to shape | 3 | M | |
 | IN-09 | Ink | Ruler | 3 | M | |
@@ -146,8 +146,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | M | |
 | ST-06 | Structure | Drag to reorder and move pages and sections | 1 | M | |
 | ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | P | PR 1.2: notecraft-storage keeps a rebuildable `.notecraft/index.sqlite` (sections, pages, attachments; links, tags, and FTS tables created empty), refreshes it by modified time, size, and hash, and rebuilds it when it is corrupt or from a newer schema. Listing 1,000 pages from the index takes about 27 ms (criterion bench `sidebar`). The navigation does not read the index yet; wiring it in is gaps rank 15 |
-| ST-08 | Structure | Undo and redo | 1 | M | |
-| ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | M | |
 | ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Missing: text commands (PR 1.5), structure commands (PR 1.13), and the eraser (PR 1.11) are the callers; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
 | ST-09 | Structure | Notebook Recycle Bin with restore | 3 | M | |
 | ST-10 | Structure | Page versions | 3 | M | |
@@ -172,7 +170,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
 | FM-01 | Format | Read `.md` pages | 1 | D | PR 1.3: notecraft-markdown parses a page into blocks with exact source spans (golden tests on 6 sample pages, hostile-input tests) and the canvas renders them in flow layout (harness test); opening a folder reads the shown page from disk through notecraft-storage (64 MiB cap, lenient UTF-8, read-only when cut short, short error on the canvas when unreadable). Tests: page_file storage unit tests, session page_load_tests, opened_pages_show_their_text_from_disk, an_unreadable_page_shows_a_short_error_on_the_canvas |
-| FM-02 | Format | Write `.md` pages with minimal diffs | 1 | M | |
 | FM-02 | Format | Write `.md` pages with minimal diffs | 1 | P | PR 1.4: edits are span replacements on the original text (blocks, list items, table cells, frontmatter keys); canonical serializer for new blocks; atomic page writes in notecraft-storage; property tests over 73 corpus pages and CRLF copies (byte-identical round trip, edits touch only their span); saving from the editor waits for PR 1.5 and 1.7 |
 | FM-03 | Format | Read and write `.notecraft` pages (containers, canvas block) | 1 | M | |
 | FM-04 | Format | Frontmatter read and write | 1 | P | PR 1.3: bounded YAML-subset frontmatter reader (scalars, lists, one level of maps, 64 KiB cap, unknown keys kept as raw text; unit and hostile-input tests); PR 1.4 added the write side (set and remove keys rewrite only their own lines); reading and saving real page files waits for PR 1.1 and 1.7 |
@@ -246,3 +243,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 1 | PR 1.4: FM-02 scored P (span-replacement write, canonical serializer, atomic page write; editor wiring waits for PR 1.5 and 1.7); FM-04 evidence updated for the frontmatter write. |
 | 2026-10-15 | 1 | IN-01 evidence: anti-aliased stroke edges and the marked current pen (PR 1.10 follow-ups). Scores unchanged. |
 | 2026-10-15 | 1 | Added IN-13 ink replay (Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15)). |
+| 2026-10-16 | 1 | IN-04, IN-05, and IN-06 scored P (PR 1.11, highlighter and erasers); removed the stale M duplicates of FM-02, ST-07, and ST-08. |

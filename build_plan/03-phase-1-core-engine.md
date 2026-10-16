@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.11 done; deviations noted under PR 1.11; PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -346,6 +346,20 @@ Commits:
 
 PR title: `feat(canvas): add highlighter and erasers`.
 
+### PR 1.11 notes: deviations and open questions
+
+Built on `feat/ink-erase` (2026-10-16), on top of PR 1.8 and PR 1.10. The design is in docs/architecture.md sections 10.3 and 10.4 ("as built" paragraphs). What differs from the steps above:
+
+- Commits: the engine, canvas geometry, and command work for all three tools landed in one commit (they share the tool state, the ids, and the undo case table), then the front end, then tests and docs. The four commits above were not kept apart.
+- New command `ink.erase { points, radius, mode?, join? }` (Ready, undoable). `draw.highlighter` and `draw.eraser { mode? }` are Ready and only pick the tool; the canvas sends `ink.erase` once per frame of an eraser drag. Both erasers are the same command, selected by `mode` (`stroke` or `point`), so a script can erase without the pointer.
+- No new undo op: a point-eraser split is `DeleteStroke` plus `InsertStroke` ops at the stroke's paint position, in one transaction. The "one undo step per drag" rule uses `merge_into_previous()` but only while the step just before is an erase (`History::erase_chain`); the first sample of a drag sends `join: false`. Without that guard a join right after a pen stroke or an undo would have merged into the wrong step (tested in `a_new_drag_and_other_steps_start_a_new_step`).
+- The highlighter has its own style (default yellow, 8 pt) next to the pen's; `draw.color` and `draw.thickness` change whichever is the tool. The Draw tab menus mark the current highlighter, eraser mode, and thickness (`ribbon::ActiveTool`).
+- Eraser sizes are fixed (6 px reach for the stroke eraser, 10 px radius for the point eraser). OneNote has an eraser size choice; see open questions.
+- The highlighter blends with the paper at 0.5 into an opaque mesh. That covers rule lines under the stroke and does not let strokes darken each other; true multiply is the paint callback in section 10.3, step 3. IN-04 stays P for that and for saving.
+- Shared build folder note for agents: several worktrees building into one `CARGO_TARGET_DIR` can clobber each other's workspace crates (same package id), so this PR was built in `shared-target/ink-erase`.
+
+Open questions: (1) OneNote offers eraser sizes; should the Eraser menu gain a size list (not in the gallery today), and is a fixed 6 and 10 px acceptable until then? (2) Should the eraser also remove a stroke the pointer only grazes in point mode (today a stroke whose edge, but none of whose points, is in reach is left alone)? (3) True multiply: schedule the paint callback before 1.0, or leave it post-parity?
+
 ## PR 1.12: attachments
 
 | | |
@@ -475,3 +489,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 1 | PR 1.4 done: deviations (Editor API, canonical serializer scope, minimal save path in storage, corpus location) noted under PR 1.4. |
 | 2026-10-15 | 1 | PR 1.10 follow-ups from the WordCraft survey: anti-aliased stroke edges and a marked current pen; PR 1.11 gains its highlighter and eraser design. Hours unchanged. |
 | 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |
+| 2026-10-16 | 1 | PR 1.11 deviations and the eraser design as built. Hours unchanged. |

@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.11: sections 10.3 and 10.4 describe the highlighter and erasers as built; ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -178,7 +178,7 @@ Meshes are drawn with a one-pixel fringe so edges fade instead of stair-stepping
 
 Why not egui's own feathering: epaint feathers filled convex paths and stroked polylines, but a variable-width ribbon with round joins is neither one convex path nor a constant-width polyline, so the stroke would need its outline polygon (a self-overlapping union) first. Tagging the mesh keeps the engine free of egui and the cost to one extra vertex per outline vertex.
 
-### 10.3 Highlighter (PR 1.11 design, not built)
+### 10.3 Highlighter (PR 1.11)
 
 OneNote's highlighter multiplies over the page. egui has no multiply blend in its painter, and a translucent mesh darkens wherever its own triangles overlap. The plan:
 
@@ -187,11 +187,14 @@ OneNote's highlighter multiplies over the page. egui has no multiply blend in it
 3. If overlapping highlighter strokes must darken each other (true multiply), or the highlighter must tint images, add an `egui_wgpu` paint callback with a multiply blend state later; the stroke type and file format do not change.
 4. The stored stroke keeps `tool: "highlighter"`, the picked color, and its width; the blend is a rendering choice (docs/printing.md specifies multiply at 50% opacity for PDF).
 
-### 10.4 Erasers, lasso, and undo (PR 1.11, 3.3 design)
+As built (PR 1.11): `draw.highlighter { color?, width? }` picks the tool (default yellow, 8 pt; it has its own style, so the pen is untouched, and `draw.color` and `draw.thickness` change whichever of the two is the tool). The canvas captures it like the pen and sends `ink.add_stroke`, which stamps `tool: highlighter`. `canvas/widget.rs` runs three steps each frame: capture, then the highlighter pass (`InkUi::paint_highlights`, after the paper and before the title and text), then the pen pass (`paint_pens`, after the text). The pass blends each stroke's color with `paper::paper_color` (the theme page color under the page's own color) at 0.5, or at the stroke's own alpha when the file stored one, and always asks for the fringe. Known gap: because the mesh is opaque, the rule lines under a highlighter stroke are covered, where true multiply would show them; the paint callback in step 3 fixes that without a format change.
+
+### 10.4 Erasers, lasso, and undo (erasers: PR 1.11; lasso: PR 3.3 design)
 
 - Hit testing is `InkLayer::hit_test` and `topmost_at` over the `GridIndex` (distance from the point to each stroke segment, widened by half the stroke width plus a pointer reach in screen pixels). This is already better than a linear scan; keep it for both erasers.
 - Stroke eraser: one drag is one undo step. The first stroke it removes starts a step and later ones join it (WordCraft does this with a `join_next_undo` call; PR 1.8's transactions should take a "merge with the previous step" flag for the same effect).
 - Point eraser: remove the points under the eraser circle and split the stroke into the runs that remain, each keeping color, width, and pressure; runs shorter than two points are dropped.
+- As built (PR 1.11): one command, `ink.erase { points, radius, mode?, join? }` (undoable), does both erasers; `draw.eraser { mode? }` only picks the tool (`stroke` or `point`, the last one kept). The canvas sends one `ink.erase` per frame of a drag with the path the pointer took (continuing from the last frame's end), and the radius in page units is the reach in screen pixels divided by zoom: 6 px for the stroke eraser (past the stroke edge), 10 px for the point eraser's circle. `notecraft-canvas::ink::erase` samples the path (spacing at most half the radius, at most 512 centers) so a fast drag cannot step over a stroke, then either collects the touched stroke ids (`strokes_touched`, over `InkLayer::hit_test`) or cuts them (`split_stroke`: segments the eraser crosses are subdivided, points within radius plus half the width are removed, runs under two points are dropped, pressure is interpolated). The engine turns that into `DeleteStroke` and `InsertStroke` ops, working from the topmost stroke down so paint-order indexes stay right; a split needed no new op. New runs get fresh ids and sit where the stroke was. The first batch of a drag (`join: false`) is its own undo step; later batches (`join: true`) use `Transaction::merge_into_previous()` only while the step just before is an erase of the same drag (`History::erase_chain`, cleared by any other recorded step, undo, or redo), so a stray join can never swallow an earlier pen stroke. Touching nothing records nothing.
 - Lasso (PR 3.3): a stroke is selected when at least 60 percent of its sampled points fall inside the loop polygon (WordCraft's rule, which beats "bounding box inside" and "any point inside" for loose loops); thin long loops are down-sampled to a point cap before testing. Selected ink moves, recolors, and deletes as one undo step each.
 
 ### 10.5 Ink to Shape (PR 3.2 design)
@@ -229,3 +232,4 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | 2026-10-15 | 1 | Section 4: page writing is span replacements (`Editor`) plus `page_file::write_page_text` over craft-atomic (PR 1.4). |
 | 2026-10-15 | 1 | Sections 5 and 6: transactions, stacks, merge, typing coalescing, notebook-level steps, and the guard restoring the history (PR 1.8). |
 | 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |
+| 2026-10-16 | 1 | Sections 10.3 and 10.4: the highlighter pass, the pre-blended opaque meshes, `ink.erase`, the eraser reach, point-eraser splitting, and the drag-as-one-step rule as built (PR 1.11). |
