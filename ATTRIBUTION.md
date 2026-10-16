@@ -13,6 +13,7 @@ Rules (from [AGENTS.md](AGENTS.md) section 1):
 | Path | Author | Source | License | Notes |
 |---|---|---|---|---|
 | `assets/app-icon/` | The NoteCraft Contributors | Original; every file is rendered from `notecraft.svg` by `packaging/icons.sh` | MIT OR Apache-2.0 | App icon (README in the folder) |
+| `testdata/notebooks/` | The NoteCraft Contributors | Original sample notebooks, written for NoteCraft tests | MIT OR Apache-2.0 | Notebook folders used by the storage and UI tests |
 
 ## Third-party code
 
