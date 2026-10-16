@@ -77,6 +77,16 @@ pub struct Look<'a> {
     /// The rule lines style of the current page (its `view.rule_lines` id), marked in the Rule
     /// Lines menu.
     pub rule_lines: &'static str,
+    /// The pen in use (the Draw tab's Pen is the tool): its color as 0xRRGGBB and its width in
+    /// points. The pen, color, and thickness menus mark the entry that matches.
+    pub pen: Option<ActivePen>,
+}
+
+/// The pen the Draw tab has selected, for marking it in the menus.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ActivePen {
+    pub color: u32,
+    pub width_pt: f32,
 }
 
 /// A command a ribbon button or menu item asked to run.

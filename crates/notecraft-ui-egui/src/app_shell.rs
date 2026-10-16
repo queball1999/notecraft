@@ -418,6 +418,7 @@ impl AppShell {
             registry: &self.registry,
             fonts: &self.families,
             rule_lines: self.session.page_style().rule_lines.id(),
+            pen: active_pen(self.session.ink()),
         };
         if self.ribbon.backstage_open() {
             let clicked = self
@@ -563,6 +564,19 @@ impl AppShell {
             self.dispatch(command.as_str(), args);
         }
     }
+}
+
+/// The pen to mark in the Draw tab menus: only while the pen is the tool in use.
+fn active_pen(ink: &notecraft_engine::InkState) -> Option<ribbon::ActivePen> {
+    if ink.tool() != notecraft_engine::DrawTool::Pen {
+        return None;
+    }
+    let pen = ink.pen();
+    let [r, g, b, _] = pen.color.0;
+    Some(ribbon::ActivePen {
+        color: u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
+        width_pt: pen.width_pt,
+    })
 }
 
 #[cfg(test)]
