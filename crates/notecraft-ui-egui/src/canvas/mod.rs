@@ -4,6 +4,7 @@
 //! The zoom lives in the session (`view.zoom` and friends), so every zoom, including Ctrl+wheel
 //! and pinch, is a command. The scroll position is front-end state kept here.
 
+mod flow;
 pub(crate) mod paper;
 mod title;
 mod widget;
@@ -22,6 +23,8 @@ pub struct CanvasUi {
     /// Push the viewport origin into the scroll area on the next frame (after a zoom or a
     /// drag pan); otherwise the scroll area owns the scroll position.
     force_offset: bool,
+    /// The parsed page shown now, with the page id and source revision it was parsed for.
+    parsed: Option<(String, u64, notecraft_markdown::Document, String)>,
 }
 
 impl Default for CanvasUi {
@@ -30,11 +33,34 @@ impl Default for CanvasUi {
             viewport: Viewport::default(),
             seen_percent: 100,
             force_offset: false,
+            parsed: None,
         }
     }
 }
 
 impl CanvasUi {
+    /// The parsed document for `source`, parsing again only when the page or its text changed.
+    fn document(
+        &mut self,
+        source: notecraft_engine::PageSource<'_>,
+    ) -> &notecraft_markdown::Document {
+        let kept = self
+            .parsed
+            .take()
+            .filter(|(id, rev, _, _)| id == source.page_id && *rev == source.revision);
+        let entry = kept.unwrap_or_else(|| {
+            let doc = notecraft_markdown::parse(source.text);
+            let text = doc.plain_text();
+            (source.page_id.to_owned(), source.revision, doc, text)
+        });
+        &self.parsed.insert(entry).2
+    }
+
+    /// The plain text of the page shown, for screen readers.
+    fn reader_text(&self) -> &str {
+        self.parsed.as_ref().map_or("", |(_, _, _, text)| text)
+    }
+
     /// Where the canvas looks now.
     pub fn viewport(&self) -> Viewport {
         self.viewport

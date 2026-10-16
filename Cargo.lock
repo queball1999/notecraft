@@ -2168,6 +2168,7 @@ dependencies = [
  "notecraft-canvas",
  "notecraft-core",
  "notecraft-engine",
+ "notecraft-markdown",
  "notecraft-model",
  "serde_json",
  "skrifa",

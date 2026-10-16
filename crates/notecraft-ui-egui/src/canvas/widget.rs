@@ -7,7 +7,7 @@ use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::{mock, Session};
 
-use super::{paper, title, CanvasUi, PageToScreen};
+use super::{flow, paper, title, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -31,7 +31,17 @@ pub fn show(
     let origin = state.viewport.origin();
     let view_size = Vec2::new(rect.width(), rect.height()) / zoom;
     let style = session.page_style();
-    let extent = content_extent(origin, view_size, style.paper_size.size()) * zoom;
+    // The page text, laid out in flow layout (read-only). One seam: the page source text.
+    let flow = session
+        .current_page_source()
+        .map(|source| flow::layout(ui.painter(), state.document(source), zoom, tokens));
+    let mut extent = content_extent(origin, view_size, style.paper_size.size());
+    if let Some(flow) = &flow {
+        extent.x = extent.x.max(flow::LEFT * 2.0 + flow::COLUMN_WIDTH);
+        extent.y = extent.y.max(flow.height);
+    }
+    let extent = extent * zoom;
+    let reader_text = flow.as_ref().map(|_| state.reader_text().to_owned());
 
     let mut area = ScrollArea::both()
         .id_salt("canvas")
@@ -70,10 +80,16 @@ pub fn show(
                         x1: shown.max.x.into(),
                         y1: shown.max.y.into(),
                     });
+                    if let Some(text) = &reader_text {
+                        node.set_value(text.clone());
+                    }
                 });
                 paper::draw(ui.painter(), screen, map, style, tokens);
                 if let Some(page) = session.current_page() {
                     title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
+                }
+                if let Some(flow) = &flow {
+                    flow::paint(ui.painter(), map, flow, tokens);
                 }
                 if response.has_focus() {
                     // Keyboard focus: a ring just inside the visible part of the page.

@@ -8,6 +8,47 @@ use notecraft_model::{Notebook, PageRef, Section, SectionGroup, SectionNode};
 /// from the page file.
 pub const CREATED: (&str, &str) = ("Wednesday, October 14, 2026", "3:27 PM");
 
+/// The id of the mock page that has text.
+pub const WELCOME_ID: &str = "p-welcome";
+
+/// The markdown of the mock Welcome page, until Phase 1 reads real pages from disk.
+pub const WELCOME_SOURCE: &str = "---
+title: Welcome
+---
+# Welcome to NoteCraft
+
+Notes are **plain markdown** in a folder you own. Edit them anywhere, and NoteCraft keeps
+*your* formatting.
+
+## To get started
+
+- [x] Open a notebook
+- [ ] Add a page
+- [ ] Try the ~~old~~ new ribbon
+
+1. Pick a section
+2. Click a page
+3. Read it here
+
+* Headings and paragraphs
+* Lists, tables, and `code`
+
+> Reading comes first. Editing arrives with the next pull requests.
+
+| Feature | State |
+|:--------|------:|
+| Reading | done |
+| Writing | soon |
+
+```
+cargo xtask ci
+```
+
+---
+
+Visit [the project](https://github.com/Queball1999/notecraft) for more.
+";
+
 fn section(id: &str, name: &str, color: u32, pages: &[(&str, &str, u8)]) -> SectionNode {
     SectionNode::Section(Section {
         id: id.to_owned(),

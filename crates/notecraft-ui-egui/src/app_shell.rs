@@ -106,6 +106,10 @@ impl AppShell {
     pub fn new() -> Self {
         let mut session = Session::new();
         session.set_notebooks(notecraft_engine::mock::notebooks());
+        session.set_page_source(
+            notecraft_engine::mock::WELCOME_ID,
+            notecraft_engine::mock::WELCOME_SOURCE,
+        );
         Self::with_session(session)
     }
 
@@ -233,6 +237,12 @@ impl AppShell {
 
     pub fn session(&self) -> &Session {
         &self.session
+    }
+
+    /// Give page `id` its markdown source text (the whole file). The canvas shows it in flow
+    /// layout when that page is open. The folder reader (PR 1.1) calls this when it loads a page.
+    pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
+        self.session.set_page_source(id, text);
     }
 
     pub fn ribbon(&self) -> &Ribbon {
@@ -681,6 +691,39 @@ mod tests {
         harness.get_by_label("Canvas").click();
         harness.run();
         assert_eq!(harness.state().canvas().viewport().origin(), before);
+    }
+
+    /// What a screen reader gets for the canvas: the page text, once a page has markdown.
+    fn canvas_text(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
+        use egui_kittest::kittest::NodeT;
+        harness.get_by_label("Canvas").accesskit_node().value()
+    }
+
+    #[test]
+    fn a_page_with_markdown_shows_its_text_on_the_canvas() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let text = canvas_text(&harness).expect("the welcome page has text");
+        assert!(text.contains("Welcome to NoteCraft"), "{text}");
+        assert!(text.contains("plain markdown"), "{text}");
+        assert!(!text.contains("**"), "{text}");
+
+        // Another page has no text yet; replacing the source of the shown page redraws it.
+        harness.state_mut().set_page_source(
+            notecraft_engine::mock::WELCOME_ID,
+            "---\ntitle: Welcome\n---\nOnly this line.\n",
+        );
+        harness.run();
+        assert_eq!(canvas_text(&harness).as_deref(), Some("Only this line.\n"));
+    }
+
+    #[test]
+    fn a_page_without_text_has_no_canvas_text() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Grocery list").click();
+        harness.run();
+        assert_eq!(canvas_text(&harness), None);
     }
 
     fn type_into(harness: &mut egui_kittest::Harness<'_, AppShell>, label: &str, text: &str) {
