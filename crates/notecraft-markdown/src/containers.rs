@@ -40,7 +40,11 @@ impl ContainerRun {
 
 /// The id a marker block names, if `text` is a container marker comment.
 fn marker_id(text: &str) -> Option<Option<&str>> {
-    let inner = text.trim().strip_prefix("<!--")?.strip_suffix("-->")?.trim();
+    let inner = text
+        .trim()
+        .strip_prefix("<!--")?
+        .strip_suffix("-->")?
+        .trim();
     let rest = inner.strip_prefix("notecraft:container")?;
     // A marker with no usable id is still a marker.
     let id = rest
@@ -218,7 +222,10 @@ mod tests {
         let c1 = r.get(1).expect("c1");
         assert!(c1.content.slice(text).starts_with("## Agenda"));
         assert!(c1.marker.expect("marker").slice(text).ends_with("-->\n"));
-        assert_eq!(c1.content.end, r.get(2).expect("c2").marker.expect("m").start);
+        assert_eq!(
+            c1.content.end,
+            r.get(2).expect("c2").marker.expect("m").start
+        );
         assert_eq!(r.get(2).expect("c2").content.slice(text), "Last\n");
         // Runs tile the body: every byte is in exactly one marker or content span.
         let mut covered = 0;

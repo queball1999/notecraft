@@ -31,7 +31,7 @@ fn page_tx(page: &str, label: &str, op: Op) -> Transaction {
     Transaction::new(Scope::Page(page.into()), label).with(op)
 }
 
-pub(super) fn session_with_pages() -> Session {
+pub(crate) fn session_with_pages() -> Session {
     let section = Section {
         id: "s1".into(),
         name: "Notes".into(),
@@ -757,7 +757,21 @@ const UNDO_CASES: &[(&str, &str)] = &[
     ("view.rule_lines", r#"{ "style": "college" }"#),
     ("view.page_color", r##"{ "color": "#DCEBF7" }"##),
     ("view.paper_size", r#"{ "size": "a4" }"#),
+    ("text.insert", r#"{ "text": "X" }"#),
+    ("text.delete", r#"{ "direction": "backward" }"#),
+    ("text.enter", "{}"),
+    ("text.tab", "{}"),
+    ("edit.cut", "{}"),
+    ("edit.delete", "{}"),
+    ("edit.paste", r#"{ "text": "pasted" }"#),
+    ("edit.paste_text_only", r#"{ "text": "**plain**" }"#),
+    ("container.new", r#"{ "x": 40, "y": 60 }"#),
+    ("container.move", r#"{ "id": "c0", "x": 40, "y": 60 }"#),
+    ("container.resize", r#"{ "id": "c0", "width": 300 }"#),
 ];
+
+/// Cases that need a selection first: the whole text of the page is selected.
+const NEEDS_SELECTION: &[&str] = &["edit.cut", "edit.delete"];
 
 type Document = (
     Vec<Notebook>,
@@ -765,6 +779,7 @@ type Document = (
     crate::PageStyle,
     Option<String>,
     Option<String>,
+    Vec<notecraft_model::Container>,
 );
 
 /// What undo has to restore: everything in the document, not the view or the history.
@@ -775,6 +790,7 @@ fn document(session: &Session) -> Document {
         session.style_of("p1"),
         session.page_text("p1").map(str::to_owned),
         session.page_text("p2").map(str::to_owned),
+        session.page_containers("p1"),
     )
 }
 
@@ -805,6 +821,9 @@ fn every_undoable_command_undoes_and_redoes_exactly() {
         let mut session = session_with_pages();
         session.set_page_source("p1", "one");
         session.set_page_source("p2", "two");
+        if NEEDS_SELECTION.contains(id) {
+            run(&mut session, &registry, "edit.select_all", Value::Null);
+        }
         let before = document(&session);
 
         run(&mut session, &registry, id, args.clone());

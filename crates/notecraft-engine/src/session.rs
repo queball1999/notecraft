@@ -2,7 +2,7 @@
 //! the open notebooks (read from disk, or the mock notebooks until one is opened), which notebook,
 //! section, and page are shown, each page's style and strokes, and the undo history (`undo`).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 
 use notecraft_model::{Notebook, PageRef, Section};
@@ -13,6 +13,10 @@ use crate::mock;
 use crate::recent::Recents;
 use crate::undo::History;
 use crate::view::{PageStyle, ViewState};
+
+mod text_state;
+
+pub use text_state::TextCursor;
 
 /// Which notebook, section, and page are shown, by id.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -58,6 +62,13 @@ pub struct Session {
     notebook_roots: BTreeMap<String, PathBuf>,
     recents: Recents,
     ink: InkState,
+    /// The caret and selection of text editing, with the page they belong to.
+    text_cursor: Option<(String, TextCursor)>,
+    /// Container geometry by page id, then container id. A container missing here is in the
+    /// flow layout at the default width. PR 1.9 stores it in the page's canvas block.
+    containers: BTreeMap<String, BTreeMap<String, notecraft_model::Container>>,
+    /// Pages whose text changed since it was read or saved (PR 1.7 saves these).
+    dirty_pages: BTreeSet<String>,
     pub(crate) history: History,
 }
 
@@ -254,8 +265,15 @@ impl Session {
     /// Set the markdown source text of page `id` (the whole file, frontmatter included).
     /// This is the seam the folder reader plugs into; it is not a command.
     pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
+        self.put_page_text(id, text.into());
+        // Text that was just read is what is on disk.
+        self.dirty_pages.remove(id);
+    }
+
+    /// Store `text` as page `id`'s source and bump its revision.
+    fn put_page_text(&mut self, id: &str, text: String) {
         let next = self.page_sources.get(id).map_or(1, |(rev, _)| rev + 1);
-        self.page_sources.insert(id.to_owned(), (next, text.into()));
+        self.page_sources.insert(id.to_owned(), (next, text));
     }
 
     /// The source text of page `id`, if it has any.

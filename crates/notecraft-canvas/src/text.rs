@@ -524,8 +524,7 @@ pub fn tab(text: &str, anchor: usize, head: usize, shift: bool) -> Option<TextEd
     let shifted = |pos: usize| -> usize {
         let delta: isize = map
             .iter()
-            .filter(|(line_start, _)| *line_start <= pos)
-            .next_back()
+            .rfind(|(line_start, _)| *line_start <= pos)
             .map_or(0, |(_, d)| *d);
         let moved = pos as isize + delta;
         moved.max(first as isize) as usize
@@ -626,7 +625,10 @@ mod tests {
         assert_eq!(active_region(t, &blocks, 12, 12, 0..t.len()), 12..12);
         // A caret right after a new line below a block does not take the block in.
         let t2 = "Hello\n";
-        assert_eq!(active_region(t2, &[0..5], 6, 6, 0..6), 6..6);
+        assert_eq!(
+            active_region(t2, std::slice::from_ref(&(0..5)), 6, 6, 0..6),
+            6..6
+        );
         // A selection across blocks covers both.
         assert_eq!(active_region(t, &blocks, 2, 14, 0..t.len()), 0..17);
         // Bounds hold.
@@ -677,7 +679,10 @@ mod tests {
         let e = enter(t, 7, 7, "\n", false, false);
         assert_eq!(apply(t, &e), "Hello\n\n\n");
         // Soft break and code blocks.
-        assert_eq!(apply("ab", &enter("ab", 1, 1, "\r\n", true, false)), "a\r\nb");
+        assert_eq!(
+            apply("ab", &enter("ab", 1, 1, "\r\n", true, false)),
+            "a\r\nb"
+        );
         assert_eq!(apply("ab", &enter("ab", 1, 1, "\n", false, true)), "a\nb");
         // Lists keep going.
         let t = "- one";
@@ -702,7 +707,10 @@ mod tests {
         assert_eq!(apply(t, &e), "- one\n");
         assert_eq!(e.head, 6);
         // A selection is replaced by the line break.
-        assert_eq!(apply("abcd", &enter("abcd", 1, 3, "\n", false, false)), "a\nd");
+        assert_eq!(
+            apply("abcd", &enter("abcd", 1, 3, "\n", false, false)),
+            "a\nd"
+        );
     }
 
     #[test]
