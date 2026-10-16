@@ -16,6 +16,9 @@
 #![forbid(unsafe_code)]
 
 mod block;
+mod canonical;
+#[cfg(test)]
+mod canonical_tests;
 mod document;
 mod edit;
 #[cfg(test)]
@@ -29,6 +32,7 @@ mod parse_tests;
 mod style;
 
 pub use block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Span, Table};
+pub use canonical::{block_to_markdown, blocks_to_markdown, page_to_markdown, runs_to_markdown};
 pub use document::{parse, Document};
 pub use edit::{apply_edits, Edit, EditError, Editor};
 pub use frontmatter::{parse as parse_frontmatter, Entry, Frontmatter, Value};
