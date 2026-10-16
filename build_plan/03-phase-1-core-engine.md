@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: re-estimated at the Phase 0 close; PR 1.15 gains the deferred hands-on checks.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -230,6 +230,34 @@ Commits:
 
 PR title: `feat(canvas): draw with the pen`.
 
+### PR 1.10 notes: deviations and what each OS gives
+
+Built on `feat/ink-pen` (2026-10-15). What differs from the steps above:
+
+- Stroke storage in the canvas block moved to PR 1.9. Strokes live in the session (`Session::ink()`, one `InkLayer` per page id) and are lost on exit until PR 1.9 writes them. `notecraft_core::Stroke` already serializes to the `ink` entries of docs/markdown.md section 3.4 (`InkPoint` is `[x, y, pressure]`, `InkColor` is `#RRGGBB`), so PR 1.9 only needs a reader and a writer.
+- The stroke types are in `notecraft-core` (L0, as AGENTS.md section 5 lists them), not `notecraft-model`; the pointer sample type is there too.
+- New command ids: `ink.add_stroke` (the canvas sends it when a pen gesture ends; undoable by spec, undo itself lands in PR 1.8). `draw.type`, `draw.pen`, `draw.color`, and `draw.thickness` are Ready. `draw.highlighter` and `draw.eraser` stay Coming Soon until PR 1.11. `ArgKind::Array` was added for the stroke's points.
+- The pen gallery is the existing Draw tab gallery (Phase 0); it now runs real commands. It does not yet mark the current pen.
+- Widths are points on the ribbon and page units (px96) in a stroke: 1 pt is 1.33 units.
+- Velocity-based width (the docs/gaps.md fallback) is applied at capture: a stroke with no pressure gets a stand-in pressure from speed (1.0 when slow, 0.4 at 1,500 units per second), so it reloads looking the same. The format has no flag saying a pressure was synthesized.
+- The command guard snapshots the whole session before each command, strokes included. Layers are shared copies (`Arc`), so commands that do not touch ink stay cheap, but adding a stroke copies that page's layer once. PR 1.8 replaces the snapshot with transactions.
+- Mesh edges are not anti-aliased (plain triangles). A feathered edge is a follow-up.
+- Touch and a mouse both draw while the pen is the tool. OneNote's palm rejection and touch-to-pan are IN-10 (Phase 3).
+
+Smoothing: a one-euro filter on position (minimum cutoff 2.5 Hz, beta 0.1, derivative cutoff 1 Hz) and a light one on pressure (6 Hz). The tests assert that jitter at rest drops by more than half and that lag at steady speeds from 100 to 1,500 units per second stays under 2 units. These are numbers on synthetic input; they have not been tuned by hand on a real pen.
+
+What each OS gives for pressure, read from the source of winit 0.30.13, egui-winit 0.36.2, and egui 0.36.2 (the versions in Cargo.lock). **None of this was tested on a real pen or tablet**; the only evidence is source reading and synthetic egui events.
+
+| Platform | What reaches egui | Pressure |
+|---|---|---|
+| All | egui mouse events (`PointerButton`, `PointerMoved`) carry no pressure. Only `Event::Touch { force }` can. | n/a |
+| Windows | winit handles `WM_POINTER` and sends pen and touch input as `Touch` events, walking the frame history so several samples per frame arrive. `force` is the pointer's pressure (1 to 1024) divided by 1024; a pressure outside that range, such as 0, gives `None`. A mouse sends mouse events. | Yes, if the driver reports it through Windows Ink. A pen cannot be told from a touch screen in egui: a touch with force is treated as a pen. |
+| macOS | winit 0.30 sends tablet and trackpad input as mouse events. It has a `TouchpadPressure` event for force-touch trackpads, which egui-winit ignores (a TODO in its source). | No. Strokes use speed-based width. |
+| Linux, X11 | Touch screens arrive through XInput2 as `Touch` events with `force: None` (marked TODO in winit). A tablet pen appears as a mouse. | No. |
+| Linux, Wayland | winit 0.30 handles touch with `force: None` and has no tablet protocol support. | No. |
+
+To get pressure on macOS and Linux, the plan is a safe wrapper crate for each OS (the risk table in docs/gaps.md) or a newer winit that exposes tablet data. Newer winit releases may add it, but that was not checked here. Neither is part of this PR.
+
 ## PR 1.11: highlighter and erasers
 
 | | |
@@ -369,3 +397,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Added PR 1.16 (command line info, text, check, and run on notebooks) after the maintainer decision of 2026-10-15; Phase 1 estimate 454-772 hours. |
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: PR 1.15 raised to 10-18 hours (deferred hands-on checks, gaps rank 25); Phase 1 is 456-776 hours. |
+| 2026-10-15 | 1 | PR 1.10 landed: deviations (stroke storage moved to PR 1.9) and per-OS pressure notes added. |
