@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use egui::epaint::{Mesh, Vertex, WHITE_UV};
 use egui::{Color32, Painter, Shape};
-use notecraft_canvas::ink::{tessellate, InkLayer, StrokeBuilder, StrokeMesh, TessParams};
+use notecraft_canvas::ink::{tessellate, Edge, InkLayer, StrokeBuilder, StrokeMesh, TessParams};
 use notecraft_core::{
     Aabb, InkColor, InkPoint, PointerEvent, PointerKind, PointerPhase, PointerSample, Stroke,
 };
@@ -235,17 +235,21 @@ impl InkUi {
         preview: Option<(&[InkPoint], PenStyle)>,
     ) {
         self.cache.set_page(page);
+        let half_pixel = 0.5 / painter.ctx().pixels_per_point();
         let mut mesh = Mesh::default();
         if let Some(layer) = layer {
             for stroke in layer.strokes_in(visible) {
                 let tessellated = self.cache.mesh_for(stroke, map.zoom);
-                append(&mut mesh, &tessellated, map, stroke.color);
+                append(&mut mesh, &tessellated, map, stroke.color, half_pixel);
             }
         }
         if let Some((points, pen)) = preview {
-            let params = TessParams::for_screen_radius(pen.width_units() / 2.0 * map.zoom);
+            let params = TessParams {
+                fringe: pen.color.0[3] == u8::MAX,
+                ..TessParams::for_screen_radius(pen.width_units() / 2.0 * map.zoom)
+            };
             let tessellated = tessellate(points, pen.width_units(), params);
-            append(&mut mesh, &tessellated, map, pen.color);
+            append(&mut mesh, &tessellated, map, pen.color, half_pixel);
         }
         if !mesh.is_empty() {
             painter.add(Shape::mesh(mesh));
@@ -254,16 +258,45 @@ impl InkUi {
 }
 
 /// Add a page-space triangle list to an egui mesh, in screen space and one color.
-fn append(mesh: &mut Mesh, tessellated: &StrokeMesh, map: PageToScreen, color: InkColor) {
+///
+/// Anti-aliasing: a rim vertex moves `half_pixel` (egui points) inward, but never past the
+/// centerline, and an outer vertex moves `half_pixel` outward with no coverage. The edge then
+/// fades over one device pixel, like egui's own feathered shapes. The page-to-screen map only
+/// scales and shifts, so the directions are the same on screen.
+fn append(
+    mesh: &mut Mesh,
+    tessellated: &StrokeMesh,
+    map: PageToScreen,
+    color: InkColor,
+    half_pixel: f32,
+) {
     let [r, g, b, a] = color.0;
     let color = Color32::from_rgba_unmultiplied(r, g, b, a);
     let base = mesh.vertices.len() as u32;
-    mesh.vertices
-        .extend(tessellated.positions.iter().map(|p| Vertex {
-            pos: map.pos(*p),
-            uv: WHITE_UV,
-            color,
-        }));
+    mesh.vertices.extend(
+        tessellated
+            .positions
+            .iter()
+            .zip(&tessellated.edges)
+            .map(|(p, edge)| {
+                let at = map.pos(*p);
+                let (shift, color) = match *edge {
+                    Edge::Inside => (egui::Vec2::ZERO, color),
+                    Edge::Rim { dir, radius } => {
+                        let inset = half_pixel.min(radius * map.zoom);
+                        (-egui::vec2(dir.x, dir.y) * inset, color)
+                    }
+                    Edge::Outer(dir) => {
+                        (egui::vec2(dir.x, dir.y) * half_pixel, Color32::TRANSPARENT)
+                    }
+                };
+                Vertex {
+                    pos: at + shift,
+                    uv: WHITE_UV,
+                    color,
+                }
+            }),
+    );
     mesh.indices
         .extend(tessellated.indices.iter().map(|i| base + i));
 }
@@ -275,6 +308,7 @@ struct CachedMesh {
     last: Option<InkPoint>,
     width: f32,
     cap_segments: u32,
+    fringe: bool,
     mesh: Arc<StrokeMesh>,
 }
 
@@ -297,11 +331,14 @@ impl MeshCache {
 
     fn mesh_for(&mut self, stroke: &Stroke, zoom: f32) -> Arc<StrokeMesh> {
         let cap_segments = TessParams::for_screen_radius(stroke.width / 2.0 * zoom).cap_segments;
+        // A translucent stroke overlaps itself, so a fringe would show through: it gets none.
+        let fringe = stroke.color.0[3] == u8::MAX;
         let fresh = |cached: &CachedMesh| {
             cached.points == stroke.points.len()
                 && cached.last == stroke.points.last().copied()
                 && cached.width == stroke.width
                 && cached.cap_segments == cap_segments
+                && cached.fringe == fringe
         };
         if let Some(cached) = self.meshes.get(&stroke.id).filter(|c| fresh(c)) {
             return Arc::clone(&cached.mesh);
@@ -309,7 +346,10 @@ impl MeshCache {
         let mesh = Arc::new(tessellate(
             &stroke.points,
             stroke.width,
-            TessParams { cap_segments },
+            TessParams {
+                cap_segments,
+                fringe,
+            },
         ));
         self.meshes.insert(
             stroke.id.clone(),
@@ -318,6 +358,7 @@ impl MeshCache {
                 last: stroke.points.last().copied(),
                 width: stroke.width,
                 cap_segments,
+                fringe,
                 mesh: Arc::clone(&mesh),
             },
         );
@@ -456,6 +497,52 @@ mod tests {
         assert_eq!(arg[0][0], 1.23);
         assert_eq!(arg[0][2], 0.5);
         assert_eq!(arg[1][1], 3.0);
+    }
+
+    #[test]
+    fn a_fringed_mesh_fades_over_one_pixel_around_the_edge() {
+        let points = [InkPoint::new(0.0, 0.0, 1.0), InkPoint::new(20.0, 0.0, 1.0)];
+        let page = tessellate(&points, 8.0, TessParams::default());
+        let map = PageToScreen {
+            origin: egui::pos2(0.0, 0.0),
+            zoom: 1.0,
+        };
+        let mut mesh = Mesh::default();
+        // A half pixel of 0.25 points, as on a 2x display.
+        append(&mut mesh, &page, map, InkColor::BLACK, 0.25);
+        assert_eq!(mesh.vertices.len(), page.positions.len());
+        assert!(mesh
+            .indices
+            .iter()
+            .all(|i| (*i as usize) < mesh.vertices.len()));
+        let [r, g, b, a] = InkColor::BLACK.0;
+        let solid = Color32::from_rgba_unmultiplied(r, g, b, a);
+        let mut seen = (0, 0);
+        for ((vertex, edge), at) in mesh.vertices.iter().zip(&page.edges).zip(&page.positions) {
+            let moved = (vertex.pos - egui::pos2(at.x, at.y)).length();
+            match edge {
+                Edge::Inside => assert!(moved < 1.0e-6 && vertex.color == solid),
+                Edge::Rim { .. } => {
+                    seen.0 += 1;
+                    assert!((moved - 0.25).abs() < 1.0e-4 && vertex.color == solid);
+                }
+                Edge::Outer(_) => {
+                    seen.1 += 1;
+                    assert!((moved - 0.25).abs() < 1.0e-4 && vertex.color == Color32::TRANSPARENT);
+                }
+            }
+        }
+        assert!(seen.0 > 0 && seen.0 == seen.1);
+        // A line thinner than a pixel is not turned inside out: the inset stops at the center.
+        let thin = tessellate(&points, 0.2, TessParams::default());
+        let mut mesh = Mesh::default();
+        append(&mut mesh, &thin, map, InkColor::BLACK, 0.5);
+        assert!(mesh.vertices.iter().all(|v| v.pos.is_finite()));
+        for (vertex, edge) in mesh.vertices.iter().zip(&thin.edges) {
+            if matches!(edge, Edge::Rim { .. }) && vertex.pos.x > 5.0 && vertex.pos.x < 15.0 {
+                assert!(vertex.pos.y.abs() < 1.0e-4, "{:?}", vertex.pos);
+            }
+        }
     }
 
     #[test]

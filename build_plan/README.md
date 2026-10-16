@@ -15,10 +15,10 @@ The spec is [SCRD.md](../SCRD.md). The rules are [AGENTS.md](../AGENTS.md). Prog
 | [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 284-474 | done 2026-10-15 |
 | [03-phase-1-core-engine.md](03-phase-1-core-engine.md) | 1 | 456-776 | next |
 | [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 134-230 | not started |
-| [05-phase-3-polish-parity.md](05-phase-3-polish-parity.md) | 3, plus beta-to-1.0 hardening | 392-666, plus 80-160 | not started |
+| [05-phase-3-polish-parity.md](05-phase-3-polish-parity.md) | 3, plus beta-to-1.0 hardening | 404-686, plus 80-160 | not started |
 | [06-phase-4-advanced.md](06-phase-4-advanced.md) | 4 | 644-1,228 | not started |
 
-Totals: 1,401-2,404 hours to v1.0; 2,045-3,632 hours to full OneNote parity. Each file's "Estimate" table is the source; ROADMAP.md sums them.
+Totals: 1,413-2,424 hours to v1.0; 2,057-3,652 hours to full OneNote parity. Each file's "Estimate" table is the source; ROADMAP.md sums them.
 
 ## Scope
 
