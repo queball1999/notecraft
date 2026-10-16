@@ -47,6 +47,14 @@ pub struct SessionIo {
     was_focused: bool,
 }
 
+impl std::fmt::Debug for SessionIo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionIo")
+            .field("watched", &self.watchers.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl SessionIo {
     /// `journal_dir` is the recovery folder inside the settings folder; `None` (no settings
     /// folder) turns the journal off. `wake` is called from worker threads.

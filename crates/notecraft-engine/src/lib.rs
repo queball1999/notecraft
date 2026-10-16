@@ -21,6 +21,7 @@ pub mod undo;
 pub mod view;
 
 pub use ink::{DrawTool, InkState, PenStyle};
+pub use notecraft_storage::RecoveryEntry;
 pub use session::{
     PageNotice, PageSource, ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState,
     Selection, Session,
