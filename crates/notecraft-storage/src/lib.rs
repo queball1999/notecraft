@@ -12,15 +12,20 @@
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 1;
 
+pub mod canvas_block;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod index;
-pub mod canvas_block;
 pub mod notebook_dir;
 pub mod notebook_toml;
 pub mod page_file;
+pub mod page_kind;
 pub mod paths;
 pub mod section_toml;
 
+pub use canvas_block::{
+    find_canvas_block, normalized, read_canvas, strip_canvas_block, write_ink, CanvasBlock,
+    CanvasProblem, CanvasRead, WriteInkError,
+};
 pub use notebook_dir::{
     scan_notebook, scan_notebook_with, GroupEntry, NotebookTree, PageEntry, PageKind, ScanError,
     ScanLimits, ScanWarning, SectionEntry, TreeNode, WarningKind,
@@ -30,4 +35,5 @@ pub use page_file::{
     read_page_file, read_page_file_with, write_page_text, PageReadError, PageText, WriteOutcome,
     MAX_PAGE_BYTES,
 };
+pub use page_kind::change_page_kind;
 pub use section_toml::{PageListing, SectionConfig, SectionKind};

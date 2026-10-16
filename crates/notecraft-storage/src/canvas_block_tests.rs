@@ -8,7 +8,10 @@ fn stroke(id: &str, pts: &[(f32, f32, f32)]) -> Stroke {
         tool: InkTool::Pen,
         color: InkColor::parse("#1F3A93").unwrap(),
         width: 2.0,
-        points: pts.iter().map(|&(x, y, p)| InkPoint::new(x, y, p)).collect(),
+        points: pts
+            .iter()
+            .map(|&(x, y, p)| InkPoint::new(x, y, p))
+            .collect(),
     }
 }
 
@@ -20,7 +23,10 @@ fn finds_the_last_top_level_canvas_block() {
     let b = find_canvas_block(text).unwrap();
     assert!(b.closed);
     assert_eq!(text.get(b.json).unwrap(), "{\"a\":1}\n");
-    assert!(text.get(b.block).unwrap().starts_with("```notecraft-canvas"));
+    assert!(text
+        .get(b.block)
+        .unwrap()
+        .starts_with("```notecraft-canvas"));
     assert!(find_canvas_block("```rust\nfn main() {}\n```\n").is_none());
     assert!(find_canvas_block("").is_none());
 }
@@ -199,14 +205,20 @@ fn long_strokes_are_simplified_and_too_many_strokes_block_saving() {
     many.push_str("]}\n```\n");
     let read = read_canvas(&many);
     assert_eq!(read.strokes.len(), MAX_STROKES);
-    assert_eq!(read.problem, Some(CanvasProblem::TooManyStrokes(MAX_STROKES + 5)));
+    assert_eq!(
+        read.problem,
+        Some(CanvasProblem::TooManyStrokes(MAX_STROKES + 5))
+    );
     assert!(write_ink(&many, &read.strokes[..1]).is_err());
 }
 
 #[test]
 fn newer_formats_and_bad_blocks_are_not_rewritten() {
     let newer = "```notecraft-canvas\n{\"format\": 2, \"ink\": []}\n```\n";
-    assert_eq!(read_canvas(newer).problem, Some(CanvasProblem::NewerFormat(2)));
+    assert_eq!(
+        read_canvas(newer).problem,
+        Some(CanvasProblem::NewerFormat(2))
+    );
     for bad in [
         "```notecraft-canvas\n[1,2]\n```\n",
         "```notecraft-canvas\nnot json\n```\n",
@@ -228,7 +240,12 @@ fn deep_and_huge_numbers_do_not_panic() {
         "]".repeat(5000)
     );
     let r = read_canvas(&deep);
-    assert!(r.problem.is_some(), "{:?} {}", r.block.is_some(), r.strokes.len());
+    assert!(
+        r.problem.is_some(),
+        "{:?} {}",
+        r.block.is_some(),
+        r.strokes.len()
+    );
     let nums = "```notecraft-canvas\n{\"ink\":[{\"width\":1e999,\"points\":[[1e999,2,3],[1e308,-1e308,1e308]]}]}\n```\n";
     let read = read_canvas(nums);
     for s in &read.strokes {
