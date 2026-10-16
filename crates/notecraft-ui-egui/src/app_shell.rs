@@ -300,9 +300,10 @@ impl AppShell {
         let args = self.fill_path(id, args)?;
         let result = self.registry.run(&mut self.session, id, args);
         // Opening something from the File backstage returns to the notes.
-        if result.is_ok() {
+        if let Ok(output) = &result {
             if FILE_OPENS.iter().any(|open| open.as_str() == id) {
                 self.ribbon.close_backstage();
+                self.toast_open_warnings(output);
             } else if id == ids::FILE_ABOUT.as_str() {
                 self.ribbon.open_backstage_on(ids::FILE_ABOUT);
             } else if id == ids::FILE_COPY_ABOUT_INFO.as_str() {
@@ -311,6 +312,22 @@ impl AppShell {
             }
         }
         Some(result)
+    }
+
+    /// Tell the user when opening a notebook folder skipped something (a folder nested too
+    /// deep, a settings file that could not be read). The notebook is open either way.
+    fn toast_open_warnings(&mut self, output: &CommandOutput) {
+        let Some(warnings) = output.value.get("warnings").and_then(Value::as_array) else {
+            return;
+        };
+        let first = warnings.first().and_then(Value::as_str).unwrap_or_default();
+        let more = warnings.len().saturating_sub(1);
+        let text = if more == 0 {
+            format!("Opened with a warning: {first}")
+        } else {
+            format!("Opened with {} warnings. First: {first}", warnings.len())
+        };
+        self.toasts.push(text);
     }
 
     /// `args` with a `path` from the picker if `id` is a file command sent without one.
@@ -1855,6 +1872,105 @@ mod tests {
         assert!(toasts(&harness).is_empty());
     }
 
+    fn sample_notebook_path() -> String {
+        let path: std::path::PathBuf = [
+            env!("CARGO_MANIFEST_DIR"),
+            "..",
+            "..",
+            "testdata",
+            "notebooks",
+            "basic",
+        ]
+        .iter()
+        .collect();
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn opening_a_real_folder_shows_its_real_sections_and_pages() {
+        let path = sample_notebook_path();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        assert_eq!(recent_paths(harness.state()), [path.as_str()]);
+        assert!(toasts(&harness).is_empty());
+        // The notebook pane lists the notebook, its group, and every section.
+        for label in [
+            "Basic Sample",
+            "Projects",
+            "Journal",
+            "Beta",
+            "Alpha",
+            "Reference",
+        ] {
+            assert!(
+                harness.query_all_by_label(label).next().is_some(),
+                "{label}"
+            );
+        }
+        // The first section's pages show in their saved order, subpages included.
+        for label in [
+            "Welcome",
+            "Daily log",
+            "Monday",
+            "Morning run",
+            "Tuesday",
+            "Sketch ideas",
+        ] {
+            let _ = harness.get_by_label(label);
+        }
+        assert!(harness.query_by_label("Grocery list").is_none());
+
+        let reference = harness.get_all_by_label("Reference").next().unwrap();
+        reference.click();
+        harness.run();
+        for label in ["Archive", "Reading list", "Recipes"] {
+            let _ = harness.get_by_label(label);
+        }
+        assert!(harness.query_by_label("Welcome").is_none());
+        harness.get_by_label("Recipes").click();
+        harness.run();
+        assert_eq!(
+            harness.state().session().selection().page.as_deref(),
+            Some("nb_basic_sample/Reference/Recipes.md")
+        );
+    }
+
+    #[test]
+    fn an_empty_folder_opens_as_an_empty_notebook() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        assert!(harness.state().session().current_page().is_none());
+        let _ = harness.get_by_label("Canvas");
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn a_folder_with_a_bad_settings_file_opens_with_a_toast() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("S")).unwrap();
+        std::fs::write(dir.path().join("S").join("Page.md"), "x").unwrap();
+        std::fs::write(dir.path().join("S").join(".section.toml"), "= broken").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        let _ = harness.get_by_label("Page");
+        let shown = toasts(&harness);
+        assert_eq!(shown.len(), 1);
+        assert!(shown[0].starts_with("Opened with a warning"), "{shown:?}");
+    }
+
     #[test]
     fn canceling_the_picker_does_nothing() {
         let mut harness = harness(AppShell::empty(), WINDOW);
@@ -1989,7 +2105,8 @@ mod tests {
 
         let mut shell = AppShell::empty();
         assert!(shell.open_path(&dir));
-        assert_eq!(shell.session().notebooks().len(), 2);
+        // The folder is a real (here empty) notebook, so it replaces nothing and shows no sample.
+        assert_eq!(shell.session().notebooks().len(), 1);
         let first = shell.session().recents().items().first().map(|i| i.kind);
         assert_eq!(first, Some(notecraft_engine::recent::RecentKind::Notebook));
 

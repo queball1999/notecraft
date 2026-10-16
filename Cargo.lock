@@ -2067,6 +2067,7 @@ dependencies = [
  "notecraft-model",
  "notecraft-storage",
  "serde_json",
+ "tempfile",
  "tracing",
 ]
 
@@ -2108,6 +2109,7 @@ dependencies = [
  "notecraft-model",
  "serde_json",
  "skrifa",
+ "tempfile",
  "tracing",
 ]
 

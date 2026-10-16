@@ -1,15 +1,19 @@
 //! File commands: `file.new_notebook`, `file.open_notebook`, `file.open`, and
-//! `file.recent.clear`. Each open records the path in the recent list. Until Phase 1 reads
-//! notebooks from disk, opening anything shows the mock notebooks.
+//! `file.recent.clear`. Each open records the path in the recent list. Opening a notebook
+//! folder reads it from disk; the other commands, and a notebook path that does not exist,
+//! show the mock notebooks until the rest of Phase 1 lands.
 //!
 //! The `path` argument is optional in the schema so a ribbon button can send the command
 //! without one; the front end then asks with a file picker and sends it again with the path.
 //! Run without a path (from the control channel), the command fails with `invalid_args`.
 
+use std::path::Path;
+
 use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
 use crate::mock;
+use crate::open::open_folder;
 use crate::recent::{RecentItem, RecentKind, MAX_PATH_CHARS};
 use crate::session::Session;
 
@@ -82,12 +86,42 @@ pub(super) fn new_notebook(
     open_kind(ids::FILE_NEW_NOTEBOOK, RecentKind::Notebook, session, args)
 }
 
-/// `file.open_notebook { path }`: open a notebook folder.
+/// `file.open_notebook { path }`: open a notebook folder. A folder that exists is scanned
+/// and its sections and pages replace the mock notebooks; the output then also has the
+/// notebook `id` and, when the scan skipped something, a `warnings` list of plain text. A
+/// path that does not exist keeps the Phase 0 behavior (record it, show the mock notebooks if
+/// nothing is open) so a stale recent entry still opens something; a path that exists but is
+/// not a readable folder is `invalid_args`.
 pub(super) fn open_notebook(
     session: &mut Session,
     args: &Map<String, Value>,
 ) -> Result<CommandOutput, CommandError> {
-    open_kind(ids::FILE_OPEN_NOTEBOOK, RecentKind::Notebook, session, args)
+    let id = ids::FILE_OPEN_NOTEBOOK;
+    let path = path_arg(id, args)?;
+    let Some(item) = RecentItem::new(RecentKind::Notebook, path) else {
+        return Err(bad_path(
+            id,
+            &format!("path must be 1 to {MAX_PATH_CHARS} characters with no control characters"),
+        ));
+    };
+    let folder = Path::new(&item.path);
+    if !folder.exists() {
+        tracing::warn!(path = %item.path, "notebook folder not found; showing the sample notebooks");
+        return Ok(open(session, item));
+    }
+    let opened = open_folder(folder).map_err(|err| bad_path(id, &err.to_string()))?;
+    let mut fields = Map::new();
+    fields.insert("kind".to_owned(), json!(item.kind.id()));
+    fields.insert("path".to_owned(), json!(item.path));
+    fields.insert("id".to_owned(), json!(opened.notebook.id));
+    if !opened.warnings.is_empty() {
+        fields.insert("warnings".to_owned(), json!(opened.warnings));
+    }
+    let value = Value::Object(fields);
+    session.recents_mut().push(item);
+    session.open_notebook(opened.notebook);
+    session.mark_changed();
+    Ok(CommandOutput { value })
 }
 
 /// `file.open { path }`: open a `.md` or `.notecraft` page file.
@@ -172,6 +206,108 @@ mod tests {
             recent(&session),
             [(RecentKind::Notebook, "C:\\Notes\\Work".to_owned())]
         );
+    }
+
+    fn sample_path() -> String {
+        let path: std::path::PathBuf = [
+            env!("CARGO_MANIFEST_DIR"),
+            "..",
+            "..",
+            "testdata",
+            "notebooks",
+            "basic",
+        ]
+        .iter()
+        .collect();
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn opening_a_real_folder_shows_its_sections_and_pages() {
+        let mut session = Session::new();
+        // The sample notebooks are open first, as at app start.
+        session.set_notebooks(crate::mock::notebooks());
+        let path = sample_path();
+        let out = run(&mut session, "file.open_notebook", json!({ "path": path })).unwrap();
+        assert_eq!(out["id"], "nb_basic_sample");
+        assert!(out.get("warnings").is_none());
+        let names: Vec<&str> = session
+            .notebooks()
+            .iter()
+            .map(|nb| nb.name.as_str())
+            .collect();
+        assert_eq!(names, ["Basic Sample"], "the mock notebooks are replaced");
+        let sections: Vec<&str> = session
+            .current_notebook()
+            .unwrap()
+            .all_sections()
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect();
+        assert_eq!(sections, ["Journal", "Beta", "Alpha", "Reference"]);
+        assert_eq!(session.current_section().unwrap().name, "Journal");
+        assert_eq!(session.current_page().unwrap().title, "Welcome");
+        assert_eq!(recent(&session), [(RecentKind::Notebook, path)]);
+    }
+
+    #[test]
+    fn reopening_a_real_folder_keeps_the_selection() {
+        let mut session = Session::new();
+        let path = sample_path();
+        run(&mut session, "file.open_notebook", json!({ "path": path })).unwrap();
+        let page = "nb_basic_sample/Journal/Tuesday.md";
+        run(&mut session, "nav.page.select", json!({ "id": page })).unwrap();
+        run(&mut session, "file.open_notebook", json!({ "path": path })).unwrap();
+        assert_eq!(session.notebooks().len(), 1);
+        assert_eq!(session.selection().page.as_deref(), Some(page));
+    }
+
+    #[test]
+    fn a_real_folder_is_added_beside_another_real_one() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("Only")).unwrap();
+        std::fs::write(dir.path().join("Only").join("Note.md"), "x").unwrap();
+        let mut session = Session::new();
+        run(
+            &mut session,
+            "file.open_notebook",
+            json!({ "path": sample_path() }),
+        )
+        .unwrap();
+        let other = dir.path().to_string_lossy().into_owned();
+        run(&mut session, "file.open_notebook", json!({ "path": other })).unwrap();
+        assert_eq!(session.notebooks().len(), 2);
+        assert_eq!(session.current_page().unwrap().title, "Note");
+    }
+
+    #[test]
+    fn a_file_path_is_not_a_notebook() {
+        let mut session = Session::new();
+        let file = format!("{}/Journal/Welcome.md", sample_path());
+        let before = session.clone();
+        assert_eq!(
+            run(&mut session, "file.open_notebook", json!({ "path": file })),
+            Err("invalid_args")
+        );
+        assert_eq!(session, before);
+    }
+
+    #[test]
+    fn scan_warnings_are_reported() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".notecraft")).unwrap();
+        std::fs::write(
+            dir.path().join(".notecraft").join("notebook.toml"),
+            "= broken",
+        )
+        .unwrap();
+        std::fs::create_dir_all(dir.path().join("S")).unwrap();
+        std::fs::write(dir.path().join("S").join("a.md"), "x").unwrap();
+        let mut session = Session::new();
+        let path = dir.path().to_string_lossy().into_owned();
+        let out = run(&mut session, "file.open_notebook", json!({ "path": path })).unwrap();
+        assert_eq!(out["warnings"].as_array().map(Vec::len), Some(1));
+        assert_eq!(session.current_page().unwrap().title, "a");
     }
 
     #[test]
