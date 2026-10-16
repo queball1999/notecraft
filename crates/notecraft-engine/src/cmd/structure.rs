@@ -35,7 +35,7 @@ fn index(args: &Map<String, Value>) -> usize {
         .unwrap_or(usize::MAX)
 }
 
-fn name_arg<'a>(command: CommandId, args: &'a Map<String, Value>) -> Result<&'a str, CommandError> {
+fn name_arg(command: CommandId, args: &Map<String, Value>) -> Result<&str, CommandError> {
     text(args, "name").ok_or_else(|| invalid(command, "name is required; the app asks for it"))
 }
 

@@ -185,7 +185,7 @@ impl Session {
         self.notebooks.insert(at, opened.notebook);
         self.notebook_roots
             .insert(id.to_owned(), root.to_path_buf());
-        let section = self.notebooks[at].first_section();
+        let section = self.notebooks.get(at).and_then(Notebook::first_section);
         self.selection = Selection {
             notebook: Some(id.to_owned()),
             section: section.map(|s| s.id.clone()),
@@ -357,6 +357,13 @@ impl Plan {
         let owner = session.notebooks.iter().find(|nb| {
             id.strip_prefix(nb.id.as_str())
                 .is_some_and(|r| r.starts_with('/'))
+        });
+        // Sample notebooks use short ids that do not start with the notebook id.
+        let owner = owner.or_else(|| {
+            session
+                .notebooks
+                .iter()
+                .find(|nb| nb.section(id).is_some() || nb.section_of_page(id).is_some())
         });
         match owner {
             Some(nb) => Self::new(session, &nb.id),
@@ -778,7 +785,10 @@ impl Session {
         let rel = join(&parent_path, &folder);
         let mut names = names_of(children);
         names.push(folder);
-        let color = DEFAULT_SECTION_COLORS[children.len() % DEFAULT_SECTION_COLORS.len()];
+        let color = DEFAULT_SECTION_COLORS
+            .get(children.len() % DEFAULT_SECTION_COLORS.len())
+            .copied()
+            .unwrap_or(0x9FD3E8);
         let id = format!("{}/{rel}", plan.id());
         plan.create(&rel, Content::Dir);
         plan.section_config(&rel, |c| {
@@ -1115,12 +1125,13 @@ fn attachment_links(text: &str) -> Vec<String> {
     let mut found = Vec::new();
     let mut rest = text;
     while let Some(at) = rest.find(MARK) {
-        let after = &rest[at + MARK.len()..];
+        let Some(after) = rest.get(at + MARK.len()..) else {
+            break;
+        };
         let end = after
             .find(|c: char| matches!(c, ')' | '>' | '"' | '\'' | '#' | '?') || c.is_control())
             .unwrap_or(after.len());
-        let raw = &after[..end];
-        let name = raw.replace("%20", " ");
+        let name = after.get(..end).unwrap_or_default().replace("%20", " ");
         let ok = !name.is_empty() && !name.contains(['/', '\\']) && name != ".." && name != ".";
         if ok && !found.contains(&name) {
             found.push(name);
@@ -1128,7 +1139,7 @@ fn attachment_links(text: &str) -> Vec<String> {
                 break;
             }
         }
-        rest = &after[end..];
+        rest = after.get(end..).unwrap_or_default();
     }
     found
 }

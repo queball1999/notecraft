@@ -490,7 +490,9 @@ impl AppShell {
             .default_size(SIDE_WIDTH)
             .resizable(true)
             .frame(panel.fill(tokens.sidebar_bg))
-            .show(ui, |ui| nav::page_list(ui, session, &tokens, &mut clicked));
+            .show(ui, |ui| {
+                nav::page_list(ui, session, nav_ui, &tokens, &mut clicked)
+            });
         let canvas_width = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
             .show(ui, |ui| {
@@ -499,7 +501,7 @@ impl AppShell {
                     full.min,
                     egui::vec2(full.width(), nav::SECTION_STRIP_HEIGHT),
                 );
-                nav::section_tabs(ui, strip, session, &tokens, &mut clicked);
+                nav::section_tabs(ui, strip, session, nav_ui, &tokens, &mut clicked);
                 let page = egui::Rect::from_min_max(egui::pos2(full.min.x, strip.max.y), full.max);
                 canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
             })
@@ -1211,15 +1213,174 @@ mod tests {
     }
 
     #[test]
-    fn add_page_and_new_section_are_coming_soon() {
+    fn editing_a_sample_notebook_says_to_open_a_folder_first() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         harness.get_by_label("Add Page").click();
         harness.run();
+        let texts: Vec<&str> = harness.state().toasts().texts().collect();
+        assert_eq!(texts.len(), 1);
+        assert!(texts[0].contains("sample notebook"), "{texts:?}");
+    }
+
+    /// A shell with a real notebook folder open: sections Work (Alpha, Beta) and Home (Gamma).
+    fn disk_shell() -> (tempfile::TempDir, egui_kittest::Harness<'static, AppShell>) {
+        let dir = tempfile::TempDir::new().unwrap();
+        for (rel, text) in [
+            ("Work/Alpha.md", "a"),
+            ("Work/Beta.md", "b"),
+            ("Home/Gamma.md", "g"),
+        ] {
+            let path = dir.path().join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        let mut shell = AppShell::empty();
+        assert!(shell.open_path(dir.path()));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        (dir, harness)
+    }
+
+    fn page_titles(shell: &AppShell) -> Vec<String> {
+        shell
+            .session()
+            .current_section()
+            .map(|s| s.pages.iter().map(|p| p.title.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn add_page_and_new_section_edit_the_folder() {
+        let (dir, mut harness) = disk_shell();
+        harness.get_by_label("Add Page").click();
+        harness.run();
+        assert!(dir.path().join("Home/Untitled Page.md").is_file());
+        assert_eq!(page_titles(harness.state()), ["Gamma", "Untitled Page"]);
         harness.get_by_label("New Section").click();
         harness.run();
-        let texts: Vec<&str> = harness.state().toasts().texts().collect();
-        assert_eq!(texts, ["Coming Soon: Add Page", "Coming Soon: New Section"]);
+        assert!(dir.path().join("New Section/.section.toml").is_file());
+        assert_eq!(
+            harness.state().session().current_section().unwrap().name,
+            "New Section"
+        );
+        assert!(toasts(&harness).is_empty());
+        // Undo takes the new section away again.
+        harness.state_mut().dispatch("edit.undo", Value::Null);
+        harness.run();
+        assert!(!dir.path().join("New Section").exists());
+    }
+
+    #[test]
+    fn a_page_is_renamed_in_place_from_its_context_menu() {
+        let (dir, mut harness) = disk_shell();
+        harness.get_by_label("Gamma").click_secondary();
+        harness.run();
+        harness.get_by_label("Rename").click();
+        harness.run();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness.event(egui::Event::Text("Delta".to_owned()));
+        harness.run();
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+        harness.run();
+        assert!(dir.path().join("Home/Delta.md").is_file());
+        assert!(!dir.path().join("Home/Gamma.md").exists());
+        assert_eq!(page_titles(harness.state()), ["Delta"]);
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn escape_cancels_a_rename() {
+        let (dir, mut harness) = disk_shell();
+        harness.get_by_label("Gamma").click_secondary();
+        harness.run();
+        harness.get_by_label("Rename").click();
+        harness.run();
+        harness.run();
+        harness.event(egui::Event::Text("Nope".to_owned()));
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        harness.run();
+        assert!(dir.path().join("Home/Gamma.md").is_file());
+        assert_eq!(page_titles(harness.state()), ["Gamma"]);
+    }
+
+    #[test]
+    fn deleting_a_page_from_the_context_menu_can_be_undone() {
+        let (dir, mut harness) = disk_shell();
+        harness.get_by_label("Gamma").click_secondary();
+        harness.run();
+        harness.get_by_label("Delete Page").click();
+        harness.run();
+        assert!(!dir.path().join("Home/Gamma.md").exists());
+        assert!(dir.path().join(".notecraft/trash").is_dir());
+        assert!(page_titles(harness.state()).is_empty());
+        harness.state_mut().dispatch("edit.undo", Value::Null);
+        harness.run();
+        assert!(dir.path().join("Home/Gamma.md").is_file());
+        assert_eq!(page_titles(harness.state()), ["Gamma"]);
+    }
+
+    #[test]
+    fn page_menu_moves_and_indents_pages() {
+        let (dir, mut harness) = disk_shell();
+        let work = harness.state().session().notebooks()[0].all_sections()[1]
+            .id
+            .clone();
+        harness
+            .state_mut()
+            .dispatch("nav.section.select", serde_json::json!({ "id": work }));
+        harness.run();
+        assert_eq!(page_titles(harness.state()), ["Alpha", "Beta"]);
+        harness.get_by_label("Alpha").click_secondary();
+        harness.run();
+        harness.get_by_label("Move Down").click();
+        harness.run();
+        assert_eq!(page_titles(harness.state()), ["Beta", "Alpha"]);
+        harness.get_by_label("Alpha").click_secondary();
+        harness.run();
+        harness.get_by_label("Make Subpage").click();
+        harness.run();
+        let levels: Vec<u8> = harness
+            .state()
+            .session()
+            .current_section()
+            .unwrap()
+            .pages
+            .iter()
+            .map(|p| p.level)
+            .collect();
+        assert_eq!(levels, [0, 1]);
+        assert!(dir.path().join("Work/.section.toml").is_file());
+    }
+
+    #[test]
+    fn section_context_menu_colors_and_deletes() {
+        let (dir, mut harness) = disk_shell();
+        harness
+            .get_all_by_label("Home")
+            .nth(1)
+            .unwrap()
+            .click_secondary();
+        harness.run();
+        harness.get_by_label_contains("Section Color").click();
+        harness.run();
+        harness.get_by_label("Blue").click();
+        harness.run();
+        let toml = std::fs::read_to_string(dir.path().join("Home/.section.toml")).unwrap();
+        assert!(toml.contains("#9FD3E8"), "{toml}");
+        harness
+            .get_all_by_label("Home")
+            .nth(1)
+            .unwrap()
+            .click_secondary();
+        harness.run();
+        harness.get_by_label("Delete Section").click();
+        harness.run();
+        assert!(!dir.path().join("Home").exists());
+        assert!(toasts(&harness).is_empty());
     }
 
     #[test]
@@ -2244,10 +2405,11 @@ mod tests {
         harness.run();
         harness.key_press_modifiers(command, egui::Key::Num3);
         harness.run();
-        assert_eq!(
-            toasts(&harness),
-            ["Coming Soon: Add Page", "Coming Soon: Tags"]
-        );
+        // Ctrl+N runs page.new, which a sample notebook refuses with a reason.
+        let texts = toasts(&harness);
+        assert_eq!(texts.len(), 2, "{texts:?}");
+        assert!(texts[0].starts_with("Add Page: "), "{texts:?}");
+        assert_eq!(texts[1], "Coming Soon: Tags");
 
         // Ctrl+Alt+= zooms in; the more specific chord wins over Ctrl+=.
         harness.key_press_modifiers(command | egui::Modifiers::ALT, egui::Key::Equals);
