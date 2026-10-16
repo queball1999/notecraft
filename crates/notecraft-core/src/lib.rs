@@ -10,8 +10,12 @@
 #![forbid(unsafe_code)]
 
 pub mod geometry;
+pub mod ink;
+pub mod input;
 
-pub use geometry::Vec2;
+pub use geometry::{Aabb, Vec2};
+pub use ink::{InkColor, InkPoint, InkTool, Stroke};
+pub use input::{PointerEvent, PointerKind, PointerPhase, PointerSample};
 
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 0;
