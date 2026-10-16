@@ -30,13 +30,13 @@ pub const MAX_INSERT_BYTES: usize = 4 * 1024 * 1024;
 pub const NEW_CONTAINER_WIDTH: f32 = 420.0;
 
 /// The page being edited and everything the commands need to know about it.
-struct Ctx {
-    page: String,
-    text: String,
-    doc: Document,
-    runs: Vec<ContainerRun>,
-    cursor: TextCursor,
-    eol: &'static str,
+pub(super) struct Ctx {
+    pub(super) page: String,
+    pub(super) text: String,
+    pub(super) doc: Document,
+    pub(super) runs: Vec<ContainerRun>,
+    pub(super) cursor: TextCursor,
+    pub(super) eol: &'static str,
 }
 
 fn null() -> CommandOutput {
@@ -52,7 +52,7 @@ fn applied(done: bool) -> CommandOutput {
 impl Ctx {
     /// The shown page, if it can be edited. The caret is where the user left it, or the end of
     /// the page's text when there is none yet.
-    fn new(session: &Session) -> Option<Self> {
+    pub(super) fn new(session: &Session) -> Option<Self> {
         let page = session.selection().page.clone()?;
         if !session.page_is_editable(&page) {
             return None;
@@ -101,7 +101,7 @@ impl Ctx {
     }
 
     /// The run whose content holds `at` (the end of the content counts).
-    fn run_at(&self, at: usize) -> Option<&ContainerRun> {
+    pub(super) fn run_at(&self, at: usize) -> Option<&ContainerRun> {
         self.runs
             .iter()
             .find(|run| run.content.start <= at && at <= run.content.end)
@@ -158,7 +158,7 @@ impl Ctx {
     }
 
     /// Apply `edit` as one undo step and put the selection where it says.
-    fn apply(&self, session: &mut Session, edit: TextEdit, typing: bool) -> bool {
+    pub(super) fn apply(&self, session: &mut Session, edit: TextEdit, typing: bool) -> bool {
         let Some(edit) = self.guard(edit) else {
             return false;
         };

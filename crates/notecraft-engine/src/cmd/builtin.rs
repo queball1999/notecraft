@@ -3,7 +3,7 @@
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
 use super::{
-    canvas, draw, edit, file, ids, layout, nav, text, theme, ArgKind, ArgSpec, CommandId,
+    canvas, draw, edit, file, format, ids, layout, nav, text, theme, ArgKind, ArgSpec, CommandId,
     CommandSpec, Handler,
 };
 
@@ -334,83 +334,96 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Set the font family of the selection.",
     )
     .undoable()
-    .args(FONT_FAMILY_ARGS),
+    .args(FONT_FAMILY_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_FONT_SIZE,
         "Font Size",
         "Set the font size of the selection.",
     )
     .undoable()
-    .args(FONT_SIZE_ARGS),
+    .args(FONT_SIZE_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_BULLETS,
         "Bullets",
         "Start or remove a bulleted list.",
     )
     .undoable()
-    .shortcut("Ctrl+."),
+    .shortcut("Ctrl+.")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_NUMBERING,
         "Numbering",
         "Start or remove a numbered list.",
     )
     .undoable()
-    .shortcut("Ctrl+/"),
+    .shortcut("Ctrl+/")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_OUTDENT,
         "Decrease Indent",
         "Move the paragraph one level left.",
     )
     .undoable()
-    .shortcut("Alt+Shift+Left"),
+    .shortcut("Alt+Shift+Left")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_INDENT,
         "Increase Indent",
         "Move the paragraph one level right.",
     )
     .undoable()
-    .shortcut("Alt+Shift+Right"),
+    .shortcut("Alt+Shift+Right")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_CLEAR,
         "Clear All Formatting",
         "Remove all formatting from the selection.",
     )
     .undoable()
-    .shortcut("Ctrl+Shift+N"),
+    .shortcut("Ctrl+Shift+N")
+    .ready(),
     CommandSpec::new(ids::FORMAT_BOLD, "Bold", "Make the selection bold.")
         .undoable()
-        .shortcut("Ctrl+B"),
+        .shortcut("Ctrl+B")
+        .ready(),
     CommandSpec::new(ids::FORMAT_ITALIC, "Italic", "Make the selection italic.")
         .undoable()
-        .shortcut("Ctrl+I"),
+        .shortcut("Ctrl+I")
+        .ready(),
     CommandSpec::new(
         ids::FORMAT_UNDERLINE,
         "Underline",
         "Underline the selection.",
     )
     .undoable()
-    .shortcut("Ctrl+U"),
+    .shortcut("Ctrl+U")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_STRIKETHROUGH,
         "Strikethrough",
         "Draw a line through the selection.",
     )
     .undoable()
-    .shortcut("Ctrl+-"),
+    .shortcut("Ctrl+-")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_SUBSCRIPT,
         "Subscript",
         "Make the selection subscript.",
     )
     .undoable()
-    .shortcut("Ctrl+="),
+    .shortcut("Ctrl+=")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_SUPERSCRIPT,
         "Superscript",
         "Make the selection superscript.",
     )
     .undoable()
-    .shortcut("Ctrl+Shift+="),
+    .shortcut("Ctrl+Shift+=")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_HIGHLIGHT,
         "Text Highlight Color",
@@ -418,29 +431,35 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .undoable()
     .shortcut("Ctrl+Alt+H")
-    .args(COLOR_ARGS),
+    .args(COLOR_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_FONT_COLOR,
         "Font Color",
         "Set the text color of the selection.",
     )
     .undoable()
-    .args(COLOR_ARGS),
+    .args(COLOR_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_ALIGN_LEFT,
         "Align Left",
         "Align the paragraph to the left.",
     )
     .undoable()
-    .shortcut("Ctrl+L"),
-    CommandSpec::new(ids::FORMAT_ALIGN_CENTER, "Center", "Center the paragraph.").undoable(),
+    .shortcut("Ctrl+L")
+    .ready(),
+    CommandSpec::new(ids::FORMAT_ALIGN_CENTER, "Center", "Center the paragraph.")
+        .undoable()
+        .ready(),
     CommandSpec::new(
         ids::FORMAT_ALIGN_RIGHT,
         "Align Right",
         "Align the paragraph to the right.",
     )
     .undoable()
-    .shortcut("Ctrl+R"),
+    .shortcut("Ctrl+R")
+    .ready(),
     // Home tab: Styles group
     CommandSpec::new(
         ids::STYLE_APPLY,
@@ -448,7 +467,8 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Apply a heading or paragraph style to the selection.",
     )
     .undoable()
-    .args(STYLE_ARGS),
+    .args(STYLE_ARGS)
+    .ready(),
     // Home tab: Tags group
     CommandSpec::new(
         ids::TAG_APPLY,
@@ -463,7 +483,8 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Add or check a To Do checkbox on the selected paragraph.",
     )
     .undoable()
-    .shortcut("Ctrl+1"),
+    .shortcut("Ctrl+1")
+    .ready(),
     CommandSpec::new(
         ids::TAG_REMOVE,
         "Remove Tag",
@@ -1056,6 +1077,26 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::EDIT_PASTE_TEXT_ONLY, text::paste_text_only),
     (ids::EDIT_SELECT_ALL, text::select_all),
     (ids::EDIT_DELETE, text::edit_delete),
+    (ids::FORMAT_FONT_FAMILY, format::font_family),
+    (ids::FORMAT_FONT_SIZE, format::font_size),
+    (ids::FORMAT_BULLETS, format::bullets),
+    (ids::FORMAT_NUMBERING, format::numbering),
+    (ids::FORMAT_OUTDENT, format::outdent),
+    (ids::FORMAT_INDENT, format::indent),
+    (ids::FORMAT_CLEAR, format::clear),
+    (ids::FORMAT_BOLD, format::bold),
+    (ids::FORMAT_ITALIC, format::italic),
+    (ids::FORMAT_UNDERLINE, format::underline),
+    (ids::FORMAT_STRIKETHROUGH, format::strikethrough),
+    (ids::FORMAT_SUBSCRIPT, format::subscript),
+    (ids::FORMAT_SUPERSCRIPT, format::superscript),
+    (ids::FORMAT_HIGHLIGHT, format::highlight),
+    (ids::FORMAT_FONT_COLOR, format::font_color),
+    (ids::FORMAT_ALIGN_LEFT, format::align_left),
+    (ids::FORMAT_ALIGN_CENTER, format::align_center),
+    (ids::FORMAT_ALIGN_RIGHT, format::align_right),
+    (ids::STYLE_APPLY, format::style_apply),
+    (ids::TAG_TODO, format::todo),
     (ids::EDIT_UNDO, edit::undo),
     (ids::EDIT_REDO, edit::redo),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
