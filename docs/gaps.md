@@ -18,8 +18,6 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | 15 | No notebook index (the folder reader and reading page text from disk have landed) | ST-07 | 18-30 | build_plan/03, PR 1.2 |
 | 17 | No text editing in containers | TX-01 to TX-06, CV-04 to CV-06 | 104-180 | build_plan/03, PR 1.5, 1.6 |
 | 18 | No auto-save, crash recovery, outside edit handling (also wires the minimal-diff write, PR 1.4, into page saving; FM-02 and FM-04 stay P until then) | FM-05 to FM-07 (plus FM-02, FM-04) | 24-40 | build_plan/03, PR 1.7 |
-| 19 | No undo and redo | ST-08 | 20-34 | build_plan/03, PR 1.8 |
-| 18 | No auto-save, crash recovery, outside edit handling | FM-05 to FM-07 | 24-40 | build_plan/03, PR 1.7 |
 | 19 | Undo and redo: the engine, ink, and page setup landed (PR 1.8); still missing the callers that make text edits (PR 1.5), erase strokes (PR 1.11), and move or rename in the notebook (PR 1.13) through it, and a list of steps to pick from (OneNote has none on its History tab, so only Undo and Redo show) | ST-08 | 2-4 | build_plan/03, PR 1.8 |
 | 20 | No `.notecraft` format | FM-03 | 30-50 | build_plan/03, PR 1.9 |
 | 21 | Ink: pen, smoothing, anti-aliased meshes, a marked current pen, and the pressure path landed (PR 1.10); still missing the highlighter and both erasers (PR 1.11), saving strokes to the page file (PR 1.9, rank 20), pressure on macOS and Linux (needs a wrapper crate or newer winit), and trying a real pen or tablet on all three systems | IN-01 to IN-06 | 24-40 plus the checks | build_plan/03, PR 1.11 |
