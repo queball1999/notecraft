@@ -1,7 +1,7 @@
 //! Seeded input generation shared by the fuzz targets' property-test twins. Included with
 //! `#[path]` from the crates' `tests/fuzz_props.rs`; not compiled by the fuzz crate.
 
-#![allow(dead_code)]
+#![allow(dead_code, clippy::indexing_slicing)]
 
 use std::path::{Path, PathBuf};
 

@@ -97,7 +97,11 @@ fn container_markers_survive_mutated_input() {
 fn hostile_shapes_stay_bounded() {
     let mut cases: Vec<String> = Vec::new();
     cases.push("> ".repeat(5_000) + "deep\n");
-    cases.push((0..300).map(|i| format!("{}- x\n", "  ".repeat(i))).collect());
+    cases.push(
+        (0..300)
+            .map(|i| format!("{}- x\n", "  ".repeat(i)))
+            .collect(),
+    );
     cases.push("- ".repeat(3_000) + "x\n");
     cases.push("*".repeat(100_000));
     cases.push("[".repeat(50_000));
@@ -106,15 +110,28 @@ fn hostile_shapes_stay_bounded() {
     cases.push("<div>".repeat(20_000));
     cases.push("| a ".repeat(5_000) + "|\n" + &"|---".repeat(5_000) + "|\n");
     // Frontmatter just under and just over 64 KiB, and with too many entries.
-    cases.push(format!("---\ntitle: {}\n---\nbody\n", "a".repeat(64 * 1024 - 20)));
-    cases.push(format!("---\ntitle: {}\n---\nbody\n", "a".repeat(64 * 1024 + 20)));
+    cases.push(format!(
+        "---\ntitle: {}\n---\nbody\n",
+        "a".repeat(64 * 1024 - 20)
+    ));
+    cases.push(format!(
+        "---\ntitle: {}\n---\nbody\n",
+        "a".repeat(64 * 1024 + 20)
+    ));
     cases.push(format!("---\n{}---\nbody\n", "k: v\n".repeat(5_000)));
-    cases.push(format!("---\ntags:\n{}---\nbody\n", "  - t\n".repeat(5_000)));
+    cases.push(format!(
+        "---\ntags:\n{}---\nbody\n",
+        "  - t\n".repeat(5_000)
+    ));
     cases.push(format!("---\nm:\n{}---\nbody\n", "  a: b\n".repeat(5_000)));
     cases.push("---\n".repeat(10_000));
     // More container markers than the limit, with duplicate ids.
     cases.push("<!-- notecraft:container id=c1 -->\ntext\n".repeat(12_000));
-    cases.push((0..12_000).map(|i| format!("<!-- notecraft:container id=c{i} -->\n")).collect());
+    cases.push(
+        (0..12_000)
+            .map(|i| format!("<!-- notecraft:container id=c{i} -->\n"))
+            .collect(),
+    );
     for (i, case) in cases.iter().enumerate() {
         let data = case.as_bytes();
         for check in [

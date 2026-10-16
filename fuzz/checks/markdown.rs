@@ -102,7 +102,13 @@ pub fn check_frontmatter(data: &[u8]) {
         assert!(entry.span.start >= fm.span.start && entry.span.end <= fm.span.end);
         check_value(&entry.value);
     }
-    let _ = (fm.title(), fm.tags(), fm.aliases(), fm.scalar("x"), fm.list("x"));
+    let _ = (
+        fm.title(),
+        fm.tags(),
+        fm.aliases(),
+        fm.scalar("x"),
+        fm.list("x"),
+    );
 }
 
 /// Container markers: at most 10,000 markers read, spans inside the page, and the id fix
@@ -126,7 +132,9 @@ pub fn check_containers(data: &[u8]) {
     let _ = read_containers(&text, usize::MAX);
 
     let edits = fix_container_ids(&text, text.len());
-    let fixed = apply_edits(&text, &edits).expect("id fix edits must apply");
+    let fixed = apply_edits(&text, &edits);
+    assert!(fixed.is_ok(), "id fix edits must apply");
+    let fixed = fixed.unwrap_or_default();
     let after = read_containers(&fixed, fixed.len());
     let mut seen = std::collections::HashSet::new();
     for c in after.iter().filter(|c| c.marker.is_some()) {
@@ -135,5 +143,8 @@ pub fn check_containers(data: &[u8]) {
         assert!(seen.insert(c.id.clone()), "duplicate id {:?}", c.id);
     }
     let removal = remove_container_markers(&text, text.len());
-    apply_edits(&text, &removal).expect("marker removal edits must apply");
+    assert!(
+        apply_edits(&text, &removal).is_ok(),
+        "marker removal edits must apply"
+    );
 }

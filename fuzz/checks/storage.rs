@@ -42,7 +42,10 @@ pub fn check_canvas(data: &[u8]) {
     let _ = strip_canvas_block(&text);
     if let Ok(out) = write_ink(&text, &read.strokes) {
         let again = read_canvas(&out);
-        assert!(again.problem.is_none(), "written ink reads back as a problem");
+        assert!(
+            again.problem.is_none(),
+            "written ink reads back as a problem"
+        );
         assert_eq!(again.strokes.len(), read.strokes.len());
     }
 }

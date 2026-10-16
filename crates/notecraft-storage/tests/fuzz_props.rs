@@ -2,10 +2,10 @@
 //! on stable in `cargo test`: seeded mutations of the testdata plus hostile shapes, the same
 //! checks as the fuzz targets.
 
-#[path = "../../../fuzz/checks/mutate.rs"]
-mod mutate;
 #[path = "../../../fuzz/checks/storage.rs"]
 mod checks;
+#[path = "../../../fuzz/checks/mutate.rs"]
+mod mutate;
 
 use mutate::{mutate, noise, root, seeds_in, Rng};
 
@@ -58,7 +58,14 @@ fn text_seeds(suffixes: &[&str]) -> Vec<Vec<u8>> {
     all
 }
 
-fn run(name: &str, seed: u64, seeds: &[Vec<u8>], tokens: &[&str], cases: usize, check: &dyn Fn(&[u8])) {
+fn run(
+    name: &str,
+    seed: u64,
+    seeds: &[Vec<u8>],
+    tokens: &[&str],
+    cases: usize,
+    check: &dyn Fn(&[u8]),
+) {
     for seed_file in seeds {
         check(seed_file);
     }
@@ -82,21 +89,50 @@ fn run(name: &str, seed: u64, seeds: &[Vec<u8>], tokens: &[&str], cases: usize, 
 fn canvas_block_survives_mutated_input() {
     let seeds = text_seeds(&[".notecraft"]);
     assert!(!seeds.is_empty(), "no .notecraft seeds under testdata");
-    run("canvas", 0x4356, &seeds, CANVAS_TOKENS, CASES, &checks::check_canvas);
+    run(
+        "canvas",
+        0x4356,
+        &seeds,
+        CANVAS_TOKENS,
+        CASES,
+        &checks::check_canvas,
+    );
 }
 
 #[test]
 fn notebook_toml_survives_mutated_input() {
     let seeds = text_seeds(&["notebook.toml"]);
-    let seeds = if seeds.is_empty() { vec![b"format = 1\n".to_vec()] } else { seeds };
-    run("notebook.toml", 0x4e42, &seeds, TOML_TOKENS, CASES, &checks::check_notebook_toml);
+    let seeds = if seeds.is_empty() {
+        vec![b"format = 1\n".to_vec()]
+    } else {
+        seeds
+    };
+    run(
+        "notebook.toml",
+        0x4e42,
+        &seeds,
+        TOML_TOKENS,
+        CASES,
+        &checks::check_notebook_toml,
+    );
 }
 
 #[test]
 fn section_toml_survives_mutated_input() {
     let seeds = text_seeds(&[".section.toml"]);
-    let seeds = if seeds.is_empty() { vec![b"format = 1\n".to_vec()] } else { seeds };
-    run("section.toml", 0x5354, &seeds, TOML_TOKENS, CASES, &checks::check_section_toml);
+    let seeds = if seeds.is_empty() {
+        vec![b"format = 1\n".to_vec()]
+    } else {
+        seeds
+    };
+    run(
+        "section.toml",
+        0x5354,
+        &seeds,
+        TOML_TOKENS,
+        CASES,
+        &checks::check_section_toml,
+    );
 }
 
 #[test]
@@ -114,23 +150,29 @@ fn recovery_journal_survives_mutated_input() {
         "[",
         "\\u",
     ];
-    run(
-        "journal",
-        0x4a4c,
-        &[good],
-        tokens,
-        JOURNAL_CASES,
-        &|data| checks::check_journal(dir.path(), data),
-    );
+    run("journal", 0x4a4c, &[good], tokens, JOURNAL_CASES, &|data| {
+        checks::check_journal(dir.path(), data)
+    });
 }
 
 #[test]
 fn hostile_shapes_stay_bounded() {
     let mut canvas: Vec<String> = Vec::new();
     // Deep JSON, a huge stroke, many strokes, a stroke with enormous coordinates.
-    canvas.push(format!("```notecraft-canvas\n{}{}\n```\n", "[".repeat(100_000), "]".repeat(100_000)));
-    canvas.push(format!("```notecraft-canvas\n{}1{}\n```\n", "{\"a\":".repeat(50_000), "}".repeat(50_000)));
-    let points = (0..30_000).map(|i| format!("[{i},{i},0.5]")).collect::<Vec<_>>().join(",");
+    canvas.push(format!(
+        "```notecraft-canvas\n{}{}\n```\n",
+        "[".repeat(100_000),
+        "]".repeat(100_000)
+    ));
+    canvas.push(format!(
+        "```notecraft-canvas\n{}1{}\n```\n",
+        "{\"a\":".repeat(50_000),
+        "}".repeat(50_000)
+    ));
+    let points = (0..30_000)
+        .map(|i| format!("[{i},{i},0.5]"))
+        .collect::<Vec<_>>()
+        .join(",");
     canvas.push(format!(
         "```notecraft-canvas\n{{\"format\":1,\"ink\":{{\"strokes\":[{{\"id\":\"s\",\"width\":1,\"points\":[{points}]}}]}}}}\n```\n"
     ));
@@ -138,7 +180,9 @@ fn hostile_shapes_stay_bounded() {
         .map(|i| format!("{{\"id\":\"s{i}\",\"width\":1,\"points\":[[1,2,0.5]]}}"))
         .collect::<Vec<_>>()
         .join(",");
-    canvas.push(format!("```notecraft-canvas\n{{\"format\":1,\"ink\":{{\"strokes\":[{many}]}}}}\n```\n"));
+    canvas.push(format!(
+        "```notecraft-canvas\n{{\"format\":1,\"ink\":{{\"strokes\":[{many}]}}}}\n```\n"
+    ));
     canvas.push("```notecraft-canvas\n{\"format\":1,\"ink\":{\"strokes\":[{\"id\":\"s\",\"width\":1e40,\"points\":[[1e30,-1e30,9]]}]}}\n```\n".into());
     canvas.push("```notecraft-canvas\n".repeat(20_000));
     for (i, case) in canvas.iter().enumerate() {
@@ -149,7 +193,11 @@ fn hostile_shapes_stay_bounded() {
     let mut toml: Vec<String> = Vec::new();
     toml.push(format!("sections = [{}]\n", "\"s\",".repeat(150_000)));
     toml.push(format!("pages = [{}]\n", "\"p.md\",".repeat(150_000)));
-    toml.push(format!("id = \"{}\"\nname = \"{}\"\n", "i".repeat(10_000), "n".repeat(10_000)));
+    toml.push(format!(
+        "id = \"{}\"\nname = \"{}\"\n",
+        "i".repeat(10_000),
+        "n".repeat(10_000)
+    ));
     toml.push(format!("{}x{}\n", "a=[".repeat(5_000), "]".repeat(5_000)));
     toml.push((0..20_000).map(|i| format!("[k{i}]\n")).collect());
     for (i, case) in toml.iter().enumerate() {
