@@ -82,6 +82,23 @@ impl InkLayer {
         true
     }
 
+    /// Put a stroke back at `index` in paint order (past the end means on top). Undo uses it
+    /// to restore an erased stroke where it was. Returns false, changing nothing, under the
+    /// same rules as [`InkLayer::add`].
+    pub fn insert(&mut self, index: usize, stroke: Stroke) -> bool {
+        let stroke = stroke.bounded();
+        if stroke.bounds().is_none()
+            || self.strokes.len() >= MAX_STROKES
+            || self.get(&stroke.id).is_some()
+        {
+            return false;
+        }
+        let at = index.min(self.strokes.len());
+        self.strokes.insert(at, stroke);
+        self.rebuild_index();
+        true
+    }
+
     /// Remove the stroke with `id` and return it.
     pub fn remove(&mut self, id: &str) -> Option<Stroke> {
         let at = self.strokes.iter().position(|s| s.id == id)?;
@@ -165,6 +182,25 @@ mod tests {
                 InkPoint::new(to.0, to.1, 1.0),
             ],
         }
+    }
+
+    #[test]
+    fn insert_restores_paint_order() {
+        let mut layer = InkLayer::new();
+        for id in ["s1", "s2", "s3"] {
+            assert!(layer.add(stroke(id, (0.0, 0.0), (10.0, 0.0), 2.0)));
+        }
+        let removed = layer.remove("s2").unwrap();
+        assert!(layer.insert(1, removed.clone()));
+        let ids: Vec<&str> = layer.strokes().iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, ["s1", "s2", "s3"]);
+        // The index follows: the restored stroke is found by area again.
+        assert_eq!(layer.hit_test(Vec2::new(5.0, 0.0), 0.0).len(), 3);
+        // A duplicate id is refused, and an index past the end puts it on top.
+        assert!(!layer.insert(0, removed.clone()));
+        layer.remove("s1");
+        assert!(layer.insert(99, stroke("s1", (0.0, 0.0), (10.0, 0.0), 2.0)));
+        assert_eq!(layer.strokes().last().map(|s| s.id.as_str()), Some("s1"));
     }
 
     #[test]

@@ -3,7 +3,8 @@
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
 use super::{
-    canvas, draw, file, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
+    canvas, draw, edit, file, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec,
+    Handler,
 };
 
 const NOTEBOOK_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
@@ -239,8 +240,12 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .shortcut("Ctrl+Shift+C"),
     // Editing commands shared by the Quick Access Toolbar, the Draw tab, and shortcuts
-    CommandSpec::new(ids::EDIT_UNDO, "Undo", "Undo the last change.").shortcut("Ctrl+Z"),
-    CommandSpec::new(ids::EDIT_REDO, "Redo", "Redo the last undone change.").shortcut("Ctrl+Y"),
+    CommandSpec::new(ids::EDIT_UNDO, "Undo", "Undo the last change.")
+        .shortcut("Ctrl+Z")
+        .ready(),
+    CommandSpec::new(ids::EDIT_REDO, "Redo", "Redo the last undone change.")
+        .shortcut("Ctrl+Y")
+        .ready(),
     CommandSpec::new(
         ids::EDIT_SELECT_ALL,
         "Select All",
@@ -904,6 +909,8 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
+    (ids::EDIT_UNDO, edit::undo),
+    (ids::EDIT_REDO, edit::redo),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),

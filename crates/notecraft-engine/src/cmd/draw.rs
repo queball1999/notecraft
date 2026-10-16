@@ -2,8 +2,6 @@
 //! and `ink.add_stroke`, which the canvas sends when a pen gesture ends. Strokes are kept in
 //! the session per page; the canvas block stores them in PR 1.9.
 
-use std::sync::Arc;
-
 use notecraft_core::ink::MAX_STROKE_POINTS;
 use notecraft_core::{InkColor, InkPoint, InkTool, Stroke};
 use serde_json::json;
@@ -170,23 +168,24 @@ pub(super) fn add_stroke(
         return Ok(CommandOutput { value: Value::Null });
     };
     let pen = session.ink().pen();
-    let layer = session.ink_mut().layers.entry(page).or_default();
-    let layer = Arc::make_mut(layer);
     let stroke = Stroke {
-        id: layer.next_id(),
+        id: session
+            .ink()
+            .layer(&page)
+            .map_or_else(|| "s1".to_owned(), |layer| layer.next_id()),
         tool: InkTool::Pen,
         color: pen.color,
         width: pen.width_units(),
         points,
     };
     let stroke_id = stroke.id.clone();
-    if !layer.add(stroke) {
+    // One undo step; commit also marks the session changed.
+    if !session.commit_add_stroke(&page, stroke) {
         return Err(invalid(
             id,
             "the page cannot hold another stroke".to_owned(),
         ));
     }
-    session.mark_changed();
     Ok(CommandOutput {
         value: json!({ "id": stroke_id }),
     })

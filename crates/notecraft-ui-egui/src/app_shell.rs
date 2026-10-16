@@ -419,6 +419,8 @@ impl AppShell {
             fonts: &self.families,
             rule_lines: self.session.page_style().rule_lines.id(),
             pen: active_pen(self.session.ink()),
+            can_undo: self.session.can_undo(),
+            can_redo: self.session.can_redo(),
         };
         if self.ribbon.backstage_open() {
             let clicked = self
@@ -2252,6 +2254,84 @@ mod tests {
         harness.run();
         assert_eq!(harness.state().session().view().zoom_percent, 125);
         assert!(!toasts(&harness).iter().any(|t| t.contains("Zoom")));
+    }
+
+    fn strokes_on_page(harness: &egui_kittest::Harness<'_, AppShell>) -> usize {
+        harness
+            .state()
+            .session()
+            .current_ink()
+            .map_or(0, |layer| layer.len())
+    }
+
+    fn add_stroke(harness: &mut egui_kittest::Harness<'_, AppShell>) {
+        let args = serde_json::json!({ "points": [[10, 10], [40, 40]] });
+        assert!(harness.state_mut().dispatch("ink.add_stroke", args));
+        harness.run();
+    }
+
+    fn button_disabled(harness: &egui_kittest::Harness<'_, AppShell>, label: &str) -> bool {
+        use egui_kittest::kittest::NodeT;
+        harness
+            .get_by_label(label)
+            .accesskit_node()
+            .data()
+            .is_disabled()
+    }
+
+    #[test]
+    fn undo_and_redo_buttons_follow_the_history() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        // Nothing to undo or redo yet: both buttons are disabled.
+        assert!(button_disabled(&harness, "Undo"));
+        assert!(button_disabled(&harness, "Redo"));
+
+        add_stroke(&mut harness);
+        assert_eq!(strokes_on_page(&harness), 1);
+        assert!(!button_disabled(&harness, "Undo"));
+        assert!(button_disabled(&harness, "Redo"));
+
+        harness.get_by_label("Undo").click();
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 0);
+        assert!(button_disabled(&harness, "Undo"));
+        assert!(!button_disabled(&harness, "Redo"));
+
+        harness.get_by_label("Redo").click();
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 1);
+        assert!(!button_disabled(&harness, "Undo"));
+        assert!(button_disabled(&harness, "Redo"));
+    }
+
+    #[test]
+    fn undo_and_redo_shortcuts_run_the_commands() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let command = egui::Modifiers::COMMAND;
+        // With nothing to undo the shortcut does nothing and says nothing.
+        harness.key_press_modifiers(command, egui::Key::Z);
+        harness.run();
+        assert!(toasts(&harness).is_empty());
+
+        add_stroke(&mut harness);
+        add_stroke(&mut harness);
+        harness.key_press_modifiers(command, egui::Key::Z);
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 1);
+        harness.key_press_modifiers(command, egui::Key::Y);
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 2);
+        harness.key_press_modifiers(command, egui::Key::Z);
+        harness.key_press_modifiers(command, egui::Key::Z);
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 0);
+        // Ctrl+Shift+Z redoes too, and wins over Ctrl+Z.
+        harness.key_press_modifiers(command | egui::Modifiers::SHIFT, egui::Key::Z);
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 1);
+        assert!(toasts(&harness).is_empty());
     }
 
     #[test]

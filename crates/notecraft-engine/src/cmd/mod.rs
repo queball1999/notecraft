@@ -5,6 +5,7 @@
 mod builtin;
 mod canvas;
 mod draw;
+mod edit;
 mod file;
 mod guard;
 pub mod ids;
