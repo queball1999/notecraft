@@ -77,6 +77,9 @@ pub struct Look<'a> {
     /// The rule lines style of the current page (its `view.rule_lines` id), marked in the Rule
     /// Lines menu.
     pub rule_lines: &'static str,
+    /// Whether Undo and Redo have a step; the quick access buttons are disabled when not.
+    pub can_undo: bool,
+    pub can_redo: bool,
 }
 
 /// A command a ribbon button or menu item asked to run.
@@ -301,6 +304,8 @@ impl Ribbon {
                 self.selected = event.index;
             }
         }
+
+        out.extend(tab::show_quick_access(ui, strip, look));
 
         let keys = KeyFrame {
             tips: match self.keytips.mode {

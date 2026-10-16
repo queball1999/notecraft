@@ -10,6 +10,27 @@ pub(super) fn back(p: &Pen) {
     p.line(&[(7.5, 5.5), (5.0, 8.0), (7.5, 10.5)]);
 }
 
+/// The curved arrow of Undo (`mirror` false) and Redo (`mirror` true).
+pub(super) fn history_arrow(p: &Pen, mirror: bool) {
+    let flip = |points: &[(f32, f32)]| -> Vec<(f32, f32)> {
+        points
+            .iter()
+            .map(|&(x, y)| (if mirror { 16.0 - x } else { x }, y))
+            .collect()
+    };
+    // The arrow head, then a hook that curls down and back.
+    p.line(&flip(&[(6.0, 3.0), (3.0, 6.0), (6.0, 9.0)]));
+    p.line(&flip(&[
+        (3.0, 6.0),
+        (9.5, 6.0),
+        (12.0, 7.0),
+        (13.0, 9.0),
+        (12.5, 11.5),
+        (10.5, 13.0),
+        (7.0, 13.0),
+    ]));
+}
+
 pub(super) fn paste(p: &Pen) {
     // A clipboard with a sheet on it.
     p.outline(2.5, 3.0, 11.5, 14.5);

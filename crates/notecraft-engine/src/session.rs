@@ -1,7 +1,6 @@
 //! The editing session: the state commands read and change. Phase 0 holds the view state,
 //! the open notebooks (read from disk, or the mock notebooks until one is opened), which notebook,
-//! section, and page are shown, and each page's style; page content and undo history land
-//! in Phase 1.
+//! section, and page are shown, each page's style and strokes, and the undo history (`undo`).
 
 use std::collections::BTreeMap;
 
@@ -10,6 +9,7 @@ use notecraft_model::{Notebook, PageRef, Section};
 use crate::ink::InkState;
 use crate::mock;
 use crate::recent::Recents;
+use crate::undo::History;
 use crate::view::{PageStyle, ViewState};
 
 /// Which notebook, section, and page are shown, by id.
@@ -43,6 +43,7 @@ pub struct Session {
     page_sources: BTreeMap<String, (u64, String)>,
     recents: Recents,
     ink: InkState,
+    pub(crate) history: History,
 }
 
 impl Session {
@@ -85,6 +86,7 @@ impl Session {
             page: section.and_then(|s| s.pages.first()).map(|p| p.id.clone()),
         };
         self.notebooks = notebooks;
+        self.history.clear();
     }
 
     /// Open `notebook` read from disk and show it. The mock notebooks are dropped. A notebook
