@@ -11,6 +11,7 @@ use egui::{Color32, FontFamily, FontId, Galley, Painter, Pos2, Rect, Stroke};
 use notecraft_core::Vec2;
 use notecraft_markdown::{Align, Block, BlockKind, Cell, Document, ListKind, Run, Table};
 
+use super::pictures::{PictureSource, Shown};
 use super::PageToScreen;
 use crate::themes::{mix, ThemeTokens};
 
@@ -57,11 +58,35 @@ enum Item {
         rect: Rect,
         checked: bool,
     },
+    /// A picture, or the placeholder that stands in for one that cannot be shown.
+    Picture {
+        rect: Rect,
+        shown: Shown,
+        /// Alt text (and the reason, for a placeholder).
+        label: Arc<Galley>,
+    },
+    /// A file attachment: an icon with the file name.
+    File {
+        rect: Rect,
+        name: Arc<Galley>,
+        ext: String,
+    },
+}
+
+/// A file attachment on the page, for clicks.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct FileHit {
+    /// In page units.
+    pub rect: Rect,
+    /// The link as written in the page.
+    pub link: String,
+    pub name: String,
 }
 
 /// A laid-out page.
 pub(super) struct Flow {
     items: Vec<Item>,
+    pub files: Vec<FileHit>,
     /// Bottom of the content, in page units.
     pub height: f32,
     zoom: f32,
@@ -72,13 +97,23 @@ struct Layout<'a> {
     tokens: &'a ThemeTokens,
     zoom: f32,
     items: Vec<Item>,
+    files: Vec<FileHit>,
+    pictures: &'a mut dyn PictureSource,
 }
 
-/// Lay out `doc` in flow layout at `zoom` (1.0 is 100%).
-pub(super) fn layout(painter: &Painter, doc: &Document, zoom: f32, tokens: &ThemeTokens) -> Flow {
+/// Lay out `doc` in flow layout at `zoom` (1.0 is 100%). Pictures come from `pictures`.
+pub(super) fn layout(
+    painter: &Painter,
+    doc: &Document,
+    zoom: f32,
+    tokens: &ThemeTokens,
+    pictures: &mut dyn PictureSource,
+) -> Flow {
     let mut ctx = Layout {
         painter,
         tokens,
+        files: Vec::new(),
+        pictures,
         zoom: if zoom.is_finite() && zoom > 0.0 {
             zoom
         } else {
@@ -92,7 +127,61 @@ pub(super) fn layout(painter: &Painter, doc: &Document, zoom: f32, tokens: &Them
         height: y + BOTTOM_MARGIN,
         zoom: ctx.zoom,
         items: ctx.items,
+        files: ctx.files,
     }
+}
+
+/// Whether a link points at a file in the notebook (not the web, an anchor, or mail).
+fn is_file_link(link: &str) -> bool {
+    let link = link.trim();
+    if link.is_empty() || link.starts_with('#') || link.starts_with("//") {
+        return false;
+    }
+    match link.split_once(':') {
+        Some((scheme, _)) => scheme.len() == 1,
+        None => true,
+    }
+}
+
+/// Fixed size of a file attachment object, in page units.
+const FILE_HEIGHT: f32 = 44.0;
+/// Height of a placeholder for a picture that cannot be shown.
+const PLACEHOLDER_HEIGHT: f32 = 72.0;
+
+fn extension_of(name: &str) -> String {
+    name.rsplit_once('.')
+        .map(|(_, e)| e.chars().take(4).collect::<String>().to_uppercase())
+        .unwrap_or_default()
+}
+
+/// The file name inside a link, decoded.
+fn link_file_name(link: &str) -> String {
+    let decoded = percent_decode(link);
+    decoded
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// Percent-decode a link (a `%` without two hex digits stays).
+fn percent_decode(link: &str) -> String {
+    let bytes = link.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while let Some(&b) = bytes.get(i) {
+        let hex = |at: usize| bytes.get(at).and_then(|c| char::from(*c).to_digit(16));
+        if b == b'%' {
+            if let (Some(h), Some(l)) = (hex(i + 1), hex(i + 2)) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 fn heading_scale(level: u8) -> f32 {
@@ -128,6 +217,23 @@ impl Layout<'_> {
                 *y += size * 0.35;
                 let h = self.text(runs, size, true, tokens.text, x, *y, width);
                 *y += h + size * 0.3;
+            }
+            BlockKind::Paragraph { runs } if self.is_file_paragraph(runs) => {
+                if let Some(run) = runs.first() {
+                    self.file(run, x, width, y);
+                }
+            }
+            BlockKind::Paragraph { runs } if runs.iter().any(|r| r.image) => {
+                let mut pending: Vec<Run> = Vec::new();
+                for run in runs {
+                    if !run.image {
+                        pending.push(run.clone());
+                        continue;
+                    }
+                    self.paragraph_text(&mut pending, x, width, y);
+                    self.picture(run, x, width, y);
+                }
+                self.paragraph_text(&mut pending, x, width, y);
             }
             BlockKind::Paragraph { runs } => {
                 let h = self.text(runs, BODY_SIZE, false, tokens.text, x, *y, width);
@@ -173,6 +279,83 @@ impl Layout<'_> {
                 *y += BODY_SIZE * 1.4;
             }
         }
+    }
+
+    /// A paragraph that is one link to a file in the notebook: an attachment object.
+    fn is_file_paragraph(&self, runs: &[Run]) -> bool {
+        matches!(runs, [run] if !run.image && !run.code
+            && run.link.as_deref().is_some_and(is_file_link)
+            && !run.text.trim().is_empty())
+    }
+
+    /// Lay out and clear the text collected before or after a picture.
+    fn paragraph_text(&mut self, pending: &mut Vec<Run>, x: f32, width: f32, y: &mut f32) {
+        let blank = pending.iter().all(|r| r.text.trim().is_empty());
+        if !blank {
+            let h = self.text(pending, BODY_SIZE, false, self.tokens.text, x, *y, width);
+            *y += h + BODY_SIZE * 0.4;
+        }
+        pending.clear();
+    }
+
+    fn small_galley(&self, text: &str, color: Color32, width: f32) -> Arc<Galley> {
+        let run = Run::plain(text);
+        self.galley(&[run], BODY_SIZE * 0.85, false, color, width)
+    }
+
+    /// A picture at its natural size, shrunk to fit the column; or a placeholder.
+    fn picture(&mut self, run: &Run, x: f32, width: f32, y: &mut f32) {
+        let link = run.link.clone().unwrap_or_default();
+        let shown = if is_file_link(&link) {
+            self.pictures.picture(&link)
+        } else {
+            Shown::Failed("pictures from the web are not loaded".to_owned())
+        };
+        let alt = if run.text.trim().is_empty() {
+            link_file_name(&link)
+        } else {
+            run.text.clone()
+        };
+        let (w, h, label) = match &shown {
+            Shown::Ready { width: w, height: h, .. } => {
+                let scale = (width / w.max(1.0)).min(1.0);
+                (w * scale, h * scale, alt)
+            }
+            Shown::Loading => (width.min(240.0), PLACEHOLDER_HEIGHT, "Loading picture".to_owned()),
+            Shown::Failed(why) => (
+                width.min(320.0),
+                PLACEHOLDER_HEIGHT,
+                format!("Picture not shown: {alt} ({why})"),
+            ),
+        };
+        let galley = self.small_galley(&label, self.tokens.text_muted, (w - 16.0).max(40.0));
+        let rect = Rect::from_min_size(Pos2::new(x, *y), egui::vec2(w.max(1.0), h.max(1.0)));
+        self.items.push(Item::Picture {
+            rect,
+            shown,
+            label: galley,
+        });
+        *y += h + BODY_SIZE * 0.6;
+    }
+
+    /// A file attachment: icon and name. Clicking it opens the file.
+    fn file(&mut self, run: &Run, x: f32, width: f32, y: &mut f32) {
+        let link = run.link.clone().unwrap_or_default();
+        let name = run.text.trim().to_owned();
+        let w = (width * 0.6).clamp(180.0, 360.0).min(width);
+        let galley = self.small_galley(&name, self.tokens.text, w - FILE_HEIGHT - 8.0);
+        let rect = Rect::from_min_size(Pos2::new(x, *y), egui::vec2(w, FILE_HEIGHT));
+        self.files.push(FileHit {
+            rect,
+            link: link.clone(),
+            name: name.clone(),
+        });
+        self.items.push(Item::File {
+            rect,
+            name: galley,
+            ext: extension_of(&link_file_name(&link)),
+        });
+        *y += FILE_HEIGHT + BODY_SIZE * 0.6;
     }
 
     fn list(
@@ -485,6 +668,58 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                     painter.circle_filled(c, radius * z, tokens.text);
                 }
             }
+            Item::Picture { rect, shown, label } => {
+                let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
+                if !r.intersects(clip) {
+                    continue;
+                }
+                match shown {
+                    Shown::Ready { texture, .. } => {
+                        let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+                        painter.image(*texture, r, uv, Color32::WHITE);
+                    }
+                    Shown::Loading | Shown::Failed(_) => {
+                        painter.rect_filled(r, 4.0 * z, mix(tokens.canvas_bg, tokens.text, 0.06));
+                        painter.rect_stroke(
+                            r,
+                            4.0 * z,
+                            Stroke::new(1.0, tokens.border),
+                            egui::StrokeKind::Inside,
+                        );
+                        painter.galley(r.min + egui::vec2(8.0, 8.0) * z, label.clone(), tokens.text_muted);
+                    }
+                }
+            }
+            Item::File { rect, name, ext } => {
+                let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
+                if !r.intersects(clip) {
+                    continue;
+                }
+                painter.rect_filled(r, 4.0 * z, mix(tokens.canvas_bg, tokens.text, 0.05));
+                painter.rect_stroke(r, 4.0 * z, Stroke::new(1.0, tokens.border), egui::StrokeKind::Inside);
+                // A page with a folded corner, drawn in code, with the extension on it.
+                let icon = Rect::from_min_size(
+                    r.min + egui::vec2(8.0, 6.0) * z,
+                    egui::vec2(26.0, 32.0) * z,
+                );
+                painter.rect_stroke(icon, 2.0 * z, Stroke::new(1.2, tokens.accent), egui::StrokeKind::Inside);
+                let fold = 7.0 * z;
+                painter.line_segment(
+                    [icon.right_top() - egui::vec2(fold, 0.0), icon.right_top() + egui::vec2(0.0, fold)],
+                    Stroke::new(1.2, tokens.accent),
+                );
+                if !ext.is_empty() {
+                    painter.text(
+                        icon.center() + egui::vec2(0.0, 5.0 * z),
+                        egui::Align2::CENTER_CENTER,
+                        ext,
+                        FontId::proportional(7.5 * z),
+                        tokens.accent,
+                    );
+                }
+                let text_at = Pos2::new(icon.max.x + 8.0 * z, r.center().y - name.size().y / 2.0);
+                painter.galley(text_at, name.clone(), tokens.text);
+            }
             Item::Check { rect, checked } => {
                 let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
                 if !r.intersects(clip) {
@@ -512,6 +747,7 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::canvas::pictures::NoPictures;
     use crate::themes::{Preset, ThemeTokens};
 
     fn with_painter<R>(f: impl FnOnce(&Painter) -> R) -> R {
@@ -537,8 +773,8 @@ mod tests {
         let short = notecraft_markdown::parse("Hello");
         let long = notecraft_markdown::parse(&"Paragraph of words.\n\n".repeat(60));
         let (h_short, h_long, texts) = with_painter(|painter| {
-            let short = layout(painter, &short, 1.0, &tokens);
-            let long = layout(painter, &long, 1.0, &tokens);
+            let short = layout(painter, &short, 1.0, &tokens, &mut NoPictures);
+            let long = layout(painter, &long, 1.0, &tokens, &mut NoPictures);
             let texts = long
                 .items
                 .iter()
@@ -554,7 +790,7 @@ mod tests {
     fn welcome_page_lays_out_every_block_kind() {
         let tokens = tokens();
         let doc = notecraft_markdown::parse(notecraft_engine::mock::WELCOME_SOURCE);
-        let flow = with_painter(|painter| layout(painter, &doc, 1.0, &tokens));
+        let flow = with_painter(|painter| layout(painter, &doc, 1.0, &tokens, &mut NoPictures));
         let has = |f: fn(&Item) -> bool| flow.items.iter().any(f);
         assert!(has(|i| matches!(i, Item::Text { .. })));
         assert!(has(|i| matches!(i, Item::Check { checked: true, .. })));
@@ -593,7 +829,7 @@ mod tests {
         with_painter(|painter| {
             for doc in [&deep, &wide, &empty] {
                 for zoom in [0.1, 1.0, 4.0, f32::NAN, 0.0] {
-                    let flow = layout(painter, doc, zoom, &tokens);
+                    let flow = layout(painter, doc, zoom, &tokens, &mut NoPictures);
                     assert!(flow.height.is_finite());
                 }
             }

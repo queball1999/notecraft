@@ -7,7 +7,7 @@ use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::{mock, DrawTool, Session};
 
-use super::{flow, ink, paper, title, CanvasUi, PageToScreen};
+use super::{flow, ink, paper, pictures, title, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -35,9 +35,23 @@ pub fn show(
     let view_size = Vec2::new(rect.width(), rect.height()) / zoom;
     let style = session.page_style();
     // The page text, laid out in flow layout (read-only). One seam: the page source text.
-    let flow = session
-        .current_page_source()
-        .map(|source| flow::layout(ui.painter(), state.document(source), zoom, tokens));
+    let mut cache = std::mem::take(&mut state.pictures);
+    cache.begin_frame(session.selection().page.as_deref());
+    let flow = session.current_page_source().map(|source| {
+        let mut loader = pictures::PictureLoader {
+            cache: &mut cache,
+            ctx: ui.ctx(),
+            session,
+        };
+        flow::layout(
+            ui.painter(),
+            state.document(source),
+            zoom,
+            tokens,
+            &mut loader,
+        )
+    });
+    state.pictures = cache;
     let mut extent = content_extent(origin, view_size, style.paper_size.size());
     if let Some(flow) = &flow {
         extent.x = extent.x.max(flow::LEFT * 2.0 + flow::COLUMN_WIDTH);
@@ -99,6 +113,7 @@ pub fn show(
                 }
                 if let Some(flow) = &flow {
                     flow::paint(ui.painter(), map, flow, tokens);
+                    file_clicks(ui, map, flow, clicked);
                 }
                 if let Some(text) = &notice {
                     // A read-only or error line under the title (the page could not be read
@@ -146,6 +161,37 @@ pub fn show(
         ui.ctx().set_cursor_icon(CursorIcon::Grab);
     }
     output.inner_rect.width()
+}
+
+/// A click on a file attachment opens it (the `attachment.open` command). Keyboard users
+/// reach each attachment as a button and press Enter.
+fn file_clicks(ui: &egui::Ui, map: PageToScreen, flow: &flow::Flow, clicked: &mut Vec<Clicked>) {
+    for (index, hit) in flow.files.iter().enumerate() {
+        let rect = Rect::from_min_max(
+            map.pos(Vec2::new(hit.rect.min.x, hit.rect.min.y)),
+            map.pos(Vec2::new(hit.rect.max.x, hit.rect.max.y)),
+        );
+        if !rect.intersects(ui.clip_rect()) {
+            continue;
+        }
+        let id = ui.id().with(("attachment", index));
+        let response = ui.interact(rect, id, Sense::click());
+        let name = hit.name.clone();
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("Open {name}"))
+        });
+        if response.hovered() {
+            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+        }
+        if response.clicked() || response.double_clicked() {
+            let mut args = Map::new();
+            args.insert("src".to_owned(), Value::from(hit.link.clone()));
+            clicked.push(Clicked {
+                command: ids::ATTACHMENT_OPEN,
+                args: Value::Object(args),
+            });
+        }
+    }
 }
 
 /// Capture pen strokes and paint the page's ink. The pen draws only while it is the active

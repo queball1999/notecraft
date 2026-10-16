@@ -6,6 +6,7 @@
 
 mod flow;
 mod ink;
+pub(crate) mod pictures;
 #[cfg(test)]
 mod ink_tests;
 pub(crate) mod paper;
@@ -30,6 +31,8 @@ pub struct CanvasUi {
     parsed: Option<(String, u64, notecraft_markdown::Document, String)>,
     /// The stroke being drawn and the stroke mesh cache.
     ink: ink::InkUi,
+    /// Textures of the pictures on the page shown.
+    pictures: pictures::PictureCache,
 }
 
 impl Default for CanvasUi {
@@ -40,6 +43,7 @@ impl Default for CanvasUi {
             force_offset: false,
             parsed: None,
             ink: ink::InkUi::default(),
+            pictures: pictures::PictureCache::default(),
         }
     }
 }
