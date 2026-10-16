@@ -829,7 +829,13 @@ pub fn write_ink(text: &str, strokes: &[Stroke]) -> Result<String, WriteInkError
     }
     let eol = eol_of(text);
     let Some(block) = current.block else {
-        return Ok(append_block(text, &new, eol));
+        let out = append_block(text, &new, eol);
+        // The page may end inside an unclosed code fence, which would swallow the new block.
+        // Check that the block really is found; if not, refuse rather than lose the ink.
+        return match find_canvas_block(&out) {
+            Some(found) if found.closed && found.block.start >= text.len() => Ok(out),
+            _ => Err(WriteInkError::Blocked(CanvasProblem::Unparseable)),
+        };
     };
     let json = text.get(block.json.clone()).unwrap_or("");
     let base = block.json.start;
