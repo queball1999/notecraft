@@ -13,8 +13,12 @@
 pub const LAYER: u8 = 1;
 
 pub mod notebook_dir;
+pub mod notebook_toml;
+pub mod section_toml;
 
 pub use notebook_dir::{
     scan_notebook, scan_notebook_with, GroupEntry, NotebookTree, PageEntry, PageKind, ScanError,
     ScanLimits, ScanWarning, SectionEntry, TreeNode, WarningKind,
 };
+pub use notebook_toml::{NotebookConfig, ReadOutcome};
+pub use section_toml::{PageListing, SectionConfig, SectionKind};

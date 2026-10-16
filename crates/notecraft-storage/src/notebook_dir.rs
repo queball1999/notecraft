@@ -14,8 +14,13 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::notebook_toml::{read_notebook_config, NotebookConfig, ReadOutcome};
+use crate::section_toml::{read_section_config, SectionConfig, SectionKind, SECTION_FILE_NAME};
+
 /// The folder inside a notebook that holds NoteCraft's own data (docs/markdown.md 2).
 pub const NOTEBOOK_DIR_NAME: &str = ".notecraft";
+/// The notebook settings file inside [`NOTEBOOK_DIR_NAME`].
+pub const NOTEBOOK_FILE_NAME: &str = "notebook.toml";
 /// The attachments folder inside a section. It is never a section itself.
 pub const ATTACHMENTS_DIR_NAME: &str = "attachments";
 /// Page file extensions, lowercase (docs/markdown.md section 2.3).
@@ -70,7 +75,7 @@ pub struct PageEntry {
 }
 
 /// A folder of pages.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SectionEntry {
     /// Path from the notebook folder, with `/` separators.
     pub rel_path: String,
@@ -79,19 +84,23 @@ pub struct SectionEntry {
     /// Tab color as 0xRRGGBB, when `.section.toml` sets one.
     pub color: Option<u32>,
     pub pages: Vec<PageEntry>,
+    /// The folder's `.section.toml` as read (defaults when missing or bad).
+    pub config: SectionConfig,
 }
 
 /// A folder of sections and further groups.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GroupEntry {
     pub rel_path: String,
     pub name: String,
     pub color: Option<u32>,
     pub children: Vec<TreeNode>,
+    /// The folder's `.section.toml` as read (defaults when missing or bad).
+    pub config: SectionConfig,
 }
 
 /// One entry in a notebook's or group's list.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TreeNode {
     Section(SectionEntry),
     Group(GroupEntry),
@@ -183,7 +192,7 @@ impl fmt::Display for ScanError {
 impl std::error::Error for ScanError {}
 
 /// A notebook folder read into a tree.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NotebookTree {
     pub root: PathBuf,
     /// Stable id: from `notebook.toml` when it has one, else derived from the folder path.
@@ -193,6 +202,8 @@ pub struct NotebookTree {
     /// Notebook color as 0xRRGGBB, when `notebook.toml` sets one.
     pub color: Option<u32>,
     pub nodes: Vec<TreeNode>,
+    /// `.notecraft/notebook.toml` as read (defaults when missing or bad).
+    pub config: NotebookConfig,
     pub warnings: Vec<ScanWarning>,
     /// Directory entries seen, counting the ones that are not pages.
     pub entry_count: usize,
@@ -245,12 +256,21 @@ pub fn scan_notebook_with(root: &Path, limits: ScanLimits) -> Result<NotebookTre
         path: root.to_path_buf(),
         message: "the folder could not be listed".to_owned(),
     })?;
-    let nodes = scanner.child_nodes(root, "", &listing.dirs, &[], 1);
+    let (config, outcome) =
+        read_notebook_config(&root.join(NOTEBOOK_DIR_NAME).join(NOTEBOOK_FILE_NAME));
+    if outcome == ReadOutcome::Bad {
+        scanner.warn(
+            &format!("{NOTEBOOK_DIR_NAME}/{NOTEBOOK_FILE_NAME}"),
+            WarningKind::BadConfig,
+        );
+    }
+    let nodes = scanner.child_nodes(root, "", &listing.dirs, &config.sections, 1);
     Ok(NotebookTree {
         root: root.to_path_buf(),
-        id: derived_id(root),
-        name: folder_name(root),
-        color: None,
+        id: config.id.clone().unwrap_or_else(|| derived_id(root)),
+        name: config.name.clone().unwrap_or_else(|| folder_name(root)),
+        color: config.color,
+        config,
         nodes,
         warnings: scanner.warnings,
         entry_count: scanner.entries,
@@ -379,22 +399,45 @@ impl Scanner {
     /// One folder as a section or a group.
     fn folder(&mut self, dir: &Path, rel: &str, name: &str, depth: usize) -> Option<TreeNode> {
         let listing = self.list(dir, rel)?;
+        let (config, outcome) = read_section_config(&dir.join(SECTION_FILE_NAME));
+        if outcome == ReadOutcome::Bad {
+            self.warn(&join(rel, SECTION_FILE_NAME), WarningKind::BadConfig);
+        }
         let pages = page_names(&listing.files);
         let has_subfolders = listing.dirs.iter().any(|d| !is_attachments(d));
-        if pages.is_empty() && has_subfolders {
-            let children = self.child_nodes(dir, rel, &listing.dirs, &[], depth + 1);
+        let is_group = match config.kind {
+            Some(SectionKind::Group) => true,
+            Some(SectionKind::Section) => false,
+            None => pages.is_empty() && has_subfolders,
+        };
+        if is_group {
+            let children = self.child_nodes(dir, rel, &listing.dirs, &config.sections, depth + 1);
             return Some(TreeNode::Group(GroupEntry {
                 rel_path: rel.to_owned(),
                 name: name.to_owned(),
-                color: None,
+                color: config.color,
                 children,
+                config,
             }));
         }
-        let ordered = order_names(pages.iter().map(String::as_str), &[]);
+        let ordered = order_names(
+            pages.iter().map(String::as_str),
+            &config
+                .pages
+                .iter()
+                .map(|p| p.file.clone())
+                .collect::<Vec<_>>(),
+        );
         let mut seen = BTreeSet::new();
         let mut entries = Vec::new();
         for file in ordered {
-            let Some(entry) = page_entry(rel, &file, 0) else {
+            // The first listing of a file decides its level.
+            let level = config
+                .pages
+                .iter()
+                .find(|listing| listing.file == file)
+                .map_or(0, |listing| listing.level);
+            let Some(entry) = page_entry(rel, &file, level) else {
                 continue;
             };
             if !seen.insert(entry.title.to_lowercase()) {
@@ -405,8 +448,9 @@ impl Scanner {
         Some(TreeNode::Section(SectionEntry {
             rel_path: rel.to_owned(),
             name: name.to_owned(),
-            color: None,
+            color: config.color,
             pages: entries,
+            config,
         }))
     }
 }
@@ -648,6 +692,134 @@ mod tests {
             ["c", "a", "B", "b", "d"]
         );
         assert_eq!(order_names(["b", "A", "c"], &[]), ["A", "b", "c"]);
+    }
+
+    fn write(root: &Path, rel: &str, text: &str) {
+        let path = root.join(rel);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, text).unwrap();
+    }
+
+    #[test]
+    fn notebook_toml_sets_identity_and_section_order() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        write(
+            root,
+            ".notecraft/notebook.toml",
+            "id = \"nb_1\"\nname = \"Home\"\ncolor = \"#102030\"\nsections = [\"Zed\", \"Mid\"]\nextra = 1\n",
+        );
+        touch(root, "Alpha/a.md");
+        touch(root, "Mid/m.md");
+        touch(root, "Zed/z.md");
+        let tree = scan_notebook(root).unwrap();
+        assert_eq!(tree.id, "nb_1");
+        assert_eq!(tree.name, "Home");
+        assert_eq!(tree.color, Some(0x102030));
+        assert_eq!(names(&tree.nodes), ["Zed", "Mid", "Alpha"]);
+        assert!(tree.config.extra.contains_key("extra"));
+    }
+
+    #[test]
+    fn missing_notebook_toml_uses_the_folder() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().join("My Notes");
+        touch(&root, "S/a.md");
+        let tree = scan_notebook(&root).unwrap();
+        assert_eq!(tree.name, "My Notes");
+        assert_eq!(tree.id, derived_id(&root));
+        assert_eq!(tree.color, None);
+        assert!(tree.warnings.is_empty());
+    }
+
+    #[test]
+    fn section_toml_orders_pages_and_sets_levels() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        write(
+            root,
+            "Work/.section.toml",
+            "color = \"#3C8DBC\"\npages = [\n { file = \"c.md\", level = 1 },\n { file = \"gone.md\", level = 1 },\n { file = \"a.notecraft\" },\n { file = \"c.md\", level = 2 },\n]\n",
+        );
+        touch(root, "Work/a.notecraft");
+        touch(root, "Work/b.md");
+        touch(root, "Work/c.md");
+        touch(root, "Work/d.md");
+        let tree = scan_notebook(root).unwrap();
+        let TreeNode::Section(work) = &tree.nodes[0] else {
+            panic!("section");
+        };
+        assert_eq!(work.color, Some(0x3C8DBC));
+        let got: Vec<(&str, u8)> = work
+            .pages
+            .iter()
+            .map(|p| (p.title.as_str(), p.level))
+            .collect();
+        assert_eq!(got, [("c", 1), ("a", 0), ("b", 0), ("d", 0)]);
+    }
+
+    #[test]
+    fn kind_in_section_toml_overrides_the_guess() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        // Has only folders, but says it is a section.
+        write(root, "AsSection/.section.toml", "kind = \"section\"\n");
+        touch(root, "AsSection/Inner/x.md");
+        // Has a page and a folder, but says it is a group.
+        write(
+            root,
+            "AsGroup/.section.toml",
+            "kind = \"group\"\nsections = [\"Two\", \"One\"]\n",
+        );
+        touch(root, "AsGroup/stray.md");
+        touch(root, "AsGroup/One/o.md");
+        touch(root, "AsGroup/Two/t.md");
+        let tree = scan_notebook(root).unwrap();
+        let TreeNode::Group(group) = &tree.nodes[0] else {
+            panic!("AsGroup is a group");
+        };
+        assert_eq!(group.name, "AsGroup");
+        assert_eq!(names(&group.children), ["Two", "One"]);
+        let TreeNode::Section(section) = &tree.nodes[1] else {
+            panic!("AsSection is a section");
+        };
+        assert!(section.pages.is_empty());
+    }
+
+    #[test]
+    fn bad_settings_files_warn_and_default() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        write(root, ".notecraft/notebook.toml", "= = broken");
+        write(root, "S/.section.toml", "pages = [[");
+        touch(root, "S/b.md");
+        touch(root, "S/a.md");
+        let tree = scan_notebook(root).unwrap();
+        assert_eq!(tree.name, root.file_name().unwrap().to_string_lossy());
+        assert_eq!(tree.page_count(), 2);
+        let bad: Vec<&str> = tree
+            .warnings
+            .iter()
+            .filter(|w| w.kind == WarningKind::BadConfig)
+            .map(|w| w.path.as_str())
+            .collect();
+        assert_eq!(bad, [".notecraft/notebook.toml", "S/.section.toml"]);
+    }
+
+    #[test]
+    fn hostile_names_in_settings_never_escape_the_listing() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        write(
+            root,
+            "S/.section.toml",
+            "pages = [{ file = \"../../secret.md\" }, { file = \"/etc/passwd.md\" }]\n",
+        );
+        touch(root, "S/a.md");
+        let tree = scan_notebook(root).unwrap();
+        assert_eq!(tree.page_count(), 1);
     }
 
     #[test]
