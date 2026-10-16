@@ -24,12 +24,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Canvas | 3 | 0 | 9 | 12 | 25% |
 | Ink | 1 | 2 | 10 | 13 | 7% |
 | Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 1 | 1 | 10 | 12 | 8% |
+| Structure | 1 | 2 | 9 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
-| Format | 1 | 2 | 7 | 10 | 10% |
+| Format | 1 | 2 | 6 | 9 | 11% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 36 | 5 | 74 | 115 | 31% |
+| Total | 36 | 6 | 72 | 114 | 31% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -145,10 +145,8 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ST-04 | Structure | Section groups | 1 | M | |
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | M | |
 | ST-06 | Structure | Drag to reorder and move pages and sections | 1 | M | |
-| ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | M | |
-| ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Missing: text commands (PR 1.5), structure commands (PR 1.13), and the eraser (PR 1.11) are the callers; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
 | ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | P | PR 1.2: notecraft-storage keeps a rebuildable `.notecraft/index.sqlite` (sections, pages, attachments; links, tags, and FTS tables created empty), refreshes it by modified time, size, and hash, and rebuilds it when it is corrupt or from a newer schema. Listing 1,000 pages from the index takes about 27 ms (criterion bench `sidebar`). The navigation does not read the index yet; wiring it in is gaps rank 15 |
-| ST-08 | Structure | Undo and redo | 1 | M | |
+| ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Missing: text commands (PR 1.5), structure commands (PR 1.13), and the eraser (PR 1.11) are the callers; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
 | ST-09 | Structure | Notebook Recycle Bin with restore | 3 | M | |
 | ST-10 | Structure | Page versions | 3 | M | |
 | ST-11 | Structure | Page templates | 3 | M | |
@@ -173,7 +171,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 |---|---|---|---|---|---|
 | FM-01 | Format | Read `.md` pages | 1 | D | PR 1.3: notecraft-markdown parses a page into blocks with exact source spans (golden tests on 6 sample pages, hostile-input tests) and the canvas renders them in flow layout (harness test); opening a folder reads the shown page from disk through notecraft-storage (64 MiB cap, lenient UTF-8, read-only when cut short, short error on the canvas when unreadable). Tests: page_file storage unit tests, session page_load_tests, opened_pages_show_their_text_from_disk, an_unreadable_page_shows_a_short_error_on_the_canvas |
 | FM-02 | Format | Write `.md` pages with minimal diffs | 1 | P | PR 1.4: edits are span replacements on the original text (blocks, list items, table cells, frontmatter keys); canonical serializer for new blocks; atomic page writes in notecraft-storage; property tests over 73 corpus pages and CRLF copies (byte-identical round trip, edits touch only their span); saving from the editor waits for PR 1.5 and 1.7 |
-| FM-02 | Format | Write `.md` pages with minimal diffs | 1 | M | |
 | FM-03 | Format | Read and write `.notecraft` pages (containers, canvas block) | 1 | M | |
 | FM-04 | Format | Frontmatter read and write | 1 | P | PR 1.3: bounded YAML-subset frontmatter reader (scalars, lists, one level of maps, 64 KiB cap, unknown keys kept as raw text; unit and hostile-input tests); PR 1.4 added the write side (set and remove keys rewrite only their own lines); reading and saving real page files waits for PR 1.1 and 1.7 |
 | FM-05 | Format | Auto-save every 30 s and on focus loss | 1 | M | |
