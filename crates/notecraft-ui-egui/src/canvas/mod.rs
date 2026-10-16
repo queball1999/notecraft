@@ -4,6 +4,9 @@
 //! The zoom lives in the session (`view.zoom` and friends), so every zoom, including Ctrl+wheel
 //! and pinch, is a command. The scroll position is front-end state kept here.
 
+mod ink;
+#[cfg(test)]
+mod ink_tests;
 pub(crate) mod paper;
 mod title;
 mod widget;
@@ -22,6 +25,8 @@ pub struct CanvasUi {
     /// Push the viewport origin into the scroll area on the next frame (after a zoom or a
     /// drag pan); otherwise the scroll area owns the scroll position.
     force_offset: bool,
+    /// The stroke being drawn and the stroke mesh cache.
+    ink: ink::InkUi,
 }
 
 impl Default for CanvasUi {
@@ -30,6 +35,7 @@ impl Default for CanvasUi {
             viewport: Viewport::default(),
             seen_percent: 100,
             force_offset: false,
+            ink: ink::InkUi::default(),
         }
     }
 }

@@ -1216,7 +1216,12 @@ mod tests {
         harness.run();
         harness.get_by_label("#C62828").click();
         harness.run();
-        assert_eq!(toasts(&harness), ["Coming Soon: Color"]);
+        // draw.color is Ready (PR 1.10): it sets the pen color, with no toast.
+        assert!(toasts(&harness).is_empty());
+        assert_eq!(
+            harness.state().session().ink().pen().color.to_hex(),
+            "#C62828"
+        );
         assert!(harness.query_by_label("#C62828").is_none(), "picker closes");
 
         // The pick joins Recent Colors.
@@ -1553,9 +1558,9 @@ mod tests {
         harness.run();
         harness.get_by_label("2 pt").click();
         harness.run();
-        assert!(toasts(&harness)
-            .iter()
-            .any(|t| t == "Coming Soon: Thickness"));
+        // draw.thickness is Ready (PR 1.10): it sets the pen width, with no toast.
+        assert!(!toasts(&harness).iter().any(|t| t.contains("Thickness")));
+        assert_eq!(harness.state().session().ink().pen().width_pt, 2.0);
     }
 
     #[test]

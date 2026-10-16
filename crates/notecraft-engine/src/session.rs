@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 use notecraft_model::{Notebook, PageRef, Section};
 
+use crate::ink::InkState;
 use crate::mock;
 use crate::recent::Recents;
 use crate::view::{PageStyle, ViewState};
@@ -20,7 +21,7 @@ pub struct Selection {
 }
 
 /// Everything a command can see and change. Commands run on the thread that owns it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Session {
     revision: u64,
     view: ViewState,
@@ -29,6 +30,7 @@ pub struct Session {
     /// Page styles by page id; pages missing here use the default style.
     page_styles: BTreeMap<String, PageStyle>,
     recents: Recents,
+    ink: InkState,
 }
 
 impl Session {
@@ -133,6 +135,20 @@ impl Session {
             .and_then(|id| self.page_styles.get(id))
             .copied()
             .unwrap_or_default()
+    }
+
+    /// The active draw tool, the pen, and every page's strokes.
+    pub fn ink(&self) -> &InkState {
+        &self.ink
+    }
+
+    pub(crate) fn ink_mut(&mut self) -> &mut InkState {
+        &mut self.ink
+    }
+
+    /// The strokes of the page shown now, if it has any.
+    pub fn current_ink(&self) -> Option<&notecraft_canvas::ink::InkLayer> {
+        self.ink.layer(self.selection.page.as_deref()?)
     }
 
     /// Recently opened notebooks and pages, newest first.

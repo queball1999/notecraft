@@ -10,12 +10,14 @@
 #![forbid(unsafe_code)]
 
 pub mod cmd;
+pub mod ink;
 pub mod mock;
 pub mod open;
 pub mod recent;
 pub mod session;
 pub mod view;
 
+pub use ink::{DrawTool, InkState, PenStyle};
 pub use session::{Selection, Session};
 pub use view::PageStyle;
 
