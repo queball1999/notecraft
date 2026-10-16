@@ -10,10 +10,10 @@ use egui::{
 };
 use notecraft_canvas::paper::RuleKind;
 use notecraft_canvas::RuleLines;
-use notecraft_engine::cmd::{CommandId, Map, Value};
+use notecraft_engine::cmd::{ids, CommandId, Map, Value};
 
 use super::spec::{ArgValue, Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS};
-use super::{Clicked, Look};
+use super::{ActivePen, Clicked, Look};
 use crate::color::{self, Rgba8};
 use crate::themes::{hex, mix};
 
@@ -40,15 +40,40 @@ fn object(pairs: &[(&str, Value)]) -> Value {
 
 /// A clickable row with an optional preview, as wide as a menu.
 fn row(ui: &mut Ui, label: &str, preview: Preview, look: Look<'_>) -> Response {
+    marked_row(ui, label, preview, false, look)
+}
+
+/// A [`row`] that shows a check mark at its right end when `current` is true. Screen readers
+/// hear a radio button, checked or not.
+fn marked_row(
+    ui: &mut Ui,
+    label: &str,
+    preview: Preview,
+    current: bool,
+    look: Look<'_>,
+) -> Response {
     let t = look.tokens;
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(ROW_WIDTH, ROW_HEIGHT), Sense::click());
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, label));
+    if current {
+        response.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, true, label));
+    } else {
+        response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, label));
+    }
     let painter = ui.painter_at(rect);
     if response.hovered() || response.has_focus() {
         painter.rect_filled(rect, CornerRadius::same(t.radius), t.hover);
     }
     let text = ui.visuals().text_color();
+    if current {
+        let c = egui::pos2(rect.max.x - 14.0, rect.center().y);
+        let points = vec![
+            c + egui::vec2(-4.5, 0.0),
+            c + egui::vec2(-1.5, 3.0),
+            c + egui::vec2(4.5, -3.5),
+        ];
+        painter.add(egui::Shape::line(points, Stroke::new(1.5, text)));
+    }
     let mut x = rect.min.x + 8.0;
     match preview {
         Preview::None => {}
@@ -168,10 +193,38 @@ pub(super) fn button_item(ui: &mut Ui, button: &Button, look: Look<'_>, out: &mu
 pub(super) fn items(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<Clicked>) {
     ui.spacing_mut().item_spacing.y = 1.0;
     for item in items {
-        if row(ui, item.label, item.preview, look).clicked() {
+        let current = is_current_pen(item, look.pen);
+        if marked_row(ui, item.label, item.preview, current, look).clicked() {
             out.push(Clicked::new(item.command, item.args));
             ui.close();
         }
+    }
+}
+
+/// Whether `item` selects the pen in use: a pen item with its color and width, or a
+/// thickness item with its width.
+fn is_current_pen(item: &Item, pen: Option<ActivePen>) -> bool {
+    let Some(pen) = pen else {
+        return false;
+    };
+    let same_width = |width: f64| (width as f32 - pen.width_pt).abs() < 1.0e-3;
+    let arg = |name: &str| item.args.iter().find(|arg| arg.name == name);
+    let color = arg("color").and_then(|arg| match arg.value {
+        ArgValue::Str(text) => crate::color::parse(text)
+            .map(|[r, g, b, _]| u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b)),
+        _ => None,
+    });
+    let width = arg("width").and_then(|arg| match arg.value {
+        ArgValue::Num(value) => Some(value),
+        ArgValue::Int(value) => Some(value as f64),
+        _ => None,
+    });
+    if item.command == ids::DRAW_PEN {
+        color == Some(pen.color) && width.is_some_and(same_width)
+    } else if item.command == ids::DRAW_THICKNESS {
+        width.is_some_and(same_width)
+    } else {
+        false
     }
 }
 
@@ -767,5 +820,44 @@ pub(super) fn table_grid(ui: &mut Ui, command: CommandId, look: Look<'_>, out: &
             args: Value::Null,
         });
         ui.close();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::spec::{num_arg, str_arg};
+    use super::*;
+
+    const BLUE: Item = Item::new("Blue Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)]);
+    const THICK_BLUE: Item = Item::new("Thick Blue Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 3.5)]);
+    const WIDTH: Item = Item::new("3.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 3.5)]);
+    const HIGHLIGHTER: Item = Item::new("Yellow", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)]);
+
+    #[test]
+    fn the_menu_marks_the_pen_in_use() {
+        let pen = Some(ActivePen {
+            color: 0x1565C0,
+            width_pt: 1.0,
+        });
+        assert!(is_current_pen(&BLUE, pen));
+        assert!(!is_current_pen(&THICK_BLUE, pen));
+        assert!(!is_current_pen(&WIDTH, pen));
+        // Another tool's items are never the pen.
+        assert!(!is_current_pen(&HIGHLIGHTER, pen));
+        let thick = Some(ActivePen {
+            color: 0x1565C0,
+            width_pt: 3.5,
+        });
+        assert!(is_current_pen(&THICK_BLUE, thick) && is_current_pen(&WIDTH, thick));
+        // Nothing is marked when the pen is not the tool, or the color differs.
+        assert!(!is_current_pen(&BLUE, None));
+        let other = Some(ActivePen {
+            color: 0x000000,
+            width_pt: 1.0,
+        });
+        assert!(!is_current_pen(&BLUE, other));
     }
 }
