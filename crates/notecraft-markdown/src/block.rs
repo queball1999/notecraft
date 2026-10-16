@@ -37,6 +37,18 @@ pub struct Run {
     pub italic: bool,
     pub strike: bool,
     pub code: bool,
+    /// Underlined (`<u>`; docs/markdown.md section 3.2).
+    pub underline: bool,
+    /// Subscript or superscript (`<sub>`, `<sup>`).
+    pub script: Script,
+    /// Highlight color as 0xRRGGBB (`==text==` is the default yellow, `<mark>` carries a color).
+    pub highlight: Option<u32>,
+    /// Text color as 0xRRGGBB (`<span style="color:...">`).
+    pub color: Option<u32>,
+    /// Font size in points (`<span style="font-size:...pt">`).
+    pub size_pt: Option<u16>,
+    /// Font family (`<span style="font-family:...">`).
+    pub family: Option<String>,
     /// The link target, for text inside a link (or an image, whose alt text is shown).
     pub link: Option<String>,
 }
@@ -51,8 +63,27 @@ impl Run {
 
     /// True if the run has no styling at all.
     pub fn is_plain(&self) -> bool {
-        !(self.bold || self.italic || self.strike || self.code) && self.link.is_none()
+        !(self.bold
+            || self.italic
+            || self.strike
+            || self.code
+            || self.underline
+            || self.script != Script::None)
+            && self.highlight.is_none()
+            && self.color.is_none()
+            && self.size_pt.is_none()
+            && self.family.is_none()
+            && self.link.is_none()
     }
+}
+
+/// Subscript or superscript.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Script {
+    #[default]
+    None,
+    Sub,
+    Sup,
 }
 
 /// Column alignment in a table.
