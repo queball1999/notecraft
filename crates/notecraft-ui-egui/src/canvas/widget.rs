@@ -11,6 +11,9 @@ use super::{flow, ink, paper, title, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
+/// Top of the page notice, in page units: under the title area, above the text.
+const NOTICE_TOP: f32 = 96.0;
+
 /// The accessible name of the canvas, which UI tests look up.
 pub const LABEL: &str = "Canvas";
 
@@ -41,7 +44,13 @@ pub fn show(
         extent.y = extent.y.max(flow.height);
     }
     let extent = extent * zoom;
-    let reader_text = flow.as_ref().map(|_| state.reader_text().to_owned());
+    let notice = session.current_page_notice().map(|n| n.text.clone());
+    let reader_text = match (&notice, &flow) {
+        (Some(notice), Some(_)) => Some(format!("{notice}\n{}", state.reader_text())),
+        (Some(notice), None) => Some(notice.clone()),
+        (None, Some(_)) => Some(state.reader_text().to_owned()),
+        (None, None) => None,
+    };
 
     let mut area = ScrollArea::both()
         .id_salt("canvas")
@@ -90,6 +99,17 @@ pub fn show(
                 }
                 if let Some(flow) = &flow {
                     flow::paint(ui.painter(), map, flow, tokens);
+                }
+                if let Some(text) = &notice {
+                    // A read-only or error line under the title (the page could not be read
+                    // cleanly).
+                    ui.painter().text(
+                        map.pos(Vec2::new(flow::LEFT, NOTICE_TOP)),
+                        egui::Align2::LEFT_TOP,
+                        text,
+                        egui::FontId::proportional(flow::BODY_SIZE * zoom),
+                        tokens.accent,
+                    );
                 }
                 draw_ink(ui, &response, session, state, map, shown, clicked);
                 if response.has_focus() {

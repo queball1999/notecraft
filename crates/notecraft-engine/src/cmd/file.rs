@@ -118,8 +118,10 @@ pub(super) fn open_notebook(
         fields.insert("warnings".to_owned(), json!(opened.warnings));
     }
     let value = Value::Object(fields);
-    session.recents_mut().push(item);
+    let notebook_id = opened.notebook.id.clone();
     session.open_notebook(opened.notebook);
+    session.set_notebook_root(&notebook_id, folder);
+    session.recents_mut().push(item);
     session.mark_changed();
     Ok(CommandOutput { value })
 }
