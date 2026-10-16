@@ -12,6 +12,8 @@
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 1;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod index;
 pub mod notebook_dir;
 pub mod notebook_toml;
 pub mod page_file;

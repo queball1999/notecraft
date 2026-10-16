@@ -74,6 +74,17 @@ Commits:
 
 PR title: `feat(storage): add the rebuildable notebook index`.
 
+Done (2026-10-15), with these deviations from the steps above:
+
+- The index is native only: `rusqlite` sits under `[target.'cfg(not(target_arch = "wasm32"))'.dependencies]` and the `index` module is cfg-ed out on wasm32, so `cargo xtask wasm` is unchanged.
+- Freshness test is modified time plus size, then a content hash (FNV-1a, 64 bits) only for pages that differ; a touched file with the same bytes is not reported as changed. A same-size edit inside one millisecond of the old modified time would be missed; the next change catches it.
+- Titles come from the file name until the Phase 2 reparse fills them from frontmatter (storage is L1 and cannot depend on `notecraft-markdown`). `refresh` returns the added, changed, and removed page ids for that reparse.
+- The page `ord` column orders the sidebar; `sections.ord` and `pages.ord` are rewritten each refresh, so reordering never needs a rebuild. Attachments are listed to depth 3 under `attachments/` with a mime guess from the extension; the hash column stays null until PR 1.12.
+- Corruption handling: `Index::open_or_rebuild` runs `PRAGMA quick_check(1)` and deletes the file and its `-wal`, `-shm`, and `-journal` siblings when open, migration, or the check fails (including a newer `user_version`). `IndexWorker` retries once from scratch if the refresh itself hits a database error.
+- `IndexWorker` is a plain thread with an mpsc channel (`try_result`, `wait`). The engine does not call it yet: the navigation still shows the tree from `scan_notebook`. Wiring is gaps rank 15; ST-07 is scored P.
+- Bench (criterion, `cargo bench -p notecraft-storage --bench sidebar`, 1,000 pages in 20 sections): open and list from the index about 27 ms; a refresh with nothing changed about 1 s and a cold build about 30 s on the development machine, a remote session on a nearly full disk where each file open took roughly 30 ms. The cold build is limited by per-file I/O, not SQLite, and runs in the background.
+- `criterion` (MIT OR Apache-2.0, `default-features = false`) and `rusqlite` (bundled SQLite) are recorded in ATTRIBUTION.md.
+
 ## PR 1.3: markdown read
 
 | | |
@@ -463,3 +474,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 1 | PR 1.10 follow-ups from the WordCraft survey: anti-aliased stroke edges and a marked current pen; PR 1.11 gains its highlighter and eraser design. Hours unchanged. |
 | 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |
 | 2026-10-15 | 1 | PR 1.4 done: deviations (Editor API, canonical serializer scope, minimal save path in storage, corpus location) noted under PR 1.4. |
+| 2026-10-15 | 1 | PR 1.2 done: deviations (native only, mtime and size then hash, titles from file names, worker not yet wired) noted under PR 1.2. |

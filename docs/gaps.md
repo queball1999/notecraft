@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: duplicate rank 15 and 16 rows from a merge removed; page text read from disk when a page is shown (FM-01); PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4 landed; rank 16 removed, the write is wired to saving under rank 18; rank 16 shrunk to the minimal-diff write. PR 1.8 landed; rank 19 narrowed to the callers of undo.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: duplicate rank 15 and 16 rows from a merge removed; page text read from disk when a page is shown (FM-01); PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4 landed; rank 16 removed, the write is wired to saving under rank 18; rank 16 shrunk to the minimal-diff write. PR 1.8 landed; rank 19 narrowed to the callers of undo; rank 15 narrowed to reading the index in the navigation (PR 1.2 landed).
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -15,7 +15,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
-| 15 | No notebook index (the folder reader and reading page text from disk have landed) | ST-07 | 18-30 | build_plan/03, PR 1.2 |
+| 15 | The navigation does not read the index yet (the folder reader, reading page text from disk, and the index have landed) | ST-07 | 6-10 | build_plan/03, PR 1.2 (done), 1.5 |
 | 17 | No text editing in containers | TX-01 to TX-06, CV-04 to CV-06 | 104-180 | build_plan/03, PR 1.5, 1.6 |
 | 18 | No auto-save, crash recovery, outside edit handling (also wires the minimal-diff write, PR 1.4, into page saving; FM-02 and FM-04 stay P until then) | FM-05 to FM-07 (plus FM-02, FM-04) | 24-40 | build_plan/03, PR 1.7 |
 | 19 | Undo and redo: the engine, ink, and page setup landed (PR 1.8); still missing the callers that make text edits (PR 1.5), erase strokes (PR 1.11), and move or rename in the notebook (PR 1.13) through it, and a list of steps to pick from (OneNote has none on its History tab, so only Undo and Redo show) | ST-08 | 2-4 | build_plan/03, PR 1.8 |
@@ -99,3 +99,5 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-15 | 1 | Rank 21: anti-aliased stroke edges and the marked current pen landed; highlighter and eraser design recorded (docs/architecture.md section 10). |
 | 2026-10-15 | 1 | Rank 16 removed: the minimal-diff markdown write landed (PR 1.4: span-replacement editor, canonical serializer, atomic page writes). FM-02 and FM-04 stay P until PR 1.7 saves pages from the editor; that is noted on rank 18. The duplicated rank 15 and 16 lines left by the merge were dropped. |
 | 2026-10-15 | 1 | Rank 19 narrowed: undo and redo landed (PR 1.8) for ink and page setup, with typing, merge, and notebook-level steps built against the engine API; text, eraser, and structure callers remain (PR 1.5, 1.11, 1.13). |
+| 2026-10-15 | 1 | Rank 15 narrowed (PR 1.2, the notebook index): the index, its refresh, and rebuild landed; what remains is reading the index in the navigation and sending page text to the canvas. The duplicate rank 15 and 16 rows left by the earlier merges were removed. |
+| 2026-10-15 | 1 | Page text from disk landed (FM-01 D); duplicate rank 15 and 16 rows removed. |

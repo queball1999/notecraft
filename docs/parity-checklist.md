@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); PR 1.2 landed (rebuildable notebook index).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -24,12 +24,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Canvas | 3 | 0 | 9 | 12 | 25% |
 | Ink | 1 | 2 | 10 | 13 | 7% |
 | Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 1 | 1 | 10 | 12 | 8% |
+| Structure | 1 | 2 | 9 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
 | Format | 1 | 2 | 6 | 9 | 11% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 36 | 5 | 73 | 114 | 31% |
+| Total | 36 | 6 | 72 | 114 | 31% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -145,7 +145,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ST-04 | Structure | Section groups | 1 | M | |
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | M | |
 | ST-06 | Structure | Drag to reorder and move pages and sections | 1 | M | |
-| ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | M | |
+| ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | P | PR 1.2: notecraft-storage keeps a rebuildable `.notecraft/index.sqlite` (sections, pages, attachments; links, tags, and FTS tables created empty), refreshes it by modified time, size, and hash, and rebuilds it when it is corrupt or from a newer schema. Listing 1,000 pages from the index takes about 27 ms (criterion bench `sidebar`). The navigation does not read the index yet; wiring it in is gaps rank 15 |
 | ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Missing: text commands (PR 1.5), structure commands (PR 1.13), and the eraser (PR 1.11) are the callers; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
 | ST-09 | Structure | Notebook Recycle Bin with restore | 3 | M | |
 | ST-10 | Structure | Page versions | 3 | M | |
@@ -242,3 +242,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 1 | Added IN-13 ink replay (Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15)). |
 | 2026-10-15 | 1 | PR 1.4: FM-02 scored P (span-replacement write, canonical serializer, atomic page write; editor wiring waits for PR 1.5 and 1.7); FM-04 evidence updated for the frontmatter write. |
 | 2026-10-15 | 1 | ST-08 scored P (PR 1.8, undo and redo): ink strokes and page setup undo exactly, text and notebook moves are built against the engine API; SH-16 evidence notes the Undo and Redo buttons. |
+| 2026-10-15 | 1 | ST-07 scored P (PR 1.2): rebuildable `index.sqlite`, incremental refresh, 1,000-page sidebar in about 27 ms; the navigation is not wired to it yet. |
