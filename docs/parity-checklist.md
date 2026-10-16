@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers.
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -21,15 +21,15 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
 | Shell | 14 | 0 | 6 | 20 | 70% |
 | Themes | 6 | 0 | 0 | 6 | 100% |
-| Canvas | 3 | 0 | 9 | 12 | 25% |
+| Canvas | 3 | 3 | 6 | 12 | 25% |
 | Ink | 1 | 2 | 10 | 13 | 7% |
-| Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 1 | 2 | 11 | 14 | 7% |
+| Text | 0 | 2 | 10 | 12 | 0% |
+| Structure | 1 | 2 | 9 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
-| Format | 1 | 2 | 7 | 10 | 10% |
+| Format | 1 | 2 | 6 | 9 | 11% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 36 | 6 | 75 | 117 | 30% |
+| Total | 36 | 11 | 67 | 114 | 31% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -90,9 +90,9 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | CV-01 | Canvas | Pan (scroll, middle drag, space drag) | 0 | D | PR 0.7 (#13): canvas widget scrolls with the wheel and scroll bars, pans with middle-drag and Space+drag; Viewport property tests; app_shell tests middle_drag_and_space_drag_pan_the_canvas, wheel_scrolls_the_canvas |
 | CV-02 | Canvas | Zoom 10% to 400%, Ctrl+wheel, pinch | 0 | D | PR 0.7 (#13): view.zoom_in, view.zoom_out, view.zoom, view.zoom_actual, view.zoom_page_width Ready; Ctrl+wheel and pinch zoom about the pointer through view.zoom; tests zoom_buttons_zoom_the_canvas, ctrl_wheel_and_pinch_zoom_about_the_pointer (pinch tested with synthetic zoom events only) |
 | CV-03 | Canvas | Rule lines and grid (blank, lined, grid, dotted) | 0 | D | PR 0.7 (#13): view.rule_lines (none, 4 ruled, 4 grid sizes), view.page_color, view.paper_size Ready and drawn for the visible area only; per page in the session. Ruled paper has a thin red margin line 1 inch from the left edge, as in OneNote (theme token canvas_margin_rule). The View > Rule Lines menu is a gallery of thumbnail cards, as in OneNote, each drawn by the canvas paper code at a reduced scale. Dotted (a quarter inch dot grid, capped at 20000 dots) is a kept extra beyond OneNote, see docs/post-parity.md |
-| CV-04 | Canvas | Click anywhere to create a note container | 1 | M | |
-| CV-05 | Canvas | Move and resize containers | 1 | M | |
-| CV-06 | Canvas | Page grows with content | 1 | M | |
+| CV-04 | Canvas | Click anywhere to create a note container | 1 | P | PR 1.5: clicking empty canvas runs container.new, which adds a marker line to the page text and a position; an empty container is removed when the caret leaves it. Missing: positions live in the session until the canvas block exists (PR 1.9) |
+| CV-05 | Canvas | Move and resize containers | 1 | P | PR 1.5: a top bar moves and the right edge resizes a container (container.move, container.resize, undoable). Missing: saved positions (PR 1.9) and hand testing of the drag feel |
+| CV-06 | Canvas | Page grows with content | 1 | P | PR 1.5: the scroll extent follows the right and bottom of every container. Missing: a test of growth past the paper |
 | CV-07 | Canvas | Lasso and rectangle select | 3 | M | |
 | CV-08 | Canvas | Z-order commands | 3 | M | |
 | CV-09 | Canvas | Snap to grid and alignment guides | 3 | M | |
@@ -122,10 +122,10 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| TX-01 | Text | Type plain text in a container | 1 | M | |
+| TX-01 | Text | Type plain text in a container | 1 | P | PR 1.5: click text or empty canvas and type; text.insert, text.delete, text.enter, edit.cut, edit.copy, edit.paste are Ready and undo as word-sized steps; caret, Shift selection, word and line moves, Home and End, double and triple click, IME composition, clipboard as markdown or plain text. Tests: engine cmd::text_tests, notecraft-canvas text, ui canvas::editing_tests. Missing: saved to disk (PR 1.7), hand testing with a real keyboard and IME |
 | TX-02 | Text | Bold, italic, strikethrough | 1 | M | |
 | TX-03 | Text | Headings and styles | 1 | M | |
-| TX-04 | Text | Bulleted and numbered lists, indent | 1 | M | |
+| TX-04 | Text | Bulleted and numbered lists, indent | 1 | P | PR 1.5: Enter continues bullet, numbered, and task items (an empty item ends the list); Tab and Shift+Tab indent and outdent items. Missing: the list and indent buttons (PR 1.6) |
 | TX-05 | Text | To Do checkboxes (task lists) | 1 | M | |
 | TX-06 | Text | Tables (render) | 1 | M | |
 | TX-07 | Text | Table editing tools | 3 | M | |
@@ -146,8 +146,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | M | |
 | ST-06 | Structure | Drag to reorder and move pages and sections | 1 | M | |
 | ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | P | PR 1.2: notecraft-storage keeps a rebuildable `.notecraft/index.sqlite` (sections, pages, attachments; links, tags, and FTS tables created empty), refreshes it by modified time, size, and hash, and rebuilds it when it is corrupt or from a newer schema. Listing 1,000 pages from the index takes about 27 ms (criterion bench `sidebar`). The navigation does not read the index yet; wiring it in is gaps rank 15 |
-| ST-08 | Structure | Undo and redo | 1 | M | |
-| ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | M | |
 | ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Missing: text commands (PR 1.5), structure commands (PR 1.13), and the eraser (PR 1.11) are the callers; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
 | ST-09 | Structure | Notebook Recycle Bin with restore | 3 | M | |
 | ST-10 | Structure | Page versions | 3 | M | |
@@ -172,7 +170,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
 | FM-01 | Format | Read `.md` pages | 1 | D | PR 1.3: notecraft-markdown parses a page into blocks with exact source spans (golden tests on 6 sample pages, hostile-input tests) and the canvas renders them in flow layout (harness test); opening a folder reads the shown page from disk through notecraft-storage (64 MiB cap, lenient UTF-8, read-only when cut short, short error on the canvas when unreadable). Tests: page_file storage unit tests, session page_load_tests, opened_pages_show_their_text_from_disk, an_unreadable_page_shows_a_short_error_on_the_canvas |
-| FM-02 | Format | Write `.md` pages with minimal diffs | 1 | M | |
 | FM-02 | Format | Write `.md` pages with minimal diffs | 1 | P | PR 1.4: edits are span replacements on the original text (blocks, list items, table cells, frontmatter keys); canonical serializer for new blocks; atomic page writes in notecraft-storage; property tests over 73 corpus pages and CRLF copies (byte-identical round trip, edits touch only their span); saving from the editor waits for PR 1.5 and 1.7 |
 | FM-03 | Format | Read and write `.notecraft` pages (containers, canvas block) | 1 | M | |
 | FM-04 | Format | Frontmatter read and write | 1 | P | PR 1.3: bounded YAML-subset frontmatter reader (scalars, lists, one level of maps, 64 KiB cap, unknown keys kept as raw text; unit and hostile-input tests); PR 1.4 added the write side (set and remove keys rewrite only their own lines); reading and saving real page files waits for PR 1.1 and 1.7 |
@@ -246,3 +243,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 1 | PR 1.4: FM-02 scored P (span-replacement write, canonical serializer, atomic page write; editor wiring waits for PR 1.5 and 1.7); FM-04 evidence updated for the frontmatter write. |
 | 2026-10-15 | 1 | IN-01 evidence: anti-aliased stroke edges and the marked current pen (PR 1.10 follow-ups). Scores unchanged. |
 | 2026-10-15 | 1 | Added IN-13 ink replay (Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15)). |
+| 2026-10-16 | 1 | PR 1.5: TX-01, TX-04, CV-04, CV-05, and CV-06 scored P; stale duplicate rows for FM-02, ST-07, and ST-08 removed. |

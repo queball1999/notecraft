@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -207,6 +207,15 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | Caps | WordCraft caps a stroke at 5,000 points and a page at 2,000 strokes. NoteCraft keeps 20,000 points and 100,000 strokes (docs/markdown.md section 9) and simplifies with Ramer-Douglas-Peucker on import. |
 | Live preview | WordCraft paints the live stroke as a constant-width polyline and the committed one later in a different path. NoteCraft paints both with the same tessellator, so a stroke does not change look on pen-up. |
 
+## 11. Text editing design (PR 1.5)
+
+- The page source text is the document. The caret and selection (`TextCursor`, byte offsets on character boundaries) live in the session, so typing, selecting, and clicking are all commands: `text.set_caret`, `text.move`, `text.insert`, `text.delete`, `text.enter`, `text.tab`, `edit.cut`, `edit.copy`, `edit.paste`, `edit.paste_text_only`, `edit.select_all`, `edit.delete`, and `container.new`, `container.move`, `container.resize`. The command handlers are in `notecraft-engine` (`cmd/text.rs`); the pure text logic (clusters, words, lines, Enter and Tab rules, the raw region) is in `notecraft-canvas::text`; egui only maps events to commands (`canvas/keymap.rs`, `canvas/editing.rs`).
+- Every edit is one splice through `Session::edit_page_text`, or a `Transaction` when it also changes a container (new, remove empty, move, resize). That gives one undo path, word-sized typing steps, the dirty flag for auto-save (`Session::is_page_dirty`, `dirty_pages`, `mark_page_saved`), and a splice on the original bytes, so saving touches only what changed. A replacement of a whole block is not needed: a splice is smaller than the block spans of PR 1.4.
+- Live rendering: the lines of the caret or selection, grown to whole blocks, are laid out as raw markdown; every other block stays styled. A click on a styled block lays the block out raw off screen to find the offset (`flow::probe`), so the caret lands where the click was.
+- IME: the composition (`Ime::Preedit`) is kept in the canvas state, drawn underlined at the caret inside the raw galley, and never written to the page. `Ime::Commit` is one `text.insert`. The IME candidate window is placed from the caret rectangle.
+- Guards: the caret never sits in the frontmatter or on a container marker line; an edit that would cut a marker in half or leave one off the start of a line is refused. A page with a read-only `PageNotice` or a disk page that was never read is not editable.
+- Containers are marker lines (docs/markdown.md section 3.3) appended to the page; geometry is kept in the session (`SetContainer` op) until PR 1.9 stores it in the canvas block. A container the caret leaves with no text is removed, as in OneNote.
+
 ## Revision history
 
 | Date | Phase | Change |
@@ -229,3 +238,4 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | 2026-10-15 | 1 | Section 4: page writing is span replacements (`Editor`) plus `page_file::write_page_text` over craft-atomic (PR 1.4). |
 | 2026-10-15 | 1 | Sections 5 and 6: transactions, stacks, merge, typing coalescing, notebook-level steps, and the guard restoring the history (PR 1.8). |
 | 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |
+| 2026-10-16 | 1 | PR 1.5: new section 11 records the text editing design (commands, one undo path, raw region, IME, guards). |

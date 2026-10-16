@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -169,6 +169,21 @@ Commits:
 6. `test(ui): cover typing, selection, and container moves`
 
 PR title: `feat(canvas): type anywhere in note containers`.
+
+### PR 1.5 notes: deviations and open questions
+
+Built on `feat/container-editing` (2026-10-16). The design is in docs/architecture.md section 11. What differs from the steps above:
+
+- Not split into 1.5a and 1.5b; the PR is about 4,000 lines with tests. Commits: model, markdown container runs, canvas text logic, engine commands, UI widget, UI tests, docs. The plan's commits 2 and 3 (widget, then IME and keyboard) are one commit because the widget cannot be shown without the keyboard.
+- Container model: `notecraft_model::Container` holds id, optional position (none means flow layout), and width, clamped. Text lives in the page markdown (docs/markdown.md section 3.3 markers), read by `notecraft_markdown::split_containers`. A click on empty canvas appends a marker line to the page text and records a position in the session (`SetContainer` undo op); the `.notecraft` canvas block that stores positions is PR 1.9, so positions are not saved yet and a page reopens in flow order. Containers made this way are in a `.md` page with markers; promotion to `.notecraft` is PR 1.9.
+- Command ids: `text.set_caret`, `text.move`, `text.insert`, `text.delete`, `text.enter`, `text.tab`, `container.new`, `container.move`, `container.resize`; the existing Home tab ids `edit.cut`, `edit.copy`, `edit.paste`, `edit.paste_text_only`, `edit.select_all`, and `edit.delete` became Ready. Copy and Cut return the markdown text for the front end to put on the clipboard (the shell reads the clipboard through egui events); Paste takes the clipboard text as an argument. Up, Down, Home, and End follow wrapped rows, which need the layout, so the canvas turns them into `text.set_caret` calls.
+- Edit granularity: edits are splices at byte offsets through `Session::edit_page_text`, finer than the block replacement PR 1.4 allowed; `Editor` is not needed for typing. It remains the tool for PR 1.6 style changes.
+- Decision on the typing pause (the open question from PR 1.8): no pause timer. Word-sized steps from the pure rule were enough in tests, and a clock would make undo depend on typing speed. Revisit after hand testing.
+- Live markdown rendering is block level: the caret's block (or all blocks a selection touches) shows raw markdown, the rest stays styled. Syntax visible only on the active line, as the plan says, is approximated by the active block, because inline runs have no spans.
+- Space+drag pan: the canvas now holds keyboard focus while typing, so Space+drag pans whenever no text field has focus, and a Space typed in the text still inserts a space.
+- Shortcuts: while the canvas is in typing mode, shortcuts other than cut, copy, paste, and delete still run (Ctrl+Z, zoom, tabs); the text keys reach the text as key and clipboard events.
+- Not done: formatting buttons (PR 1.6), saving (PR 1.7), find (Phase 2), drag and drop of text, a bold face. Containers do not yet overlap-protect or snap. No IME was tried on a real input method (the tests drive egui's IME events); add it to the real hardware checks in PR 1.15.
+- Open questions: (1) should an empty container survive a click away? It is removed now, as in OneNote. (2) Should New Container be on the ribbon? OneNote has none, so it is click only. (3) The page extent grows with containers but not with an off-screen drag; confirm by hand.
 
 ## PR 1.6: formatting commands
 
