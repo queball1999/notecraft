@@ -419,6 +419,210 @@ fn text_and_ink_undo_in_the_order_they_happened() {
     assert_eq!(session.redo().as_deref(), Some("Ink stroke"));
 }
 
+// Notebook-level steps
+
+fn two_sections() -> Session {
+    let section = |id: &str, pages: &[&str]| {
+        SectionNode::Section(Section {
+            id: id.into(),
+            name: id.into(),
+            color: 0,
+            pages: pages.iter().map(|p| PageRef::new(*p, *p, 0)).collect(),
+        })
+    };
+    let notebook = Notebook {
+        id: "nb".into(),
+        name: "Notebook".into(),
+        color: 0,
+        sections: vec![section("s1", &["p1", "p2", "p3"]), section("s2", &["p4"])],
+    };
+    let mut session = Session::new();
+    session.set_notebooks(vec![notebook]);
+    session
+}
+
+fn pages_of(session: &Session, section: &str) -> Vec<String> {
+    session
+        .current_notebook()
+        .and_then(|nb| nb.section(section))
+        .map(|s| s.pages.iter().map(|p| p.id.clone()).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn moving_a_page_undoes_as_one_notebook_step() {
+    let mut session = two_sections();
+    let before = session.notebooks().to_vec();
+    assert!(session.move_page("p2", "s2", 0));
+    assert_eq!(pages_of(&session, "s1"), ["p1", "p3"]);
+    assert_eq!(pages_of(&session, "s2"), ["p2", "p4"]);
+    assert_eq!(session.history().undo_label(Some("p1")), Some("Move page"));
+
+    assert_eq!(session.undo().as_deref(), Some("Move page"));
+    assert_eq!(session.notebooks(), before.as_slice());
+    assert_eq!(session.redo().as_deref(), Some("Move page"));
+    assert_eq!(pages_of(&session, "s2"), ["p2", "p4"]);
+}
+
+#[test]
+fn reordering_inside_a_section_undoes() {
+    let mut session = two_sections();
+    assert!(session.move_page("p1", "s1", 99));
+    assert_eq!(pages_of(&session, "s1"), ["p2", "p3", "p1"]);
+    assert!(session.move_page("p3", "s1", 0));
+    assert_eq!(pages_of(&session, "s1"), ["p3", "p2", "p1"]);
+    session.undo();
+    assert_eq!(pages_of(&session, "s1"), ["p2", "p3", "p1"]);
+    session.undo();
+    assert_eq!(pages_of(&session, "s1"), ["p1", "p2", "p3"]);
+}
+
+#[test]
+fn a_move_that_does_not_fit_changes_nothing() {
+    let mut session = two_sections();
+    let before = session.clone();
+    assert!(!session.move_page("nope", "s2", 0));
+    assert!(!session.move_page("p1", "nope", 0));
+    // The raw operation refuses an index past the end instead of clamping it.
+    let far = Op::MovePage {
+        notebook: "nb".into(),
+        page: "p1".into(),
+        from: Place {
+            section: "s1".into(),
+            index: 0,
+        },
+        to: Place {
+            section: "s2".into(),
+            index: 5,
+        },
+    };
+    assert!(!session.commit(Transaction::new(Scope::Notebook, "Far").with(far)));
+    assert_eq!(session, before);
+    assert!(!session.can_undo());
+}
+
+#[test]
+fn a_cross_page_command_undoes_as_one_step() {
+    // A rename with link updates: the move plus edits to the text of two other pages.
+    let mut session = two_sections();
+    session.set_page_source("p2", "see [[One]]");
+    session.set_page_source("p3", "also [[One]]");
+    let tx = Transaction::new(Scope::Notebook, "Rename page")
+        .with(Op::MovePage {
+            notebook: "nb".into(),
+            page: "p1".into(),
+            from: Place {
+                section: "s1".into(),
+                index: 0,
+            },
+            to: Place {
+                section: "s2".into(),
+                index: 1,
+            },
+        })
+        .with(Op::ReplaceText {
+            page: "p2".into(),
+            at: 6,
+            removed: "One".into(),
+            inserted: "Uno".into(),
+        })
+        .with(Op::ReplaceText {
+            page: "p3".into(),
+            at: 7,
+            removed: "One".into(),
+            inserted: "Uno".into(),
+        });
+    assert!(session.commit(tx));
+    assert_eq!(session.page_text("p2"), Some("see [[Uno]]"));
+    assert_eq!(session.page_text("p3"), Some("also [[Uno]]"));
+    assert_eq!(pages_of(&session, "s2"), ["p4", "p1"]);
+
+    // One undo reverts all three, whichever page is shown.
+    session.selection_mut().page = Some("p3".into());
+    assert_eq!(session.undo().as_deref(), Some("Rename page"));
+    assert_eq!(session.page_text("p2"), Some("see [[One]]"));
+    assert_eq!(session.page_text("p3"), Some("also [[One]]"));
+    assert_eq!(pages_of(&session, "s1"), ["p1", "p2", "p3"]);
+    assert!(!session.can_undo());
+    assert_eq!(session.redo().as_deref(), Some("Rename page"));
+    assert_eq!(session.page_text("p3"), Some("also [[Uno]]"));
+}
+
+#[test]
+fn a_notebook_step_with_a_bad_operation_is_all_or_nothing() {
+    let mut session = two_sections();
+    session.set_page_source("p2", "text");
+    let before = session.clone();
+    let tx = Transaction::new(Scope::Notebook, "Rename page")
+        .with(Op::MovePage {
+            notebook: "nb".into(),
+            page: "p1".into(),
+            from: Place {
+                section: "s1".into(),
+                index: 0,
+            },
+            to: Place {
+                section: "s2".into(),
+                index: 0,
+            },
+        })
+        .with(Op::ReplaceText {
+            page: "p2".into(),
+            at: 0,
+            removed: "wrong".into(),
+            inserted: "x".into(),
+        });
+    assert!(!session.commit(tx));
+    assert_eq!(pages_of(&session, "s1"), ["p1", "p2", "p3"]);
+    assert_eq!(session.page_text("p2"), before.page_text("p2"));
+    assert!(!session.can_undo());
+}
+
+#[test]
+fn page_and_notebook_steps_undo_in_the_order_they_happened() {
+    let mut session = two_sections();
+    session.selection_mut().page = Some("p1".into());
+    type_chars(&mut session, "hi");
+    assert!(session.move_page("p3", "s2", 0));
+    assert!(session.commit(page_tx(
+        "p1",
+        "Ink stroke",
+        insert("p1", 0, stroke("s1", 0.0))
+    )));
+    let order: Vec<String> = session
+        .history()
+        .undo_steps(Some("p1"))
+        .into_iter()
+        .map(|step| step.label)
+        .collect();
+    assert_eq!(order, ["Typing", "Move page", "Ink stroke"]);
+
+    assert_eq!(session.undo().as_deref(), Some("Ink stroke"));
+    assert_eq!(session.undo().as_deref(), Some("Move page"));
+    assert_eq!(session.undo().as_deref(), Some("Typing"));
+    assert_eq!(session.undo(), None);
+    assert_eq!(session.redo().as_deref(), Some("Typing"));
+    assert_eq!(session.redo().as_deref(), Some("Move page"));
+    assert_eq!(session.redo().as_deref(), Some("Ink stroke"));
+}
+
+#[test]
+fn a_notebook_step_is_available_from_every_page() {
+    let mut session = two_sections();
+    session.selection_mut().page = Some("p1".into());
+    assert!(session.move_page("p3", "s2", 0));
+    session.selection_mut().page = Some("p4".into());
+    assert!(session.can_undo());
+    session.selection_mut().page = None;
+    assert!(session.can_undo());
+    assert_eq!(session.undo().as_deref(), Some("Move page"));
+    assert!(session.can_redo());
+    // A page edit afterwards does not clear the notebook's redo stack.
+    session.selection_mut().page = Some("p1".into());
+    type_chars(&mut session, "x");
+    assert!(session.can_redo());
+}
+
 // Caps
 
 #[test]

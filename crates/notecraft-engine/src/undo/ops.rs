@@ -4,6 +4,8 @@
 use std::sync::Arc;
 
 use notecraft_core::{InkPoint, Stroke};
+use notecraft_model::section::MAX_GROUP_DEPTH;
+use notecraft_model::{Section, SectionNode};
 
 use crate::session::Session;
 
@@ -31,6 +33,90 @@ pub enum Op {
         removed: String,
         inserted: String,
     },
+    /// Move a page to another spot in a notebook: another section, or another place in the
+    /// same one. A notebook-level change: it goes in a [`crate::undo::Scope::Notebook`]
+    /// transaction. Structure editing (PR 1.13) builds on it.
+    MovePage {
+        notebook: String,
+        page: String,
+        /// Where the page is before the move.
+        from: Place,
+        /// Where it goes. `to.index` counts the section's pages with the page already taken
+        /// out of `from`, and may be at most that count (the move is refused otherwise).
+        to: Place,
+    },
+}
+
+/// A spot in a notebook's page lists.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Place {
+    pub section: String,
+    pub index: usize,
+}
+
+/// The section `id` in `nodes`, looking through section groups to a bounded depth.
+fn section_mut<'a>(
+    nodes: &'a mut [SectionNode],
+    id: &str,
+    depth: usize,
+) -> Option<&'a mut Section> {
+    if depth > MAX_GROUP_DEPTH {
+        return None;
+    }
+    for node in nodes {
+        match node {
+            SectionNode::Section(section) if section.id == id => return Some(section),
+            SectionNode::Section(_) => {}
+            SectionNode::Group(group) => {
+                if let Some(found) = section_mut(&mut group.children, id, depth + 1) {
+                    return Some(found);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Take page `page` out of `from` and put it at `to`. False, changing nothing, when the
+/// notebook, either section, or the page is not where the move says.
+fn move_page(session: &mut Session, notebook: &str, page: &str, from: &Place, to: &Place) -> bool {
+    let Some(nb) = session
+        .notebooks_mut()
+        .iter_mut()
+        .find(|nb| nb.id == notebook)
+    else {
+        return false;
+    };
+    if nb.section(&to.section).is_none() {
+        return false;
+    }
+    let taken = {
+        let Some(source) = section_mut(&mut nb.sections, &from.section, 0) else {
+            return false;
+        };
+        if source.pages.get(from.index).map(|p| p.id.as_str()) != Some(page) {
+            return false;
+        }
+        source.pages.remove(from.index)
+    };
+    let placed = section_mut(&mut nb.sections, &to.section, 0).is_some_and(|target| {
+        // An index past the end is refused, not clamped: the inverse must land exactly where
+        // the page came from.
+        let fits = to.index <= target.pages.len();
+        if fits {
+            target.pages.insert(to.index, taken.clone());
+        }
+        fits
+    });
+    if placed {
+        return true;
+    }
+    // Put the page back where it was rather than lose it.
+    if let Some(source) = section_mut(&mut nb.sections, &from.section, 0) {
+        let at = from.index.min(source.pages.len());
+        source.pages.insert(at, taken);
+    }
+    false
 }
 
 impl Op {
@@ -66,6 +152,17 @@ impl Op {
                 removed: inserted.clone(),
                 inserted: removed.clone(),
             },
+            Op::MovePage {
+                notebook,
+                page,
+                from,
+                to,
+            } => Op::MovePage {
+                notebook: notebook.clone(),
+                page: page.clone(),
+                from: to.clone(),
+                to: from.clone(),
+            },
         }
     }
 
@@ -82,6 +179,12 @@ impl Op {
                 inserted,
                 ..
             } => BASE + page.len() + removed.len() + inserted.len(),
+            Op::MovePage {
+                notebook,
+                page,
+                from,
+                to,
+            } => BASE + notebook.len() + page.len() + from.section.len() + to.section.len(),
         }
     }
 
@@ -147,6 +250,12 @@ impl Op {
                 session.set_page_source(page, next);
                 true
             }
+            Op::MovePage {
+                notebook,
+                page,
+                from,
+                to,
+            } => move_page(session, notebook, page, from, to),
         }
     }
 }

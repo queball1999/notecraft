@@ -75,6 +75,10 @@ impl Session {
         &self.notebooks
     }
 
+    pub(crate) fn notebooks_mut(&mut self) -> &mut [Notebook] {
+        &mut self.notebooks
+    }
+
     /// Replace the open notebooks and show the first page of the first section of the first
     /// notebook.
     pub fn set_notebooks(&mut self, notebooks: Vec<Notebook>) {

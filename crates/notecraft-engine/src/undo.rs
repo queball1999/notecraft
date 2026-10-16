@@ -20,7 +20,7 @@ use crate::session::Session;
 
 mod ops;
 
-pub use ops::Op;
+pub use ops::{Op, Place};
 
 /// Most steps one stack keeps.
 pub const MAX_STEPS: usize = 500;
@@ -410,6 +410,41 @@ impl Session {
         self.history.push_moved(&scope, entry, !redo);
         self.mark_changed();
         Some(label)
+    }
+
+    /// Move a page of the notebook shown to `section` at `index` (counted with the page already
+    /// taken out; past the end means last), as one notebook-level undo step. The engine call
+    /// the structure commands (PR 1.13) make; it is not a command itself. Returns false,
+    /// changing nothing, when the page or section is not in the notebook shown.
+    pub fn move_page(&mut self, page: &str, section: &str, index: usize) -> bool {
+        let Some(notebook) = self.current_notebook() else {
+            return false;
+        };
+        let Some(from) = notebook.section_of_page(page) else {
+            return false;
+        };
+        let Some(from_index) = from.pages.iter().position(|p| p.id == page) else {
+            return false;
+        };
+        let Some(target) = notebook.section(section) else {
+            return false;
+        };
+        // Pages in the target once this one is out of it.
+        let others = target.pages.len() - usize::from(target.id == from.id);
+        let index = index.min(others);
+        let op = Op::MovePage {
+            notebook: notebook.id.clone(),
+            page: page.to_owned(),
+            from: Place {
+                section: from.id.clone(),
+                index: from_index,
+            },
+            to: Place {
+                section: section.to_owned(),
+                index,
+            },
+        };
+        self.commit(Transaction::new(Scope::Notebook, "Move page").with(op))
     }
 
     /// Replace `remove_len` bytes at byte offset `at` of page `page`'s markdown source with
