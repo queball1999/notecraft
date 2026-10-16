@@ -1,0 +1,5 @@
+format = 1
+id = "nb_basic_sample"
+name = "Basic Sample"
+color = "#7A4FB5"
+sections = ["Journal", "Projects", "Reference"]

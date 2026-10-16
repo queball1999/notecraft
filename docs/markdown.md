@@ -1,10 +1,10 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: `paper: dotted` marked as a kept extra; ruled paper has a margin line.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out.
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
-Status: nothing here is implemented yet. Phase 1 builds the reader and writer (build_plan/03-phase-1-core-engine.md). Phase 2 builds page links, search, and note tags (build_plan/04-phase-2-links-search-tags.md).
+Status: the folder reader (section 2: notebooks, groups, sections, page order, settings files, folder depth) is implemented in `notecraft-storage` (PR 1.1). Page contents are not read yet. Phase 1 builds the rest of the reader and the writer (build_plan/03-phase-1-core-engine.md). Phase 2 builds page links, search, and note tags (build_plan/04-phase-2-links-search-tags.md).
 
 ## 1. Design rules
 
@@ -80,7 +80,7 @@ A page is one file. There are two kinds, and both are markdown:
 
 Promotion: when you add ink, a shape, or drag a container off the default flow on a `.md` page, NoteCraft renames it to `.notecraft` with the same base name. Page links resolve by base name without extension (section 5.3), so promotion never breaks a link. NoteCraft never demotes automatically; the `page.convert_to_markdown` command does it on request and warns that canvas data will be dropped.
 
-The file name is the page title, with characters that are illegal on any of Windows, macOS, or Linux (`<>:"/\|?*` and control characters) replaced by `-`, and trailing dots and spaces trimmed. If the title in frontmatter differs from the file name, the frontmatter title is shown.
+The file name is the page title, with characters that are illegal on any of Windows, macOS, or Linux (`<>:"/\|?*` and control characters) replaced by `-`, and trailing dots and spaces trimmed. Leading dots and spaces are trimmed too (a leading dot hides a file on macOS and Linux), a Windows device name (`CON`, `NUL`, `COM1`, `LPT1`, and the rest, with or without an extension) gets an underscore after the name (`CON_`), and the name is cut to 255 bytes at a character boundary. A title with nothing usable becomes `Untitled Page`. If two names differ only in case, the second gets a number (`Plan 2`), because Windows and macOS volumes usually ignore case. If the title in frontmatter differs from the file name, the frontmatter title is shown.
 
 ### 2.4 Attachments
 
@@ -307,3 +307,4 @@ On open, NoteCraft compares file modified times and hashes against the index and
 | 2026-10-14 | -1 | Created. First full spec: folder layout, `.md` and `.notecraft` pages, containers, canvas block, note tags, page links, index, limits. Same day: backlinks, graph, embeds, and extra link forms moved to post-parity.md. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | `paper: dotted` marked as a kept extra beyond OneNote; ruled (lined) paper draws a red margin line, with no new value. |
+| 2026-10-15 | 1 | The folder reader (section 2, section 9 folder depth) is implemented. Section 2.3 spells out the file name rules: leading dots and spaces are trimmed too, Windows device names get an underscore, and names are cut to 255 bytes. |

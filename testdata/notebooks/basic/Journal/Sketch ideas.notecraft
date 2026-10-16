@@ -1,0 +1,20 @@
+---
+title: Sketch ideas
+notecraft:
+  id: pg_basic_sketch
+  paper: grid
+---
+<!-- notecraft:container id=c1 -->
+## Ideas
+
+- A treehouse with a rope bridge
+- A map of the neighborhood
+
+```notecraft-canvas
+{
+  "format": 1,
+  "units": "px96",
+  "containers": { "c1": { "x": 48, "y": 96, "w": 360 } },
+  "z": ["c1"]
+}
+```
