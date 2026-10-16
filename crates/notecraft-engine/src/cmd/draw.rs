@@ -762,6 +762,35 @@ mod tests {
     }
 
     #[test]
+    fn the_point_eraser_cuts_a_graze_between_stored_points() {
+        let mut session = with_page();
+        // Two stored points 200 apart at full pressure; width 3 pt is 4 units.
+        run(&mut session, "draw.pen", json!({ "width": 3 })).unwrap();
+        run(
+            &mut session,
+            "ink.add_stroke",
+            json!({ "points": [[0, 0, 1.0], [200, 0, 1.0]] }),
+        )
+        .unwrap();
+        // The circle (radius 5) is 6 units from the center line: inside radius plus half width.
+        let out = run(
+            &mut session,
+            "ink.erase",
+            json!({ "points": [[100, 6]], "radius": 5, "mode": "point" }),
+        )
+        .unwrap();
+        assert_eq!(out, json!({ "removed": ["s1"], "added": ["s2", "s3"] }));
+        // 8 units away is out of reach: the stroke stays whole.
+        let out = run(
+            &mut session,
+            "ink.erase",
+            json!({ "points": [[50, 8]], "radius": 5, "mode": "point" }),
+        )
+        .unwrap();
+        assert_eq!(out, json!({ "removed": [], "added": [] }));
+    }
+
+    #[test]
     fn the_mode_argument_overrides_the_eraser_in_use() {
         let mut session = with_lines();
         run(&mut session, "draw.eraser", json!({ "mode": "point" })).unwrap();

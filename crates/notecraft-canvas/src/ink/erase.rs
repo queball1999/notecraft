@@ -9,6 +9,7 @@ use notecraft_core::ink::MAX_STROKE_POINTS;
 use notecraft_core::{InkPoint, Vec2};
 
 use super::layer::InkLayer;
+use super::tessellate::width_at;
 
 /// Most centers one erase command tests. A longer path is spread over this many.
 pub const MAX_PATH_SAMPLES: usize = 512;
@@ -24,7 +25,7 @@ fn clean_radius(radius: f32) -> f32 {
     }
 }
 
-/// Centers along the polyline `path`, spaced at most half a radius apart (so a fast drag
+/// Centers along the polyline `path`, spaced at most a quarter radius apart (so a fast drag
 /// cannot step over a stroke), at most [`MAX_PATH_SAMPLES`] of them. Points that are not
 /// finite are skipped.
 pub fn path_samples(path: &[Vec2], radius: f32) -> Vec<Vec2> {
@@ -37,7 +38,7 @@ pub fn path_samples(path: &[Vec2], radius: f32) -> Vec<Vec2> {
         .zip(path.iter().skip(1))
         .map(|(a, b)| a.distance(*b))
         .sum();
-    let wanted = clean_radius(radius) / 2.0;
+    let wanted = clean_radius(radius) / 4.0;
     let spacing = wanted.max(MIN_SPACING).max(total / MAX_PATH_SAMPLES as f32);
     let mut samples = vec![first];
     for (a, b) in path.iter().copied().zip(path.iter().skip(1).copied()) {
@@ -79,71 +80,147 @@ fn lerp(a: InkPoint, b: InkPoint, t: f32) -> InkPoint {
     )
 }
 
-/// Cut the parts of a stroke that lie within `radius` of any of `centers` (the stroke's own
-/// half width counts, as in hit testing) and return the runs that remain, each with at least
-/// two points. `None` means the eraser touched no point of the stroke, so nothing changes;
-/// `Some` with no runs means the whole stroke is gone.
-///
-/// A long segment between two stored points is first split into steps no longer than half the
-/// reach where the eraser passes near it, so a sparse stroke is cut where the eraser crosses
-/// it and not only at its stored points. Pressure is interpolated.
+/// Half the width a stroke of nominal `width` has at `pressure`, as it is drawn.
+fn half_width(width: f32, pressure: f32) -> f32 {
+    width_at(width, pressure) / 2.0
+}
+
+/// Slack for parameters along a segment.
+const EPS: f32 = 1.0e-5;
+
+/// The part of segment `a` to `b` (parameters 0 to 1) that the eraser circle at `center` with
+/// `radius` touches, counting the stroke's own half width, which varies along the segment
+/// with pressure (`h0` at `a`, `h1` at `b`). `None` when it does not touch.
+fn touched_span(a: Vec2, b: Vec2, h: (f32, f32), center: Vec2, radius: f32) -> Option<(f32, f32)> {
+    let (h0, h1) = h;
+    let d = b - a;
+    let e = a - center;
+    let r0 = radius + h0;
+    let k = h1 - h0;
+    // |e + t d|^2 <= (r0 + t k)^2, a quadratic in t.
+    let qa = d.dot(d) - k * k;
+    let qb = 2.0 * (d.dot(e) - r0 * k);
+    let qc = e.dot(e) - r0 * r0;
+    let (lo, hi) = if qa > EPS {
+        let disc = qb * qb - 4.0 * qa * qc;
+        if disc < 0.0 {
+            return None;
+        }
+        let root = disc.sqrt();
+        ((-qb - root) / (2.0 * qa), (-qb + root) / (2.0 * qa))
+    } else {
+        // The width changes as fast as the pen moves (or the segment is a point): treat the
+        // stroke as its widest here, which can only cut a little more.
+        let reach = radius + h0.max(h1);
+        let len2 = d.dot(d);
+        if len2 <= f32::EPSILON {
+            return (e.length() <= reach).then_some((0.0, 1.0));
+        }
+        let t = -e.dot(d) / len2;
+        let closest = a + d * t.clamp(0.0, 1.0);
+        let miss = closest.distance(center);
+        if miss > reach {
+            return None;
+        }
+        let half_chord = (reach * reach - (e.dot(e) - (e.dot(d)).powi(2) / len2))
+            .max(0.0)
+            .sqrt();
+        let along = half_chord / len2.sqrt();
+        (t - along, t + along)
+    };
+    let (lo, hi) = (lo.max(0.0), hi.min(1.0));
+    (lo <= hi).then_some((lo, hi))
+}
+
+/// Cut out of a stroke every part the eraser circle touches, and return the runs that remain,
+/// each with at least two points. The circle is tested against the stroke's outline: its half
+/// width at each place (width and pressure interpolated along a segment) is added to the
+/// radius, so a graze between two stored points cuts too. `None` means the eraser touched
+/// nothing, so nothing changes; `Some` with no runs means the whole stroke is gone. Cut ends
+/// sit exactly where the circle meets the stroke, with pressure interpolated.
 pub fn split_stroke(
     points: &[InkPoint],
     width: f32,
     centers: &[Vec2],
     radius: f32,
 ) -> Option<Vec<Vec<InkPoint>>> {
-    let half_width = if width.is_finite() {
-        width.max(0.0) / 2.0
-    } else {
-        0.0
-    };
-    let reach = clean_radius(radius) + half_width;
-    let spacing = (reach / 2.0).max(MIN_SPACING);
-    let near = |a: Vec2, b: Vec2| {
-        centers
-            .iter()
-            .any(|c| distance_to_segment(*c, a, b) <= reach)
-    };
-    let mut dense: Vec<InkPoint> = Vec::with_capacity(points.len());
-    for (i, point) in points.iter().enumerate() {
-        if let Some(prev) = i.checked_sub(1).and_then(|j| points.get(j)) {
-            let (a, b) = (prev.pos(), point.pos());
-            let length = a.distance(b);
-            if length > spacing && near(a, b) {
-                let steps = (length / spacing).ceil() as usize;
-                if dense.len() + steps > MAX_STROKE_POINTS {
-                    // No room to cut finer; fall back to the stored points.
-                } else {
-                    for k in 1..steps {
-                        dense.push(lerp(*prev, *point, k as f32 / steps as f32));
-                    }
-                }
-            }
-        }
-        dense.push(*point);
-    }
-    let inside = |p: &InkPoint| centers.iter().any(|c| p.pos().distance(*c) <= reach);
-    if !dense.iter().any(inside) {
+    let radius = clean_radius(radius);
+    if centers.is_empty() {
         return None;
     }
-    let mut runs = Vec::new();
+    let Some(first) = points.first() else {
+        return None;
+    };
+    if points.len() == 1 {
+        let reach = radius + half_width(width, first.pressure);
+        let hit = centers.iter().any(|c| first.pos().distance(*c) <= reach);
+        return hit.then(Vec::new);
+    }
+    let mut runs: Vec<Vec<InkPoint>> = Vec::new();
     let mut run: Vec<InkPoint> = Vec::new();
-    for point in dense {
-        if inside(&point) {
-            if run.len() >= 2 {
-                runs.push(std::mem::take(&mut run));
-            } else {
-                run.clear();
-            }
+    let mut total = 0_usize;
+    let mut touched = false;
+    let flush = |run: &mut Vec<InkPoint>, runs: &mut Vec<Vec<InkPoint>>| {
+        if run.len() >= 2 {
+            runs.push(std::mem::take(run));
         } else {
-            run.push(point);
+            run.clear();
+        }
+    };
+    for (p, q) in points.iter().zip(points.iter().skip(1)) {
+        let (a, b) = (p.pos(), q.pos());
+        let h = (half_width(width, p.pressure), half_width(width, q.pressure));
+        let widest = radius + h.0.max(h.1);
+        // The spans of this segment the eraser touches, sorted and merged.
+        let mut spans: Vec<(f32, f32)> = centers
+            .iter()
+            .filter(|c| distance_to_segment(**c, a, b) <= widest)
+            .filter_map(|c| touched_span(a, b, h, *c, radius))
+            .collect();
+        spans.sort_by(|x, y| x.0.total_cmp(&y.0));
+        let mut merged: Vec<(f32, f32)> = Vec::new();
+        for span in spans {
+            match merged.last_mut() {
+                Some(last) if span.0 <= last.1 + EPS => last.1 = last.1.max(span.1),
+                _ => merged.push(span),
+            }
+        }
+        touched |= !merged.is_empty();
+        // The kept spans are what lies between the cuts.
+        let mut kept: Vec<(f32, f32)> = Vec::new();
+        let mut cursor = 0.0_f32;
+        for (s, e) in &merged {
+            if *s > cursor + EPS {
+                kept.push((cursor, *s));
+            }
+            cursor = cursor.max(*e);
+        }
+        if cursor < 1.0 - EPS {
+            kept.push((cursor, 1.0));
+        }
+        if kept.is_empty() {
+            flush(&mut run, &mut runs);
+            continue;
+        }
+        for (s, e) in kept {
+            if total >= MAX_STROKE_POINTS {
+                break;
+            }
+            // A kept span that starts at the segment's start continues the run in progress.
+            if !(s <= EPS && !run.is_empty()) {
+                flush(&mut run, &mut runs);
+                run.push(lerp(*p, *q, s));
+                total += 1;
+            }
+            run.push(lerp(*p, *q, e));
+            total += 1;
+            if e < 1.0 - EPS {
+                flush(&mut run, &mut runs);
+            }
         }
     }
-    if run.len() >= 2 {
-        runs.push(run);
-    }
-    Some(runs)
+    flush(&mut run, &mut runs);
+    touched.then_some(runs)
 }
 
 #[cfg(test)]
@@ -175,7 +252,7 @@ mod tests {
         assert_eq!(samples.first(), Some(&Vec2::new(0.0, 0.0)));
         assert_eq!(samples.last(), Some(&Vec2::new(100.0, 0.0)));
         for pair in samples.windows(2) {
-            assert!(pair[0].distance(pair[1]) <= 5.0 + 1.0e-3);
+            assert!(pair[0].distance(pair[1]) <= 2.5 + 1.0e-3);
         }
         // One point is one sample; nothing usable is none.
         assert_eq!(path_samples(&path[..1], 10.0).len(), 1);
@@ -209,9 +286,12 @@ mod tests {
         let runs = split_stroke(&stroke.points, stroke.width, &[Vec2::new(50.0, 0.0)], 5.0)
             .expect("touched");
         assert_eq!(runs.len(), 2);
-        // Reach is 5 + 1: points 44..=56 are cut.
-        assert_eq!(runs[0].last().map(|p| p.x), Some(43.0));
-        assert_eq!(runs[1].first().map(|p| p.x), Some(57.0));
+        // Reach is 5 plus the drawn half width there (about 0.87), and the cut ends sit where
+        // the circle meets the stroke, not at a stored point.
+        let left = runs[0].last().map(|p| p.x).unwrap_or_default();
+        let right = runs[1].first().map(|p| p.x).unwrap_or_default();
+        assert!(left > 44.0 && left < 44.3, "{left}");
+        assert!(right > 55.7 && right < 56.0, "{right}");
         // Pressure is kept as it was.
         assert!((runs[0][0].pressure - 0.5).abs() < 1.0e-6);
         assert!(runs.iter().all(|r| r.len() >= 2));
@@ -232,6 +312,41 @@ mod tests {
         assert!(runs[0]
             .last()
             .is_some_and(|p| p.pressure > 0.5 && p.pressure < 1.0));
+    }
+
+    #[test]
+    fn a_graze_between_points_cuts() {
+        // Two stored points far apart; the circle only grazes the stroke's outline in the
+        // middle. Radius 5 and a drawn half width of 1 (pressure 1) reach 6 units.
+        let points = [InkPoint::new(0.0, 0.0, 1.0), InkPoint::new(100.0, 0.0, 1.0)];
+        let runs = split_stroke(&points, 2.0, &[Vec2::new(50.0, 5.5)], 5.0).expect("grazed");
+        assert_eq!(runs.len(), 2);
+        let left = runs[0].last().map(|p| p.x).unwrap_or_default();
+        let right = runs[1].first().map(|p| p.x).unwrap_or_default();
+        // The chord at depth 5.5 in a reach of 6 is about 4.8 wide.
+        assert!(
+            (left - 47.6).abs() < 0.2 && (right - 52.4).abs() < 0.2,
+            "{left} {right}"
+        );
+        // Just out of reach: nothing is cut.
+        assert!(split_stroke(&points, 2.0, &[Vec2::new(50.0, 6.5)], 5.0).is_none());
+    }
+
+    #[test]
+    fn the_width_at_that_point_counts() {
+        // A fat stroke is touched from farther away than a thin one.
+        let fat = [InkPoint::new(0.0, 0.0, 1.0), InkPoint::new(100.0, 0.0, 1.0)];
+        let center = [Vec2::new(50.0, 12.0)];
+        assert!(split_stroke(&fat, 20.0, &center, 3.0).is_some());
+        assert!(split_stroke(&fat, 2.0, &center, 3.0).is_none());
+        // Light pressure narrows the stroke, so the same circle misses it.
+        let light = [InkPoint::new(0.0, 0.0, 0.0), InkPoint::new(100.0, 0.0, 0.0)];
+        assert!(split_stroke(&light, 20.0, &center, 3.0).is_none());
+        // Width that changes along a segment: the circle near the wide end touches, near
+        // the thin end does not.
+        let taper = [InkPoint::new(0.0, 0.0, 1.0), InkPoint::new(100.0, 0.0, 0.0)];
+        assert!(split_stroke(&taper, 20.0, &[Vec2::new(5.0, 11.0)], 2.0).is_some());
+        assert!(split_stroke(&taper, 20.0, &[Vec2::new(95.0, 11.0)], 2.0).is_none());
     }
 
     #[test]
