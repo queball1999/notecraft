@@ -1,5 +1,5 @@
 //! The editing session: the state commands read and change. Phase 0 holds the view state,
-//! the open notebooks (mock data until Phase 1 reads them from disk), which notebook,
+//! the open notebooks (read from disk, or the mock notebooks until one is opened), which notebook,
 //! section, and page are shown, and each page's style; page content and undo history land
 //! in Phase 1.
 
@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 use notecraft_model::{Notebook, PageRef, Section};
 
+use crate::mock;
 use crate::recent::Recents;
 use crate::view::{PageStyle, ViewState};
 
@@ -70,6 +71,35 @@ impl Session {
             page: section.and_then(|s| s.pages.first()).map(|p| p.id.clone()),
         };
         self.notebooks = notebooks;
+    }
+
+    /// Open `notebook` read from disk and show it. The mock notebooks are dropped. A notebook
+    /// with the same id that is already open is replaced in place, keeping the selection if
+    /// the page it names still exists; otherwise the first page of the first section is shown.
+    pub fn open_notebook(&mut self, notebook: Notebook) {
+        self.notebooks.retain(|nb| !mock::is_mock_id(&nb.id));
+        let id = notebook.id.clone();
+        let existing = self.notebooks.iter_mut().find(|nb| nb.id == id);
+        if let Some(slot) = existing {
+            *slot = notebook;
+        } else {
+            self.notebooks.push(notebook);
+        }
+        let keeps_selection = self.selection.notebook.as_deref() == Some(id.as_str())
+            && self.current_page().is_some();
+        if keeps_selection {
+            return;
+        }
+        let section = self
+            .notebooks
+            .iter()
+            .find(|nb| nb.id == id)
+            .and_then(Notebook::first_section);
+        self.selection = Selection {
+            notebook: Some(id),
+            section: section.map(|s| s.id.clone()),
+            page: section.and_then(|s| s.pages.first()).map(|p| p.id.clone()),
+        };
     }
 
     pub fn selection(&self) -> &Selection {

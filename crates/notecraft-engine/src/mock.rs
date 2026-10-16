@@ -20,6 +20,14 @@ fn section(id: &str, name: &str, color: u32, pages: &[(&str, &str, u8)]) -> Sect
     })
 }
 
+/// Ids of the mock notebooks. Opening a real notebook folder replaces them.
+pub const MOCK_IDS: [&str; 2] = ["nb-personal", "nb-work"];
+
+/// Whether `id` names one of the mock notebooks.
+pub fn is_mock_id(id: &str) -> bool {
+    MOCK_IDS.contains(&id)
+}
+
 /// The mock notebooks, in notebook list order.
 pub fn notebooks() -> Vec<Notebook> {
     vec![
@@ -115,6 +123,14 @@ mod tests {
             .filter(|node| matches!(node, SectionNode::Group(_)))
             .count();
         assert_eq!(groups, 1);
+    }
+
+    #[test]
+    fn mock_ids_match_the_mock_notebooks() {
+        let ids: Vec<String> = notebooks().into_iter().map(|nb| nb.id).collect();
+        assert_eq!(ids, MOCK_IDS);
+        assert!(is_mock_id("nb-work"));
+        assert!(!is_mock_id("dir-0123"));
     }
 
     #[test]
