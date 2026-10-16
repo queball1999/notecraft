@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: CLI and MCP server are in the build plan.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1).
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -93,6 +93,8 @@ The watcher (`notify`) reports a changed page. If NoteCraft has no unsaved edits
 - File commands (PR 0.8) take an optional `path`. A button sends them without one, and the shell asks its `FilePicker` (the OS dialogs through `rfd` in the desktop app, a fake in tests) and runs the command again with the chosen path; canceling runs nothing. The control channel always passes a path. The recent list lives in the session and the app saves it in `config.toml`.
 - Shortcuts (PR 0.9) are data in the engine: `cmd::shortcuts::default_map()` turns each command's `default_shortcut` (plus a few bindings with arguments, such as Ctrl+2 to Ctrl+9 for note tags) into key chords, most modifiers first. The egui shell matches them each frame, with Ctrl as egui's command modifier (Cmd on macOS), and dispatches the commands; nothing is matched while a text field has focus. Tests reject duplicate chords and bindings with invalid arguments.
 
+- Page text (PR 1.3) enters the session through `Session::set_page_source(page_id, text)`, which is not a command: the folder reader (PR 1.1) calls it when it loads a page. The canvas parses the text of the page shown with `notecraft_markdown::parse` (frontmatter, then blocks that keep their source byte spans), caches the result per page and text revision, and draws the blocks in flow layout from theme tokens. The markdown crate has no egui types; `canvas/flow.rs` is the only place blocks meet the painter.
+
 ## 5. Undo and redo
 
 Each command produces a transaction: a list of reversible model operations. Undo history is per page, capped at 500 steps or 64 MiB. Cross-page commands (rename with link updates, moves) produce a notebook-level transaction that undoes as one step.
@@ -153,3 +155,4 @@ Other workflows mirror the related craft apps: `printing.yml` (craft-print on al
 | 2026-10-14 | 0 | Section 4: file commands without a path ask the front end picker; recents in the session (PR 0.8). |
 | 2026-10-14 | 0 | Section 4: the default shortcut map lives in the engine; the shell matches and dispatches it (PR 0.9). |
 | 2026-10-15 | 0 | CLI and MCP server are in the build plan, not post-parity. |
+| 2026-10-15 | 1 | Section 4: page text enters through `Session::set_page_source` (one page id and its source text; the folder reader calls it in PR 1.1); the canvas parses with `notecraft_markdown::parse`, caches the result per page and text revision, and lays blocks out in flow layout (PR 1.3). |

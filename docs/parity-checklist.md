@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Phase 0 close: SH-01, SH-04, SH-05, SH-15, TH-06 scored D; summary regenerated.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -26,10 +26,10 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Text | 0 | 0 | 12 | 12 | 0% |
 | Structure | 0 | 0 | 12 | 12 | 0% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
-| Format | 0 | 0 | 9 | 9 | 0% |
+| Format | 0 | 2 | 7 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 33 | 0 | 80 | 113 | 29% |
+| Total | 33 | 2 | 78 | 113 | 29% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -168,10 +168,10 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| FM-01 | Format | Read `.md` pages | 1 | M | |
+| FM-01 | Format | Read `.md` pages | 1 | P | PR 1.3: notecraft-markdown parses a page into blocks with exact source spans (golden tests on 6 sample pages, hostile-input tests) and the canvas renders them in flow layout (harness test); reading page files from a notebook folder waits for PR 1.1 |
 | FM-02 | Format | Write `.md` pages with minimal diffs | 1 | M | |
 | FM-03 | Format | Read and write `.notecraft` pages (containers, canvas block) | 1 | M | |
-| FM-04 | Format | Frontmatter read and write | 1 | M | |
+| FM-04 | Format | Frontmatter read and write | 1 | P | PR 1.3: bounded YAML-subset frontmatter reader (scalars, lists, one level of maps, 64 KiB cap, unknown keys kept as raw text; unit and hostile-input tests); writing it waits for PR 1.4 |
 | FM-05 | Format | Auto-save every 30 s and on focus loss | 1 | M | |
 | FM-06 | Format | Crash recovery of unsaved edits | 1 | M | |
 | FM-07 | Format | Outside edit detection and conflict bar | 1 | M | |
@@ -233,3 +233,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 0 | CV-03 scored D: ruled paper draws the red margin line; dotted paper kept as an extra (docs/post-parity.md). |
 | 2026-10-15 | 0 | CV-03 evidence: the Rule Lines menu shows thumbnail cards of each paper style. |
 | 2026-10-15 | 0 | Phase 0 close (maintainer decisions, 2026-10-15): SH-01, SH-05, SH-12, SH-15, and TH-06 scored D on the Windows evidence (SH-01 also on the maintainer's Linux run), and SH-14 stays D, with their macOS, Linux dark mode, physical keyboard, screen reader, and real OS dialog runs moved to one deferred hands-on checks gap in docs/gaps.md; SH-04 reworded to the Coming Soon tooltip and toast and scored D (the per-button badge stays dropped); SH-12 scored D on the harness tests. |
+| 2026-10-15 | 1 | PR 1.3: FM-01 scored P (page text parses into blocks and renders in flow layout; folder reading waits for PR 1.1); FM-04 scored P (frontmatter read; write waits for PR 1.4). |
