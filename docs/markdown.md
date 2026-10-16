@@ -1,10 +1,10 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted.
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
-Status: the folder reader (section 2: notebooks, groups, sections, page order, settings files, folder depth) is implemented in `notecraft-storage` (PR 1.1). Page contents are not read yet. Phase 1 builds the rest of the reader and the writer (build_plan/03-phase-1-core-engine.md). Phase 2 builds page links, search, and note tags (build_plan/04-phase-2-links-search-tags.md).
+Status: the folder reader (section 2: notebooks, groups, sections, page order, settings files, folder depth) is implemented in `notecraft-storage` (PR 1.1). Phase 1 builds the rest of the reader and the writer (build_plan/03-phase-1-core-engine.md). Phase 2 builds page links, search, and note tags (build_plan/04-phase-2-links-search-tags.md). Reading is implemented (PR 1.3): `notecraft-markdown` parses a page into blocks that keep their source byte spans, reads the frontmatter subset of section 3.1, and the canvas shows the blocks in flow layout (section 3.5, read-only). Not yet: reading files from a notebook folder (PR 1.1), minimal-diff writing (PR 1.4), containers and the canvas block (PR 1.9), page links, note tags, and equations (Phase 2). See build_plan/03-phase-1-core-engine.md and build_plan/04-phase-2-links-search-tags.md.
 
 ## 1. Design rules
 
@@ -97,7 +97,7 @@ Large files (over 100 MiB by default, configurable) are linked in place instead 
 
 ### 3.1 Frontmatter
 
-Optional YAML frontmatter between `---` lines at the top of the file. NoteCraft reads a small, bounded YAML subset (scalars, lists, one level of maps). Unknown keys are preserved verbatim.
+Optional YAML frontmatter between `---` lines at the top of the file. NoteCraft reads a small, bounded YAML subset (scalars, lists, one level of maps). Unknown keys are preserved verbatim, and so is any value outside the subset (block scalars such as `|`, deeper maps, flow maps): the reader keeps its source text instead of failing.
 
 ```yaml
 ---
@@ -308,3 +308,4 @@ On open, NoteCraft compares file modified times and hashes against the index and
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | `paper: dotted` marked as a kept extra beyond OneNote; ruled (lined) paper draws a red margin line, with no new value. |
 | 2026-10-15 | 1 | The folder reader (section 2, section 9 folder depth) is implemented. Section 2.3 spells out the file name rules: leading dots and spaces are trimmed too, Windows device names get an underscore, and names are cut to 255 bytes. |
+| 2026-10-15 | 1 | PR 1.3 landed the reader: status line updated; frontmatter over 64 KiB is kept as text with its keys ignored, and a block with no closing line is not frontmatter; the body is parsed after the frontmatter with page-relative spans. |

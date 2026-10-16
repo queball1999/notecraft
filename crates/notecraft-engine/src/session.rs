@@ -20,6 +20,15 @@ pub struct Selection {
     pub page: Option<String>,
 }
 
+/// The markdown text of the page shown now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PageSource<'a> {
+    pub page_id: &'a str,
+    /// Changes whenever `text` does.
+    pub revision: u64,
+    pub text: &'a str,
+}
+
 /// Everything a command can see and change. Commands run on the thread that owns it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Session {
@@ -29,6 +38,9 @@ pub struct Session {
     selection: Selection,
     /// Page styles by page id; pages missing here use the default style.
     page_styles: BTreeMap<String, PageStyle>,
+    /// Markdown source text by page id, with a counter that goes up on every change. Pages
+    /// missing here have no text. Phase 1 fills this from the folder reader (PR 1.1).
+    page_sources: BTreeMap<String, (u64, String)>,
     recents: Recents,
     ink: InkState,
 }
@@ -137,6 +149,25 @@ impl Session {
             .unwrap_or_default()
     }
 
+    /// Set the markdown source text of page `id` (the whole file, frontmatter included).
+    /// This is the seam the folder reader plugs into; it is not a command.
+    pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
+        let next = self.page_sources.get(id).map_or(1, |(rev, _)| rev + 1);
+        self.page_sources.insert(id.to_owned(), (next, text.into()));
+    }
+
+    /// The source text of the page shown now, with a number that changes whenever the text
+    /// does (for caching what is derived from it).
+    pub fn current_page_source(&self) -> Option<PageSource<'_>> {
+        let id = self.selection.page.as_deref()?;
+        let (rev, text) = self.page_sources.get(id)?;
+        Some(PageSource {
+            page_id: id,
+            revision: *rev,
+            text,
+        })
+    }
+
     /// The active draw tool, the pen, and every page's strokes.
     pub fn ink(&self) -> &InkState {
         &self.ink
@@ -177,5 +208,29 @@ impl Session {
             self.page_styles.insert(id, style);
         }
         true
+    }
+}
+
+#[cfg(test)]
+mod page_source_tests {
+    use super::*;
+    use crate::mock;
+
+    #[test]
+    fn page_source_follows_the_shown_page_and_counts_changes() {
+        let mut session = Session::new();
+        session.set_notebooks(mock::notebooks());
+        assert_eq!(session.current_page_source(), None);
+        session.set_page_source(mock::WELCOME_ID, "one");
+        let first = session.current_page_source().expect("welcome has text");
+        assert_eq!((first.page_id, first.text), (mock::WELCOME_ID, "one"));
+        let first = first.revision;
+        session.set_page_source(mock::WELCOME_ID, "two");
+        let second = session.current_page_source().expect("welcome has text");
+        assert_eq!(second.text, "two");
+        assert!(second.revision > first);
+        // A page without text shows none.
+        session.selection_mut().page = Some("p-grocery".to_owned());
+        assert_eq!(session.current_page_source(), None);
     }
 }

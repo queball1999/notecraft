@@ -1,0 +1,16 @@
+frontmatter none
+body 0
+0..11 paragraph "Intro line."
+  source "Intro line."
+13..61 code info="rust" fenced=true "fn main() {\n    println!(\"hello\");\n}\n"
+  source "```rust\nfn main() {\n    println!(\"hello\");\n}\n```"
+63..82 code info="" fenced=true "tilde fence\n"
+  source "~~~\ntilde fence\n~~~"
+84..117 code info="" fenced=false "indented code\nsecond line\n"
+  source "    indented code\n    second line"
+119..180 html "<div class=\"note\">\n  Raw <b>html</b> stays as written.\n</div>\n"
+  source "<div class=\"note\">\n  Raw <b>html</b> stays as written.\n</div>"
+182..216 html "<!-- notecraft:container id=c2 -->\n"
+  source "<!-- notecraft:container id=c2 -->"
+217..299 paragraph "Text after a container marker with " + "strikethrough"[s] + " and " + "https://example.org/auto"[@https://example.org/auto] + "."
+  source "Text after a container marker with ~~strikethrough~~ and https://example.org/auto."
