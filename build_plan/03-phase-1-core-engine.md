@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D).
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -106,7 +106,7 @@ PR title: `feat(markdown): read and render markdown pages`.
 
 Done (2026-10-15), with these deviations from the steps above:
 
-- PR 1.1 was built in parallel, so the canvas does not read files. The seam is `Session::set_page_source(page_id, text)` (also `AppShell::set_page_source`); the mock Welcome page carries a sample until PR 1.1 calls it. FM-01 is scored P until then.
+- PR 1.1 was built in parallel, so the canvas does not read files. The seam is `Session::set_page_source(page_id, text)` (also `AppShell::set_page_source`); the mock Welcome page carries a sample. FM-01 was scored P until the follow-up "page text from disk" change (branch `feat/page-text-from-disk`) landed: `notecraft-storage::read_page_file` (bounded at 64 MiB, lossy UTF-8) and `Session::load_current_page`, which the command registry calls after every command, read the shown `.md` page of a notebook opened with `file.open_notebook` and call `set_page_source`. A page cut at the cap is read-only; an unreadable page gets a short error line on the canvas (`Session::current_page_notice`). Reads are synchronous until PR 1.7 (auto-save and outside edits). FM-01 is now D.
 - Block model for PR 1.4: `Block { span, kind }` with `Span { start, end }` as page byte offsets (end exclusive). Lists keep one `ListItem` span per item and tables one span per cell. The comrak positions needed two fixes (last list item reached past its line; an indented code block started after its indent), covered by the golden tests. Inline runs carry no spans, so PR 1.4 edits at block, item, and cell level.
 - Task lists are a `ListKind::Task` list whose items carry `task: Some(checked)`, not a separate block type.
 - The frontmatter reader is hand-written (no YAML crate). A value outside the subset (block scalars, deeper maps, flow maps) becomes `Value::Raw`, and every entry keeps its source span so PR 1.4 can rewrite single keys.
