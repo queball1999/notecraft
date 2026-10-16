@@ -224,6 +224,24 @@ pub fn fix_container_ids(text: &str, limit: usize) -> Vec<Edit> {
     edits
 }
 
+/// Edits that delete every marker line (with its line ending), for converting a page to plain
+/// markdown. Text between the markers is untouched.
+pub fn remove_container_markers(text: &str, limit: usize) -> Vec<Edit> {
+    read_containers(text, limit)
+        .iter()
+        .filter_map(|c| {
+            let marker = c.marker?;
+            let rest = text.get(marker.end..)?;
+            let eol = if rest.starts_with("\r\n") {
+                2
+            } else {
+                usize::from(rest.starts_with('\n'))
+            };
+            Some(Edit::new(Span::new(marker.start, marker.end + eol), ""))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 #[path = "container_tests.rs"]
 mod tests;

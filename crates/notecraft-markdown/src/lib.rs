@@ -35,8 +35,8 @@ mod style;
 pub use block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Span, Table};
 pub use canonical::{block_to_markdown, blocks_to_markdown, page_to_markdown, runs_to_markdown};
 pub use container::{
-    fix_container_ids, fresh_container_id, is_valid_id, marker_line, read_containers, Container,
-    IMPLICIT_ID, MAX_CONTAINERS,
+    fix_container_ids, fresh_container_id, is_valid_id, marker_line, read_containers,
+    remove_container_markers, Container, IMPLICIT_ID, MAX_CONTAINERS,
 };
 pub use document::{parse, Document};
 pub use edit::{apply_edits, Edit, EditError, Editor};

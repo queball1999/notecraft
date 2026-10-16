@@ -19,7 +19,9 @@ pub mod undo;
 pub mod view;
 
 pub use ink::{DrawTool, InkState, PenStyle};
-pub use session::{PageNotice, PageSource, Selection, Session};
+pub use session::{
+    ConvertOutcome, PageNotice, PageSource, SaveError, SaveOutcome, Selection, Session,
+};
 pub use view::PageStyle;
 
 /// Layer number, read by `cargo xtask layers`.

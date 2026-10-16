@@ -6,13 +6,16 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
 use notecraft_model::{Notebook, PageRef, Section};
-use notecraft_storage::{read_page_file, PageReadError};
+use notecraft_storage::{read_page_file, PageKind, PageReadError};
 
 use crate::ink::InkState;
+
+mod save;
 use crate::mock;
 use crate::recent::Recents;
 use crate::undo::History;
 use crate::view::{PageStyle, ViewState};
+pub use save::{ConvertOutcome, SaveError, SaveOutcome, CONVERT_WARNING};
 
 /// Which notebook, section, and page are shown, by id.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -29,6 +32,17 @@ pub struct PageSource<'a> {
     /// Changes whenever `text` does.
     pub revision: u64,
     pub text: &'a str,
+}
+
+impl PageSource<'_> {
+    /// The text to lay out: the page without its `notecraft-canvas` block, which holds
+    /// positions and ink and is never shown as text.
+    pub fn visible_text(&self) -> &str {
+        match notecraft_storage::find_canvas_block(self.text) {
+            Some(block) => self.text.get(..block.block.start).unwrap_or(self.text),
+            None => self.text,
+        }
+    }
 }
 
 /// Why the page shown now cannot be edited or did not read cleanly. It is shown on the canvas
@@ -171,13 +185,9 @@ impl Session {
             return false;
         };
         let rel = Path::new(rel);
-        let is_markdown = rel
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
-        if !is_markdown {
+        let Some(kind) = save::kind_of(rel) else {
             return false;
-        }
+        };
         let notice = |text: &str| PageNotice {
             text: text.to_owned(),
             read_only: true,
@@ -193,6 +203,9 @@ impl Session {
                     let read_only = page.truncated;
                     self.page_notices
                         .insert(page_id.clone(), PageNotice { text, read_only });
+                }
+                if kind == PageKind::Canvas && !page.truncated {
+                    self.load_canvas(&page_id, &page.text, root.clone(), rel);
                 }
                 self.set_page_source(&page_id, page.text);
             }
@@ -411,14 +424,15 @@ mod page_load_tests {
     }
 
     #[test]
-    fn mock_pages_and_other_file_types_are_not_read() {
+    fn mock_pages_are_not_read_and_notecraft_pages_are() {
         let mut session = Session::new();
         session.set_notebooks(crate::mock::notebooks());
         assert!(!session.load_current_page());
         let dir = notebook(&[("Sec/Sketch.notecraft", b"PK")]);
         let mut session = open(&dir);
-        assert!(!session.load_current_page());
-        assert_eq!(session.current_page_source(), None);
+        assert!(session.load_current_page());
+        assert_eq!(session.current_page_source().expect("text").text, "PK");
         assert_eq!(session.current_page_notice(), None);
+        assert!(session.current_ink().is_none());
     }
 }

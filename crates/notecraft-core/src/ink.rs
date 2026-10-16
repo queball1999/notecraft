@@ -251,9 +251,7 @@ mod simplify_tests {
 
     #[test]
     fn short_strokes_are_untouched_and_long_ones_fit() {
-        let pts: Vec<InkPoint> = (0..50)
-            .map(|i| InkPoint::new(i as f32, 0.0, 0.5))
-            .collect();
+        let pts: Vec<InkPoint> = (0..50).map(|i| InkPoint::new(i as f32, 0.0, 0.5)).collect();
         assert_eq!(simplify(&pts, 100), pts);
         // A straight line collapses to its ends.
         assert_eq!(simplify(&pts, 10).len(), 2);

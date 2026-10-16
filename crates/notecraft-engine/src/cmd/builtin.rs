@@ -2,6 +2,7 @@
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
+use super::page;
 use super::{
     canvas, draw, edit, file, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec,
     Handler,
@@ -89,6 +90,11 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "kind",
     ArgKind::String,
     "Shape kind, for example line, arrow, rectangle, or ellipse.",
+)];
+const CONVERT_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "confirm",
+    ArgKind::Bool,
+    "True to convert; without it the command only returns the warning to show first.",
 )];
 const RULE_LINE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "style",
@@ -877,6 +883,14 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .undoable()
     .shortcut("Ctrl+N"),
+    CommandSpec::new(
+        ids::PAGE_CONVERT_TO_MARKDOWN,
+        "Convert to Markdown",
+        "Turn the page into a plain markdown page. Ink and note positions are removed.",
+    )
+    .args(CONVERT_ARGS)
+    .destructive()
+    .ready(),
     CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
@@ -914,6 +928,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
+    (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
 ];
 
 /// The handler for `id`, if it has one.

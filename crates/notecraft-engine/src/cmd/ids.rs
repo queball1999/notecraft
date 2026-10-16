@@ -310,6 +310,8 @@ command_ids! {
     SECTION_NEW = "section.new";
     /// Add a page to the current section.
     PAGE_NEW = "page.new";
+    /// Turn the page shown into a plain markdown page, dropping its ink and positions.
+    PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
 
     // Search (Phase 2)
     /// Search every open notebook.

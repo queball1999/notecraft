@@ -128,6 +128,15 @@ fn hostile_input_never_panics() {
 }
 
 #[test]
+fn markers_can_be_removed_alone() {
+    let out = apply_edits(PAGE, &remove_container_markers(PAGE, PAGE.len())).unwrap();
+    assert_eq!(out, "Intro\n\n## Agenda\n\n- Budget\n\nSend the deck.\n");
+    let crlf = PAGE.replace('\n', "\r\n");
+    let out = apply_edits(&crlf, &remove_container_markers(&crlf, crlf.len())).unwrap();
+    assert!(!out.contains("notecraft:container") && out.contains("Send the deck.\r\n"));
+}
+
+#[test]
 fn new_markers_are_built_from_a_fresh_id() {
     let cs = read_containers(PAGE, PAGE.len());
     assert_eq!(fresh_container_id(&cs), "c3");

@@ -82,8 +82,49 @@ pub fn change_page_kind(root: &Path, rel: &str, text: &str) -> io::Result<String
     Ok(new_rel)
 }
 
+/// Keep a copy of a page file whose canvas block could not be read, at
+/// `.notecraft/history/<page path>/canvas-unreadable.notecraft` under `root`
+/// (docs/markdown.md section 3.4). Returns the path written.
+pub fn keep_unreadable_copy(root: &Path, rel: &Path, text: &str) -> io::Result<std::path::PathBuf> {
+    let folder: String = rel
+        .to_string_lossy()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '.' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let dir = root
+        .join(crate::notebook_dir::NOTEBOOK_DIR_NAME)
+        .join("history")
+        .join(folder);
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join("canvas-unreadable.notecraft");
+    craft_atomic::atomic_write(&path, text.as_bytes())?;
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unreadable_copies_are_kept_byte_for_byte() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = super::keep_unreadable_copy(
+            dir.path(),
+            std::path::Path::new("S/A.notecraft"),
+            "x\r\ny",
+        )
+        .unwrap();
+        assert!(path.starts_with(dir.path().join(".notecraft/history")));
+        assert_eq!(std::fs::read(path).unwrap(), b"x\r\ny");
+    }
+}
+
+#[cfg(test)]
+mod tests_kind {
     use super::*;
 
     #[test]
