@@ -2,14 +2,14 @@
 
 > Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: created; Linux install steps and a Flatpak troubleshooting entry.
 
-Release builds are attached to each GitHub Release at https://github.com/Queball1999/notecraft/releases, with a `SHA256SUMS.txt` file. In the names below, `<version>` is the release version and `<arch>` is `x86_64` or `aarch64` (packages may use the distro's own arch name, such as `amd64` or `arm64`). The full artifact list is in [releasing.md](releasing.md) section 3.
+Release builds are attached to each GitHub Release at https://github.com/queball1999/notecraft/releases, with a `SHA256SUMS.txt` file. In the names below, `<version>` is the release version and `<arch>` is `x86_64` or `aarch64`. The full artifact list is in [releasing.md](releasing.md) section 3.
 
 ## Linux
 
 | Artifact | Install | Run |
 |---|---|---|
-| `.deb` (Debian, Ubuntu, Mint, Pop!_OS) | `sudo apt install ./notecraft-<version>-linux-*.deb` | `notecraft` |
-| `.rpm` (Fedora, openSUSE, RHEL) | `sudo dnf install ./notecraft-<version>-linux-*.rpm` | `notecraft` |
+| `.deb` (Debian, Ubuntu, Mint, Pop!_OS) | `sudo apt install ./notecraft-<version>-linux-<arch>.deb` | `notecraft` |
+| `.rpm` (Fedora, openSUSE, RHEL) | `sudo dnf install ./notecraft-<version>-linux-<arch>.rpm` | `notecraft` |
 | AppImage (any distro) | `chmod +x notecraft-<version>-linux-<arch>.AppImage` | `./notecraft-<version>-linux-<arch>.AppImage` |
 | `.tar.gz` | `tar -xzf notecraft-<version>-linux-<arch>.tar.gz` | `bin/notecraft` inside the extracted folder |
 | Flatpak bundle | `flatpak install --user ./notecraft-<version>-linux-<arch>.flatpak` | `flatpak run io.github.queball1999.notecraft` |
