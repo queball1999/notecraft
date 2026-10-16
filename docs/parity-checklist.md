@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.8: ST-08 scored P (undo and redo); ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -24,12 +24,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Canvas | 3 | 0 | 9 | 12 | 25% |
 | Ink | 1 | 2 | 9 | 12 | 8% |
 | Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 1 | 0 | 11 | 12 | 8% |
+| Structure | 1 | 1 | 10 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
 | Format | 0 | 2 | 7 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 35 | 4 | 74 | 113 | 30% |
+| Total | 35 | 5 | 73 | 113 | 30% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -65,7 +65,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | SH-13 | Shell | Full page view (F11) | 0 | D | PR 0.9 (#15): view.full_page (F11) and view.normal Ready; only the page shows, with a Normal View button; F11, Esc, or the button leaves; test full_page_view_shows_only_the_page |
 | SH-14 | Shell | OneNote default shortcut map | 0 | D | PR 0.9 (#15): cmd::shortcuts (every default shortcut plus Ctrl+2 to Ctrl+9 tags), dispatched by the shell, Ctrl as Cmd on macOS, idle while a text field has focus; tests reject duplicates and invalid bindings; shortcuts_run_their_commands. The Cmd-on-Mac part is in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0); the row stays D on the Windows evidence (maintainer decision, 2026-10-15) |
 | SH-15 | Shell | Keyboard navigation and screen reader labels (AccessKit) | 0 | D | PR 0.10 (#16): every actionable AccessKit node named (panel splitters added); Tab order ribbon, navigation, section tabs, page, status bar; accent focus ring on every control including the canvas and the splitters; buttons are push buttons (UIA Invoke) and navigation rows are selectable list items (UIA SelectionItem), checked in the running app; canvas scroll bars named. A UI Automation dump of the running app on Windows 11 (Home tab) listed 54 controls: 8 ribbon tabs as TabItem with SelectionItem, 40 buttons with Invoke, and the Font and Font Size boxes as Edit with Value; none actionable without a name; tests every_control_has_a_screen_reader_name, every_control_can_be_pressed_by_a_screen_reader, buttons_are_push_buttons_and_rows_report_selection, tab_moves_through_ribbon_navigation_page_and_status_bar. Scored D on the Windows UI Automation evidence by maintainer decision, 2026-10-15; runs with Narrator (Windows) and VoiceOver (macOS) are in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0) |
-| SH-16 | Shell | Quick Access Toolbar | 3 | M | |
+| SH-16 | Shell | Quick Access Toolbar | 3 | M | PR 1.8 put Undo and Redo buttons at the right of the tab strip (they disable when empty); the customizable toolbar is still to do |
 | SH-17 | Shell | Docked window (Ctrl+Alt+D) | 4 | M | |
 | SH-18 | Shell | Browser version | 4 | M | |
 | SH-19 | Shell | Translated UI (first locales) | 4 | M | |
@@ -145,7 +145,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | M | |
 | ST-06 | Structure | Drag to reorder and move pages and sections | 1 | M | |
 | ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | M | |
-| ST-08 | Structure | Undo and redo | 1 | M | |
+| ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Missing: text commands (PR 1.5), structure commands (PR 1.13), and the eraser (PR 1.11) are the callers; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
 | ST-09 | Structure | Notebook Recycle Bin with restore | 3 | M | |
 | ST-10 | Structure | Page versions | 3 | M | |
 | ST-11 | Structure | Page templates | 3 | M | |
@@ -236,3 +236,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 1 | ST-01 scored D and SH-06 evidence updated: the folder reader and the real navigation tree (PR 1.1). |
 | 2026-10-15 | 1 | IN-01 and IN-02 scored P and IN-03 scored D (PR 1.10, ink engine and pen): pen, smoothing, and stroke capture work and are tested with synthetic events; saving strokes waits for PR 1.9 and no real pen has been tried. |
 | 2026-10-15 | 1 | PR 1.3: FM-01 scored P (page text parses into blocks and renders in flow layout; folder reading waits for PR 1.1); FM-04 scored P (frontmatter read; write waits for PR 1.4). |
+| 2026-10-15 | 1 | ST-08 scored P (PR 1.8, undo and redo): ink strokes and page setup undo exactly, text and notebook moves are built against the engine API; SH-16 evidence notes the Undo and Redo buttons. |

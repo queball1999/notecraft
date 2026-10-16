@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.8 landed; rank 19 narrowed to the callers of undo; PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -21,7 +21,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | 16 | No minimal-diff markdown write (markdown read and frontmatter read landed in PR 1.3) | FM-02, FM-04 | 40-70 | build_plan/03, PR 1.4 |
 | 17 | No text editing in containers | TX-01 to TX-06, CV-04 to CV-06 | 104-180 | build_plan/03, PR 1.5, 1.6 |
 | 18 | No auto-save, crash recovery, outside edit handling | FM-05 to FM-07 | 24-40 | build_plan/03, PR 1.7 |
-| 19 | No undo and redo | ST-08 | 20-34 | build_plan/03, PR 1.8 |
+| 19 | Undo and redo: the engine, ink, and page setup landed (PR 1.8); still missing the callers that make text edits (PR 1.5), erase strokes (PR 1.11), and move or rename in the notebook (PR 1.13) through it, and a list of steps to pick from (OneNote has none on its History tab, so only Undo and Redo show) | ST-08 | 2-4 | build_plan/03, PR 1.8 |
 | 20 | No `.notecraft` format | FM-03 | 30-50 | build_plan/03, PR 1.9 |
 | 21 | Ink: pen, smoothing, and pressure path landed (PR 1.10); still missing the highlighter and both erasers (PR 1.11), saving strokes to the page file (PR 1.9, rank 20), pressure on macOS and Linux (needs a wrapper crate or newer winit), and trying a real pen or tablet on all three systems | IN-01 to IN-06 | 24-40 plus the checks | build_plan/03, PR 1.11 |
 | 22 | No pictures or attachments | AT-01 to AT-05 | 40-70 | build_plan/03, PR 1.12 |
@@ -97,3 +97,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-15 | 1 | Rank 15 narrowed to the index (ST-07, 18-30 hours): the notebook folder reader landed (PR 1.1). |
 | 2026-10-15 | 1 | Rank 21 narrowed: pen, smoothing, stroke capture, tessellation, and the spatial index landed (PR 1.10); real-pen checks added to rank 25; pressure risk updated. |
 | 2026-10-15 | 1 | Rank 16 shrunk: markdown read, frontmatter read, and flow-layout rendering landed (PR 1.3); only the minimal-diff write remains. Rank 15 now also carries FM-01 (reading page files into the canvas). |
+| 2026-10-15 | 1 | Rank 19 narrowed: undo and redo landed (PR 1.8) for ink and page setup, with typing, merge, and notebook-level steps built against the engine API; text, eraser, and structure callers remain (PR 1.5, 1.11, 1.13). |
