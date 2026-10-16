@@ -164,6 +164,58 @@ pub(super) fn copy_about_info(
     Ok(CommandOutput::default())
 }
 
+/// `file.restore_unsaved`: put back the unsaved text found from the last session. The output
+/// has the number of pages restored (`restored`).
+pub(super) fn restore_unsaved(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let restored = session.restore_recovery();
+    Ok(CommandOutput {
+        value: json!({ "restored": restored }),
+    })
+}
+
+/// `file.discard_unsaved`: throw away the unsaved text found from the last session. The
+/// output has the number of pages discarded (`discarded`).
+pub(super) fn discard_unsaved(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let discarded = session.discard_recovery();
+    Ok(CommandOutput {
+        value: json!({ "discarded": discarded }),
+    })
+}
+
+fn settle_conflict(
+    id: CommandId,
+    session: &mut Session,
+    keep_mine: bool,
+) -> Result<CommandOutput, CommandError> {
+    if session.resolve_current_conflict(keep_mine) {
+        Ok(CommandOutput::default())
+    } else {
+        Err(bad_path(id, "the page has no outside change to settle"))
+    }
+}
+
+/// `file.keep_my_version`: keep the page text as it is; the next save replaces the file.
+pub(super) fn keep_my_version(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    settle_conflict(ids::FILE_KEEP_MY_VERSION, session, true)
+}
+
+/// `file.use_outside_version`: replace the page text with the version from disk.
+pub(super) fn use_outside_version(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    settle_conflict(ids::FILE_USE_OUTSIDE_VERSION, session, false)
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::{json, Value};

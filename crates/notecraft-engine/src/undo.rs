@@ -345,6 +345,12 @@ impl History {
         stack.enforce(max_steps, max_bytes);
     }
 
+    /// Forget the steps of one page, for example when its file was replaced by a newer
+    /// version from disk and the steps no longer fit the text.
+    pub fn clear_page(&mut self, page: &str) {
+        self.pages.remove(page);
+    }
+
     /// Forget everything, for example when a different set of notebooks is opened.
     pub fn clear(&mut self) {
         self.pages.clear();

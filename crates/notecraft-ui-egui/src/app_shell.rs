@@ -19,7 +19,7 @@ use crate::ribbon::{self, Clicked, Ribbon};
 use crate::shortcuts::Shortcuts;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
-use crate::{start, status};
+use crate::{bars, start, status};
 /// Height of the status bar, in points.
 pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
@@ -93,6 +93,8 @@ pub struct AppShell {
     about: AppInfo,
     /// Text for the clipboard, put there on the next frame.
     pending_copy: Option<String>,
+    /// Auto-save, the recovery journal, and the folder watcher (the desktop app turns them on).
+    io: Option<notecraft_engine::io::SessionIo>,
 }
 
 impl Default for AppShell {
@@ -137,6 +139,21 @@ impl AppShell {
             recent_colors: Vec::new(),
             about: AppInfo::default(),
             pending_copy: None,
+            io: None,
+        }
+    }
+
+    /// Turn on auto-save, crash recovery, and outside edit watching. Without this (tests)
+    /// pages are read inline and never written.
+    pub fn with_io(mut self, io: notecraft_engine::io::SessionIo) -> Self {
+        self.io = Some(io);
+        self
+    }
+
+    /// Save every unsaved page now and journal what could not be saved. Call on quit.
+    pub fn flush_unsaved(&mut self) {
+        if let Some(io) = &mut self.io {
+            io.flush(&mut self.session);
         }
     }
 
@@ -367,6 +384,16 @@ impl AppShell {
 
     /// Per-frame work that must run even when the window is hidden (eframe `logic`).
     pub fn logic(&mut self, ctx: &egui::Context) {
+        if let Some(io) = &mut self.io {
+            let focused = ctx.input(|i| i.viewport().focused.unwrap_or(true));
+            if ctx.input(|i| i.viewport().close_requested()) {
+                io.flush(&mut self.session);
+            }
+            let now = std::time::Instant::now();
+            if let Some(wait) = io.pump(&mut self.session, now, focused) {
+                ctx.request_repaint_after(wait);
+            }
+        }
         // Ctrl+=, Ctrl+-, and Ctrl+0 belong to OneNote's shortcuts, not to egui's UI scaling.
         if ctx.options(|options| options.zoom_with_keyboard) {
             ctx.options_mut(|options| options.zoom_with_keyboard = false);
@@ -500,7 +527,12 @@ impl AppShell {
                     egui::vec2(full.width(), nav::SECTION_STRIP_HEIGHT),
                 );
                 nav::section_tabs(ui, strip, session, &tokens, &mut clicked);
-                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, strip.max.y), full.max);
+                let bar = egui::Rect::from_min_size(
+                    egui::pos2(full.min.x, strip.max.y),
+                    egui::vec2(full.width(), bars::height(session)),
+                );
+                bars::show(ui, bar, session, &tokens, &mut clicked);
+                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, bar.max.y), full.max);
                 canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
             })
             .inner;
@@ -2648,5 +2680,66 @@ mod tests {
         let mut harness = harness(AppShell::new(), egui::vec2(1.0, 1.0));
 
         harness.run();
+    }
+
+    /// A notebook with one page, opened in a harness; returns the folder to edit files in.
+    fn open_one_page(text: &str) -> (tempfile::TempDir, egui_kittest::Harness<'static, AppShell>) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Notes");
+        std::fs::create_dir_all(&section).unwrap();
+        std::fs::write(section.join("Only.md"), text).unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        (dir, harness)
+    }
+
+    #[test]
+    fn the_conflict_bar_offers_both_versions_and_runs_commands() {
+        let (dir, mut harness) = open_one_page("one\n");
+        let page = harness.state().session().selection().page.clone().unwrap();
+        harness
+            .state_mut()
+            .session
+            .edit_page_text(&page, 0, 0, "mine ", false);
+        std::fs::write(dir.path().join("Notes/Only.md"), "theirs\n").unwrap();
+        harness
+            .state_mut()
+            .session
+            .note_outside_change(&dir.path().join("Notes/Only.md"));
+        harness.run();
+        let _ = harness.get_by_label_contains("changed outside NoteCraft");
+        let _ = harness.get_by_label("Unsaved changes");
+        harness.get_by_label("Use outside version").click();
+        harness.run();
+        assert_eq!(harness.state().session().page_text(&page), Some("theirs\n"));
+        assert!(harness
+            .query_by_label_contains("changed outside NoteCraft")
+            .is_none());
+        let _ = harness.get_by_label("Saved");
+    }
+
+    #[test]
+    fn the_recovery_bar_restores_the_unsaved_text() {
+        let (dir, mut harness) = open_one_page("on disk\n");
+        let path = dir.path().join("Notes/Only.md");
+        let page = harness.state().session().selection().page.clone().unwrap();
+        let entry = notecraft_engine::RecoveryEntry {
+            path,
+            text: "unsaved\n".to_owned(),
+        };
+        harness.state_mut().session.offer_recovery(vec![entry]);
+        harness.run();
+        let _ = harness.get_by_label_contains("unsaved changes to 1 page");
+        harness.get_by_label("Restore").click();
+        harness.run();
+        assert_eq!(
+            harness.state().session().page_text(&page),
+            Some("unsaved\n")
+        );
+        assert!(harness.state().session().is_page_dirty(&page));
+        assert!(harness.query_by_label("Restore").is_none());
     }
 }

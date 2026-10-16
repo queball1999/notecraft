@@ -2,6 +2,7 @@
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
+use super::page;
 use super::{
     canvas, draw, edit, file, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec,
     Handler,
@@ -115,6 +116,11 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     ArgKind::String,
     "Shape kind, for example line, arrow, rectangle, or ellipse.",
 )];
+const CONVERT_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "confirm",
+    ArgKind::Bool,
+    "True to convert; without it the command only returns the warning to show first.",
+)];
 const RULE_LINE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "style",
     ArgKind::String,
@@ -220,6 +226,32 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Copy About Info",
         "Copy the version, build, and system details to the clipboard for a bug report.",
     )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_RESTORE_UNSAVED,
+        "Restore Unsaved Changes",
+        "Put back the unsaved text found from the last session.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_DISCARD_UNSAVED,
+        "Discard Unsaved Changes",
+        "Throw away the unsaved text found from the last session.",
+    )
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_KEEP_MY_VERSION,
+        "Keep My Version",
+        "Keep the text on the page when the file also changed outside NoteCraft.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_USE_OUTSIDE_VERSION,
+        "Use Outside Version",
+        "Replace the text on the page with the version changed outside NoteCraft.",
+    )
+    .destructive()
     .ready(),
     // Home tab: Clipboard group
     CommandSpec::new(ids::EDIT_CUT, "Cut", "Move the selection to the clipboard.")
@@ -912,6 +944,14 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .undoable()
     .shortcut("Ctrl+N"),
+    CommandSpec::new(
+        ids::PAGE_CONVERT_TO_MARKDOWN,
+        "Convert to Markdown",
+        "Turn the page into a plain markdown page. Ink and note positions are removed.",
+    )
+    .args(CONVERT_ARGS)
+    .destructive()
+    .ready(),
     CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
@@ -923,6 +963,10 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
     (ids::FILE_ABOUT, file::about),
     (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),
+    (ids::FILE_RESTORE_UNSAVED, file::restore_unsaved),
+    (ids::FILE_DISCARD_UNSAVED, file::discard_unsaved),
+    (ids::FILE_KEEP_MY_VERSION, file::keep_my_version),
+    (ids::FILE_USE_OUTSIDE_VERSION, file::use_outside_version),
     (ids::VIEW_THEME_SET, theme::theme_set),
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
@@ -952,6 +996,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
+    (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
 ];
 
 /// The handler for `id`, if it has one.
