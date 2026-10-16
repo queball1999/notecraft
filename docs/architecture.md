@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.2 landed (rebuildable notebook index).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.2 landed (rebuildable notebook index).
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -97,6 +97,8 @@ The watcher (`notify`) reports a changed page. If NoteCraft has no unsaved edits
 - Ink (PR 1.10) follows the same split. The front end turns egui events into `notecraft_core::PointerSample`s (page units, time, optional pressure, source kind) and feeds a `notecraft_canvas::ink::StrokeBuilder`, which smooths with a one-euro filter and gives a stroke a speed-based width when the device reports no pressure. When the pen lifts, the canvas sends `ink.add_stroke { points }`; the session keeps one `InkLayer` (strokes in paint order plus a grid index) per page id, and the active tool and pen (`draw.type`, `draw.pen`, `draw.color`, `draw.thickness`). Drawing is a renderer-agnostic triangle list (`tessellate`) that the egui layer turns into a `Mesh`. The `Stroke` type serializes to the canvas block's `ink` entries (docs/markdown.md section 3.4); writing it to the file is PR 1.9.
 
 - Page text (PR 1.3) enters the session through `Session::set_page_source(page_id, text)`, which is not a command: `Session::load_current_page` calls it after every command when the page shown comes from a notebook folder and has not been read yet (read through `notecraft_storage::read_page_file`, bounded at 64 MiB; a cut or unreadable page gets a `PageNotice` the canvas draws under the title). The canvas parses the text of the page shown with `notecraft_markdown::parse` (frontmatter, then blocks that keep their source byte spans), caches the result per page and text revision, and draws the blocks in flow layout from theme tokens. The markdown crate has no egui types; `canvas/flow.rs` is the only place blocks meet the painter.
+
+- Page writing (PR 1.4): `notecraft_markdown::Editor` collects span replacements against the page text and `finish()` splices them, so bytes outside the edited spans never change; `canonical` serializes new blocks. `notecraft_storage::page_file::write_page_text` writes the result through `craft-atomic` and skips the write when the bytes are unchanged. Auto-save and the conflict check come with PR 1.7.
 
 ## 5. Undo and redo
 
@@ -215,6 +217,7 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | 2026-10-15 | 0 | CLI and MCP server are in the build plan, not post-parity. |
 | 2026-10-15 | 1 | Section 4: ink capture, strokes, and pen commands (PR 1.10). |
 | 2026-10-15 | 1 | Section 4: page text enters through `Session::set_page_source` (one page id and its source text; the folder reader calls it in PR 1.1); the canvas parses with `notecraft_markdown::parse`, caches the result per page and text revision, and lays blocks out in flow layout (PR 1.3). |
+| 2026-10-15 | 1 | Section 4: page writing is span replacements (`Editor`) plus `page_file::write_page_text` over craft-atomic (PR 1.4). |
 | 2026-10-15 | 1 | Section 4: page text is read from disk by `Session::load_current_page` (storage `read_page_file`), with a `PageNotice` for cut or unreadable pages. |
 | 2026-10-15 | 1 | Section 10: ink and drawing design (anti-aliased edges, highlighter, erasers, lasso, Ink to Shape, custom pens), after a survey of the related WordCraft app. |
 | 2026-10-15 | 1 | Index design (PR 1.2): rebuild on corruption, incremental refresh, background worker, native only. |
