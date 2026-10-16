@@ -134,9 +134,9 @@ impl Index {
 
     /// The sections and pages for the sidebar, in order.
     pub fn sidebar(&self) -> rusqlite::Result<Sidebar> {
-        let mut stmt = self.conn.prepare_cached(
-            "SELECT path, parent, name, kind, color FROM sections ORDER BY ord",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT path, parent, name, kind, color FROM sections ORDER BY ord")?;
         let sections = stmt
             .query_map([], |row| {
                 Ok(SectionRow {
@@ -144,7 +144,9 @@ impl Index {
                     parent: row.get(1)?,
                     name: row.get(2)?,
                     kind: row.get(3)?,
-                    color: row.get::<_, Option<i64>>(4)?.and_then(|c| u32::try_from(c).ok()),
+                    color: row
+                        .get::<_, Option<i64>>(4)?
+                        .and_then(|c| u32::try_from(c).ok()),
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -300,7 +302,9 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let root = small_notebook(dir.path());
         let db = root.join(".notecraft/index.sqlite");
-        let first = IndexWorker::spawn(root.clone(), db.clone()).wait().expect("first");
+        let first = IndexWorker::spawn(root.clone(), db.clone())
+            .wait()
+            .expect("first");
         assert!(!first.rebuilt);
         assert_eq!(first.stats.added.len(), 40);
         // Overwrite the middle of the file with junk.
@@ -314,7 +318,9 @@ mod tests {
             *b = 0x00;
         }
         std::fs::write(&db, bytes).expect("damage");
-        let second = IndexWorker::spawn(root.clone(), db.clone()).wait().expect("second");
+        let second = IndexWorker::spawn(root.clone(), db.clone())
+            .wait()
+            .expect("second");
         assert!(second.rebuilt);
         assert_eq!(second.stats.added.len(), 40);
         let (index, _) = Index::open_or_rebuild(&db).expect("open");

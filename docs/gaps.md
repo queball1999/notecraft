@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write. PR 1.2 landed; rank 15 narrowed to wiring the index and page text into the app.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -15,9 +15,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
-| 15 | No notebook index (the folder reader landed in PR 1.1) | ST-07 | 18-30 | build_plan/03, PR 1.2 |
-| 16 | No markdown read and minimal-diff write | FM-01, FM-02, FM-04 | 60-104 | build_plan/03, PR 1.3, 1.4 |
-| 15 | No notebook folder reader or index (also feeds page text to the canvas through AppShell::set_page_source, FM-01) | ST-01, ST-07, FM-01 | 34-58 | build_plan/03, PR 1.1, 1.2 |
+| 15 | The navigation does not read the index, and nothing feeds page text from the folder to the canvas through AppShell::set_page_source (the folder reader, the index, and the markdown reader have landed) | ST-07, FM-01 | 6-10 | build_plan/03, PR 1.2 (done), 1.5 |
 | 16 | No minimal-diff markdown write (markdown read and frontmatter read landed in PR 1.3) | FM-02, FM-04 | 40-70 | build_plan/03, PR 1.4 |
 | 17 | No text editing in containers | TX-01 to TX-06, CV-04 to CV-06 | 104-180 | build_plan/03, PR 1.5, 1.6 |
 | 18 | No auto-save, crash recovery, outside edit handling | FM-05 to FM-07 | 24-40 | build_plan/03, PR 1.7 |
@@ -97,3 +95,4 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-15 | 1 | Rank 15 narrowed to the index (ST-07, 18-30 hours): the notebook folder reader landed (PR 1.1). |
 | 2026-10-15 | 1 | Rank 21 narrowed: pen, smoothing, stroke capture, tessellation, and the spatial index landed (PR 1.10); real-pen checks added to rank 25; pressure risk updated. |
 | 2026-10-15 | 1 | Rank 16 shrunk: markdown read, frontmatter read, and flow-layout rendering landed (PR 1.3); only the minimal-diff write remains. Rank 15 now also carries FM-01 (reading page files into the canvas). |
+| 2026-10-15 | 1 | Rank 15 narrowed (PR 1.2, the notebook index): the index, its refresh, and rebuild landed; what remains is reading the index in the navigation and sending page text to the canvas. The duplicate rank 15 and 16 rows left by the earlier merges were removed. |

@@ -14,7 +14,8 @@ fn build_fixture(root: &Path) {
             return;
         }
         for page in 0..50 {
-            let text = format!("# Page {page}\n\nBody text for page {page} of section {section}.\n");
+            let text =
+                format!("# Page {page}\n\nBody text for page {page} of section {section}.\n");
             let _ = fs::write(dir.join(format!("Page {page:02}.md")), text);
         }
     }

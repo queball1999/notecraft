@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1). PR 1.2: the notebook index.
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -65,6 +65,8 @@ user picks folder
 ```
 
 Navigation must appear in under 500 ms for 1,000 pages (SCRD section 11). Page bodies are parsed lazily, except in the background reindex.
+
+The index (PR 1.2) is `notecraft_storage::index::Index`, native only (SQLite compiles from C, so the module is cfg-ed out on wasm32 and `cargo xtask wasm` stays green). `Index::open_or_rebuild` deletes and recreates a file that is not a database, fails `PRAGMA quick_check`, or has a newer `user_version`. `Index::refresh(root)` scans the folder, stats every page, and reads and hashes only pages whose modified time or size changed, in one transaction; it reports added, changed, and removed page ids so the Phase 2 reparse knows what to visit. `IndexWorker` runs open and refresh on a named thread and hands back a `WorkerReport` through a channel. The sidebar reads sections and pages straight from the tables.
 
 ### 3.2 Editing
 
@@ -158,3 +160,4 @@ Other workflows mirror the related craft apps: `printing.yml` (craft-print on al
 | 2026-10-15 | 0 | CLI and MCP server are in the build plan, not post-parity. |
 | 2026-10-15 | 1 | Section 4: ink capture, strokes, and pen commands (PR 1.10). |
 | 2026-10-15 | 1 | Section 4: page text enters through `Session::set_page_source` (one page id and its source text; the folder reader calls it in PR 1.1); the canvas parses with `notecraft_markdown::parse`, caches the result per page and text revision, and lays blocks out in flow layout (PR 1.3). |
+| 2026-10-15 | 1 | Index design (PR 1.2): rebuild on corruption, incremental refresh, background worker, native only. |

@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read). PR 1.2: ST-07 scored P (notebook index and its 1,000-page bench; the navigation does not use it yet).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -24,12 +24,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Canvas | 3 | 0 | 9 | 12 | 25% |
 | Ink | 1 | 2 | 9 | 12 | 8% |
 | Text | 0 | 0 | 12 | 12 | 0% |
-| Structure | 1 | 0 | 11 | 12 | 8% |
+| Structure | 1 | 1 | 10 | 12 | 8% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
 | Format | 0 | 2 | 7 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 35 | 4 | 74 | 113 | 30% |
+| Total | 35 | 5 | 73 | 113 | 30% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -144,7 +144,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ST-04 | Structure | Section groups | 1 | M | |
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | M | |
 | ST-06 | Structure | Drag to reorder and move pages and sections | 1 | M | |
-| ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | M | |
+| ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | P | PR 1.2: notecraft-storage keeps a rebuildable `.notecraft/index.sqlite` (sections, pages, attachments; links, tags, and FTS tables created empty), refreshes it by modified time, size, and hash, and rebuilds it when it is corrupt or from a newer schema. Listing 1,000 pages from the index takes about 27 ms (criterion bench `sidebar`). The navigation does not read the index yet; wiring it in is gaps rank 15 |
 | ST-08 | Structure | Undo and redo | 1 | M | |
 | ST-09 | Structure | Notebook Recycle Bin with restore | 3 | M | |
 | ST-10 | Structure | Page versions | 3 | M | |
@@ -236,3 +236,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-15 | 1 | ST-01 scored D and SH-06 evidence updated: the folder reader and the real navigation tree (PR 1.1). |
 | 2026-10-15 | 1 | IN-01 and IN-02 scored P and IN-03 scored D (PR 1.10, ink engine and pen): pen, smoothing, and stroke capture work and are tested with synthetic events; saving strokes waits for PR 1.9 and no real pen has been tried. |
 | 2026-10-15 | 1 | PR 1.3: FM-01 scored P (page text parses into blocks and renders in flow layout; folder reading waits for PR 1.1); FM-04 scored P (frontmatter read; write waits for PR 1.4). |
+| 2026-10-15 | 1 | ST-07 scored P (PR 1.2): rebuildable `index.sqlite`, incremental refresh, 1,000-page sidebar in about 27 ms; the navigation is not wired to it yet. |

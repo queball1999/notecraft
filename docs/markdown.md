@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -274,7 +274,7 @@ A cache built from the files. Deleting it is always safe. Tables (Phase 1 schema
 | `attachments` | path, size, mime type, hash, referencing pages |
 | `fts_pages` | SQLite FTS5 full-text index over page text |
 
-On open, NoteCraft compares file modified times and hashes against the index and reparses only what changed. A notebook with 1,000 pages must list its sidebar in under 500 ms (SCRD section 11); the full reindex can finish in the background.
+On open, NoteCraft compares file modified times and sizes against the index, hashes the pages that differ (FNV-1a over the file, read up to the 64 MiB page limit), and reparses only what changed. The schema version is the SQLite `user_version` pragma. A database that is corrupt, not a database, or from a newer schema is deleted and rebuilt from the folder. The index is native only; the wasm32 build has no index. A notebook with 1,000 pages must list its sidebar in under 500 ms (SCRD section 11); the full reindex can finish in the background.
 
 ## 9. Limits
 
@@ -309,3 +309,4 @@ On open, NoteCraft compares file modified times and hashes against the index and
 | 2026-10-15 | 0 | `paper: dotted` marked as a kept extra beyond OneNote; ruled (lined) paper draws a red margin line, with no new value. |
 | 2026-10-15 | 1 | The folder reader (section 2, section 9 folder depth) is implemented. Section 2.3 spells out the file name rules: leading dots and spaces are trimmed too, Windows device names get an underscore, and names are cut to 255 bytes. |
 | 2026-10-15 | 1 | PR 1.3 landed the reader: status line updated; frontmatter over 64 KiB is kept as text with its keys ignored, and a block with no closing line is not frontmatter; the body is parsed after the frontmatter with page-relative spans. |
+| 2026-10-15 | 1 | PR 1.2 landed the index: section 8 states the refresh rule (time and size, then hash), the `user_version` migrations, and rebuild on corruption or a newer schema. |

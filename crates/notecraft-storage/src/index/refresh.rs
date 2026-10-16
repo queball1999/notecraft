@@ -246,7 +246,14 @@ impl Walk<'_> {
         self.tx.execute(
             "INSERT OR REPLACE INTO sections (path, parent, name, kind, color, ord)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![path, parent, name, kind, color.map(i64::from), self.section_ord],
+            params![
+                path,
+                parent,
+                name,
+                kind,
+                color.map(i64::from),
+                self.section_ord
+            ],
         )?;
         self.section_ord += 1;
         Ok(())
