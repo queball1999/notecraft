@@ -145,6 +145,7 @@ fn hostile_input_never_panics() {
         TessParams {
             cap_segments: 0,
             fringe: true,
+            curve: true,
         },
     );
     assert!(mesh.indices.len().is_multiple_of(3));

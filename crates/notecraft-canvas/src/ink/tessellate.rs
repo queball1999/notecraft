@@ -69,6 +69,10 @@ pub struct TessParams {
     pub cap_segments: u32,
     /// Add the anti-aliasing fringe. Leave it off for a translucent stroke.
     pub fringe: bool,
+    /// Run the ribbon through a smooth curve between the stored points (see
+    /// [`smooth_centerline`]) instead of straight segments. Only the mesh changes; the stored
+    /// points do not.
+    pub curve: bool,
 }
 
 impl Default for TessParams {
@@ -76,6 +80,7 @@ impl Default for TessParams {
         Self {
             cap_segments: 8,
             fringe: true,
+            curve: true,
         }
     }
 }
@@ -94,6 +99,7 @@ impl TessParams {
         Self {
             cap_segments: (segments as u32).clamp(MIN_CAP_SEGMENTS, MAX_CAP_SEGMENTS),
             fringe: true,
+            curve: true,
         }
     }
 }
@@ -143,6 +149,9 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
             }
             _ => nodes.push(Node { pos, radius }),
         }
+    }
+    if params.curve {
+        nodes = smooth_nodes(&nodes);
     }
     let mut mesh = StrokeMesh::default();
     let Some(first) = nodes.first().copied() else {
@@ -219,6 +228,97 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
     ));
     add_fringe(&mut mesh, &chains, params.fringe);
     mesh
+}
+
+/// Turn (radians) one extra centerline point stands for: a segment between two stored points
+/// gets one more point for each this much its direction changes at its two ends.
+const CURVE_STEP: f32 = 0.12;
+/// Most points one segment is cut into.
+const MAX_SUBDIVISIONS: usize = 16;
+/// Most centerline points a smoothed stroke gets, so a very long stroke stays cheap.
+const MAX_SMOOTH_NODES: usize = 60_000;
+
+/// The angle between two direction vectors in radians, 0 when either has no direction.
+fn turn_between(a: Vec2, b: Vec2) -> f32 {
+    if a == Vec2::ZERO || b == Vec2::ZERO {
+        return 0.0;
+    }
+    a.dot(b).clamp(-1.0, 1.0).acos()
+}
+
+/// A point on the cubic Hermite curve from `p1` to `p2` with end tangents `m1` and `m2`.
+fn hermite(p1: Vec2, m1: Vec2, p2: Vec2, m2: Vec2, t: f32) -> Vec2 {
+    let (t2, t3) = (t * t, t * t * t);
+    p1 * (2.0 * t3 - 3.0 * t2 + 1.0)
+        + m1 * (t3 - 2.0 * t2 + t)
+        + p2 * (-2.0 * t3 + 3.0 * t2)
+        + m2 * (t3 - t2)
+}
+
+/// Run the centerline through a smooth curve: each segment between stored points becomes a
+/// Hermite curve whose end tangents follow the neighboring points (a Catmull-Rom spline with
+/// tangents scaled to the segment, so uneven spacing does not overshoot). Straight stretches
+/// stay one segment; bends get more points in proportion to how much they turn. Radii are
+/// interpolated linearly. Every stored point stays on the curve.
+fn smooth_nodes(nodes: &[Node]) -> Vec<Node> {
+    if nodes.len() < 3 {
+        return nodes.to_vec();
+    }
+    let at = |i: isize| -> Node {
+        let last = nodes.len() as isize - 1;
+        nodes
+            .get(i.clamp(0, last) as usize)
+            .copied()
+            .unwrap_or(nodes[0])
+    };
+    // Fewer subdivisions for very long strokes keep the total bounded.
+    let cap = (MAX_SMOOTH_NODES / nodes.len()).clamp(1, MAX_SUBDIVISIONS);
+    let mut out = Vec::with_capacity(nodes.len() * 2);
+    out.push(nodes[0]);
+    for i in 0..nodes.len() as isize - 1 {
+        let (p0, p1, p2, p3) = (at(i - 1), at(i), at(i + 1), at(i + 2));
+        let chord = p2.pos - p1.pos;
+        let length = chord.length();
+        let (d0, d1, d2) = (unit(p1.pos - p0.pos), unit(chord), unit(p3.pos - p2.pos));
+        let bend = turn_between(d0, d1) + turn_between(d1, d2);
+        let count = ((bend / CURVE_STEP).ceil() as usize).clamp(1, cap);
+        // Tangent directions come from the neighbors; at the ends, from the segment itself.
+        let t1 = if i == 0 { d1 } else { unit(p2.pos - p0.pos) };
+        let t2 = if i + 2 >= nodes.len() as isize {
+            d1
+        } else {
+            unit(p3.pos - p1.pos)
+        };
+        let (m1, m2) = (t1 * length, t2 * length);
+        for step in 1..count {
+            let t = step as f32 / count as f32;
+            out.push(Node {
+                pos: hermite(p1.pos, m1, p2.pos, m2, t),
+                radius: p1.radius + (p2.radius - p1.radius) * t,
+            });
+        }
+        out.push(p2);
+    }
+    out
+}
+
+/// The centerline [`tessellate`] draws for `points`: the stored points with the extra points
+/// that make the curve through them smooth. Pressure is interpolated along the curve.
+pub fn smooth_centerline(points: &[InkPoint]) -> Vec<InkPoint> {
+    // A unit width makes the node radius the width at that pressure, so pressure can be
+    // recovered from it.
+    let nodes: Vec<Node> = points
+        .iter()
+        .filter(|p| p.pos().is_finite())
+        .map(|p| Node {
+            pos: p.pos(),
+            radius: p.pressure.clamp(0.0, 1.0),
+        })
+        .collect();
+    smooth_nodes(&nodes)
+        .into_iter()
+        .map(|n| InkPoint::new(n.pos.x, n.pos.y, n.radius.clamp(0.0, 1.0)))
+        .collect()
 }
 
 fn push_vertex(mesh: &mut StrokeMesh, pos: Vec2) -> u32 {
@@ -406,7 +506,7 @@ mod tests {
             6.0,
             TessParams {
                 cap_segments: 16,
-                fringe: true,
+                ..TessParams::default()
             },
         );
         assert!(valid(&mesh));
@@ -514,6 +614,7 @@ mod tests {
             TessParams {
                 cap_segments: 99,
                 fringe: true,
+                curve: false,
             },
         );
         assert!(valid(&mesh));
@@ -526,6 +627,7 @@ mod tests {
             TessParams {
                 cap_segments: 99,
                 fringe: false,
+                curve: false,
             },
         );
         assert!(plain.triangle_count() <= 2000 * (2 + 64) + 200);
@@ -536,6 +638,7 @@ mod tests {
         let params = TessParams {
             cap_segments: 8,
             fringe: false,
+            curve: true,
         };
         let mesh = tessellate(&line(5, 10.0, 1.0), 6.0, params);
         assert_eq!(mesh.edges.len(), mesh.positions.len());
@@ -551,6 +654,7 @@ mod tests {
             TessParams {
                 cap_segments: 8,
                 fringe: false,
+                curve: true,
             },
         );
         let fringed = tessellate(&points, 6.0, TessParams::default());
@@ -607,7 +711,14 @@ mod tests {
             InkPoint::new(50.0, 0.0, 1.0),
             InkPoint::new(50.0, 50.0, 1.0),
         ];
-        let mesh = tessellate(&points, 4.0, TessParams::default());
+        let mesh = tessellate(
+            &points,
+            4.0,
+            TessParams {
+                curve: false,
+                ..TessParams::default()
+            },
+        );
         assert!(valid(&mesh));
         let corner = Vec2::new(50.0, 0.0);
         let mut on_disc = 0;
@@ -628,6 +739,7 @@ mod tests {
             TessParams {
                 cap_segments: 8,
                 fringe: false,
+                curve: false,
             },
         );
         assert!(mesh.triangle_count() > plain.triangle_count());
@@ -643,5 +755,98 @@ mod tests {
             TessParams::for_screen_radius(f32::NAN).cap_segments,
             MIN_CAP_SEGMENTS
         );
+    }
+
+    /// The largest turn between successive segments of a polyline, in degrees.
+    fn max_turn_degrees(points: &[InkPoint]) -> f32 {
+        let dirs: Vec<Vec2> = points
+            .windows(2)
+            .filter_map(|w| {
+                let d = w[1].pos() - w[0].pos();
+                (d.length() > 1.0e-4).then(|| unit(d))
+            })
+            .collect();
+        dirs.windows(2)
+            .map(|w| turn_between(w[0], w[1]).to_degrees())
+            .fold(0.0, f32::max)
+    }
+
+    /// A circle of `radius` sampled `n` times a lap, as a fast pen on a slow frame would.
+    fn circle(radius: f32, n: usize) -> Vec<InkPoint> {
+        (0..=n)
+            .map(|i| {
+                let a = TAU * i as f32 / n as f32;
+                InkPoint::new(300.0 + radius * a.cos(), 300.0 + radius * a.sin(), 0.8)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_fast_circle_has_no_sharp_angle_jumps_once_smoothed() {
+        // 14 samples a lap is 25.7 degrees between samples: a visible polygon.
+        let raw = circle(100.0, 14);
+        let raw_turn = max_turn_degrees(&raw);
+        assert!(raw_turn > 25.0, "{raw_turn}");
+        let smooth = smooth_centerline(&raw);
+        assert!(smooth.len() > raw.len() * 2);
+        let turn = max_turn_degrees(&smooth);
+        assert!(
+            turn < 10.0 && turn < raw_turn / 2.0,
+            "max turn {turn} degrees"
+        );
+        // The curve stays on the circle: no overshoot between the samples.
+        for p in &smooth {
+            let r = p.pos().distance(Vec2::new(300.0, 300.0));
+            assert!((r - 100.0).abs() < 1.5, "radius {r}");
+        }
+        // The mesh uses the curve.
+        let curved = tessellate(&raw, 4.0, TessParams::default());
+        let straight = tessellate(
+            &raw,
+            4.0,
+            TessParams {
+                curve: false,
+                ..TessParams::default()
+            },
+        );
+        assert!(valid(&curved) && curved.positions.len() > straight.positions.len());
+    }
+
+    #[test]
+    fn smoothing_keeps_every_stored_point_and_straight_lines_straight() {
+        let raw = circle(80.0, 20);
+        let smooth = smooth_centerline(&raw);
+        for p in &raw {
+            assert!(
+                smooth.iter().any(|q| q.pos().distance(p.pos()) < 1.0e-3),
+                "{p:?} was moved"
+            );
+        }
+        let straight = smooth_centerline(&line(30, 10.0, 0.5));
+        assert_eq!(straight.len(), 30);
+        // Pressure is interpolated between the neighbors.
+        let two = [
+            InkPoint::new(0.0, 0.0, 0.0),
+            InkPoint::new(50.0, 40.0, 1.0),
+            InkPoint::new(100.0, 0.0, 0.0),
+        ];
+        for p in smooth_centerline(&two) {
+            assert!((0.0..=1.0).contains(&p.pressure));
+        }
+    }
+
+    #[test]
+    fn smoothing_is_bounded_and_ignores_bad_points() {
+        let zigzag: Vec<InkPoint> = (0..20_000)
+            .map(|i| InkPoint::new(i as f32, if i % 2 == 0 { 0.0 } else { 30.0 }, 1.0))
+            .collect();
+        assert!(smooth_centerline(&zigzag).len() <= MAX_SMOOTH_NODES + zigzag.len());
+        let bad = [
+            InkPoint::new(f32::NAN, 0.0, 1.0),
+            InkPoint::new(0.0, 0.0, 1.0),
+            InkPoint::new(10.0, 5.0, 1.0),
+        ];
+        assert!(smooth_centerline(&bad).iter().all(|p| p.pos().is_finite()));
+        assert!(smooth_centerline(&[]).is_empty());
     }
 }
