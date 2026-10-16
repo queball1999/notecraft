@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: ranks 3 (release dry run) and 5 (GitHub settings) removed.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Phase 0 closed; ranks 6, 9, 11, 12, and 14 replaced by one deferred hands-on checks gap (rank 25).
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -10,15 +10,6 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
-| 6 | No window or app scaffold | SH-01 | 8-14 | build_plan/02, PR 0.1 |
-| 7 | No command registry (needed before any button) | SH-03, SH-04 | 12-20 | build_plan/02, PR 0.2 |
-| 8 | No theme system or presets | TH-01 to TH-06 | 40-68 | build_plan/02, PR 0.3, 0.4 |
-| 9 | No ribbon or original icon set | SH-02, SH-05 | 60-100 | build_plan/02, PR 0.5 |
-| 10 | No notebook list, section tabs, page list | SH-06 to SH-08 | 24-40 | build_plan/02, PR 0.6 |
-| 11 | No canvas pan, zoom, rule lines | CV-01 to CV-03 | 24-40 | build_plan/02, PR 0.7 |
-| 12 | No File backstage, recents, open dialog | SH-11, SH-12 | 12-20 | build_plan/02, PR 0.8 |
-| 13 | No status bar, full page view, shortcut map | SH-09, SH-13, SH-14 | 12-20 | build_plan/02, PR 0.9 |
-| 14 | No accessibility labels | SH-15 | 10-16 | build_plan/02, PR 0.10 |
 
 ## Next (Phase 1: core engine, rest of alpha gate)
 
@@ -34,6 +25,7 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | 22 | No pictures or attachments | AT-01 to AT-05 | 40-70 | build_plan/03, PR 1.12 |
 | 23 | No structure editing (create, rename, move) | ST-02 to ST-06 | 30-50 | build_plan/03, PR 1.13 |
 | 24 | Parsers not fuzzed | FM-08 | 10-16 | build_plan/03, PR 1.14 |
+| 25 | Hands-on checks deferred from Phase 0 (one pass, 2-4 hours, before the v0.1.0 alpha): launch the window and follow system dark mode and the OS UI font on macOS (SH-01, TH-06); follow system dark mode on Linux (TH-06; Linux launch was checked by the maintainer); shortcuts using Cmd on a Mac (SH-14); ribbon key tips on a physical keyboard (SH-05); Narrator on Windows and VoiceOver on macOS runs (SH-15); the real OS folder and file dialogs on Windows, macOS, and Linux (SH-12); also pinch zoom on a real touchpad (CV-02) and typing into the font and size boxes by hand (SH-02). Record each result in the row evidence. Note: the screen reader checks may be partly automated in Phase 1 (UI Automation, AX, and AT-SPI tree checks in CI, and VoiceOver through Guidepup); a note only, not a build plan item | SH-01, SH-05, SH-12, SH-14, SH-15, TH-06 (plus CV-02, SH-02 notes) | 2-4 | build_plan/03, PR 1.15 |
 
 ## Later
 
@@ -82,3 +74,21 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-14 | -1 | Rank 3 narrowed to the GitHub release dry run. |
 | 2026-10-14 | -1 | Rank 4 (logging) removed. |
 | 2026-10-14 | -1 | Ranks 3 (release dry run) and 5 (GitHub settings) removed. |
+| 2026-10-14 | -1 | Rank 6 narrowed to verifying the window on macOS and Linux. |
+| 2026-10-14 | 0 | Rank 7 (command registry) removed; rank 9 now covers binding buttons and the badge. |
+| 2026-10-14 | 0 | Rank 8 narrowed to the four presets (PR 0.3 landed the token system); rank 6 adds verifying system dark mode on macOS and Linux. |
+| 2026-10-14 | 0 | Rank 8 (theme presets) removed; rank 6 adds verifying the OS UI font on macOS and Linux. |
+| 2026-10-14 | 0 | Rank 9 narrowed: the ribbon widget, icons, File backstage, and Home tab landed (PR 0.5a); the other tabs, collapse, and key tips remain (PR 0.5b). |
+| 2026-10-14 | 0 | Rank 9 narrowed: all ribbon tabs, collapse, and key tips landed (PR 0.5b); a physical keyboard check and the SH-04 badge decision remain. |
+| 2026-10-14 | 0 | Rank 10 (notebook list, section tabs, page list) removed (PR 0.6). |
+| 2026-10-14 | 0 | Rank 11 narrowed: canvas pan, zoom, rule lines, page color, and paper size landed (PR 0.7); the dotted paper decision and a real pinch check remain. |
+| 2026-10-14 | 0 | Rank 12 narrowed: start page, recent list, and open dialogs landed (PR 0.8); trying the OS dialogs in the running app remains. |
+| 2026-10-14 | 0 | Rank 13 (status bar, full page view, shortcut map) removed (PR 0.9); rank 6 adds trying Cmd shortcuts on a Mac. |
+| 2026-10-14 | 0 | Rank 14 narrowed: screen reader names, keyboard focus order, and focus rings landed (PR 0.10); Narrator and VoiceOver runs remain. |
+| 2026-10-15 | 0 | Rank 9 updated: Ribbon Display Options and the simplified ribbon landed (PR 0.5c); Alt key tips seen with OS keyboard input; 0.5d to 0.5f added. |
+| 2026-10-15 | 0 | Rank 9 updated: font and size boxes landed (PR 0.5d); font names in their own face remain. |
+| 2026-10-15 | 0 | Rank 9 updated: color pickers and the Colors dialog landed (PR 0.5e); the duplicated RGBA fields on its Custom page noted. |
+| 2026-10-15 | 0 | Rank 9: font names now show in their own face (PR 0.5d) and the Colors dialog shows one set of R, G, B, A fields (PR 0.5e); a hand check of typing in the boxes added. |
+| 2026-10-15 | 0 | Rank 9 narrowed: style and tag galleries and the Help tab landed (PR 0.5f); ribbon parity follow-ups 0.5c to 0.5f are done. |
+| 2026-10-15 | 0 | Rank 11 narrowed: dotted paper kept as an extra and built with the ruled margin line (CV-03 done); only the real pinch check remains. |
+| 2026-10-15 | 0 | Phase 0 close (maintainer decisions, 2026-10-15): ranks 6, 9, 11, and 14 removed; their rows (SH-01, SH-05, SH-14, SH-15, TH-06) are scored D on the Windows evidence and the hands-on checks move to one new gap, rank 25, to do before the v0.1.0 alpha (2-4 hours, PR 1.15). SH-04 scored D with the per-button badge dropped for good. Dotted paper stays a kept extra. Rank 12 (OS dialogs, SH-12) also removed on the same decision: SH-12 is scored D on the harness tests and the real-dialog check joins rank 25; the Linux launch was checked by the maintainer. |

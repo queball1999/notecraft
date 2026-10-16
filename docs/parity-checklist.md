@@ -1,6 +1,7 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: SC-08 and SC-10 scored D; Phase -1 closed.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Phase 0 close: SH-01, SH-04, SH-05, SH-15, TH-06 scored D; summary regenerated.
+
 
 Every OneNote feature NoteCraft must have, one row each, scored:
 
@@ -18,9 +19,9 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Area | D | P | M | Total | Done % |
 |---|---:|---:|---:|---:|---:|
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
-| Shell | 0 | 0 | 20 | 20 | 0% |
-| Themes | 0 | 0 | 6 | 6 | 0% |
-| Canvas | 0 | 0 | 12 | 12 | 0% |
+| Shell | 14 | 0 | 6 | 20 | 70% |
+| Themes | 6 | 0 | 0 | 6 | 100% |
+| Canvas | 3 | 0 | 9 | 12 | 25% |
 | Ink | 0 | 0 | 12 | 12 | 0% |
 | Text | 0 | 0 | 12 | 12 | 0% |
 | Structure | 0 | 0 | 12 | 12 | 0% |
@@ -28,7 +29,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Format | 0 | 0 | 9 | 9 | 0% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 10 | 0 | 103 | 113 | 8% |
+| Total | 33 | 0 | 80 | 113 | 29% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -50,20 +51,20 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| SH-01 | Shell | Window opens on wgpu (DX12, Metal, Vulkan) | 0 | M | |
-| SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | M | |
-| SH-03 | Shell | Every ribbon button bound to a command id | 0 | M | |
-| SH-04 | Shell | "Coming Soon" badge and toast for unimplemented commands | 0 | M | |
-| SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | M | |
-| SH-06 | Shell | Navigation: notebook list | 0 | M | |
-| SH-07 | Shell | Section tabs with colors | 0 | M | |
-| SH-08 | Shell | Page list with subpage indent | 0 | M | |
-| SH-09 | Shell | Status bar (zoom, page info) | 0 | M | |
-| SH-11 | Shell | File backstage with recent notebooks and pages | 0 | M | |
-| SH-12 | Shell | Open dialog for notebooks, `.md`, and `.notecraft` | 0 | M | |
-| SH-13 | Shell | Full page view (F11) | 0 | M | |
-| SH-14 | Shell | OneNote default shortcut map | 0 | M | |
-| SH-15 | Shell | Keyboard navigation and screen reader labels (AccessKit) | 0 | M | |
+| SH-01 | Shell | Window opens on wgpu (DX12, Metal, Vulkan) | 0 | D | PR 0.1: window opens on wgpu (Windows DX12 verified); geometry saved through craft-settings. The maintainer ran NoteCraft on Linux (2026-10-15) and reported it works the same as on Windows. Scored D on the Windows and Linux evidence by maintainer decision, 2026-10-15; the macOS launch check is in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0) |
+| SH-02 | Shell | Ribbon with File, Home, Insert, Draw, History, Review, View tabs | 0 | D | PR 0.5a and 0.5b: data-driven ribbon with original icons drawn in code; File backstage and all seven OneNote tabs with their groups; egui_kittest tests click every tab in every preset. PR 0.5d: Font and Font Size are editable boxes showing the current value; the font box lists the installed families (a background scan reads only each file's name table; 88 families on Windows 11) and filters as you type; the size box takes any size from 1 to 1638. PR 0.5e: color menus in Office's layout (Automatic, Theme Colors, Standard Colors, Recent Colors saved in settings, More Colors) with a Colors dialog (Standard and Custom pages, New over Current, OK and Cancel); split color buttons show and apply the last color; Text Highlight Color offers fifteen colors with No Color last. PR 0.5f: Styles and Tags are in-ribbon galleries (a bordered box with two entries drawn in their own style, up and down arrows that scroll two at a time, and a More arrow for the full list; one dropdown each in the simplified ribbon), and the Help tab (Help, Support, Feedback, Show Training) follows View; egui_kittest tests click entries, arrows, and More |
+| SH-03 | Shell | Every ribbon button bound to a command id | 0 | D | PR 0.2, 0.5a, 0.5b: every button, menu item, and backstage entry on all tabs runs a registered command with arguments its schema accepts (unit test); clicks dispatch through the registry (egui_kittest tests) |
+| SH-04 | Shell | "Coming Soon" tooltip and toast for unimplemented commands | 0 | D | PR 0.2 and 0.5: clicking a Coming Soon button shows "Coming Soon: <label>" for 3 s and its tooltip says Coming Soon (egui_kittest tests). The per-button badge was dropped at the maintainer's request and stays dropped (decision, 2026-10-15) |
+| SH-05 | Shell | Collapsible ribbon (Ctrl+F1) and key tips | 0 | D | PR 0.5b: view.ribbon.toggle (Ctrl+F1, chevron, double-click a tab), peek while collapsed, collapsed state saved; key tips on tabs and buttons (Alt, F10, Alt plus letter, Esc); egui_kittest tests. PR 0.5c: Ribbon Display Options menu on the chevron (Classic or Simplified Ribbon; Full-screen mode, Show tabs only, Always show Ribbon) through view.ribbon.layout and view.ribbon.show, both saved (the old collapsed key still read); the simplified ribbon is one row of icon buttons with a More Options menu for what does not fit; full-screen mode shows the ribbon while the pointer is at the top; checked in the running app on Windows 11. A lone Alt tap sent as OS keyboard input (keybd_event) showed the key tips on Windows 11; not yet tried by hand on a physical keyboard. Scored D on the Windows evidence by maintainer decision, 2026-10-15; the physical keyboard check is in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0) |
+| SH-06 | Shell | Navigation: notebook list | 0 | D | PR 0.6: notebook pane with color swatches, expandable notebooks and section groups; clicks run nav.notebook.select and nav.section.select (egui_kittest and engine tests). Shows mock notebooks until Phase 1 reads real ones (ST-01) |
+| SH-07 | Shell | Section tabs with colors | 0 | D | PR 0.6: colored section tabs across the page, softened in dark mode, "+" tab (section.new, Coming Soon), overflow menu; clicks run nav.section.select (egui_kittest tests) |
+| SH-08 | Shell | Page list with subpage indent | 0 | D | PR 0.6: page list with Add Page (page.new, Coming Soon), subpages indented two levels, current page highlighted; right of the page in 2016 and 2019, left in 2021 and Microsoft 365; clicks run nav.page.select (egui_kittest tests) |
+| SH-09 | Shell | Status bar (zoom, page info) | 0 | D | PR 0.9 (#15): Page n of m and the zoom, which opens a zoom menu through the zoom commands; test status_bar_shows_the_page_and_zoom_menu. Save state joins with auto-save (FM-05) |
+| SH-11 | Shell | File backstage with recent notebooks and pages | 0 | D | PR 0.8 (#14): start page and the backstage Open page list the last 10 notebooks and pages (saved in config.toml); a row reopens, Clear Recent empties; file.recent.clear Ready; tests recent_rows_reopen_without_the_picker, backstage_open_page_lists_recents_and_opens_files. About page (feat/about-page): the About entry shows the version, commit, build date, profile, target, app ID, copyright, licenses, third-party notices, links, settings and log folders, a Copy button (file.copy_about_info), and the Microsoft trademark notice; file.about and file.copy_about_info Ready; tests in about.rs (file_about_is_ready_and_opens_the_page, page_shows_version_notice_and_license, copy_button_puts_the_details_on_the_clipboard, about_controls_are_named_and_pressable) |
+| SH-12 | Shell | Open dialog for notebooks, `.md`, and `.notecraft` | 0 | D | PR 0.8 (#14): file.new_notebook, file.open_notebook, file.open Ready; a path-less command asks the picker (OS dialogs through rfd in the app; a fake in tests); only .md and .notecraft accepted; Phase 0 shows the mock notebooks. Scored D on the harness tests (fake picker) by maintainer decision, 2026-10-15; trying the real OS folder and file dialogs on Windows, macOS, and Linux is in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0) |
+| SH-13 | Shell | Full page view (F11) | 0 | D | PR 0.9 (#15): view.full_page (F11) and view.normal Ready; only the page shows, with a Normal View button; F11, Esc, or the button leaves; test full_page_view_shows_only_the_page |
+| SH-14 | Shell | OneNote default shortcut map | 0 | D | PR 0.9 (#15): cmd::shortcuts (every default shortcut plus Ctrl+2 to Ctrl+9 tags), dispatched by the shell, Ctrl as Cmd on macOS, idle while a text field has focus; tests reject duplicates and invalid bindings; shortcuts_run_their_commands. The Cmd-on-Mac part is in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0); the row stays D on the Windows evidence (maintainer decision, 2026-10-15) |
+| SH-15 | Shell | Keyboard navigation and screen reader labels (AccessKit) | 0 | D | PR 0.10 (#16): every actionable AccessKit node named (panel splitters added); Tab order ribbon, navigation, section tabs, page, status bar; accent focus ring on every control including the canvas and the splitters; buttons are push buttons (UIA Invoke) and navigation rows are selectable list items (UIA SelectionItem), checked in the running app; canvas scroll bars named. A UI Automation dump of the running app on Windows 11 (Home tab) listed 54 controls: 8 ribbon tabs as TabItem with SelectionItem, 40 buttons with Invoke, and the Font and Font Size boxes as Edit with Value; none actionable without a name; tests every_control_has_a_screen_reader_name, every_control_can_be_pressed_by_a_screen_reader, buttons_are_push_buttons_and_rows_report_selection, tab_moves_through_ribbon_navigation_page_and_status_bar. Scored D on the Windows UI Automation evidence by maintainer decision, 2026-10-15; runs with Narrator (Windows) and VoiceOver (macOS) are in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0) |
 | SH-16 | Shell | Quick Access Toolbar | 3 | M | |
 | SH-17 | Shell | Docked window (Ctrl+Alt+D) | 4 | M | |
 | SH-18 | Shell | Browser version | 4 | M | |
@@ -75,20 +76,20 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| TH-01 | Themes | OneNote 2016 preset, light and dark | 0 | M | |
-| TH-02 | Themes | OneNote 2019 preset, light and dark | 0 | M | |
-| TH-03 | Themes | OneNote 2021 preset, light and dark | 0 | M | |
-| TH-04 | Themes | Microsoft 365 preset, light and dark | 0 | M | |
-| TH-05 | Themes | Switch theme and mode live, persisted in settings | 0 | M | |
-| TH-06 | Themes | Follow system dark mode | 0 | M | |
+| TH-01 | Themes | OneNote 2016 preset, light and dark | 0 | D | PR 0.4: light and dark palettes match docs/themes.md section 4 and pass WCAG AA (unit tests); selected with view.theme.set; screenshots on Windows 11. The accent and tab strip first show on the ribbon (PR 0.5) |
+| TH-02 | Themes | OneNote 2019 preset, light and dark | 0 | D | PR 0.4: light and dark palettes match docs/themes.md section 4 and pass WCAG AA (unit tests); selected with view.theme.set; screenshots on Windows 11. The accent and tab strip first show on the ribbon (PR 0.5) |
+| TH-03 | Themes | OneNote 2021 preset, light and dark | 0 | D | PR 0.4: light and dark palettes match docs/themes.md section 4 and pass WCAG AA (unit tests); selected with view.theme.set; screenshots on Windows 11. The accent and tab strip first show on the ribbon (PR 0.5) |
+| TH-04 | Themes | Microsoft 365 preset, light and dark | 0 | D | PR 0.4: light and dark palettes match docs/themes.md section 4 and pass WCAG AA (unit tests); selected with view.theme.set; screenshots on Windows 11. The accent and tab strip first show on the ribbon (PR 0.5) |
+| TH-05 | Themes | Switch theme and mode live, persisted in settings | 0 | D | PR 0.3 and 0.4: view.theme.set, view.mode.toggle, view.mode.set switch between four distinct presets and three modes live (egui_kittest test); theme.preset and theme.mode saved with craft-settings (unit tests). Ribbon buttons for them come in PR 0.5 |
+| TH-06 | Themes | Follow system dark mode | 0 | D | PR 0.3: system is the default mode and follows the OS live (egui_kittest test switching the OS theme); verified on Windows 11 (dark); launched on Linux by the maintainer (2026-10-15), dark mode following not separately reported. All four presets in light and dark were switched through the control channel and screenshotted on Windows 11 with no errors in the log. Scored D on the Windows evidence by maintainer decision, 2026-10-15; the macOS dark mode check and the Linux dark mode follow check are in the deferred hands-on checks gap (docs/gaps.md, before v0.1.0) |
 
 ## Canvas
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| CV-01 | Canvas | Pan (scroll, middle drag, space drag) | 0 | M | |
-| CV-02 | Canvas | Zoom 10% to 400%, Ctrl+wheel, pinch | 0 | M | |
-| CV-03 | Canvas | Rule lines and grid (blank, lined, grid, dotted) | 0 | M | |
+| CV-01 | Canvas | Pan (scroll, middle drag, space drag) | 0 | D | PR 0.7 (#13): canvas widget scrolls with the wheel and scroll bars, pans with middle-drag and Space+drag; Viewport property tests; app_shell tests middle_drag_and_space_drag_pan_the_canvas, wheel_scrolls_the_canvas |
+| CV-02 | Canvas | Zoom 10% to 400%, Ctrl+wheel, pinch | 0 | D | PR 0.7 (#13): view.zoom_in, view.zoom_out, view.zoom, view.zoom_actual, view.zoom_page_width Ready; Ctrl+wheel and pinch zoom about the pointer through view.zoom; tests zoom_buttons_zoom_the_canvas, ctrl_wheel_and_pinch_zoom_about_the_pointer (pinch tested with synthetic zoom events only) |
+| CV-03 | Canvas | Rule lines and grid (blank, lined, grid, dotted) | 0 | D | PR 0.7 (#13): view.rule_lines (none, 4 ruled, 4 grid sizes), view.page_color, view.paper_size Ready and drawn for the visible area only; per page in the session. Ruled paper has a thin red margin line 1 inch from the left edge, as in OneNote (theme token canvas_margin_rule). The View > Rule Lines menu is a gallery of thumbnail cards, as in OneNote, each drawn by the canvas paper code at a reduced scale. Dotted (a quarter inch dot grid, capped at 20000 dots) is a kept extra beyond OneNote, see docs/post-parity.md |
 | CV-04 | Canvas | Click anywhere to create a note container | 1 | M | |
 | CV-05 | Canvas | Move and resize containers | 1 | M | |
 | CV-06 | Canvas | Page grows with content | 1 | M | |
@@ -212,3 +213,23 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-14 | -1 | SC-07 scored D and SC-08 scored P (release contract). |
 | 2026-10-14 | -1 | SC-09 scored D (logging). |
 | 2026-10-14 | -1 | SC-08 and SC-10 scored D; Phase -1 closed. |
+| 2026-10-14 | -1 | SH-01 scored P (window opens; Windows verified). |
+| 2026-10-14 | 0 | SH-03 and SH-04 scored P (command registry and Coming Soon toast). |
+| 2026-10-14 | 0 | TH-05 and TH-06 scored P (theme tokens, commands, persistence, system mode). |
+| 2026-10-14 | 0 | TH-01 to TH-05 scored D (four presets, PR 0.4). |
+| 2026-10-14 | 0 | SH-02 scored P; SH-03 and SH-04 evidence updated (ribbon File and Home tabs, PR 0.5a). |
+| 2026-10-14 | 0 | SH-02 and SH-03 scored D; SH-05 scored P; SH-04 evidence updated (PR 0.5b). |
+| 2026-10-14 | 0 | SH-06, SH-07, SH-08 scored D (navigation on mock notebooks, PR 0.6). |
+| 2026-10-14 | 0 | CV-01 and CV-02 scored D, CV-03 scored P (canvas pan, zoom, paper, PR 0.7). |
+| 2026-10-14 | 0 | SH-11 scored D, SH-12 scored P (start page, recents, open dialogs, PR 0.8). |
+| 2026-10-14 | 0 | SH-09, SH-13, SH-14 scored D (status bar, full page view, shortcut map, PR 0.9). |
+| 2026-10-14 | 0 | SH-15 scored P (screen reader names, keyboard order, focus ring, PR 0.10). |
+| 2026-10-15 | 0 | SH-15 evidence: buttons are push buttons, navigation rows selectable list items, splitter focus ring, named scroll bars; checked in the running app (PR 0.10). |
+| 2026-10-15 | 0 | SH-05 evidence: Ribbon Display Options, simplified ribbon, full-screen mode (PR 0.5c); Alt key tips seen with OS keyboard input. |
+| 2026-10-15 | 0 | SH-02 evidence: font and size boxes with installed fonts (PR 0.5d). |
+| 2026-10-15 | 0 | SH-02 evidence: Office-style color menus, Recent Colors, and the Colors dialog (PR 0.5e). |
+| 2026-10-15 | 0 | SH-02 evidence: Styles and Tags galleries and the Help tab (PR 0.5f). |
+| 2026-10-15 | 0 | SH-11 evidence: the About page (feat/about-page). |
+| 2026-10-15 | 0 | CV-03 scored D: ruled paper draws the red margin line; dotted paper kept as an extra (docs/post-parity.md). |
+| 2026-10-15 | 0 | CV-03 evidence: the Rule Lines menu shows thumbnail cards of each paper style. |
+| 2026-10-15 | 0 | Phase 0 close (maintainer decisions, 2026-10-15): SH-01, SH-05, SH-12, SH-15, and TH-06 scored D on the Windows evidence (SH-01 also on the maintainer's Linux run), and SH-14 stays D, with their macOS, Linux dark mode, physical keyboard, screen reader, and real OS dialog runs moved to one deferred hands-on checks gap in docs/gaps.md; SH-04 reworded to the Coming Soon tooltip and toast and scored D (the per-button badge stays dropped); SH-12 scored D on the harness tests. |

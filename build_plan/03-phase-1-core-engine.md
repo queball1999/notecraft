@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: re-estimated at the Phase 0 close; PR 1.15 gains the deferred hands-on checks.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -305,9 +305,31 @@ Commits:
 
 PR title: `test: fuzz every page parser`.
 
+## PR 1.16: command line info, text, check, and run on notebooks
+
+| | |
+|---|---|
+| Branch | `feat/cli-notebooks` off `phase/1-core-engine` |
+| Hours | 10-16 |
+| Rows | none |
+
+Steps: the global `--notebook <path>` option (default: the current directory if it is a notebook), plus `--json` and `--quiet`. `notecraft-cli info` prints notebook, section, and page counts and the format version. `notecraft-cli text <page>` prints a page's plain text. `notecraft-cli check` validates a notebook (unparseable pages, broken links, missing attachments) and exits non-zero when it finds problems. `notecraft-cli run --page <page> --cmd <id> ...` opens the notebook through the engine, runs the commands against the page, and saves it (exit code 5 if the file changed on disk). `<page>` accepts a page id, a notebook-relative path, or a page link target. Depends on PR 1.1, 1.3, 1.4, and 1.7.
+
+Commits:
+
+1. `feat(cli): add --notebook and the info command`
+2. `feat(cli): add text and check`
+3. `feat(cli): run commands against a page and save it`
+
+PR title: `feat(cli): add info, text, check, and run on notebooks`.
+
+This PR is part of the command line decision of 2026-10-15 (docs/cli.md). It can land at any point after PR 1.7 and before PR 1.15.
+
 ## PR 1.15: close Phase 1 and ship the alpha
 
 Follow 00-conventions.md section 6, then release v0.1.0 (docs/releasing.md). Fill every Evidence cell in the docs/roadmap.md alpha gate table first; do not release with an empty cell.
+
+Also do the hands-on checks deferred from Phase 0 (maintainer decision, 2026-10-15; docs/gaps.md rank 25, 2-4 hours): launch the window and follow system dark mode and the OS UI font on macOS (SH-01, TH-06); follow system dark mode on Linux (TH-06); ribbon key tips on a physical keyboard (SH-05); Narrator on Windows and VoiceOver on macOS (SH-15); shortcuts using Cmd on a Mac (SH-14); the real OS file dialogs on all three systems (SH-12). Record each result in the row's evidence and fix what fails before tagging v0.1.0.
 
 ## Estimate
 
@@ -327,8 +349,11 @@ Follow 00-conventions.md section 6, then release v0.1.0 (docs/releasing.md). Fil
 | 1.12 attachments | 40-70 |
 | 1.13 structure editing | 30-50 |
 | 1.14 fuzzing | 10-16 |
-| 1.15 close and alpha | 8-14 |
-| Total | 444-756 |
+| 1.15 close and alpha | 10-18 |
+| 1.16 command line on notebooks | 10-16 |
+| Total | 456-776 |
+
+Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were recorded, so there is nothing to scale from and the PR ranges stay as they were. One change: PR 1.15 gains 2-4 hours for the hands-on checks deferred from Phase 0 (docs/gaps.md rank 25).
 
 ## Exit criteria
 
@@ -342,3 +367,5 @@ Follow 00-conventions.md section 6, then release v0.1.0 (docs/releasing.md). Fil
 |---|---|---|
 | 2026-10-14 | -1 | Created. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-15 | 0 | Added PR 1.16 (command line info, text, check, and run on notebooks) after the maintainer decision of 2026-10-15; Phase 1 estimate 454-772 hours. |
+| 2026-10-15 | 0 | Re-estimated at the Phase 0 close: PR 1.15 raised to 10-18 hours (deferred hands-on checks, gaps rank 25); Phase 1 is 456-776 hours. |

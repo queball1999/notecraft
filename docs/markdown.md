@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: `paper: dotted` marked as a kept extra; ruled paper has a margin line.
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -108,7 +108,7 @@ tags: [work, q3]
 aliases: [Q3 sync]
 notecraft:
   id: pg_01J9Z4B2M7XR    # stable page id (for notecraft:// links and history)
-  paper: lined          # blank | lined | grid | dotted
+  paper: lined          # blank | lined | grid | dotted (dotted is a kept extra; lined draws the red margin line)
   color: "#FFF8E1"      # page background color
 ---
 ```
@@ -306,3 +306,4 @@ On open, NoteCraft compares file modified times and hashes against the index and
 |---|---|---|
 | 2026-10-14 | -1 | Created. First full spec: folder layout, `.md` and `.notecraft` pages, containers, canvas block, note tags, page links, index, limits. Same day: backlinks, graph, embeds, and extra link forms moved to post-parity.md. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-15 | 0 | `paper: dotted` marked as a kept extra beyond OneNote; ruled (lined) paper draws a red margin line, with no new value. |

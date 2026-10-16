@@ -1,0 +1,244 @@
+//! File commands: `file.new_notebook`, `file.open_notebook`, `file.open`, and
+//! `file.recent.clear`. Each open records the path in the recent list. Until Phase 1 reads
+//! notebooks from disk, opening anything shows the mock notebooks.
+//!
+//! The `path` argument is optional in the schema so a ribbon button can send the command
+//! without one; the front end then asks with a file picker and sends it again with the path.
+//! Run without a path (from the control channel), the command fails with `invalid_args`.
+
+use serde_json::json;
+
+use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
+use crate::mock;
+use crate::recent::{RecentItem, RecentKind, MAX_PATH_CHARS};
+use crate::session::Session;
+
+/// File extensions `file.open` accepts, lowercase.
+pub const PAGE_EXTENSIONS: [&str; 2] = ["md", "notecraft"];
+
+fn path_arg(id: CommandId, args: &Map<String, Value>) -> Result<&str, CommandError> {
+    args.get("path")
+        .and_then(Value::as_str)
+        .ok_or_else(|| CommandError::InvalidArgs {
+            id,
+            reason: "path is required; the app asks with a picker when it is omitted".to_owned(),
+        })
+}
+
+fn bad_path(id: CommandId, reason: &str) -> CommandError {
+    CommandError::InvalidArgs {
+        id,
+        reason: reason.to_owned(),
+    }
+}
+
+/// Whether `path` names a page file NoteCraft opens (`.md` or `.notecraft`, any case).
+pub fn is_page_file(path: &str) -> bool {
+    path.rsplit_once('.').is_some_and(|(stem, ext)| {
+        !stem.is_empty()
+            && !stem.ends_with(['/', '\\'])
+            && PAGE_EXTENSIONS
+                .iter()
+                .any(|known| ext.eq_ignore_ascii_case(known))
+    })
+}
+
+/// Record `item` as most recent and show the mock notebooks if nothing is open yet.
+fn open(session: &mut Session, item: RecentItem) -> CommandOutput {
+    let value = json!({ "kind": item.kind.id(), "path": item.path });
+    session.recents_mut().push(item);
+    if session.notebooks().is_empty() {
+        session.set_notebooks(mock::notebooks());
+    }
+    session.mark_changed();
+    CommandOutput { value }
+}
+
+fn open_kind(
+    id: CommandId,
+    kind: RecentKind,
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let path = path_arg(id, args)?;
+    let Some(item) = RecentItem::new(kind, path) else {
+        return Err(bad_path(
+            id,
+            &format!("path must be 1 to {MAX_PATH_CHARS} characters with no control characters"),
+        ));
+    };
+    if kind == RecentKind::Page && !is_page_file(&item.path) {
+        return Err(bad_path(id, "only .md and .notecraft files can be opened"));
+    }
+    Ok(open(session, item))
+}
+
+/// `file.new_notebook { path }`: create a notebook in a folder. Phase 0 records the folder
+/// and shows the mock notebooks; Phase 1 creates the notebook files.
+pub(super) fn new_notebook(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    open_kind(ids::FILE_NEW_NOTEBOOK, RecentKind::Notebook, session, args)
+}
+
+/// `file.open_notebook { path }`: open a notebook folder.
+pub(super) fn open_notebook(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    open_kind(ids::FILE_OPEN_NOTEBOOK, RecentKind::Notebook, session, args)
+}
+
+/// `file.open { path }`: open a `.md` or `.notecraft` page file.
+pub(super) fn open_file(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    open_kind(ids::FILE_OPEN, RecentKind::Page, session, args)
+}
+
+/// `file.recent.clear`: empty the recent list.
+pub(super) fn recent_clear(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    if !session.recents().is_empty() {
+        session.recents_mut().clear();
+        session.mark_changed();
+    }
+    Ok(CommandOutput::default())
+}
+
+/// `file.about`: show the About page. The engine has nothing to change; the front end opens
+/// the page (it alone knows the build details), so this succeeds and does no more.
+pub(super) fn about(
+    _session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    Ok(CommandOutput::default())
+}
+
+/// `file.copy_about_info`: copy the About details. The front end builds the text and owns the
+/// clipboard, so this succeeds and does no more.
+pub(super) fn copy_about_info(
+    _session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    Ok(CommandOutput::default())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{json, Value};
+
+    use super::is_page_file;
+    use crate::cmd::Registry;
+    use crate::recent::RecentKind;
+    use crate::session::Session;
+
+    fn run(session: &mut Session, id: &str, args: Value) -> Result<Value, &'static str> {
+        Registry::builtin()
+            .run(session, id, args)
+            .map(|out| out.value)
+            .map_err(|err| err.code())
+    }
+
+    fn recent(session: &Session) -> Vec<(RecentKind, String)> {
+        session
+            .recents()
+            .items()
+            .iter()
+            .map(|item| (item.kind, item.path.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn opening_a_notebook_records_it_and_shows_the_mock() {
+        let mut session = Session::new();
+        assert!(session.notebooks().is_empty());
+        let out = run(
+            &mut session,
+            "file.open_notebook",
+            json!({ "path": "C:\\Notes\\Work" }),
+        );
+        assert_eq!(
+            out,
+            Ok(json!({ "kind": "notebook", "path": "C:\\Notes\\Work" }))
+        );
+        assert_eq!(session.notebooks().len(), 2);
+        assert!(session.current_page().is_some());
+        assert_eq!(
+            recent(&session),
+            [(RecentKind::Notebook, "C:\\Notes\\Work".to_owned())]
+        );
+    }
+
+    #[test]
+    fn opening_again_keeps_the_selection() {
+        let mut session = Session::new();
+        run(&mut session, "file.new_notebook", json!({ "path": "/a" })).unwrap();
+        run(&mut session, "nav.page.select", json!({ "id": "p-ideas" })).unwrap();
+        run(&mut session, "file.open", json!({ "path": "/b/Page.MD" })).unwrap();
+        assert_eq!(session.selection().page.as_deref(), Some("p-ideas"));
+        assert_eq!(
+            recent(&session),
+            [
+                (RecentKind::Page, "/b/Page.MD".to_owned()),
+                (RecentKind::Notebook, "/a".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn bad_paths_are_rejected_and_change_nothing() {
+        let mut session = Session::new();
+        let before = session.clone();
+        for (id, args) in [
+            ("file.open_notebook", json!(null)),
+            ("file.open_notebook", json!({ "path": "  " })),
+            ("file.open_notebook", json!({ "path": "a\u{0}b" })),
+            ("file.new_notebook", json!({ "path": "x".repeat(5000) })),
+            ("file.open", json!({ "path": "notes.txt" })),
+            ("file.open", json!({ "path": "/notes/.md" })),
+            ("file.open", json!({ "path": "md" })),
+            ("file.open", json!({ "path": 7 })),
+        ] {
+            assert_eq!(
+                run(&mut session, id, args.clone()),
+                Err("invalid_args"),
+                "{id} {args}"
+            );
+        }
+        assert_eq!(session, before);
+    }
+
+    #[test]
+    fn clear_empties_the_list() {
+        let mut session = Session::new();
+        run(&mut session, "file.recent.clear", json!(null)).unwrap();
+        assert_eq!(
+            session.revision(),
+            0,
+            "clearing an empty list is not a change"
+        );
+        run(&mut session, "file.open", json!({ "path": "a.notecraft" })).unwrap();
+        run(&mut session, "file.recent.clear", json!(null)).unwrap();
+        assert!(session.recents().is_empty());
+        assert_eq!(
+            session.notebooks().len(),
+            2,
+            "clearing does not close anything"
+        );
+    }
+
+    #[test]
+    fn page_file_extensions() {
+        for good in ["a.md", "A.MD", "x/y.notecraft", "C:\\n\\p.NoteCraft"] {
+            assert!(is_page_file(good), "{good}");
+        }
+        for bad in ["a.txt", "a", ".md", "dir/.md", "a.md.bak", "a."] {
+            assert!(!is_page_file(bad), "{bad}");
+        }
+    }
+}

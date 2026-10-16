@@ -1,6 +1,7 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 0.12 landed; status table with every PR number.
+
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
 
@@ -11,7 +12,36 @@ Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon b
 | Checklist rows | SH-01 to SH-09, SH-11 to SH-15, TH-01 to TH-06, CV-01 to CV-03 |
 | Gaps | ranks 6 to 15 |
 
-## Entry criteria
+## Status
+
+Phase 0 is closed (2026-10-15). Every PR below is merged into `phase/0-ui-shell`.
+
+| PR | Branch | Landed as |
+|---|---|---|
+| 0.1 app scaffold | `feat/app-scaffold` | #4 |
+| 0.2 command registry | `feat/command-registry` | #6 |
+| 0.3 theme tokens | `feat/theme-tokens` | #7 |
+| 0.4 presets | `feat/theme-presets` | #8 |
+| 0.5a ribbon: widget, icons, File, Home | `feat/ribbon` | #9 |
+| 0.5b ribbon: other tabs, collapse, key tips | `feat/ribbon-tabs` | #10 |
+| 0.6 navigation | `feat/navigation` | #11 |
+| ribbon fixes (backgrounds, pickers) | `fix/ribbon-pickers` | #12 |
+| 0.7 canvas viewport | `feat/canvas-viewport` | #13 |
+| 0.8 start page | `feat/start-page` | #14 |
+| 0.9 status and shortcuts | `feat/status-shortcuts` | #15 |
+| 0.10 accessibility | `feat/accessibility` | #16 |
+| 0.5c ribbon display options | `feat/ribbon-display` | #17 |
+| 0.5d font boxes | `feat/ribbon-font-boxes` | #18 |
+| 0.5e color pickers | `feat/ribbon-colors` | #19 |
+| 0.13 command line core | `feat/cli-core` | #20 |
+| 0.5f galleries and Help tab | `feat/ribbon-galleries` | #21 |
+| 0.11 control minimal | `feat/control-minimal` | #22 |
+| 0.7 follow-up: dotted paper and margin line | `feat/paper-dotted-margin` | #23 |
+| About page | `feat/about-page` | #24 |
+| 0.7 follow-up: Rule Lines thumbnails | `feat/rule-lines-thumbnails` | #25 |
+| 0.12 close Phase 0 | `docs/phase-0-close` | landed on `docs/phase-0-close` (docs only; this PR) |
+
+Actual hours were not recorded during Phase 0 (no time log exists), so the Estimate table below still shows the planned ranges and Phases 1 to 4 keep theirs; see docs/roadmap.md.
 
 - Phase -1 exit criteria met; `phase/0-ui-shell` created from `main`.
 
@@ -197,6 +227,8 @@ PR title: `feat(ui): add the ribbon with every tab and button`. Screenshots: eac
 
 If the diff passes 1,000 lines, split into 0.5a (widget, icons, File, Home) and 0.5b (other tabs).
 
+Split applied: PR 0.5a (PR #9, about 1,800 lines) landed commits 1 to 4 and 9 for the File and Home tabs, with the icons and the widget in one commit each. PR 0.5b covers commits 5 to 8 (Insert, Draw, History, Review, and View tabs with their icons, collapse, and key tips) and extends the command-mapping test to the new tabs. The 60-100 hour estimate covers both. Step 5 (the Coming Soon badge) was dropped at the maintainer's request: with almost every command Coming Soon, a pill on each button was noise. The tooltip and the toast say Coming Soon instead. PR 0.5b (PR #10) landed the other five tabs, ribbon collapse (Ctrl+F1, the chevron, double-click a tab; a collapsed ribbon shows a tab's groups over the page when the tab is clicked, and the collapsed state is saved), and key tips (Alt or F10, then a tab letter, then a button code; Alt plus a tab letter works too). view.ribbon.toggle is Ready.
+
 ## PR 0.6: sidebar, section tabs, page list
 
 | | |
@@ -242,7 +274,7 @@ Steps:
 
 1. `Viewport` in `notecraft-canvas` (no egui): offset, zoom (0.1 to 4.0), screen-to-page and page-to-screen transforms, zoom about a point. Property tests for round trips.
 2. Canvas widget: scroll to pan, middle-drag and Space+drag to pan, Ctrl+wheel and pinch to zoom about the pointer, scroll bars.
-3. Paper: blank, lined (rule spacing 0.25 inch), grid (0.25 inch), dotted; color from `canvas_rule`. Drawn only for the visible area.
+3. Paper: blank, lined (rule spacing 0.25 inch, with a thin red margin line 1 inch from the left edge, token `canvas_margin_rule`), grid (0.25 inch), dotted (a kept extra beyond OneNote); color from `canvas_rule`. Drawn only for the visible area.
 4. Page title area and date line (mock data).
 5. Commands: `view.zoom_in`, `view.zoom_out`, `view.zoom_100`, `view.zoom_fit_width`, `view.paper.set`.
 
@@ -256,6 +288,8 @@ Commits:
 6. `feat(engine): add zoom and paper commands`
 
 PR title: `feat(canvas): add pan, zoom, and paper styles`.
+
+PR 0.7 (PR #13) landed with these changes to the plan. The command ids are the ones the View tab has used since PR 0.5b: `view.zoom_in`, `view.zoom_out`, `view.zoom`, `view.zoom_actual`, `view.zoom_page_width`, `view.rule_lines`, `view.page_color`, and `view.paper_size` (not `view.zoom_100`, `view.zoom_fit_width`, or `view.paper.set`). Paper styles follow OneNote's Rule Lines menu (none, narrow, college, standard, and wide ruled; small, medium, large, and very large grid); dotted was left out at first because OneNote does not have it. The rule color is `canvas_rule`. The engine commit came before the UI commits, because the widget reads the zoom from the session, and the paper styles got their own `feat(canvas)` commit. Zoom is session state set only by commands, so Ctrl+wheel and pinch dispatch `view.zoom`; the scroll position stays in the front end.
 
 ## PR 0.8: start page, recent files, file picker
 
@@ -278,6 +312,8 @@ Commits:
 3. `feat(ui): add open dialogs for notebooks and pages`
 
 PR title: `feat(ui): add the start page, recents, and file picker`.
+
+PR 0.8 (PR #14) landed with these changes to the plan. `file.open_notebook` and `file.recent.clear` are new ids; `file.open` now opens page files only, and Ctrl+O moved to `file.open_notebook` (the shortcut is bound in PR 0.9). The recent list lives in the engine session (`notecraft-engine/src/recent.rs`) and the app saves it in `config.toml`; the mock notebooks moved into `notecraft-engine/src/mock.rs` so the open commands can show them. `rfd` is used only in the desktop app crate (L7), behind a `FilePicker` trait in the UI crate, so tests run with a fake picker. The File backstage's New and Open entries show pages with their own buttons (and the recent list on Open). At launch the app reopens the newest recent notebook or page, as OneNote reopens what was open; with nothing recent it shows the start page. Commits: the engine commands first, then one UI commit for the start page and backstage pages, one app commit for the dialogs and saved recents, and a small fix giving the page buttons a visible frame.
 
 ## PR 0.9: status bar, full page view, shortcut map
 
@@ -303,6 +339,8 @@ Commits:
 
 PR title: `feat(ui): add status bar, full page view, and shortcuts`.
 
+PR 0.9 (PR #15) landed with these changes to the plan. The status bar shows the page position and the zoom; save state waits for auto-save (FM-05), since Phase 0 has nothing to save. Ctrl+E is bound to a new Coming Soon command, `search.all`, until Phase 2 builds search. The shortcut map is built from each command's `default_shortcut` plus a short table of bindings with arguments (Ctrl+2 to Ctrl+9 note tags), so there is one place to declare a shortcut. Commit order: the engine map and its duplicate test are one commit, then the shell dispatch (Ctrl+F1 moved into the map, and egui's own Ctrl+=, Ctrl+-, and Ctrl+0 UI scaling turned off), the full page view, and the status bar.
+
 ## PR 0.10: accessibility
 
 | | |
@@ -319,6 +357,103 @@ Commits:
 2. `feat(ui): add keyboard focus order and focus ring`
 
 PR title: `feat(ui): add keyboard navigation and screen reader labels`.
+
+PR 0.10 (PR #16) landed both commits. An audit of the AccessKit tree found the ribbon, menus, navigation, backstage, and start page already named; the panel resize handles were the only unnamed focus stops and now carry the Splitter role and a name. The status bar's contents are drawn after the page so it comes last in the Tab order without changing the layout. Ribbon, navigation, and egui buttons already drew an accent focus ring; the canvas and the start page's recent rows now do too. The Narrator and VoiceOver runs could not be done from an agent session and stay open in gaps rank 14, so SH-15 is P.
+
+## PR 0.13: command line core
+
+| | |
+|---|---|
+| Branch | `feat/cli-core` off `phase/0-ui-shell` |
+| Hours | 6-10 |
+| Rows | none |
+
+Steps: `notecraft-cli commands [--json]` lists every command id, label, status, and argument schema from the registry. `notecraft-cli run [--sample] --cmd 'id={json}' ...` runs commands headlessly, in order, on an empty session (or the sample notebooks with `--sample`) and prints one JSON result per command; exit codes 0, 1, 2, 3, 4, and 6 as in docs/cli.md (`--cmd` is capped at 16 KB each and 1000 per run). The desktop app opens a notebook folder or page file passed at launch: `notecraft [<notebook folder or page file>]`.
+
+Commits:
+
+1. `feat(cli): add commands and headless run, as the craft apps have`
+2. `feat(app): open a notebook or page passed at launch`
+
+PR title: `feat(cli): add commands and run, and open a path at launch`.
+
+This follows the maintainer decision of 2026-10-15: the command line (and later its MCP server) works like the related craft apps' command lines. It is a deliberate exception to the OneNote-only scope rule, for the CLI only (see docs/cli.md). The remaining subcommands arrive with the engine work they use: PR 1.16, 2.11, 3.14, and 3.15.
+
+## PR 0.5c to 0.5f: ribbon parity follow-ups
+
+A review against OneNote (Microsoft 365 screenshots) and against WordCraft's ribbon, the related craft app with the same egui stack, found four gaps in the PR 0.5 ribbon. Each is its own PR, stacked in this order. Rows: SH-02 and SH-05 (and TX-10 for the highlight palette, whose command stays Coming Soon until Phase 1).
+
+### PR 0.5c: ribbon display options and the simplified ribbon
+
+| | |
+|---|---|
+| Branch | `feat/ribbon-display` |
+| Hours | 20-32 |
+| Rows | SH-05 |
+
+Steps: the chevron at the ribbon's lower right opens OneNote's Ribbon Display Options menu: Ribbon Layout (Classic Ribbon, Simplified Ribbon) and Show Ribbon (Full-screen mode, Show tabs only, Always show Ribbon), each a command (`view.ribbon.layout`, `view.ribbon.show`) with the current choice checked. Simplified Ribbon is one row of icon buttons built from the same spec as the classic ribbon, groups separated by a divider, with a "More Options" overflow menu for what does not fit. Show tabs only is today's collapsed state (peek on a tab click); Full-screen mode hides tabs and ribbon until the pointer reaches the top edge. Ctrl+F1 switches between Always show and Show tabs only, as in OneNote. The layout and show mode persist in settings (the existing `ribbon.collapsed` key reads as Show tabs only).
+
+Commits:
+
+1. `feat(engine): add ribbon layout and show mode commands`
+2. `feat(ui): add the ribbon display options menu`
+3. `feat(ui): add the simplified ribbon`
+
+PR 0.5c landed with these changes to the plan. The view state keeps the layout and the show mode instead of a collapsed flag; `view.ribbon.toggle` (Ctrl+F1) switches between always and tabs only, and from full-screen mode shows the whole ribbon. The engine commands, the menu, and the simplified ribbon land as one commit, `feat(ui): add ribbon display options and the simplified ribbon`, so every commit builds (the view state's collapsed flag is replaced). While peeking with tabs only, the chevron is a pin that shows the ribbon again. A separate fix makes the canvas report only its visible part to screen readers; it reported the whole scrollable content, so a click at its accessible center landed on a scroll bar.
+
+### PR 0.5d: font and size boxes
+
+| | |
+|---|---|
+| Branch | `feat/ribbon-font-boxes` |
+| Hours | 12-20 |
+| Rows | SH-02 |
+
+Steps: replace the Font and Size dropdown buttons with editable combo boxes that show the current value, as in OneNote and WordCraft (`widgets::font_combo`, `combo`). The font box lists the installed families (craft-ui/OS fonts; the fixed list is the fallback), each in its own face, building only visible rows; typing filters (exact, then prefix, then contains), Up and Down move, Enter applies, Esc restores; text matching no family is applied as typed. The size box takes any typed size (1 to 1638 pt, kept as typed). Both run `format.font.family` and `format.font.size`.
+
+Commits:
+
+1. `feat(ui): add an editable combo box for the ribbon`
+2. `feat(ui): use font and size boxes on the home tab`
+
+PR 0.5d landed with these changes to the plan. The installed families come from NoteCraft's own scan (`font_list.rs`), since craft-ui has none: it reads only each file's table directory and `name` table on a background thread, with the fixed list until it finishes. Names are listed in the UI font; drawing each in its own face (loading every visible font into egui) is left for later and listed in gaps rank 9. The Size button is renamed Font Size, OneNote's name and the command's label. Commits: the font scan, the combo box with its spec variant, and the Home tab change land as one commit.
+
+### PR 0.5e: color pickers
+
+| | |
+|---|---|
+| Branch | `feat/ribbon-colors` |
+| Hours | 16-28 |
+| Rows | SH-02, TX-10 |
+
+Steps: color menus follow Office's layout: Automatic (or No Color), Theme Colors (ten hues and five tint and shade rows, original values), Standard Colors (one row), Recent Colors (the last ten picked, saved in settings), and More Colors, which opens a Colors dialog (a standard swatch tab and a custom tab with a hue and saturation field, lightness, RGB, HSL, hex, and alpha, plus a new over current preview) instead of expanding inside the menu. Split color buttons draw a bar in the last color used under the icon, and clicking the button applies it. Text Highlight Color offers OneNote's fifteen highlighter colors with No Color last. Alpha stays (OneNote has none; listed in docs/post-parity.md).
+
+Commits:
+
+1. `feat(ui): lay out color menus with theme, standard, and recent colors`
+2. `feat(ui): add the colors dialog`
+3. `feat(ui): show the last color on split color buttons`
+
+PR 0.5e landed with these changes to the plan. The theme block reuses the existing original grid (ten hues over four rows of tints and shades); the Standard page of the dialog is computed (twelve hues by six lightness steps and a grey row). Draw's Color menu takes the Office layout too; Page Color and Text Highlight Color keep one plain grid, as in OneNote. Every color menu fills its icon's accent bar with the last color. The three commits land as one, since the menu, the dialog, and the last color share the same state.
+
+PR 0.5f landed with these changes to the plan. A gallery is data in the ribbon spec (`Column::Gallery`): it wraps a dropdown button holding the full list, so the simplified ribbon, the More Options menu, key tips, and the command tests treat it as that one dropdown, and only the classic ribbon draws the box. The arrows scroll the leading entries (all styles; the ten tags that apply, not Customize Tags or Remove Tag) two at a time. The large Styles and Tags buttons and the stacked Heading, Normal, To Do, Important, and Question buttons were removed since the galleries replace them; To Do Tag and Find Tags stay. The Help commands are Coming Soon with no shortcut yet (OneNote's F1 is left to Phase 1), and the Help tab's key tip is Y.
+
+About page landed on feat/about-page, outside the numbered PRs. `file.about` is Ready and opens the backstage on the About entry; the page shows the version, commit, build date, profile, target, app ID, copyright, the MIT and Apache texts, ATTRIBUTION.md, links, and the settings and log folders, with the Microsoft trademark notice always visible. The app (L7) gathers the details into `AppInfo` (build.rs adds the target triple) and passes them to the shell, so the UI crate tests with fake values. A new Ready command, `file.copy_about_info`, backs the Copy button. The UI stack versions (egui, wgpu) are not shown: egui exposes no version constant and reading Cargo.lock at build time would be a fragile hack.
+
+### PR 0.5f: style and tag galleries, Help tab
+
+| | |
+|---|---|
+| Branch | `feat/ribbon-galleries` |
+| Hours | 16-24 |
+| Rows | SH-02 |
+
+Steps: Styles and Tags become in-ribbon galleries as in OneNote: a bordered box showing two entries drawn in their own style (Heading 1, Heading 2; To Do, Important with their icons and shortcuts), up and down arrows to scroll, and a More arrow that opens the full list. Add the Help tab (Help, Support, Feedback, Show Training) with each command Coming Soon or opening the docs.
+
+Commits:
+
+1. `feat(ui): add ribbon galleries for styles and tags`
+2. `feat(ui): add the help tab`
 
 ## PR 0.11: minimal control channel for UI tests
 
@@ -337,6 +472,8 @@ Commits:
 
 PR title: `feat(app): add a minimal control channel for UI tests`.
 
+PR 0.11 landed on feat/control-minimal with these changes to the plan. The control channel lives in the app (`apps/notecraft/src/control/`): `proto.rs` holds the framing, JSON-RPC types, and auth state machine with no window or socket; `server.rs` is the listener and client threads on 127.0.0.1; `mod.rs` is the per-frame UI-thread half. `command.run` goes through the new `AppShell::run_command`, the same path `dispatch` (ribbon, shortcuts) uses, so there is no second action path. `screenshot` uses `ViewportCommand::Screenshot` and `Event::Screenshot`; the PNG and base64 encoding run on the connection thread. The optional `region` parameter is not implemented. `wait.idle` answers at the end of the first frame with no immediate repaint pending. Without a settings folder (`NOTECRAFT_NO_PREFS`) `--control` refuses to start, since the token has nowhere to go. The headless tests drive the shell in egui_kittest over a real TCP socket and inject the screenshot event, because kittest has no GPU; the real-window test, `tests/control_window.rs`, is `#[ignore]` (it needs a display and a GPU adapter) and saves one PNG per theme to `target/control-screenshots/`. Uploading those PNGs as a CI artifact needs a runner with a GPU and is not wired up. Hours stay 8-14.
+
 ## PR 0.12: close Phase 0
 
 Follow 00-conventions.md section 6. Also:
@@ -344,6 +481,8 @@ Follow 00-conventions.md section 6. Also:
 - Fill the alpha gate Evidence column in docs/roadmap.md for the Phase 0 rows.
 - Cut internal test release 0.0.1 (docs/releasing.md section 2) to prove the pipeline end to end with real UI.
 - Re-estimate Phases 1 to 4 from actual Phase 0 hours.
+
+PR 0.12 landed on `docs/phase-0-close`. The alpha gate evidence is filled for the Phase 0 rows. Release 0.0.1 is cut right after the Phase 0 PR merges into `main`; its release evidence is to be filled at release. No actual hours were recorded during Phase 0, so Phases 1 to 4 keep their estimates, with one change: PR 1.15 gains 2-4 hours for the hands-on checks deferred from Phase 0 (docs/gaps.md rank 25). Maintainer decisions of 2026-10-15: SH-01, SH-05, SH-12, SH-15, and TH-06 are scored D on the Windows evidence, and the harness tests for SH-12 (SH-14 stays D; the maintainer also ran the app on Linux); SH-04 is reworded to the Coming Soon tooltip and toast and scored D, with the per-button badge dropped for good; dotted paper stays a kept extra; the real OS dialogs are in the deferred gap.
 
 ## Estimate
 
@@ -354,6 +493,10 @@ Follow 00-conventions.md section 6. Also:
 | 0.3 theme tokens | 16-28 |
 | 0.4 presets | 24-40 |
 | 0.5 ribbon | 60-100 |
+| 0.5c ribbon display options | 20-32 |
+| 0.5d font boxes | 12-20 |
+| 0.5e color pickers | 16-28 |
+| 0.5f galleries and Help tab | 16-24 |
 | 0.6 navigation | 24-40 |
 | 0.7 canvas viewport | 24-40 |
 | 0.8 start page | 12-20 |
@@ -361,11 +504,12 @@ Follow 00-conventions.md section 6. Also:
 | 0.10 accessibility | 10-16 |
 | 0.11 control minimal | 8-14 |
 | 0.12 close and 0.0.1 | 4-8 |
-| Total | 214-360 |
+| 0.13 command line core | 6-10 |
+| Total | 284-474 |
 
 ## Exit criteria
 
-- SH-01 to SH-09 and SH-11 to SH-15, TH-01 to TH-06, CV-01 to CV-03 scored D.
+- SH-01 to SH-09, SH-11 to SH-15, TH-01 to TH-06, CV-01 to CV-03 scored D (the hands-on checks are gaps rank 25).
 - Internal release 0.0.1 built from `release`.
 - Every ribbon button runs a command or shows Coming Soon; none does nothing.
 
@@ -375,3 +519,16 @@ Follow 00-conventions.md section 6. Also:
 |---|---|---|
 | 2026-10-14 | -1 | Created. Command palette and the Graph and Plugins tabs moved to docs/post-parity.md. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-14 | 0 | PR 0.5 split into 0.5a (widget, icons, File, Home) and 0.5b (other tabs, collapse, key tips). |
+| 2026-10-14 | 0 | PR 0.5b recorded: the other five tabs, collapse, and key tips (PR #10). |
+| 2026-10-14 | 0 | PR 0.7 recorded: canvas pan, zoom, and paper (PR #13). |
+| 2026-10-14 | 0 | PR 0.8 recorded: start page, recents, and file picker (PR #14). |
+| 2026-10-14 | 0 | PR 0.9 recorded: status bar, full page view, and shortcuts (PR #15). |
+| 2026-10-14 | 0 | PR 0.10 recorded: keyboard navigation and screen reader labels (PR #16). |
+| 2026-10-15 | 0 | Added PR 0.5c to 0.5f (ribbon display options and simplified ribbon, font boxes, color pickers, galleries and Help tab) after a review against OneNote and WordCraft. |
+| 2026-10-15 | 0 | Added PR 0.13 (command line core: `commands`, `run`, and opening a path at launch) after the maintainer decision of 2026-10-15 to let the CLI follow the related craft apps. |
+| 2026-10-15 | 0 | PR 0.11 landed on feat/control-minimal: minimal control channel (`auth`, `command.run`, `screenshot`, `wait.idle`) with token auth. |
+| 2026-10-15 | 0 | About page recorded (feat/about-page); no change to hours. |
+| 2026-10-15 | 0 | PR 0.7 follow-up recorded: dotted paper kept as an extra, and the ruled margin line. |
+| 2026-10-15 | 0 | PR 0.7 follow-up: the Rule Lines dropdown is a gallery of paper thumbnail cards drawn with the canvas paper code. |
+| 2026-10-15 | 0 | PR 0.12 landed on docs/phase-0-close: Phase 0 closed; status table with every PR number added; no actual hours recorded; hands-on checks moved to gaps rank 25 and PR 1.15. |

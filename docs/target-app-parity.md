@@ -1,6 +1,6 @@
 # OneNote parity assessment
 
-> Stage: pre-alpha (Phase -1 closed; Phase 0 next). Last reviewed: 2026-10-14. Last updated: 2026-10-14. Change: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: rule lines row mentions the margin line and dotted paper.
 
 Target: OneNote for Windows as shipped around 2020 (OneNote 2016 desktop and the Microsoft 365 app of that era), with theme presets for 2016, 2019, 2021, and Microsoft 365. NoteCraft matches OneNote's workflow and layout one to one. It differs on purpose in one place: storage. OneNote keeps notebooks in a binary format; NoteCraft keeps them as markdown folders (docs/markdown.md).
 
@@ -35,7 +35,7 @@ Shared work not tied to one area (file formats, command registry, localization, 
 | Drag a container by its top bar; resize its width | Same | 1 | M |
 | Page grows right and down as content is added | Canvas extents fit content plus margin | 1 | M |
 | Zoom 10% to 400%, zoom to page width | Same range; Ctrl+wheel, pinch, View tab | 0 | M |
-| Rule lines and grid (View > Rule Lines) | `paper:` frontmatter: blank, lined, grid, dotted | 0 (draw), 1 (save) | M |
+| Rule lines and grid (View > Rule Lines), with the red margin line on ruled paper | `paper:` frontmatter: blank, lined, grid, dotted (dotted is a kept extra beyond OneNote, see post-parity.md) | 0 (draw), 1 (save) | M |
 | Page color | `notecraft.color` frontmatter | 1 | M |
 | Insert Space tool | `canvas.insert_space` command | 3 | M |
 | Lasso and rectangle select across ink, text, images | Same | 3 | M |
@@ -170,3 +170,4 @@ Four presets, each in light and dark (docs/themes.md). Palettes are original col
 |---|---|---|
 | 2026-10-14 | -1 | Created. Re-scoped the same day to OneNote features only; recording, password sections, OCR, Find Tags, timestamps added; hours re-assessed bottom-up. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
+| 2026-10-15 | 0 | Rule lines row: ruled paper has the red margin line; dotted paper is a kept extra. |

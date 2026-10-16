@@ -13,4 +13,14 @@ workspace = true
 
 [dependencies]
 notecraft-core.workspace = true
+notecraft-canvas.workspace = true
 notecraft-engine.workspace = true
+notecraft-model.workspace = true
+egui.workspace = true
+craft-ui.workspace = true
+skrifa.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+egui_kittest.workspace = true

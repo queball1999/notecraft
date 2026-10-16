@@ -9,5 +9,26 @@
 )]
 #![forbid(unsafe_code)]
 
+mod a11y;
+pub mod about;
+mod app_shell;
+pub mod canvas;
+pub mod color;
+pub mod font_list;
+pub mod icons;
+pub mod nav;
+pub mod picker;
+pub mod ribbon;
+pub mod shortcuts;
+pub mod start;
+pub mod status;
+pub mod themes;
+pub mod toast;
+
+pub use about::AppInfo;
+pub use app_shell::{AppShell, REGIONS};
+pub use picker::{FilePicker, NoPicker};
+pub use toast::Toasts;
+
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 6;
