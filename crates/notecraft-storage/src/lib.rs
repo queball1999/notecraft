@@ -20,7 +20,12 @@ pub mod notebook_toml;
 pub mod page_file;
 pub mod page_kind;
 pub mod paths;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod reader;
+pub mod recovery;
 pub mod section_toml;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod watch;
 
 pub use canvas_block::{
     find_canvas_block, normalized, read_canvas, strip_canvas_block, write_ink, CanvasBlock,
@@ -36,4 +41,5 @@ pub use page_file::{
     MAX_PAGE_BYTES,
 };
 pub use page_kind::{change_page_kind, keep_unreadable_copy};
+pub use recovery::{Journal, RecoveryEntry};
 pub use section_toml::{PageListing, SectionConfig, SectionKind};

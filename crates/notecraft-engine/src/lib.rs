@@ -11,6 +11,8 @@
 
 pub mod cmd;
 pub mod ink;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod io;
 pub mod mock;
 pub mod open;
 pub mod recent;
@@ -19,8 +21,10 @@ pub mod undo;
 pub mod view;
 
 pub use ink::{DrawTool, InkState, PenStyle};
+pub use notecraft_storage::RecoveryEntry;
 pub use session::{
-    ConvertOutcome, PageNotice, PageSource, SaveError, SaveOutcome, Selection, Session,
+    ConvertOutcome, PageNotice, PageSource, ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome,
+    SaveState, Selection, Session,
 };
 pub use view::PageStyle;
 

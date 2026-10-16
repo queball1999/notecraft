@@ -48,6 +48,8 @@ tempfile = "3"
 tracing = "0.1"
 # SQLite for the rebuildable notebook index (PR 1.2). The bundled feature compiles SQLite (public domain) from C source, so no system library is needed. Native only: not built for wasm32.
 rusqlite = { version = "0.40", features = ["bundled"] }
+# File system watcher for outside edits (PR 1.7). CC0-1.0. Native only: not built for wasm32.
+notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
 # Benchmarks only (dev-dependency). MIT OR Apache-2.0.
 criterion = { version = "0.8", default-features = false }
 # Markdown parser, behind notecraft-markdown. BSD-2-Clause (permissive, compatible with MIT OR Apache-2.0); builds for wasm32.

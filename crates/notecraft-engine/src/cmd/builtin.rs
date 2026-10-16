@@ -202,6 +202,32 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Copy the version, build, and system details to the clipboard for a bug report.",
     )
     .ready(),
+    CommandSpec::new(
+        ids::FILE_RESTORE_UNSAVED,
+        "Restore Unsaved Changes",
+        "Put back the unsaved text found from the last session.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_DISCARD_UNSAVED,
+        "Discard Unsaved Changes",
+        "Throw away the unsaved text found from the last session.",
+    )
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_KEEP_MY_VERSION,
+        "Keep My Version",
+        "Keep the text on the page when the file also changed outside NoteCraft.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_USE_OUTSIDE_VERSION,
+        "Use Outside Version",
+        "Replace the text on the page with the version changed outside NoteCraft.",
+    )
+    .destructive()
+    .ready(),
     // Home tab: Clipboard group
     CommandSpec::new(ids::EDIT_CUT, "Cut", "Move the selection to the clipboard.")
         .undoable()
@@ -902,6 +928,10 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
     (ids::FILE_ABOUT, file::about),
     (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),
+    (ids::FILE_RESTORE_UNSAVED, file::restore_unsaved),
+    (ids::FILE_DISCARD_UNSAVED, file::discard_unsaved),
+    (ids::FILE_KEEP_MY_VERSION, file::keep_my_version),
+    (ids::FILE_USE_OUTSIDE_VERSION, file::use_outside_version),
     (ids::VIEW_THEME_SET, theme::theme_set),
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
