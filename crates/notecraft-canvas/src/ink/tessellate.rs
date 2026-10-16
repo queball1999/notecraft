@@ -6,6 +6,13 @@
 //! at each end and a round join where the stroke turns sharply. Triangles overlap at joins,
 //! so a translucent stroke must be drawn as one layer (the highlighter uses a blend mode, not
 //! per-triangle alpha).
+//!
+//! Anti-aliasing: the mesh can carry a fringe, a one-pixel strip of triangles along every
+//! outer edge (a sharp turn fringes only the wedge of its join disc that shows). The fringe is built in page units, so it does not depend on zoom; each vertex
+//! records in [`Edge`] which way the front end should move it, in screen pixels, to make the
+//! strip one pixel wide whatever the zoom. Where the fringe overlaps the stroke's own body it
+//! is drawn over the same color, so it is invisible; that holds for opaque strokes only, so a
+//! translucent stroke asks for no fringe (`TessParams::fringe`).
 
 use std::f32::consts::{PI, TAU};
 
@@ -27,6 +34,22 @@ const MAX_CAP_SEGMENTS: u32 = 32;
 pub struct StrokeMesh {
     pub positions: Vec<Vec2>,
     pub indices: Vec<u32>,
+    /// One per position: how the front end places and fades the vertex. All [`Edge::Inside`]
+    /// when the mesh has no fringe.
+    pub edges: Vec<Edge>,
+}
+
+/// What a vertex is for anti-aliasing. Directions are unit vectors pointing away from the
+/// stroke's body.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Edge {
+    /// Not on the outline: drawn where it is, at full coverage.
+    Inside,
+    /// On the outline: drawn up to half a pixel inward (against the direction, never past
+    /// the centerline, which is `radius` away), at full coverage.
+    Rim { dir: Vec2, radius: f32 },
+    /// A fringe vertex over a rim vertex: drawn half a pixel outward, with no coverage.
+    Outer(Vec2),
 }
 
 impl StrokeMesh {
@@ -44,11 +67,16 @@ impl StrokeMesh {
 pub struct TessParams {
     /// Segments in a half circle cap. More is rounder and costs more triangles.
     pub cap_segments: u32,
+    /// Add the anti-aliasing fringe. Leave it off for a translucent stroke.
+    pub fringe: bool,
 }
 
 impl Default for TessParams {
     fn default() -> Self {
-        Self { cap_segments: 8 }
+        Self {
+            cap_segments: 8,
+            fringe: true,
+        }
     }
 }
 
@@ -65,6 +93,7 @@ impl TessParams {
         let segments = (PI / step.max(0.01)).ceil();
         Self {
             cap_segments: (segments as u32).clamp(MIN_CAP_SEGMENTS, MAX_CAP_SEGMENTS),
+            fringe: true,
         }
     }
 }
@@ -84,6 +113,9 @@ pub fn width_at(width: f32, pressure: f32) -> f32 {
     };
     w * (0.5 + 0.5 * p)
 }
+
+/// An outline vertex: its index, its outward direction and its distance from the centerline.
+type RimVertex = (u32, Vec2, f32);
 
 /// One vertex of the centerline after cleaning.
 #[derive(Clone, Copy)]
@@ -116,8 +148,11 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
     let Some(first) = nodes.first().copied() else {
         return mesh;
     };
+    // Outline chains (vertex and outward direction) that get a fringe, in order along the edge.
+    let mut chains: Vec<Vec<RimVertex>> = Vec::new();
     if nodes.len() == 1 {
-        disc(&mut mesh, first.pos, first.radius, cap * 2);
+        chains.push(disc(&mut mesh, first.pos, first.radius, cap * 2));
+        add_fringe(&mut mesh, &chains, params.fringe);
         return mesh;
     }
 
@@ -133,6 +168,7 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
 
     // Ribbon: a left and right vertex per node.
     let mut previous: Option<(u32, u32)> = None;
+    let (mut left_edge, mut right_edge) = (Vec::new(), Vec::new());
     for (i, node) in nodes.iter().enumerate() {
         let (offset, join) = if i == 0 {
             (perp(dir_at(0)), false)
@@ -153,24 +189,75 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
             mesh.indices.extend_from_slice(&[l0, r0, l1, r0, r1, l1]);
         }
         previous = Some((l1, r1));
+        let outward = unit(offset);
+        left_edge.push((l1, outward, node.radius));
+        right_edge.push((r1, -outward, node.radius));
         if join {
-            disc(&mut mesh, node.pos, node.radius, cap * 2);
+            chains.push(join_disc(
+                &mut mesh,
+                node.pos,
+                node.radius,
+                (dir_at(i - 1), dir_at(i)),
+                cap,
+            ));
         }
     }
+    chains.push(left_edge);
+    chains.push(right_edge);
 
     // Round caps: half discs facing away from the stroke.
     if let Some(last) = nodes.last() {
         let end_dir = dir_at(dirs.len().saturating_sub(1));
-        half_disc(&mut mesh, last.pos, last.radius, end_dir, cap);
+        chains.push(half_disc(&mut mesh, last.pos, last.radius, end_dir, cap));
     }
-    half_disc(&mut mesh, first.pos, first.radius, -dir_at(0), cap);
+    chains.push(half_disc(
+        &mut mesh,
+        first.pos,
+        first.radius,
+        -dir_at(0),
+        cap,
+    ));
+    add_fringe(&mut mesh, &chains, params.fringe);
     mesh
 }
 
 fn push_vertex(mesh: &mut StrokeMesh, pos: Vec2) -> u32 {
     let index = mesh.positions.len() as u32;
     mesh.positions.push(pos);
+    mesh.edges.push(Edge::Inside);
     index
+}
+
+/// Add the fringe along each outline chain: every chain vertex becomes a rim vertex, gets an
+/// outer twin at the same place, and each pair of neighbors gets a quad between the two rows.
+/// With `enabled` false the mesh is left as it is.
+fn add_fringe(mesh: &mut StrokeMesh, chains: &[Vec<RimVertex>], enabled: bool) {
+    if !enabled {
+        return;
+    }
+    for chain in chains {
+        let mut previous: Option<(u32, u32)> = None;
+        for &(vertex, outward, radius) in chain {
+            let Some(&pos) = mesh.positions.get(vertex as usize) else {
+                continue;
+            };
+            if let Some(edge) = mesh.edges.get_mut(vertex as usize) {
+                *edge = Edge::Rim {
+                    dir: outward,
+                    radius,
+                };
+            }
+            let outer = push_vertex(mesh, pos);
+            if let Some(edge) = mesh.edges.get_mut(outer as usize) {
+                *edge = Edge::Outer(outward);
+            }
+            if let Some((rim0, outer0)) = previous {
+                mesh.indices
+                    .extend_from_slice(&[rim0, vertex, outer, rim0, outer, outer0]);
+            }
+            previous = Some((vertex, outer));
+        }
+    }
 }
 
 /// A unit vector along `v`, or zero when `v` is too short to have a direction.
@@ -188,34 +275,77 @@ fn perp(v: Vec2) -> Vec2 {
     Vec2::new(v.y, -v.x)
 }
 
-/// A full disc as a triangle fan.
-fn disc(mesh: &mut StrokeMesh, center: Vec2, radius: f32, segments: u32) {
-    arc_fan(mesh, center, radius, 0.0, TAU, segments);
+/// A full disc as a triangle fan. Returns its rim for the fringe.
+fn disc(mesh: &mut StrokeMesh, center: Vec2, radius: f32, segments: u32) -> Vec<RimVertex> {
+    arc_fan(mesh, center, radius, 0.0, TAU, segments)
+}
+
+/// The disc that rounds a sharp turn from direction `a` to direction `b`, in two fans: the
+/// wedge on the outside of the turn, which is the only part that shows past the ribbon, and the
+/// rest of the circle, which lies inside the ribbon. Only the wedge's arc is returned for the
+/// fringe, and it starts and ends exactly where the ribbon's edges leave the node.
+fn join_disc(
+    mesh: &mut StrokeMesh,
+    center: Vec2,
+    radius: f32,
+    (a, b): (Vec2, Vec2),
+    cap: u32,
+) -> Vec<RimVertex> {
+    let turn = (a.x * b.y - a.y * b.x).atan2(a.dot(b));
+    let side = if turn >= 0.0 { perp(a) } else { -perp(a) };
+    let start = side.y.atan2(side.x);
+    let step = PI / cap.max(1) as f32;
+    let segments = |sweep: f32| ((sweep.abs() / step).ceil() as u32).clamp(1, cap.max(1) * 2);
+    let wedge = arc_fan(mesh, center, radius, start, turn, segments(turn));
+    let rest = (TAU - turn.abs()).copysign(turn);
+    arc_fan(mesh, center, radius, start + turn, rest, segments(rest));
+    wedge
 }
 
 /// The half disc on the side of `facing`.
-fn half_disc(mesh: &mut StrokeMesh, center: Vec2, radius: f32, facing: Vec2, segments: u32) {
+fn half_disc(
+    mesh: &mut StrokeMesh,
+    center: Vec2,
+    radius: f32,
+    facing: Vec2,
+    segments: u32,
+) -> Vec<RimVertex> {
     let facing = if facing == Vec2::ZERO {
         Vec2::new(1.0, 0.0)
     } else {
         facing
     };
     let start = facing.y.atan2(facing.x) - PI / 2.0;
-    arc_fan(mesh, center, radius, start, PI, segments);
+    arc_fan(mesh, center, radius, start, PI, segments)
 }
 
 /// A fan of triangles from `center` over an arc of `sweep` radians starting at `start`.
-fn arc_fan(mesh: &mut StrokeMesh, center: Vec2, radius: f32, start: f32, sweep: f32, n: u32) {
+/// Returns the arc's vertices with their outward directions.
+fn arc_fan(
+    mesh: &mut StrokeMesh,
+    center: Vec2,
+    radius: f32,
+    start: f32,
+    sweep: f32,
+    n: u32,
+) -> Vec<RimVertex> {
     let hub = push_vertex(mesh, center);
     let first = hub + 1;
+    let mut rim = Vec::with_capacity(n as usize + 1);
     for step in 0..=n {
         let angle = start + sweep * step as f32 / n as f32;
-        push_vertex(mesh, center + Vec2::new(angle.cos(), angle.sin()) * radius);
+        let outward = Vec2::new(angle.cos(), angle.sin());
+        rim.push((
+            push_vertex(mesh, center + outward * radius),
+            outward,
+            radius,
+        ));
     }
     for step in 0..n {
         mesh.indices
             .extend_from_slice(&[hub, first + step, first + step + 1]);
     }
+    rim
 }
 
 #[cfg(test)]
@@ -271,7 +401,14 @@ mod tests {
 
     #[test]
     fn a_straight_line_is_a_rectangle_with_round_ends() {
-        let mesh = tessellate(&line(11, 10.0, 1.0), 6.0, TessParams { cap_segments: 16 });
+        let mesh = tessellate(
+            &line(11, 10.0, 1.0),
+            6.0,
+            TessParams {
+                cap_segments: 16,
+                fringe: true,
+            },
+        );
         assert!(valid(&mesh));
         let (lo, hi) = bounds(&mesh);
         // 100 long plus a radius of 3 at each end, 6 wide.
@@ -371,10 +508,130 @@ mod tests {
         let points: Vec<InkPoint> = (0..2000)
             .map(|i| InkPoint::new(i as f32, ((i * 7) % 13) as f32 * 5.0, 0.8))
             .collect();
-        let mesh = tessellate(&points, 3.0, TessParams { cap_segments: 99 });
+        let mesh = tessellate(
+            &points,
+            3.0,
+            TessParams {
+                cap_segments: 99,
+                fringe: true,
+            },
+        );
         assert!(valid(&mesh));
-        // At most a join disc (2 * 32 segments) per node, plus the ribbon.
-        assert!(mesh.triangle_count() <= 2000 * (2 + 64) + 200);
+        // At most a join disc (2 * 32 segments) and its fringe (two triangles per segment)
+        // per node, plus the ribbon and its fringe.
+        assert!(mesh.triangle_count() <= 2000 * (64 + 128 + 8) + 400);
+        let plain = tessellate(
+            &points,
+            3.0,
+            TessParams {
+                cap_segments: 99,
+                fringe: false,
+            },
+        );
+        assert!(plain.triangle_count() <= 2000 * (2 + 64) + 200);
+    }
+
+    #[test]
+    fn no_fringe_means_every_vertex_is_inside() {
+        let params = TessParams {
+            cap_segments: 8,
+            fringe: false,
+        };
+        let mesh = tessellate(&line(5, 10.0, 1.0), 6.0, params);
+        assert_eq!(mesh.edges.len(), mesh.positions.len());
+        assert!(mesh.edges.iter().all(|e| *e == Edge::Inside));
+    }
+
+    #[test]
+    fn the_fringe_wraps_the_outline_and_adds_no_area() {
+        let points = line(11, 10.0, 1.0);
+        let plain = tessellate(
+            &points,
+            6.0,
+            TessParams {
+                cap_segments: 8,
+                fringe: false,
+            },
+        );
+        let fringed = tessellate(&points, 6.0, TessParams::default());
+        assert!(valid(&fringed));
+        assert_eq!(fringed.edges.len(), fringed.positions.len());
+        // The fringe sits on the outline in page units, so the area is the same.
+        assert!((area(&fringed) - area(&plain)).abs() < 1.0e-3);
+        let rims = fringed
+            .edges
+            .iter()
+            .filter(|e| matches!(e, Edge::Rim { .. }))
+            .count();
+        let outers = fringed
+            .edges
+            .iter()
+            .filter(|e| matches!(e, Edge::Outer(_)))
+            .count();
+        assert!(rims > 0 && rims == outers);
+        // Every direction is a unit vector, and a rim vertex faces away from the body: the
+        // mesh center line is y = 0, so a rim on the long sides points along y.
+        for (edge, pos) in fringed.edges.iter().zip(&fringed.positions) {
+            if let Edge::Rim { dir: d, .. } | Edge::Outer(d) = edge {
+                assert!((d.length() - 1.0).abs() < 1.0e-3, "{d:?}");
+                if pos.x > 0.5 && pos.x < 99.5 {
+                    assert!(d.x.abs() < 1.0e-3 && (d.y * pos.y) > 0.0, "{pos:?} {d:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_dot_and_a_turn_get_a_fringe_with_valid_indices() {
+        let dot = tessellate(&[InkPoint::new(5.0, 5.0, 1.0)], 4.0, TessParams::default());
+        assert!(valid(&dot));
+        assert!(dot.edges.iter().any(|e| matches!(e, Edge::Outer(_))));
+        let turn = tessellate(
+            &[
+                InkPoint::new(0.0, 0.0, 1.0),
+                InkPoint::new(50.0, 0.0, 1.0),
+                InkPoint::new(0.0, 1.0, 1.0),
+            ],
+            4.0,
+            TessParams::default(),
+        );
+        assert!(valid(&turn));
+        assert_eq!(turn.edges.len(), turn.positions.len());
+    }
+
+    #[test]
+    fn a_join_fringes_only_its_outer_wedge() {
+        // A right-angle turn at (50, 0): the outside of the turn is the +x, -y corner.
+        let points = [
+            InkPoint::new(0.0, 0.0, 1.0),
+            InkPoint::new(50.0, 0.0, 1.0),
+            InkPoint::new(50.0, 50.0, 1.0),
+        ];
+        let mesh = tessellate(&points, 4.0, TessParams::default());
+        assert!(valid(&mesh));
+        let corner = Vec2::new(50.0, 0.0);
+        let mut on_disc = 0;
+        for (edge, pos) in mesh.edges.iter().zip(&mesh.positions) {
+            if let Edge::Rim { dir, radius } = edge {
+                assert!(*radius > 0.0);
+                if (pos.distance(corner) - 2.0).abs() < 1.0e-3 {
+                    on_disc += 1;
+                    assert!(dir.x > -1.0e-3 && dir.y < 1.0e-3, "{pos:?} {dir:?}");
+                }
+            }
+        }
+        assert!(on_disc >= 3, "{on_disc}");
+        // The same turn without a fringe has as many triangles in the fill.
+        let plain = tessellate(
+            &points,
+            4.0,
+            TessParams {
+                cap_segments: 8,
+                fringe: false,
+            },
+        );
+        assert!(mesh.triangle_count() > plain.triangle_count());
+        assert!((area(&mesh) - area(&plain)).abs() < 1.0e-2);
     }
 
     #[test]

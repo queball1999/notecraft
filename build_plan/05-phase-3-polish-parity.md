@@ -1,6 +1,6 @@
 # Phase 3: polish and parity
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: reviewed and re-estimated at the Phase 0 close; no change.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
 
 Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, and performance. Ends with the v0.9.0 beta.
 
@@ -26,7 +26,7 @@ Parallel tracks: PRs 3.1 to 3.5 (canvas and structure) and 3.6 to 3.8 (export) t
 | Hours | 30-50 |
 | Rows | IN-07, IN-09 |
 
-Steps: Draw tab Shapes gallery with at least 15 presets (line, arrow, double arrow, rectangle, rounded rectangle, ellipse, triangle, right triangle, diamond, pentagon, hexagon, parallelogram, trapezoid, star, cloud, axes 2D); stroke color, width, fill; resize and rotate handles; hold Shift for constrained proportions; ruler overlay that ink snaps to, rotated with two fingers or the mouse wheel.
+Steps: Draw tab Shapes gallery with at least 15 presets (line, arrow, double arrow, rectangle, rounded rectangle, ellipse, triangle, right triangle, diamond, pentagon, hexagon, parallelogram, trapezoid, star, cloud, axes 2D); stroke color, width, fill; resize and rotate handles; hold Shift for constrained proportions; ruler overlay that ink snaps to, rotated with two fingers or the mouse wheel; Add Pen on the pen gallery (a pen is kind, color, and width; up to 24 saved through `craft-settings`, parsed leniently so a damaged settings file loses only the bad pens; docs/architecture.md section 10.6). Inside the estimate.
 
 Commits:
 
@@ -43,18 +43,19 @@ PR title: `feat(canvas): add shapes and the ruler`.
 | | |
 |---|---|
 | Branch | `feat/ink-to-shape` |
-| Hours | 20-36 |
-| Rows | IN-08 |
+| Hours | 32-56 |
+| Rows | IN-08, IN-13 |
 
-Steps: classify a finished stroke as line, rectangle, ellipse, triangle, or arrow with a geometric recognizer (corner detection and fit error); replace the stroke with a shape when confidence passes a threshold; toggle on the Draw tab; undo restores the ink.
+Steps: classify a finished stroke as line, rectangle, ellipse, triangle, or arrow with a geometric recognizer (corner detection and fit error); replace the stroke with a shape when confidence passes a threshold; toggle on the Draw tab; undo restores the ink. Approach (docs/architecture.md section 10.5, from the related WordCraft app's `crates/engine/src/cmd/ink_shape.rs`): bounded, dependency-free fits in order line, arrow (shaft plus two barbs), ellipse (RMS of the normalized radius), then a polygon of up to 8 corners from an iterative Ramer-Douglas-Peucker pass with crowded and near-straight corners merged; strokes under a minimum size stay ink. Improve on it with rotated rectangles and ellipses and a double arrow. A port of its code needs an ATTRIBUTION.md row. Ink Replay (scheduled by the maintainer, 2026-10-15; docs/architecture.md section 10.6): Draw tab button replays the page's strokes in drawing order, each drawn up to a fraction of its length at about 400 units per second with a short gap between strokes; a transport bar with play, pause, rewind, and skip; replay is view-only and needs no format change, since stroke order in the canvas block is drawing order.
 
 Commits:
 
 1. `feat(canvas): recognize basic shapes from strokes`
 2. `feat(ui): add ink to shape toggle`
 3. `test(canvas): recognizer accuracy on sample strokes`
+4. `feat(ui): replay ink in drawing order`
 
-PR title: `feat(canvas): convert ink to shapes`.
+PR title: `feat(canvas): convert ink to shapes and replay ink`.
 
 ## PR 3.3: selection, z-order, snapping, insert space
 
@@ -66,7 +67,7 @@ PR title: `feat(canvas): convert ink to shapes`.
 
 Commits:
 
-1. `feat(canvas): add lasso and rectangle selection across object kinds`
+1. `feat(canvas): add lasso and rectangle selection across object kinds` (a stroke is picked when at least 60 percent of its sampled points are inside the loop, as in WordCraft's lasso; docs/architecture.md section 10.4)
 2. `feat(engine): move, delete, and recolor selections`
 3. `feat(engine): add bring forward and send backward`
 4. `feat(canvas): add grid snap and alignment guides`
@@ -299,7 +300,7 @@ Not new features. Between v0.9.0 and v1.0.0, work only from docs/gaps.md: beta b
 | PR | Hours |
 |---|---|
 | 3.1 shapes and ruler | 30-50 |
-| 3.2 ink to shape | 20-36 |
+| 3.2 ink to shape, ink replay | 32-56 |
 | 3.3 selection tools | 34-56 |
 | 3.4 tables and spell check | 30-50 |
 | 3.5 trash, history, templates | 30-50 |
@@ -313,7 +314,7 @@ Not new features. Between v0.9.0 and v1.0.0, work only from docs/gaps.md: beta b
 | 3.13 close and beta | 8-14 |
 | 3.14 command line render, export, print | 12-20 |
 | 3.15 MCP server | 24-40 |
-| Total | 392-666 |
+| Total | 404-686 |
 
 Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 
@@ -332,3 +333,5 @@ Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | Added PR 3.14 (command line render, export, print) and PR 3.15 (MCP server) after the maintainer decision of 2026-10-15; Phase 3 estimate 392-666 hours. |
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |
+| 2026-10-15 | 1 | Notes from the WordCraft ink survey: Add Pen in PR 3.1, the recognizer approach in PR 3.2, the lasso pick rule in PR 3.3. Hours unchanged. |
+| 2026-10-15 | 1 | Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15), adding 12-20 hours and row IN-13; Phase 3 estimate 404-686 hours. Add Pen confirmed inside PR 3.1's estimate. |
