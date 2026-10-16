@@ -239,6 +239,11 @@ impl AppShell {
         &self.session
     }
 
+    /// Show a notice line on page `id`; a read-only notice also stops text editing there.
+    pub fn set_page_notice(&mut self, id: &str, text: &str, read_only: bool) {
+        self.session.set_page_notice(id, text, read_only);
+    }
+
     /// Give page `id` its markdown source text (the whole file). The canvas shows it in flow
     /// layout when that page is open. The folder reader (PR 1.1) calls this when it loads a page.
     pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
@@ -1659,15 +1664,17 @@ mod tests {
     #[test]
     fn coming_soon_command_shows_a_toast_for_three_seconds() {
         let mut shell = AppShell::new();
-        shell.dispatch(ids::EDIT_PASTE.as_str(), Value::Null);
+        shell.dispatch(ids::EDIT_PASTE_PICTURE.as_str(), Value::Null);
         let mut harness = harness(shell, WINDOW);
 
         harness.run();
-        let _ = harness.get_by_label("Coming Soon: Paste");
+        let _ = harness.get_by_label("Coming Soon: Paste as Picture");
 
         // egui's clock advances one predicted frame (1/60 s) per step without real input.
         harness.run_steps(200);
-        assert!(harness.query_by_label("Coming Soon: Paste").is_none());
+        assert!(harness
+            .query_by_label("Coming Soon: Paste as Picture")
+            .is_none());
         assert!(harness.state().toasts().is_empty());
     }
 

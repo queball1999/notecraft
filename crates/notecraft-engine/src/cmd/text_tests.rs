@@ -314,7 +314,7 @@ fn a_selection_cannot_cut_a_marker_in_half() {
 #[test]
 fn read_only_pages_are_not_edited() {
     let mut s = session("text");
-    s.mark_read_only_for_test(PAGE);
+    s.set_page_notice(PAGE, "read only", true);
     caret(&mut s, 0);
     let out = run(&mut s, "text.insert", json!({ "text": "x" }));
     assert_eq!(out, json!({ "applied": false }));

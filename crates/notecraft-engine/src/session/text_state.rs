@@ -151,13 +151,14 @@ impl Session {
         self.containers.get(page)?.get(id).cloned()
     }
 
-    /// Make page `id` read-only, as the notice for a page cut short would.
-    #[cfg(test)]
-    pub(crate) fn mark_read_only_for_test(&mut self, id: &str) {
+    /// Give page `id` a notice line; a read-only notice stops text editing on it (a page cut
+    /// short at the size cap gets one when it is read).
+    pub fn set_page_notice(&mut self, id: &str, text: &str, read_only: bool) {
         let notice = super::PageNotice {
-            text: "read only".to_owned(),
-            read_only: true,
+            text: text.to_owned(),
+            read_only,
         };
         self.page_notices.insert(id.to_owned(), notice);
+        self.mark_changed();
     }
 }
