@@ -20,3 +20,6 @@
 *.one binary
 *.sqlite binary
 *.db binary
+
+# Keep exact bytes (CRLF, BOM, lone CR) in the markdown corpus.
+testdata/markdown/corpus/** -text

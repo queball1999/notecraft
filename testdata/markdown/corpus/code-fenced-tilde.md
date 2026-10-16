@@ -1,0 +1,7 @@
+~~~python
+print('hi')
+~~~
+
+```
+plain
+```

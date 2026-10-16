@@ -23,5 +23,8 @@ pub use notebook_dir::{
     ScanLimits, ScanWarning, SectionEntry, TreeNode, WarningKind,
 };
 pub use notebook_toml::{NotebookConfig, ReadOutcome};
-pub use page_file::{read_page_file, read_page_file_with, PageReadError, PageText, MAX_PAGE_BYTES};
+pub use page_file::{
+    read_page_file, read_page_file_with, write_page_text, PageReadError, PageText, WriteOutcome,
+    MAX_PAGE_BYTES,
+};
 pub use section_toml::{PageListing, SectionConfig, SectionKind};

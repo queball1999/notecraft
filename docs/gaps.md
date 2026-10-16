@@ -1,6 +1,6 @@
 # Gaps: the ranked work list
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: duplicate rank 15 and 16 rows from a merge removed; page text read from disk when a page is shown (FM-01); PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); rank 16 shrunk to the minimal-diff write. PR 1.8 landed; rank 19 narrowed to the callers of undo.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: duplicate rank 15 and 16 rows from a merge removed; page text read from disk when a page is shown (FM-01); PR 1.1 landed; rank 15 narrowed to the notebook index (ST-07); PR 1.10 landed; rank 21 narrowed to the highlighter, erasers, saving strokes, and real-pen checks; PR 1.3 landed; rank 16 shrunk to the minimal-diff write; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4 landed; rank 16 removed, the write is wired to saving under rank 18; rank 16 shrunk to the minimal-diff write. PR 1.8 landed; rank 19 narrowed to the callers of undo.
 
 Every known shortfall against OneNote parity, ranked. Pick from the top. When an item lands, delete it here (or shrink it if only part landed), re-score its rows in [parity-checklist.md](parity-checklist.md), and add a line to the [ROADMAP.md](../ROADMAP.md) progress log.
 
@@ -16,8 +16,9 @@ Ranking rule: blockers first (things other work waits on), then alpha gate items
 | Rank | Gap | Rows | Hours | Plan |
 |---:|---|---|---|---|
 | 15 | No notebook index (the folder reader and reading page text from disk have landed) | ST-07 | 18-30 | build_plan/03, PR 1.2 |
-| 16 | No minimal-diff markdown write (markdown read and frontmatter read landed in PR 1.3) | FM-02, FM-04 | 40-70 | build_plan/03, PR 1.4 |
 | 17 | No text editing in containers | TX-01 to TX-06, CV-04 to CV-06 | 104-180 | build_plan/03, PR 1.5, 1.6 |
+| 18 | No auto-save, crash recovery, outside edit handling (also wires the minimal-diff write, PR 1.4, into page saving; FM-02 and FM-04 stay P until then) | FM-05 to FM-07 (plus FM-02, FM-04) | 24-40 | build_plan/03, PR 1.7 |
+| 19 | No undo and redo | ST-08 | 20-34 | build_plan/03, PR 1.8 |
 | 18 | No auto-save, crash recovery, outside edit handling | FM-05 to FM-07 | 24-40 | build_plan/03, PR 1.7 |
 | 19 | Undo and redo: the engine, ink, and page setup landed (PR 1.8); still missing the callers that make text edits (PR 1.5), erase strokes (PR 1.11), and move or rename in the notebook (PR 1.13) through it, and a list of steps to pick from (OneNote has none on its History tab, so only Undo and Redo show) | ST-08 | 2-4 | build_plan/03, PR 1.8 |
 | 20 | No `.notecraft` format | FM-03 | 30-50 | build_plan/03, PR 1.9 |
@@ -35,7 +36,7 @@ Phase 2 (page links, search, note tags), Phase 3 (polish and parity), and Phase 
 
 | Gap | Phase | Hours |
 |---|---|---|
-| `.md` minimal-diff write (read landed) | 1 | 40-70 |
+| `.md` page files wired to the editor and auto-save (read and minimal-diff write landed in PR 1.3 and 1.4) | 1 | part of 24-40 (PR 1.7) |
 | `.notecraft` read and write | 1 | 30-50 |
 | PDF export | 3 | 40-70 |
 | HTML export and notebook zip | 3 | part of 40-70 (PR 3.8) |
@@ -98,4 +99,5 @@ All UI strings are written in US English first (AGENTS.md section 2).
 | 2026-10-15 | 1 | Rank 16 shrunk: markdown read, frontmatter read, and flow-layout rendering landed (PR 1.3); only the minimal-diff write remains. |
 | 2026-10-15 | 1 | Rank 16 shrunk: markdown read, frontmatter read, and flow-layout rendering landed (PR 1.3); only the minimal-diff write remains. Rank 15 now also carries FM-01 (reading page files into the canvas). |
 | 2026-10-15 | 1 | Rank 21: anti-aliased stroke edges and the marked current pen landed; highlighter and eraser design recorded (docs/architecture.md section 10). |
+| 2026-10-15 | 1 | Rank 16 removed: the minimal-diff markdown write landed (PR 1.4: span-replacement editor, canonical serializer, atomic page writes). FM-02 and FM-04 stay P until PR 1.7 saves pages from the editor; that is noted on rank 18. The duplicated rank 15 and 16 lines left by the merge were dropped. |
 | 2026-10-15 | 1 | Rank 19 narrowed: undo and redo landed (PR 1.8) for ink and page setup, with typing, merge, and notebook-level steps built against the engine API; text, eraser, and structure callers remain (PR 1.5, 1.11, 1.13). |

@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); also: PR 1.4 done; deviations noted under PR 1.4.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -121,6 +121,15 @@ Commits:
 4. `test(markdown): byte-identical round trip on sample corpus`
 
 PR title: `feat(markdown): write pages with minimal diffs`.
+
+Done (2026-10-15), with these deviations from the steps above:
+
+- The write side is an `Editor` over the original text. Callers hand it spans from the parsed `Document` (block, list item, table cell, frontmatter entry) and new markdown; `finish()` splices and returns the page. A replacement that equals the bytes already there is dropped, so putting back a span's own text is a no-op even in a file with mixed line endings. New text takes the file's dominant line ending (LF on a tie).
+- Edit granularity matches the PR 1.3 block model: block, list item, table cell, and top-level frontmatter key. Inline runs have no spans, so text editing in containers (PR 1.5) replaces the whole block.
+- `canonical.rs` serializes a `Block` tree (and a whole fresh page with frontmatter) in the canonical style: ATX headings, `-` bullets, `1.` numbering, `*`/`**`/`~~` emphasis, backtick fences that grow past backticks in the code, and escapes for text that would read as another block. Existing text is never re-serialized through it.
+- `notecraft-storage::page_file` is the minimal save path: `read_page_file` (PR 1.1 page text read: lossy UTF-8, 64 MiB cap) beside `write_page_text` (craft-atomic, skips the write when the bytes are unchanged). L1 does not depend on L3, so it moves text, not blocks. The engine-facing save path, auto-save, and the conflict check stay in PR 1.7.
+- The corpus is `testdata/markdown/corpus/` (73 original pages: CRLF, BOM, lone CR, mixed endings, unusual list markers, setext headings, frontmatter shapes, hostile input, and seeded generated pages), kept byte-exact by a `-text` rule in `.gitattributes`. The property tests also run each page with CRLF endings and use a small seeded generator instead of a new crate.
+- `craft-atomic` was added to the workspace dependencies at the pinned craft-libs commit.
 
 ## PR 1.5: text editing in containers
 
@@ -453,3 +462,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 1 | PR 1.3 done: deviations (page text seam instead of the folder reader, block model for PR 1.4, hand-written frontmatter reader) noted under PR 1.3. |
 | 2026-10-15 | 1 | PR 1.10 follow-ups from the WordCraft survey: anti-aliased stroke edges and a marked current pen; PR 1.11 gains its highlighter and eraser design. Hours unchanged. |
 | 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |
+| 2026-10-15 | 1 | PR 1.4 done: deviations (Editor API, canonical serializer scope, minimal save path in storage, corpus location) noted under PR 1.4. |
