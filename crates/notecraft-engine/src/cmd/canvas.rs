@@ -9,6 +9,7 @@ use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
 use crate::session::Session;
+use crate::undo::{Op, Scope, Transaction};
 use crate::view::PageStyle;
 
 fn set_zoom(session: &mut Session, percent: u16) -> CommandOutput {
@@ -90,13 +91,24 @@ fn invalid(id: CommandId, what: &str, value: &str, expected: &str) -> CommandErr
     }
 }
 
-/// Apply `change` to the shown page's style. With no page shown, nothing changes.
-fn restyle(session: &mut Session, change: impl FnOnce(&mut PageStyle)) {
-    let mut style = session.page_style();
-    change(&mut style);
-    if style != session.page_style() && session.set_page_style(style) {
-        session.mark_changed();
+/// Apply `change` to the shown page's style as one undo step called `label`. With no page
+/// shown, or a style that stays the same, nothing changes.
+fn restyle(session: &mut Session, label: &str, change: impl FnOnce(&mut PageStyle)) {
+    let Some(page) = session.selection().page.clone() else {
+        return;
+    };
+    let before = session.page_style();
+    let mut after = before;
+    change(&mut after);
+    if after == before {
+        return;
     }
+    let op = Op::SetPageStyle {
+        page: page.clone(),
+        before,
+        after,
+    };
+    session.commit(Transaction::new(Scope::Page(page), label).with(op));
 }
 
 /// `view.rule_lines { style }`
@@ -109,7 +121,7 @@ pub(super) fn rule_lines(
         let expected = RuleLines::ALL.map(RuleLines::id).join(", ");
         return Err(invalid(ids::VIEW_RULE_LINES, "style", id, &expected));
     };
-    restyle(session, |page| page.rule_lines = style);
+    restyle(session, "Rule lines", |page| page.rule_lines = style);
     Ok(CommandOutput {
         value: json!(style.id()),
     })
@@ -125,7 +137,7 @@ pub(super) fn paper_size(
         let expected = PaperSize::ALL.map(PaperSize::id).join(", ");
         return Err(invalid(ids::VIEW_PAPER_SIZE, "size", id, &expected));
     };
-    restyle(session, |page| page.paper_size = size);
+    restyle(session, "Paper size", |page| page.paper_size = size);
     Ok(CommandOutput {
         value: json!(size.id()),
     })
@@ -150,7 +162,7 @@ pub(super) fn page_color(
         };
         Some(rgba)
     };
-    restyle(session, |page| page.color = color);
+    restyle(session, "Page color", |page| page.color = color);
     Ok(CommandOutput {
         value: json!(color.map_or_else(|| "none".to_owned(), format_hex)),
     })

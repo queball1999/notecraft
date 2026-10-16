@@ -207,18 +207,19 @@ impl Session {
         &mut self.recents
     }
 
-    /// Set the style of the page shown now. Returns false, changing nothing, when no page
-    /// is shown.
-    pub(crate) fn set_page_style(&mut self, style: PageStyle) -> bool {
-        let Some(id) = self.selection.page.clone() else {
-            return false;
-        };
+    /// The style of page `id` (the default style for a page that never had one set).
+    pub(crate) fn style_of(&self, id: &str) -> PageStyle {
+        self.page_styles.get(id).copied().unwrap_or_default()
+    }
+
+    /// Set the style of page `id`.
+    pub(crate) fn set_style_of(&mut self, id: &str, style: PageStyle) {
+        let id = id.to_owned();
         if style == PageStyle::default() {
             self.page_styles.remove(&id);
         } else {
             self.page_styles.insert(id, style);
         }
-        true
     }
 }
 

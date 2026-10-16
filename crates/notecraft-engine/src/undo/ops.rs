@@ -8,6 +8,7 @@ use notecraft_model::section::MAX_GROUP_DEPTH;
 use notecraft_model::{Section, SectionNode};
 
 use crate::session::Session;
+use crate::view::PageStyle;
 
 /// One reversible change to the document.
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +33,13 @@ pub enum Op {
         at: usize,
         removed: String,
         inserted: String,
+    },
+    /// Change a page's style (rule lines, background color, paper size) from `before` to
+    /// `after`.
+    SetPageStyle {
+        page: String,
+        before: PageStyle,
+        after: PageStyle,
     },
     /// Move a page to another spot in a notebook: another section, or another place in the
     /// same one. A notebook-level change: it goes in a [`crate::undo::Scope::Notebook`]
@@ -152,6 +160,15 @@ impl Op {
                 removed: inserted.clone(),
                 inserted: removed.clone(),
             },
+            Op::SetPageStyle {
+                page,
+                before,
+                after,
+            } => Op::SetPageStyle {
+                page: page.clone(),
+                before: *after,
+                after: *before,
+            },
             Op::MovePage {
                 notebook,
                 page,
@@ -179,6 +196,7 @@ impl Op {
                 inserted,
                 ..
             } => BASE + page.len() + removed.len() + inserted.len(),
+            Op::SetPageStyle { page, .. } => BASE + page.len() + size_of::<PageStyle>() * 2,
             Op::MovePage {
                 notebook,
                 page,
@@ -248,6 +266,17 @@ impl Op {
                 next.push_str(inserted);
                 next.push_str(tail);
                 session.set_page_source(page, next);
+                true
+            }
+            Op::SetPageStyle {
+                page,
+                before,
+                after,
+            } => {
+                if session.style_of(page) != *before {
+                    return false;
+                }
+                session.set_style_of(page, *after);
                 true
             }
             Op::MovePage {

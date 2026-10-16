@@ -747,6 +747,127 @@ fn undo_and_redo_are_specced_with_shortcuts() {
     assert!(redo.contains(&"Ctrl+Y") && redo.contains(&"Ctrl+Shift+Z"));
 }
 
+// Every Ready command
+
+/// How to run each Ready undoable command in a test. A PR that makes another command
+/// undoable and Ready adds a row here, or `every_ready_undoable_command_has_an_undo_case`
+/// fails.
+const UNDO_CASES: &[(&str, &str)] = &[
+    ("ink.add_stroke", r#"{ "points": [[1, 2], [30, 40, 0.5]] }"#),
+    ("view.rule_lines", r#"{ "style": "college" }"#),
+    ("view.page_color", r##"{ "color": "#DCEBF7" }"##),
+    ("view.paper_size", r#"{ "size": "a4" }"#),
+];
+
+type Document = (
+    Vec<Notebook>,
+    crate::InkState,
+    crate::PageStyle,
+    Option<String>,
+    Option<String>,
+);
+
+/// What undo has to restore: everything in the document, not the view or the history.
+fn document(session: &Session) -> Document {
+    (
+        session.notebooks().to_vec(),
+        session.ink().clone(),
+        session.style_of("p1"),
+        session.page_text("p1").map(str::to_owned),
+        session.page_text("p2").map(str::to_owned),
+    )
+}
+
+#[test]
+fn every_ready_undoable_command_has_an_undo_case() {
+    let registry = Registry::builtin();
+    for spec in registry.specs() {
+        let ready = spec.status == crate::cmd::Status::Ready;
+        if ready && spec.undoable {
+            let id = spec.id.as_str();
+            assert!(
+                UNDO_CASES.iter().any(|(case, _)| *case == id),
+                "{id} is Ready and undoable but has no row in UNDO_CASES"
+            );
+        }
+    }
+    for (id, _) in UNDO_CASES {
+        let spec = registry.get(id).unwrap();
+        assert!(spec.undoable, "{id} is in UNDO_CASES but not undoable");
+    }
+}
+
+#[test]
+fn every_undoable_command_undoes_and_redoes_exactly() {
+    let registry = Registry::builtin();
+    for (id, args) in UNDO_CASES {
+        let args: Value = serde_json::from_str(args).unwrap();
+        let mut session = session_with_pages();
+        session.set_page_source("p1", "one");
+        session.set_page_source("p2", "two");
+        let before = document(&session);
+
+        run(&mut session, &registry, id, args.clone());
+        let after = document(&session);
+        assert_ne!(after, before, "{id} changed nothing");
+        assert!(session.can_undo(), "{id} left no undo step");
+        assert!(!session.can_redo(), "{id}");
+
+        run(&mut session, &registry, "edit.undo", Value::Null);
+        assert_eq!(document(&session), before, "{id}: undo");
+        assert!(!session.can_undo() && session.can_redo(), "{id}");
+
+        run(&mut session, &registry, "edit.redo", Value::Null);
+        assert_eq!(document(&session), after, "{id}: redo");
+
+        // Twice over, and a long chain: undo all the way, redo all the way.
+        run(&mut session, &registry, id, args.clone());
+        run(&mut session, &registry, id, args.clone());
+        let end = document(&session);
+        while session.can_undo() {
+            run(&mut session, &registry, "edit.undo", Value::Null);
+        }
+        assert_eq!(document(&session), before, "{id}: undo all");
+        while session.can_redo() {
+            run(&mut session, &registry, "edit.redo", Value::Null);
+        }
+        assert_eq!(document(&session), end, "{id}: redo all");
+    }
+}
+
+#[test]
+fn commands_that_are_not_undoable_leave_the_history_alone() {
+    let registry = Registry::builtin();
+    let args = |id: &str| -> Value {
+        match id {
+            "nav.page.select" | "nav.section.select" | "nav.notebook.select" => Value::Null,
+            _ => Value::Null,
+        }
+    };
+    for spec in registry.specs() {
+        let id = spec.id.as_str();
+        let runnable = spec.status == crate::cmd::Status::Ready
+            && !spec.undoable
+            && spec.args_schema.iter().all(|arg| !arg.required)
+            && !id.starts_with("file.")
+            && !id.starts_with("edit.");
+        if !runnable {
+            continue;
+        }
+        let mut session = session_with_pages();
+        run(
+            &mut session,
+            &registry,
+            "ink.add_stroke",
+            json!({ "points": [[1, 2]] }),
+        );
+        let history = session.history().clone();
+        let result = registry.run(&mut session, id, args(id));
+        assert!(result.is_ok(), "{id}: {result:?}");
+        assert_eq!(*session.history(), history, "{id} touched the history");
+    }
+}
+
 // The command guard
 
 const TEST_RECORD_THEN_PANIC: CommandId = CommandId::new("test.record_then_panic");
