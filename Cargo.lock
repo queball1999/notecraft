@@ -2018,7 +2018,7 @@ checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
 name = "notecraft"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "craft-quit",
  "craft-settings",
@@ -2039,7 +2039,7 @@ dependencies = [
 
 [[package]]
 name = "notecraft-canvas"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "notecraft-core",
  "notecraft-model",
@@ -2047,7 +2047,7 @@ dependencies = [
 
 [[package]]
 name = "notecraft-cli"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "notecraft-engine",
  "serde_json",
@@ -2055,11 +2055,11 @@ dependencies = [
 
 [[package]]
 name = "notecraft-core"
-version = "0.0.0"
+version = "0.0.1"
 
 [[package]]
 name = "notecraft-engine"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "notecraft-canvas",
  "notecraft-core",
@@ -2072,7 +2072,7 @@ dependencies = [
 
 [[package]]
 name = "notecraft-markdown"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "notecraft-core",
  "notecraft-model",
@@ -2080,21 +2080,21 @@ dependencies = [
 
 [[package]]
 name = "notecraft-model"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "notecraft-core",
 ]
 
 [[package]]
 name = "notecraft-storage"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "notecraft-core",
 ]
 
 [[package]]
 name = "notecraft-ui-egui"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "craft-ui",
  "egui",
@@ -4470,7 +4470,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "serde_json",
 ]
