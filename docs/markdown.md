@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -292,7 +292,7 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 ## 10. History and trash
 
 - Version history: before overwriting a page, NoteCraft copies the old file to `.notecraft/history/<page-id>/<timestamp>.<ext>` at most once every 10 minutes per page, keeping 50 snapshots per page by default.
-- Trash: deleted pages and sections move to `.notecraft/trash/` with a small `.trash.toml` recording the original path, and are purged after 30 days.
+- Trash: deleted pages and sections move to `.notecraft/trash/<seconds>-<n>/<name>` with an `origin.toml` beside them recording the original path, kind, position, level, and time (PR 1.13). Undo moves them back. Listing, restoring, and purging after 30 days are Phase 3 (PR 3.5).
 
 ## 11. Compatibility promises
 
@@ -311,3 +311,4 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-15 | 1 | PR 1.3 landed the reader: status line updated; frontmatter over 64 KiB is kept as text with its keys ignored, and a block with no closing line is not frontmatter; the body is parsed after the frontmatter with page-relative spans. |
 | 2026-10-15 | 1 | PR 1.2 landed the index: section 8 states the refresh rule (time and size, then hash), the `user_version` migrations, and rebuild on corruption or a newer schema. |
 | 2026-10-15 | 1 | PR 1.4 landed the writer: status line updated; edits are span replacements, text a user adds takes the file's dominant line ending (LF on a tie), a new frontmatter block goes after a byte order mark, and a value outside the YAML subset is written back as it was read. |
+| 2026-10-16 | 1 | PR 1.13: structure edits write `notebook.toml` and `.section.toml` (order, levels, colors, names) with craft-atomic; trash items sit in a numbered folder with `origin.toml` instead of `.trash.toml`. |
