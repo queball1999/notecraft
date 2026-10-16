@@ -13,3 +13,7 @@ workspace = true
 
 [dependencies]
 notecraft-core.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

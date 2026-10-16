@@ -2090,6 +2090,8 @@ name = "notecraft-storage"
 version = "0.0.0"
 dependencies = [
  "notecraft-core",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
