@@ -17,6 +17,7 @@
 
 mod block;
 mod canonical;
+pub mod containers;
 #[cfg(test)]
 mod canonical_tests;
 mod document;
@@ -32,6 +33,7 @@ mod parse_tests;
 mod style;
 
 pub use block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Span, Table};
+pub use containers::{split_containers, ContainerRun};
 pub use canonical::{block_to_markdown, blocks_to_markdown, page_to_markdown, runs_to_markdown};
 pub use document::{parse, Document};
 pub use edit::{apply_edits, Edit, EditError, Editor};
