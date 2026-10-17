@@ -5,6 +5,7 @@
 
 use notecraft_engine::recent::{RecentKind, Recents};
 use notecraft_engine::view::{RibbonLayout, RibbonShow};
+use notecraft_engine::{default_pen_tools, PenTool, MAX_PEN_TOOLS};
 use notecraft_ui_egui::themes::{Mode, Preset};
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +22,7 @@ pub struct Prefs {
     pub ribbon: RibbonPrefs,
     pub recent: RecentPrefs,
     pub colors: ColorPrefs,
+    pub draw: DrawPrefs,
 }
 
 /// The color menus' Recent Colors, newest first, as `#RRGGBB` or `#RRGGBBAA`. The front end
@@ -37,6 +39,77 @@ impl ColorPrefs {
         if self.recent != recent {
             self.recent = recent.to_vec();
         }
+    }
+}
+
+/// The Draw tab's pens and highlighters. `tools` is `None` until the user changes the list,
+/// which keeps the built-in set (and any later change to it) for people who never touched it.
+/// Kinds and colors are strings, so an entry from a newer version that does not parse is
+/// dropped instead of failing the file.
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct DrawPrefs {
+    pub tools: Option<Vec<ToolPref>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct ToolPref {
+    /// `pen` or `highlighter`.
+    pub kind: String,
+    /// `#RRGGBB` or `#RRGGBBAA`.
+    pub color: String,
+    /// Width in points.
+    pub width: f32,
+}
+
+impl Default for ToolPref {
+    fn default() -> Self {
+        Self {
+            kind: "pen".to_owned(),
+            color: "#000000".to_owned(),
+            width: 1.0,
+        }
+    }
+}
+
+impl DrawPrefs {
+    /// The saved tools, with bad entries dropped and the count capped; the built-in set when
+    /// the list was never changed.
+    pub fn tools(&self) -> Vec<PenTool> {
+        match &self.tools {
+            None => default_pen_tools(),
+            Some(saved) => saved
+                .iter()
+                .filter_map(|t| PenTool::from_saved(&t.kind, &t.color, t.width))
+                .take(MAX_PEN_TOOLS)
+                .collect(),
+        }
+    }
+
+    /// Record the session's list; leaves it alone when nothing changed. A list equal to the
+    /// built-in set is stored as `None`.
+    pub fn observe(&mut self, tools: &[PenTool]) {
+        if self.tools().as_slice() == tools {
+            return;
+        }
+        self.tools = if tools == default_pen_tools().as_slice() {
+            None
+        } else {
+            Some(
+                tools
+                    .iter()
+                    .map(|tool| {
+                        let (kind, color, width) = tool.to_saved();
+                        ToolPref {
+                            kind: kind.to_owned(),
+                            color,
+                            width,
+                        }
+                    })
+                    .collect(),
+            )
+        };
     }
 }
 
@@ -237,6 +310,59 @@ impl ThemePrefs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_pen_list_is_saved_only_when_changed_and_restores_bounded() {
+        let mut prefs = DrawPrefs::default();
+        assert_eq!(prefs.tools(), default_pen_tools());
+        prefs.observe(&default_pen_tools());
+        assert_eq!(prefs.tools, None);
+        let mut edited = default_pen_tools();
+        edited.pop();
+        edited.push(PenTool::from_saved("pen", "#E36C09", 3.5).unwrap());
+        prefs.observe(&edited);
+        assert!(prefs.tools.is_some());
+        assert_eq!(prefs.tools(), edited);
+        // It survives the settings file.
+        let text = toml::to_string(&Prefs {
+            draw: prefs.clone(),
+            ..Prefs::default()
+        })
+        .unwrap();
+        let back: Prefs = toml::from_str(&text).unwrap();
+        assert_eq!(back.draw.tools(), edited);
+        // Putting the built-in set back stores nothing.
+        prefs.observe(&default_pen_tools());
+        assert_eq!(prefs.tools, None);
+        // An emptied list is kept as empty, not replaced by the defaults.
+        prefs.observe(&[]);
+        assert_eq!(prefs.tools(), Vec::new());
+    }
+
+    #[test]
+    fn damaged_pen_entries_are_dropped_or_put_in_range() {
+        let text = r##"
+            [draw]
+            tools = [
+                { kind = "pen", color = "#112233", width = 9999.0 },
+                { kind = "chalk", color = "#112233", width = 1.0 },
+                { kind = "pen", color = "red", width = 1.0 },
+                { kind = "highlighter", color = "#FFF17680", width = -4.0 },
+            ]
+        "##;
+        let prefs: Prefs = toml::from_str(text).unwrap();
+        let tools = prefs.draw.tools();
+        assert_eq!(tools.len(), 2);
+        assert_eq!(tools[0].style.width_pt, 72.0);
+        assert_eq!(tools[1].style.width_pt, 0.25);
+        let many = format!(
+            "[draw]
+tools = [{}]",
+            vec![r##"{ kind = "pen", color = "#000000", width = 1.0 }"##; 100].join(",")
+        );
+        let prefs: Prefs = toml::from_str(&many).unwrap();
+        assert_eq!(prefs.draw.tools().len(), MAX_PEN_TOOLS);
+    }
 
     #[test]
     fn damaged_sizes_fall_back_to_bounds() {
