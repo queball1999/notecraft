@@ -27,7 +27,7 @@ pub use ink::{
 pub use notecraft_storage::RecoveryEntry;
 pub use session::{
     ConvertOutcome, PageNotice, PageSource, ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome,
-    SaveState, Selection, Session,
+    SaveState, Selection, Session, TextCursor,
 };
 pub use view::PageStyle;
 

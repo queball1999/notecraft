@@ -7,7 +7,7 @@ use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::{mock, DrawTool, Session};
 
-use super::{flow, ink, paper, title, CanvasUi, PageToScreen};
+use super::{editing, flow, ink, paper, title, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -35,12 +35,30 @@ pub fn show(
     let view_size = Vec2::new(rect.width(), rect.height()) / zoom;
     let style = session.page_style();
     // The page text, laid out in flow layout (read-only). One seam: the page source text.
-    let flow = session
-        .current_page_source()
-        .map(|source| flow::layout(ui.painter(), state.document(source), zoom, tokens));
+    let page = session.current_page_source().map(|source| {
+        let parsed = state.document(source);
+        let geometry = state.edit.geometry(session, source.page_id, &parsed.runs);
+        let cursor = session.text_cursor();
+        let preedit = if cursor.is_some() {
+            state.edit.preedit.clone()
+        } else {
+            String::new()
+        };
+        let input = flow::Input {
+            text: source.visible_text(),
+            doc: &parsed.doc,
+            runs: &parsed.runs,
+            geometry: &geometry,
+            cursor,
+            preedit: &preedit,
+        };
+        let laid = flow::layout(ui.painter(), &input, zoom, tokens);
+        (source.page_id, source.visible_text(), parsed, laid)
+    });
+    let flow = page.as_ref().map(|(_, _, _, laid)| laid);
     let mut extent = content_extent(origin, view_size, style.paper_size.size());
-    if let Some(flow) = &flow {
-        extent.x = extent.x.max(flow::LEFT * 2.0 + flow::COLUMN_WIDTH);
+    if let Some(flow) = flow {
+        extent.x = extent.x.max(flow.width);
         extent.y = extent.y.max(flow.height);
     }
     let extent = extent * zoom;
@@ -108,8 +126,22 @@ pub fn show(
                 if let Some(page) = session.current_page() {
                     title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
                 }
-                if let Some(flow) = &flow {
+                if let Some((page_id, text, parsed, flow)) = &page {
                     flow::paint(ui.painter(), map, flow, tokens);
+                    let frame = editing::Frame {
+                        session,
+                        parsed,
+                        text,
+                        page: page_id,
+                        flow,
+                        map,
+                        tokens,
+                        panning: space_held(ui),
+                    };
+                    editing::interact(ui, &response, &frame, &mut state.edit, clicked);
+                    if response.has_focus() {
+                        editing::paint_caret(ui.painter(), map, flow, tokens);
+                    }
                 }
                 if let Some(text) = &notice {
                     // A read-only or error line under the title (the page could not be read
@@ -334,10 +366,10 @@ fn name_scroll_bars(ctx: &egui::Context, area: egui::Id) {
     }
 }
 
-/// Space is down and no text field has focus (Space+drag pans).
+/// Space is down and no text field has focus (Space+drag pans). The canvas itself may have
+/// focus: a Space typed in the text still types, and a drag with Space down pans.
 fn space_held(ui: &egui::Ui) -> bool {
-    let focused = ui.ctx().memory(|memory| memory.focused().is_some());
-    !focused && ui.input(|input| input.key_down(egui::Key::Space))
+    !ui.ctx().text_edit_focused() && ui.input(|input| input.key_down(egui::Key::Space))
 }
 
 /// How far the scroll bars reach, in page units: the paper, if it has a fixed size, and

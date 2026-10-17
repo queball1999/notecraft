@@ -21,8 +21,10 @@ use crate::undo::History;
 use crate::view::{PageStyle, ViewState};
 
 mod structure;
+mod text_state;
 
 pub use structure::EditError;
+pub use text_state::TextCursor;
 
 /// Which notebook, section, and page are shown, by id.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -41,10 +43,10 @@ pub struct PageSource<'a> {
     pub text: &'a str,
 }
 
-impl PageSource<'_> {
+impl<'a> PageSource<'a> {
     /// The text to lay out: the page without its `notecraft-canvas` block, which holds
     /// positions and ink and is never shown as text.
-    pub fn visible_text(&self) -> &str {
+    pub fn visible_text(&self) -> &'a str {
         match notecraft_storage::find_canvas_block(self.text) {
             Some(block) => self.text.get(..block.block.start).unwrap_or(self.text),
             None => self.text,
@@ -88,6 +90,11 @@ pub struct Session {
     /// Notebooks changed on disk by a structure step that must be read again (see `structure`).
     dirty: std::collections::BTreeSet<String>,
     ink: InkState,
+    /// The caret and selection of text editing, with the page they belong to.
+    text_cursor: Option<(String, TextCursor)>,
+    /// Container geometry by page id, then container id. A container missing here is in the
+    /// flow layout at the default width. PR 1.9 stores it in the page's canvas block.
+    containers: BTreeMap<String, BTreeMap<String, notecraft_model::Container>>,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).
     saving: saving::SavingState,
@@ -309,8 +316,13 @@ impl Session {
     /// Set the markdown source text of page `id` (the whole file, frontmatter included).
     /// This is the seam the folder reader plugs into; it is not a command.
     pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
+        self.put_page_text(id, text.into());
+    }
+
+    /// Store `text` as page `id`'s source and bump its revision.
+    fn put_page_text(&mut self, id: &str, text: String) {
         let next = self.page_sources.get(id).map_or(1, |(rev, _)| rev + 1);
-        self.page_sources.insert(id.to_owned(), (next, text.into()));
+        self.page_sources.insert(id.to_owned(), (next, text));
     }
 
     /// The source text of page `id`, if it has any.

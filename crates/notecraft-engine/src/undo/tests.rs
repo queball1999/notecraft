@@ -31,7 +31,7 @@ fn page_tx(page: &str, label: &str, op: Op) -> Transaction {
     Transaction::new(Scope::Page(page.into()), label).with(op)
 }
 
-pub(super) fn session_with_pages() -> Session {
+pub(crate) fn session_with_pages() -> Session {
     let section = Section {
         id: "s1".into(),
         name: "Notes".into(),
@@ -762,6 +762,75 @@ const UNDO_CASES: &[(&str, &str)] = &[
     ("view.page_color", r##"{ "color": "#DCEBF7" }"##),
     ("view.rule_line_color", r##"{ "color": "#9FB6CD" }"##),
     ("view.paper_size", r#"{ "size": "a4" }"#),
+    ("text.insert", r#"{ "text": "X" }"#),
+    ("text.delete", r#"{ "direction": "backward" }"#),
+    ("text.enter", "{}"),
+    ("text.tab", "{}"),
+    ("edit.cut", "{}"),
+    ("edit.delete", "{}"),
+    ("edit.paste", r#"{ "text": "pasted" }"#),
+    ("edit.paste_text_only", r#"{ "text": "**plain**" }"#),
+    ("container.new", r#"{ "x": 40, "y": 60 }"#),
+    ("container.move", r#"{ "id": "c0", "x": 40, "y": 60 }"#),
+    ("container.resize", r#"{ "id": "c0", "width": 300 }"#),
+    ("format.bold", "{}"),
+    ("format.italic", "{}"),
+    ("format.underline", "{}"),
+    ("format.strikethrough", "{}"),
+    ("format.subscript", "{}"),
+    ("format.superscript", "{}"),
+    ("format.highlight", "{}"),
+    ("format.font_color", r##"{ "color": "#E53935" }"##),
+    ("format.font_family", r#"{ "name": "Courier New" }"#),
+    ("format.font_size", r#"{ "points": 14 }"#),
+    ("format.bullets", "{}"),
+    ("format.numbering", "{}"),
+    ("format.indent", "{}"),
+    ("format.outdent", "{}"),
+    ("format.clear", "{}"),
+    ("format.align_left", "{}"),
+    ("format.align_center", "{}"),
+    ("format.align_right", "{}"),
+    ("style.apply", r#"{ "style": "heading2" }"#),
+    ("tag.todo", "{}"),
+];
+
+/// Cases that need page text other than "one" for the command to change something.
+const SOURCES: &[(&str, &str)] = &[
+    ("format.outdent", "  - one"),
+    ("format.indent", "- one"),
+    ("format.clear", "**one**"),
+    (
+        "format.align_left",
+        "<!-- notecraft:align=center -->
+one",
+    ),
+];
+
+/// Cases that need a selection first: the whole text of the page is selected.
+const NEEDS_SELECTION: &[&str] = &[
+    "edit.cut",
+    "edit.delete",
+    "format.bold",
+    "format.italic",
+    "format.underline",
+    "format.strikethrough",
+    "format.subscript",
+    "format.superscript",
+    "format.highlight",
+    "format.font_color",
+    "format.font_family",
+    "format.font_size",
+    "format.bullets",
+    "format.numbering",
+    "format.indent",
+    "format.outdent",
+    "format.clear",
+    "format.align_left",
+    "format.align_center",
+    "format.align_right",
+    "style.apply",
+    "tag.todo",
 ];
 
 type Document = (
@@ -770,6 +839,7 @@ type Document = (
     crate::PageStyle,
     Option<String>,
     Option<String>,
+    Vec<notecraft_model::Container>,
 );
 
 /// What undo has to restore: everything in the document, not the view or the history.
@@ -780,6 +850,7 @@ fn document(session: &Session) -> Document {
         session.style_of("p1"),
         session.page_text("p1").map(str::to_owned),
         session.page_text("p2").map(str::to_owned),
+        session.page_containers("p1"),
     )
 }
 
@@ -812,8 +883,15 @@ fn every_undoable_command_undoes_and_redoes_exactly() {
     for (id, args) in UNDO_CASES {
         let args: Value = serde_json::from_str(args).unwrap();
         let mut session = session_with_pages();
-        session.set_page_source("p1", "one");
+        let source = SOURCES
+            .iter()
+            .find(|(case, _)| case == id)
+            .map_or("one", |(_, text)| *text);
+        session.set_page_source("p1", source);
         session.set_page_source("p2", "two");
+        if NEEDS_SELECTION.contains(id) {
+            run(&mut session, &registry, "edit.select_all", Value::Null);
+        }
         // A line to erase for ink.erase, put there without an undo step.
         let line = Stroke {
             points: vec![

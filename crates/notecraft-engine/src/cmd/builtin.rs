@@ -4,10 +4,67 @@
 
 use super::page;
 use super::{
-    canvas, draw, edit, file, ids, layout, nav, structure, theme, ArgKind, ArgSpec, CommandId,
-    CommandSpec, Handler,
+    canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind, ArgSpec,
+    CommandId, CommandSpec, Handler,
 };
 
+const SET_CARET_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("at", ArgKind::Integer, "Byte offset in the page text."),
+    ArgSpec::optional("extend", ArgKind::Bool, "Extend the selection instead."),
+    ArgSpec::optional(
+        "select",
+        ArgKind::String,
+        "word or line, around the offset.",
+    ),
+];
+const MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "motion",
+        ArgKind::String,
+        "left, right, word_left, word_right, line_start, line_end, start, or end.",
+    ),
+    ArgSpec::optional("extend", ArgKind::Bool, "Extend the selection."),
+];
+const INSERT_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("text", ArgKind::String, "The text to type."),
+    ArgSpec::optional(
+        "typing",
+        ArgKind::Bool,
+        "Keystrokes: coalesce into word-sized undo steps.",
+    ),
+];
+const DELETE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("direction", ArgKind::String, "backward or forward."),
+    ArgSpec::optional("unit", ArgKind::String, "char (default) or word."),
+];
+const ENTER_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "soft",
+    ArgKind::Bool,
+    "A line break inside the paragraph.",
+)];
+const TAB_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "shift",
+    ArgKind::Bool,
+    "Move out a level instead of in.",
+)];
+const POINT_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("x", ArgKind::Number, "Page x in pixels at 96 per inch."),
+    ArgSpec::required("y", ArgKind::Number, "Page y in pixels at 96 per inch."),
+];
+const CONTAINER_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("id", ArgKind::String, "The container id."),
+    ArgSpec::required("x", ArgKind::Number, "Page x of the top left corner."),
+    ArgSpec::required("y", ArgKind::Number, "Page y of the top left corner."),
+];
+const CONTAINER_RESIZE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("id", ArgKind::String, "The container id."),
+    ArgSpec::required("width", ArgKind::Number, "Width in page pixels."),
+];
+const PASTE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "text",
+    ArgKind::String,
+    "The text to paste; the front end passes the clipboard text.",
+)];
 const NOTEBOOK_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "path",
     ArgKind::String,
@@ -387,16 +444,20 @@ pub(super) static SPECS: &[CommandSpec] = &[
     // Home tab: Clipboard group
     CommandSpec::new(ids::EDIT_CUT, "Cut", "Move the selection to the clipboard.")
         .undoable()
-        .shortcut("Ctrl+X"),
+        .shortcut("Ctrl+X")
+        .ready(),
     CommandSpec::new(
         ids::EDIT_COPY,
         "Copy",
         "Copy the selection to the clipboard.",
     )
-    .shortcut("Ctrl+C"),
+    .shortcut("Ctrl+C")
+    .ready(),
     CommandSpec::new(ids::EDIT_PASTE, "Paste", "Paste from the clipboard.")
+        .args(PASTE_ARGS)
         .undoable()
-        .shortcut("Ctrl+V"),
+        .shortcut("Ctrl+V")
+        .ready(),
     CommandSpec::new(
         ids::EDIT_PASTE_KEEP_FORMATTING,
         "Keep Source Formatting",
@@ -414,7 +475,9 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Keep Text Only",
         "Paste plain text without formatting.",
     )
-    .undoable(),
+    .args(PASTE_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::EDIT_PASTE_PICTURE,
         "Paste as Picture",
@@ -439,11 +502,13 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Select All",
         "Select everything in the current container, then on the page.",
     )
-    .shortcut("Ctrl+A"),
+    .shortcut("Ctrl+A")
+    .ready(),
     CommandSpec::new(ids::EDIT_DELETE, "Delete", "Delete the selection.")
         .undoable()
         .destructive()
-        .shortcut("Delete"),
+        .shortcut("Delete")
+        .ready(),
     CommandSpec::new(
         ids::EDIT_FIND,
         "Find on Page",
@@ -457,83 +522,96 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Set the font family of the selection.",
     )
     .undoable()
-    .args(FONT_FAMILY_ARGS),
+    .args(FONT_FAMILY_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_FONT_SIZE,
         "Font Size",
         "Set the font size of the selection.",
     )
     .undoable()
-    .args(FONT_SIZE_ARGS),
+    .args(FONT_SIZE_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_BULLETS,
         "Bullets",
         "Start or remove a bulleted list.",
     )
     .undoable()
-    .shortcut("Ctrl+."),
+    .shortcut("Ctrl+.")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_NUMBERING,
         "Numbering",
         "Start or remove a numbered list.",
     )
     .undoable()
-    .shortcut("Ctrl+/"),
+    .shortcut("Ctrl+/")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_OUTDENT,
         "Decrease Indent",
         "Move the paragraph one level left.",
     )
     .undoable()
-    .shortcut("Alt+Shift+Left"),
+    .shortcut("Alt+Shift+Left")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_INDENT,
         "Increase Indent",
         "Move the paragraph one level right.",
     )
     .undoable()
-    .shortcut("Alt+Shift+Right"),
+    .shortcut("Alt+Shift+Right")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_CLEAR,
         "Clear All Formatting",
         "Remove all formatting from the selection.",
     )
     .undoable()
-    .shortcut("Ctrl+Shift+N"),
+    .shortcut("Ctrl+Shift+N")
+    .ready(),
     CommandSpec::new(ids::FORMAT_BOLD, "Bold", "Make the selection bold.")
         .undoable()
-        .shortcut("Ctrl+B"),
+        .shortcut("Ctrl+B")
+        .ready(),
     CommandSpec::new(ids::FORMAT_ITALIC, "Italic", "Make the selection italic.")
         .undoable()
-        .shortcut("Ctrl+I"),
+        .shortcut("Ctrl+I")
+        .ready(),
     CommandSpec::new(
         ids::FORMAT_UNDERLINE,
         "Underline",
         "Underline the selection.",
     )
     .undoable()
-    .shortcut("Ctrl+U"),
+    .shortcut("Ctrl+U")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_STRIKETHROUGH,
         "Strikethrough",
         "Draw a line through the selection.",
     )
     .undoable()
-    .shortcut("Ctrl+-"),
+    .shortcut("Ctrl+-")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_SUBSCRIPT,
         "Subscript",
         "Make the selection subscript.",
     )
     .undoable()
-    .shortcut("Ctrl+="),
+    .shortcut("Ctrl+=")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_SUPERSCRIPT,
         "Superscript",
         "Make the selection superscript.",
     )
     .undoable()
-    .shortcut("Ctrl+Shift+="),
+    .shortcut("Ctrl+Shift+=")
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_HIGHLIGHT,
         "Text Highlight Color",
@@ -541,29 +619,35 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .undoable()
     .shortcut("Ctrl+Alt+H")
-    .args(COLOR_ARGS),
+    .args(COLOR_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_FONT_COLOR,
         "Font Color",
         "Set the text color of the selection.",
     )
     .undoable()
-    .args(COLOR_ARGS),
+    .args(COLOR_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::FORMAT_ALIGN_LEFT,
         "Align Left",
         "Align the paragraph to the left.",
     )
     .undoable()
-    .shortcut("Ctrl+L"),
-    CommandSpec::new(ids::FORMAT_ALIGN_CENTER, "Center", "Center the paragraph.").undoable(),
+    .shortcut("Ctrl+L")
+    .ready(),
+    CommandSpec::new(ids::FORMAT_ALIGN_CENTER, "Center", "Center the paragraph.")
+        .undoable()
+        .ready(),
     CommandSpec::new(
         ids::FORMAT_ALIGN_RIGHT,
         "Align Right",
         "Align the paragraph to the right.",
     )
     .undoable()
-    .shortcut("Ctrl+R"),
+    .shortcut("Ctrl+R")
+    .ready(),
     // Home tab: Styles group
     CommandSpec::new(
         ids::STYLE_APPLY,
@@ -571,7 +655,8 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Apply a heading or paragraph style to the selection.",
     )
     .undoable()
-    .args(STYLE_ARGS),
+    .args(STYLE_ARGS)
+    .ready(),
     // Home tab: Tags group
     CommandSpec::new(
         ids::TAG_APPLY,
@@ -586,7 +671,8 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Add or check a To Do checkbox on the selected paragraph.",
     )
     .undoable()
-    .shortcut("Ctrl+1"),
+    .shortcut("Ctrl+1")
+    .ready(),
     CommandSpec::new(
         ids::TAG_REMOVE,
         "Remove Tag",
@@ -792,6 +878,73 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Add a stroke drawn with the current pen to the page.",
     )
     .args(STROKE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::TEXT_SET_CARET,
+        "Place Caret",
+        "Put the text caret at a position in the page text, or extend the selection to it.",
+    )
+    .args(SET_CARET_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TEXT_MOVE,
+        "Move Caret",
+        "Move the text caret by a character, word, or line, or extend the selection.",
+    )
+    .args(MOVE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TEXT_INSERT,
+        "Type Text",
+        "Type text at the caret, replacing the selection.",
+    )
+    .args(INSERT_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::TEXT_DELETE,
+        "Delete Text",
+        "Delete backward or forward by a character or a word.",
+    )
+    .args(DELETE_ARGS)
+    .undoable()
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::TEXT_ENTER,
+        "Enter",
+        "Start a new paragraph or list item, or a line break.",
+    )
+    .args(ENTER_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(ids::TEXT_TAB, "Tab", "Move list items in or out a level.")
+        .args(TAB_ARGS)
+        .undoable()
+        .ready(),
+    CommandSpec::new(
+        ids::CONTAINER_NEW,
+        "New Container",
+        "Start a new note container at a point on the page.",
+    )
+    .args(POINT_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::CONTAINER_MOVE,
+        "Move Container",
+        "Move a note container to a point on the page.",
+    )
+    .args(CONTAINER_MOVE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::CONTAINER_RESIZE,
+        "Resize Container",
+        "Change the width of a note container.",
+    )
+    .args(CONTAINER_RESIZE_ARGS)
     .undoable()
     .ready(),
     CommandSpec::new(
@@ -1275,6 +1428,41 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
+    (ids::TEXT_SET_CARET, text::set_caret),
+    (ids::TEXT_MOVE, text::move_caret),
+    (ids::TEXT_INSERT, text::insert),
+    (ids::TEXT_DELETE, text::delete),
+    (ids::TEXT_ENTER, text::enter),
+    (ids::TEXT_TAB, text::tab),
+    (ids::CONTAINER_NEW, text::container_new),
+    (ids::CONTAINER_MOVE, text::container_move),
+    (ids::CONTAINER_RESIZE, text::container_resize),
+    (ids::EDIT_CUT, text::cut),
+    (ids::EDIT_COPY, text::copy),
+    (ids::EDIT_PASTE, text::paste),
+    (ids::EDIT_PASTE_TEXT_ONLY, text::paste_text_only),
+    (ids::EDIT_SELECT_ALL, text::select_all),
+    (ids::EDIT_DELETE, text::edit_delete),
+    (ids::FORMAT_FONT_FAMILY, format::font_family),
+    (ids::FORMAT_FONT_SIZE, format::font_size),
+    (ids::FORMAT_BULLETS, format::bullets),
+    (ids::FORMAT_NUMBERING, format::numbering),
+    (ids::FORMAT_OUTDENT, format::outdent),
+    (ids::FORMAT_INDENT, format::indent),
+    (ids::FORMAT_CLEAR, format::clear),
+    (ids::FORMAT_BOLD, format::bold),
+    (ids::FORMAT_ITALIC, format::italic),
+    (ids::FORMAT_UNDERLINE, format::underline),
+    (ids::FORMAT_STRIKETHROUGH, format::strikethrough),
+    (ids::FORMAT_SUBSCRIPT, format::subscript),
+    (ids::FORMAT_SUPERSCRIPT, format::superscript),
+    (ids::FORMAT_HIGHLIGHT, format::highlight),
+    (ids::FORMAT_FONT_COLOR, format::font_color),
+    (ids::FORMAT_ALIGN_LEFT, format::align_left),
+    (ids::FORMAT_ALIGN_CENTER, format::align_center),
+    (ids::FORMAT_ALIGN_RIGHT, format::align_right),
+    (ids::STYLE_APPLY, format::style_apply),
+    (ids::TAG_TODO, format::todo),
     (ids::EDIT_UNDO, edit::undo),
     (ids::EDIT_REDO, edit::redo),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),

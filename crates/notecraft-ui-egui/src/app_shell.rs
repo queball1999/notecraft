@@ -93,6 +93,9 @@ pub struct AppShell {
     about: AppInfo,
     /// Text for the clipboard, put there on the next frame.
     pending_copy: Option<String>,
+    /// Ids of the commands that ran through [`AppShell::dispatch`], for tests.
+    #[cfg(test)]
+    ran: Vec<String>,
     /// Auto-save, the recovery journal, and the folder watcher (the desktop app turns them on).
     io: Option<notecraft_engine::io::SessionIo>,
 }
@@ -139,6 +142,8 @@ impl AppShell {
             recent_colors: Vec::new(),
             about: AppInfo::default(),
             pending_copy: None,
+            #[cfg(test)]
+            ran: Vec::new(),
             io: None,
         }
     }
@@ -266,6 +271,11 @@ impl AppShell {
         &self.session
     }
 
+    /// Show a notice line on page `id`; a read-only notice also stops text editing there.
+    pub fn set_page_notice(&mut self, id: &str, text: &str, read_only: bool) {
+        self.session.set_page_notice(id, text, read_only);
+    }
+
     /// Give page `id` its markdown source text (the whole file). The canvas shows it in flow
     /// layout when that page is open. The folder reader (PR 1.1) calls this when it loads a page.
     pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
@@ -312,7 +322,11 @@ impl AppShell {
     /// whether the command ran.
     pub fn dispatch(&mut self, id: &str, args: Value) -> bool {
         match self.run_command(id, args) {
-            Some(Ok(_)) => true,
+            Some(Ok(_)) => {
+                #[cfg(test)]
+                self.ran.push(id.to_owned());
+                true
+            }
             None => false,
             Some(Err(err)) => {
                 match err {
@@ -688,7 +702,8 @@ mod tests {
             .texts()
             .map(str::to_owned)
             .collect();
-        assert_eq!(texts, ["Coming Soon: Bold"]);
+        assert!(texts.is_empty(), "Bold runs and shows nothing: {texts:?}");
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.bold"));
     }
 
     #[test]
@@ -752,11 +767,7 @@ mod tests {
         harness.get_by_label("Bold").click();
         harness.run();
         assert!(!harness.state().ribbon().peeking());
-        assert!(harness
-            .state()
-            .toasts()
-            .texts()
-            .any(|t| t == "Coming Soon: Bold"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.bold"));
 
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F1);
         harness.run();
@@ -830,6 +841,10 @@ mod tests {
         harness.run();
     }
 
+    fn last_ran(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
+        harness.state().ran.last().cloned()
+    }
+
     fn last_toast(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
         harness.state().toasts().texts().last().map(str::to_owned)
     }
@@ -856,7 +871,7 @@ mod tests {
         assert!(harness.query_by_label("Consolas").is_none(), "filtered");
         harness.key_press(egui::Key::Enter);
         harness.run();
-        assert_eq!(last_toast(&harness).as_deref(), Some("Coming Soon: Font"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_family"));
         assert!(
             harness.query_by_label("Arial Black").is_none(),
             "list closed"
@@ -910,10 +925,7 @@ mod tests {
         type_into(&mut harness, "Font Size", "13.5");
         harness.key_press(egui::Key::Enter);
         harness.run();
-        assert_eq!(
-            last_toast(&harness).as_deref(),
-            Some("Coming Soon: Font Size")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_size"));
     }
 
     #[test]
@@ -929,7 +941,7 @@ mod tests {
         assert!(harness.query_by_label("Segoe UI").is_some());
         harness.get_by_label("Consolas").click();
         harness.run();
-        assert_eq!(last_toast(&harness).as_deref(), Some("Coming Soon: Font"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_family"));
         assert!(harness.query_by_label("Segoe UI").is_none(), "list closed");
 
         let mut harness = harness_for(AppShell::new());
@@ -938,10 +950,7 @@ mod tests {
         harness.run();
         harness.get_by_label("24").click();
         harness.run();
-        assert_eq!(
-            last_toast(&harness).as_deref(),
-            Some("Coming Soon: Font Size")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_size"));
     }
 
     #[test]
@@ -987,11 +996,7 @@ mod tests {
         );
         harness.get_by_label("Bold").click();
         harness.run();
-        assert!(harness
-            .state()
-            .toasts()
-            .texts()
-            .any(|t| t == "Coming Soon: Bold"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.bold"));
         display_option(&mut harness, "Classic Ribbon");
         assert_eq!(
             harness.state().session().view().ribbon_layout,
@@ -1027,10 +1032,7 @@ mod tests {
         harness.run();
         harness.get_by_label("Heading 2").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Styles")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("style.apply"));
         harness.get_by_label("Important").click();
         harness.run();
         assert_eq!(
@@ -1082,10 +1084,7 @@ mod tests {
         let _ = harness.get_by_label("Heading 6");
         harness.get_by_label("Page Title").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Styles")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("style.apply"));
         assert!(harness.query_by_label("Heading 6").is_none(), "menu closes");
 
         harness.get_by_label("More Tags").click();
@@ -1110,10 +1109,7 @@ mod tests {
         harness.run();
         harness.get_by_label("Quote").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Styles")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("style.apply"));
         harness.get_by_label("Tags").click();
         harness.run();
         harness.get_by_label("Idea").click();
@@ -1539,7 +1535,8 @@ mod tests {
         harness.get_by_label("Font Color").click();
         harness.run();
         // The main part applies the default color; the menu opens from the arrow.
-        assert_eq!(toasts(&harness), ["Coming Soon: Font Color"]);
+        assert!(toasts(&harness).is_empty());
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_color"));
         assert_eq!(harness.state().recent_colors(), ["#E53935"]);
         let arrow = harness.get_by_label("Font Color").rect().right_center() - egui::vec2(3.0, 0.0);
         harness.event(egui::Event::PointerMoved(arrow));
@@ -1871,15 +1868,17 @@ mod tests {
     #[test]
     fn coming_soon_command_shows_a_toast_for_three_seconds() {
         let mut shell = AppShell::new();
-        shell.dispatch(ids::EDIT_PASTE.as_str(), Value::Null);
+        shell.dispatch(ids::EDIT_PASTE_PICTURE.as_str(), Value::Null);
         let mut harness = harness(shell, WINDOW);
 
         harness.run();
-        let _ = harness.get_by_label("Coming Soon: Paste");
+        let _ = harness.get_by_label("Coming Soon: Paste as Picture");
 
         // egui's clock advances one predicted frame (1/60 s) per step without real input.
         harness.run_steps(200);
-        assert!(harness.query_by_label("Coming Soon: Paste").is_none());
+        assert!(harness
+            .query_by_label("Coming Soon: Paste as Picture")
+            .is_none());
         assert!(harness.state().toasts().is_empty());
     }
 

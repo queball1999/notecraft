@@ -56,7 +56,7 @@ fn run_prints_one_result_per_command_and_stops_at_the_first_failure() {
         "--cmd",
         r#"view.zoom={"percent":150}"#,
         "--cmd",
-        "format.bold",
+        "draw.ink_to_math",
         "--cmd",
         "view.zoom_in",
     ]);
@@ -65,7 +65,7 @@ fn run_prints_one_result_per_command_and_stops_at_the_first_failure() {
         .lines()
         .map(|l| serde_json::from_str(l).unwrap())
         .collect();
-    assert_eq!(lines.len(), 2, "stops after format.bold");
+    assert_eq!(lines.len(), 2, "stops after draw.ink_to_math");
     assert_eq!(lines[0]["ok"], true);
     assert_eq!(lines[0]["value"]["percent"], 150);
     assert_eq!(lines[1]["error"], "coming_soon");

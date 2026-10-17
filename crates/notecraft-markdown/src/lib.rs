@@ -20,24 +20,30 @@ mod canonical;
 #[cfg(test)]
 mod canonical_tests;
 mod container;
+pub mod containers;
 mod document;
 mod edit;
 #[cfg(test)]
 mod edit_tests;
+pub mod format;
 pub mod frontmatter;
 #[cfg(test)]
 mod frontmatter_tests;
+pub mod markup;
+#[cfg(test)]
+mod markup_tests;
 mod parse;
 #[cfg(test)]
 mod parse_tests;
 mod style;
 
-pub use block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Span, Table};
+pub use block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Script, Span, Table};
 pub use canonical::{block_to_markdown, blocks_to_markdown, page_to_markdown, runs_to_markdown};
 pub use container::{
     fix_container_ids, fresh_container_id, is_valid_id, marker_line, read_containers,
     remove_container_markers, Container, IMPLICIT_ID, MAX_CONTAINERS,
 };
+pub use containers::{split_containers, ContainerRun};
 pub use document::{parse, Document};
 pub use edit::{apply_edits, Edit, EditError, Editor};
 pub use frontmatter::{parse as parse_frontmatter, Entry, Frontmatter, Value};

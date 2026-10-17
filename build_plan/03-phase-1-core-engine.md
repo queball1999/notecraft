@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; PR 1.14 done; notes under PR 1.14. PR 1.6 notes added.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -170,6 +170,22 @@ Commits:
 
 PR title: `feat(canvas): type anywhere in note containers`.
 
+### PR 1.5 notes: deviations and open questions
+
+Built on `feat/container-editing` (2026-10-16). The design is in docs/architecture.md section 11. What differs from the steps above:
+
+- Not split into 1.5a and 1.5b; the PR is about 4,000 lines with tests. Commits: model, markdown container runs, canvas text logic, engine commands, UI widget, UI tests, docs. The plan's commits 2 and 3 (widget, then IME and keyboard) are one commit because the widget cannot be shown without the keyboard.
+- Container model: `notecraft_model::Container` holds id, optional position (none means flow layout), and width, clamped. Text lives in the page markdown (docs/markdown.md section 3.3 markers), read by `notecraft_markdown::split_containers`. A click on empty canvas appends a marker line to the page text and records a position in the session (`SetContainer` undo op); the `.notecraft` canvas block that stores positions is PR 1.9, so positions are not saved yet and a page reopens in flow order. Containers made this way are in a `.md` page with markers; promotion to `.notecraft` is PR 1.9.
+- Merged onto PR 1.9 and PR 1.13 (one container model): the marker reader is `notecraft_markdown::container` (strict markers: a marker comment without an `id=` is an ordinary comment; ids up to 64 characters; fenced code and the canvas block are skipped; at most 10,000 markers; fresh ids are the highest `cN` plus one). `split_containers` is now a thin view over it that adds the content span, the block range, and the id a save will give a bad marker (taken from `fix_container_ids`, so the editor and the save path always agree). The editor also stops at the start of the `notecraft-canvas` block: the block is never laid out, never edited, and a new container is added before it. The PR 1.5 dirty set was dropped in favor of the PR 1.7 save state (`mark_page_dirty` is called by the `ReplaceText` undo op). Container positions are still session-only; storing them in the canvas block is a PR 1.9 follow-up.
+- Command ids: `text.set_caret`, `text.move`, `text.insert`, `text.delete`, `text.enter`, `text.tab`, `container.new`, `container.move`, `container.resize`; the existing Home tab ids `edit.cut`, `edit.copy`, `edit.paste`, `edit.paste_text_only`, `edit.select_all`, and `edit.delete` became Ready. Copy and Cut return the markdown text for the front end to put on the clipboard (the shell reads the clipboard through egui events); Paste takes the clipboard text as an argument. Up, Down, Home, and End follow wrapped rows, which need the layout, so the canvas turns them into `text.set_caret` calls.
+- Edit granularity: edits are splices at byte offsets through `Session::edit_page_text`, finer than the block replacement PR 1.4 allowed; `Editor` is not needed for typing. It remains the tool for PR 1.6 style changes.
+- Decision on the typing pause (the open question from PR 1.8): no pause timer. Word-sized steps from the pure rule were enough in tests, and a clock would make undo depend on typing speed. Revisit after hand testing.
+- Live markdown rendering is block level: the caret's block (or all blocks a selection touches) shows raw markdown, the rest stays styled. Syntax visible only on the active line, as the plan says, is approximated by the active block, because inline runs have no spans.
+- Space+drag pan: the canvas now holds keyboard focus while typing, so Space+drag pans whenever no text field has focus, and a Space typed in the text still inserts a space.
+- Shortcuts: while the canvas is in typing mode, shortcuts other than cut, copy, paste, and delete still run (Ctrl+Z, zoom, tabs); the text keys reach the text as key and clipboard events.
+- Not done: formatting buttons (PR 1.6), saving (PR 1.7), find (Phase 2), drag and drop of text, a bold face. Containers do not yet overlap-protect or snap. No IME was tried on a real input method (the tests drive egui's IME events); add it to the real hardware checks in PR 1.15.
+- Open questions: (1) should an empty container survive a click away? It is removed now, as in OneNote. (2) Should New Container be on the ribbon? OneNote has none, so it is click only. (3) The page extent grows with containers but not with an off-screen drag; confirm by hand.
+
 ## PR 1.6: formatting commands
 
 | | |
@@ -189,6 +205,14 @@ Commits:
 5. `feat(ui): enable home tab formatting buttons`
 
 PR title: `feat(engine): add text formatting commands`.
+
+Notes (as built):
+- Commits landed as markdown format edits (inline and block marks, lists, tasks, indent, alignment, state at the caret), engine commands, canvas drawing of the new run styles, enabling the buttons, and tests; the five listed commits were regrouped because the markdown and engine halves needed each other. Tables already drew read-only from PR 1.5 and gained a layout test here.
+- Format commands: `format.bold`, `format.italic`, `format.strikethrough`, `format.underline`, `format.subscript`, `format.superscript`, `format.highlight`, `format.font_color`, `format.font_size`, `format.font_family`, `format.clear`, `format.bullets`, `format.numbering`, `format.indent`, `format.outdent`, `format.align_left`, `format.align_center`, `format.align_right`, `style.apply`, and `tag.todo` (Ctrl+1). Each is one trimmed splice through the PR 1.5 guard (one undo step); toggles on the selection or the word at the caret.
+- Markup beyond CommonMark and GFM (docs/markdown.md section 3.2): `<u>`, `<sub>`, `<sup>`, `==yellow==`, one-property `<span style>` for color, size, and family, and a `<!-- notecraft:align=... -->` comment line above a paragraph. All are plain text a reader without NoteCraft still sees.
+- Formatting is bounded to the text before the `notecraft-canvas` block, and never reaches the frontmatter or a container marker; container marker lines come only from `notecraft_markdown::container` through `split_containers`.
+- Not done: a bold face in the canvas font (bold is drawn with the existing ghost pass), per-character formatting inside the raw-edit block, Format Painter and Clear Formatting beyond `format.clear` (Phase 2), table editing (Phase 3).
+- Open questions: (1) alignment as a comment line is invisible in other editors; an HTML `<p align>` would show but break plain markdown. (2) Heading 1 to 6 and Normal replace the line prefix; mixed selections change every line they touch.
 
 ## PR 1.7: auto-save, crash recovery, outside edits
 
@@ -473,6 +497,14 @@ Commits:
 
 PR title: `test: fuzz every page parser`.
 
+### PR 1.14 notes: what was built and the calls made
+
+Built on `test/fuzz-parsers` (2026-10-16). FM-08 is scored P, not D.
+
+- `fuzz/` is a separate crate (its own `[workspace]`, listed in the root `exclude`), so stable `cargo xtask ci` and the wasm check never build it. Seven targets: `markdown`, `frontmatter`, `containers`, `canvas_block`, `notebook_toml`, `section_toml`, `recovery_journal` (the plan named four; the container markers, the notebook file, and the journal are parsers too). `fuzz/seed.sh` fills `fuzz/corpus/` from `testdata/`.
+- The checks live once in `fuzz/checks/*.rs` and are included by path from both the fuzz targets and two stable test files (`notecraft-markdown/tests/fuzz_props.rs`, `notecraft-storage/tests/fuzz_props.rs`). The tests use a seeded generator to mutate the testdata (flips, splices, truncation, hostile tokens), 3,000 cases per parser, about 30 seconds in a debug build. This is the only fuzzing that runs in CI.
+- Not done: running each target for 30 minutes. The dev box has only the stable toolchain and no cargo-fuzz, so the targets were not built here. There is no scheduled workflow (the plan allows a manual run, documented in CONTRIBUTING.md under Fuzz the parsers).
+
 ## PR 1.16: command line info, text, check, and run on notebooks
 
 | | |
@@ -547,3 +579,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-16 | 1 | PR 1.11 deviations and the eraser design as built. Hours unchanged. |
 | 2026-10-16 | 1 | PR 1.11 follow-ups: eraser sizes and grazing point eraser decided and built; open questions closed. |
 | 2026-10-16 | 1 | PR 1.13 done: deviations (trash layout, close as notebook delete, commands, sample notebooks read-only) and open questions noted under PR 1.13. |
+| 2026-10-16 | 1 | PR 1.14 done: seven fuzz targets, shared checks run as stable mutation tests, 30-minute runs left as a manual step; notes under PR 1.14. |

@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: Draw tab parity (feat/draw-tab-parity): OneNote Draw groups, editable pen list saved in settings, pen menu with palette and Eyedropper, Format Background, smooth curves for ink, Rule Lines thumbnail margin fix. Earlier: PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); PR 1.7: FM-02, FM-04, FM-05, FM-06, and FM-07 scored D (auto-save, crash recovery, outside edits); duplicate FM-02, ST-07, and ST-08 rows from merges removed; ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11: IN-04, IN-05, and IN-06 scored P; stale duplicate FM-02, ST-07, and ST-08 rows removed; PR 1.13: ST-02 and ST-06 scored P, ST-03 to ST-05 scored D (structure editing); stale duplicate M rows for FM-02, ST-07, and ST-08 removed.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); PR 1.7: FM-02, FM-04, FM-05, FM-06, and FM-07 scored D (auto-save, crash recovery, outside edits); duplicate FM-02, ST-07, and ST-08 rows from merges removed; ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11: IN-04, IN-05, and IN-06 scored P; stale duplicate FM-02, ST-07, and ST-08 rows removed; PR 1.13: ST-02 and ST-06 scored P, ST-03 to ST-05 scored D (structure editing); stale duplicate M rows for FM-02, ST-07, and ST-08 removed; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; PR 1.14: FM-08 scored P (fuzz targets and bounded property tests for every page parser). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Draw tab parity (feat/draw-tab-parity): OneNote Draw groups, editable pen list saved in settings, pen menu with palette and Eyedropper, Format Background, smooth curves for ink, Rule Lines thumbnail margin fix.
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -21,15 +21,15 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Scaffolding | 10 | 0 | 0 | 10 | 100% |
 | Shell | 14 | 0 | 6 | 20 | 70% |
 | Themes | 6 | 0 | 0 | 6 | 100% |
-| Canvas | 3 | 0 | 9 | 12 | 25% |
+| Canvas | 3 | 3 | 6 | 12 | 25% |
 | Ink | 1 | 5 | 7 | 13 | 7% |
-| Text | 0 | 0 | 12 | 12 | 0% |
+| Text | 5 | 1 | 6 | 12 | 41% |
 | Structure | 4 | 4 | 4 | 12 | 33% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
-| Format | 6 | 1 | 2 | 9 | 66% |
+| Format | 6 | 2 | 1 | 9 | 66% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 44 | 10 | 60 | 114 | 38% |
+| Total | 49 | 15 | 50 | 114 | 42% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -90,9 +90,9 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | CV-01 | Canvas | Pan (scroll, middle drag, space drag) | 0 | D | PR 0.7 (#13): canvas widget scrolls with the wheel and scroll bars, pans with middle-drag and Space+drag; Viewport property tests; app_shell tests middle_drag_and_space_drag_pan_the_canvas, wheel_scrolls_the_canvas |
 | CV-02 | Canvas | Zoom 10% to 400%, Ctrl+wheel, pinch | 0 | D | PR 0.7 (#13): view.zoom_in, view.zoom_out, view.zoom, view.zoom_actual, view.zoom_page_width Ready; Ctrl+wheel and pinch zoom about the pointer through view.zoom; tests zoom_buttons_zoom_the_canvas, ctrl_wheel_and_pinch_zoom_about_the_pointer (pinch tested with synthetic zoom events only) |
 | CV-03 | Canvas | Rule lines and grid (blank, lined, grid, dotted) | 0 | D | PR 0.7 (#13): view.rule_lines (none, 4 ruled, 4 grid sizes), view.page_color, view.paper_size Ready and drawn for the visible area only; per page in the session. Ruled paper has a thin red margin line 1 inch from the left edge, as in OneNote (theme token canvas_margin_rule). The View > Rule Lines menu is a gallery of thumbnail cards, as in OneNote, each drawn by the canvas paper code at a reduced scale. Dotted (a quarter inch dot grid, capped at 20000 dots) is a kept extra beyond OneNote, see docs/post-parity.md Format Background (Draw tab) offers the same cards under Rule Lines and Grid Lines, a Rule Line Color submenu (view.rule_line_color, undoable, per page), and a Page Color submenu; the red margin in the menu thumbnails now sits near the left of the card (test `paper::tests::thumbnail_margin_is_in_the_left_quarter_of_the_card`; the canvas margin stays 1 inch from the page edge, test `the_canvas_margin_is_one_inch_from_the_left_page_edge`). Missing: Always Create Pages with Rule Lines (shown disabled) |
-| CV-04 | Canvas | Click anywhere to create a note container | 1 | M | |
-| CV-05 | Canvas | Move and resize containers | 1 | M | |
-| CV-06 | Canvas | Page grows with content | 1 | M | |
+| CV-04 | Canvas | Click anywhere to create a note container | 1 | P | PR 1.5: clicking empty canvas runs container.new, which adds a marker line to the page text and a position; an empty container is removed when the caret leaves it. Missing: positions live in the session until the canvas block exists (PR 1.9) |
+| CV-05 | Canvas | Move and resize containers | 1 | P | PR 1.5: a top bar moves and the right edge resizes a container (container.move, container.resize, undoable). Missing: saved positions (PR 1.9) and hand testing of the drag feel |
+| CV-06 | Canvas | Page grows with content | 1 | P | PR 1.5: the scroll extent follows the right and bottom of every container. Missing: a test of growth past the paper |
 | CV-07 | Canvas | Lasso and rectangle select | 3 | M | |
 | CV-08 | Canvas | Z-order commands | 3 | M | |
 | CV-09 | Canvas | Snap to grid and alignment guides | 3 | M | |
@@ -122,12 +122,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
-| TX-01 | Text | Type plain text in a container | 1 | M | |
-| TX-02 | Text | Bold, italic, strikethrough | 1 | M | |
-| TX-03 | Text | Headings and styles | 1 | M | |
-| TX-04 | Text | Bulleted and numbered lists, indent | 1 | M | |
-| TX-05 | Text | To Do checkboxes (task lists) | 1 | M | |
-| TX-06 | Text | Tables (render) | 1 | M | |
+| TX-01 | Text | Type plain text in a container | 1 | P | PR 1.5: click text or empty canvas and type; text.insert, text.delete, text.enter, edit.cut, edit.copy, edit.paste are Ready and undo as word-sized steps; caret, Shift selection, word and line moves, Home and End, double and triple click, IME composition, clipboard as markdown or plain text. Tests: engine cmd::text_tests, notecraft-canvas text, ui canvas::editing_tests. Missing: saved to disk (PR 1.7), hand testing with a real keyboard and IME |
+| TX-02 | Text | Bold, italic, strikethrough | 1 | D | PR 1.6: format.bold, format.italic, format.strikethrough, format.underline, and the sub, super, highlight, color, size, family, and align commands; Ctrl+B, Ctrl+I, Ctrl+U; Home tab buttons |
+| TX-03 | Text | Headings and styles | 1 | D | PR 1.6: style.apply (Heading 1 to 6, Normal, Quote, Code) and the Styles gallery |
+| TX-04 | Text | Bulleted and numbered lists, indent | 1 | D | PR 1.5 and 1.6: format.bullets, format.numbering, format.indent, format.outdent and their buttons; Tab and Shift+Tab; Enter continues lists |
+| TX-05 | Text | To Do checkboxes (task lists) | 1 | D | PR 1.6: tag.todo (Ctrl+1); rendered with checkboxes |
+| TX-06 | Text | Tables (render) | 1 | D | PR 1.6: GFM tables draw read-only on the canvas (editing is Phase 3) |
 | TX-07 | Text | Table editing tools | 3 | M | |
 | TX-09 | Text | Equations | 2 | M | |
 | TX-10 | Text | Text highlight color | 2 | M | |
@@ -146,7 +146,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | D | PR 1.13: page.new (Ctrl+N), page.rename, page.delete (to the trash folder), page.set_level, page.make_subpage, page.promote_subpage; file names made safe on every system and numbered, never overwriting; levels kept in `.section.toml`; undoable. Tests: engine session::structure::tests, page_menu_moves_and_indents_pages, a_page_is_renamed_in_place_from_its_context_menu, deleting_a_page_from_the_context_menu_can_be_undone |
 | ST-06 | Structure | Drag to reorder and move pages and sections | 1 | P | PR 1.13: page.move and section.move reorder and move pages (with the attachments their text links to) and sections between sections and groups; drag and drop in the page list, section tabs, and notebook pane, plus Move Up and Move Down in the page menu; undoable. Drop math and emitted commands are unit tested; the headless harness cannot drive a pointer drag, so the gesture itself needs a hands-on check. Subpages do not travel with a dragged parent yet |
 | ST-07 | Structure | Navigation loads 1,000 pages in under 500 ms | 1 | P | PR 1.2: notecraft-storage keeps a rebuildable `.notecraft/index.sqlite` (sections, pages, attachments; links, tags, and FTS tables created empty), refreshes it by modified time, size, and hash, and rebuilds it when it is corrupt or from a newer schema. Listing 1,000 pages from the index takes about 27 ms (criterion bench `sidebar`). The navigation does not read the index yet; wiring it in is gaps rank 15 |
-| ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Structure commands (PR 1.13) record file-operation steps that undo and redo exactly (every_structure_command_undoes_and_redoes_exactly). The stroke eraser (PR 1.11) joins one drag into one step. Missing: text commands (PR 1.5) are the callers; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
+| ST-08 | Structure | Undo and redo | 1 | P | PR 1.8: transactions of reversible ops with per-page stacks (500 steps or 64 MiB) and a notebook stack; edit.undo and edit.redo Ready (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z) with Undo and Redo buttons on the tab strip that disable when empty; ink.add_stroke, view.rule_lines, view.page_color, and view.paper_size undo and redo exactly; merge-into-previous (for the eraser, PR 1.11), typing coalescing, and notebook-level moves are built and tested against the engine API. Tests: engine undo::tests (38), undo_and_redo_buttons_follow_the_history, undo_and_redo_shortcuts_run_the_commands. Structure commands (PR 1.13) record file-operation steps that undo and redo exactly (every_structure_command_undoes_and_redoes_exactly). The stroke eraser (PR 1.11) joins one drag into one step. Text commands (PR 1.5) are undoable too: typing coalesces into one step per word and every text and container command undoes and redoes exactly. Missing: nothing else; the History tab in the shell is OneNote's (page versions, unread), so no undo list is shown |
 | ST-09 | Structure | Notebook Recycle Bin with restore | 3 | M | |
 | ST-10 | Structure | Page versions | 3 | M | |
 | ST-11 | Structure | Page templates | 3 | M | |
@@ -176,7 +176,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | FM-05 | Format | Auto-save every 30 s and on focus loss | 1 | D | PR 1.7: `Session` tracks unsaved pages (`mark_page_dirty`; commit, undo, and redo of page text and strokes set it); `SessionIo` saves them every 30 s, on focus loss, on page switch, and on quit (`AppShell::flush_unsaved` from the app's on_exit and on a close request); the status bar shows Saved or Unsaved changes; a read-only page is never written, and a page whose file changed outside is not written over. Only page text is written until PR 1.9 saves strokes. Tests: engine io::tests (pages_load_on_the_worker_and_save_on_the_timer, losing_focus_and_switching_pages_save, flush_on_quit_saves_and_leaves_no_journal), session saving_tests |
 | FM-06 | Format | Crash recovery of unsaved edits | 1 | D | PR 1.7: a journal in the settings folder (`recovery/`, one JSON file per unsaved page, written through craft-atomic every 2 s while the text changes, deleted on save) is checked when a notebook opens; text that differs from the file is offered on a bar with Restore and Discard (file.restore_unsaved, file.discard_unsaved). Tests: recovery storage tests, io::tests::a_crash_leaves_a_journal_that_the_next_run_offers_back, recovery_is_offered_only_when_it_differs_and_can_be_restored_or_discarded, the_recovery_bar_restores_the_unsaved_text |
 | FM-07 | Format | Outside edit detection and conflict bar | 1 | D | PR 1.7: a `notify` watcher per notebook folder with a 300 ms debounce; page files are read on a worker thread; a changed clean page reloads (its undo steps are dropped and logged, no toast); a changed page with unsaved edits keeps the user's text and shows a bar with Keep my version and Use outside version (file.keep_my_version, file.use_outside_version); a save also checks the file first, so nothing is overwritten silently. A side-by-side Compare is not built (OneNote has none). Tests: storage watch::tests, engine io::tests::the_watcher_reloads_a_clean_page_and_flags_a_dirty_one, taking_the_outside_version_replaces_the_text_and_drops_undo_steps, the_conflict_bar_offers_both_versions_and_runs_commands |
-| FM-08 | Format | Fuzzed parsers (no panic on any input) | 1 | M | |
+| FM-08 | Format | Fuzzed parsers (no panic on any input) | 1 | P | PR 1.14: `cargo fuzz` targets in `fuzz/` (markdown, frontmatter, containers, canvas_block, notebook_toml, section_toml, recovery_journal; nightly, outside the workspace) and the same checks as bounded seeded mutation tests in `cargo test` (markdown and storage `tests/fuzz_props.rs`). Not yet done: the 30-minute run of each target (needs nightly and cargo-fuzz; not run on the dev box) |
 | FM-09 | Format | Import OneNote `.one` sections | 4 | M | |
 
 ## Links
@@ -251,4 +251,6 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-16 | 1 | IN-04, IN-05, and IN-06 scored P (PR 1.11, highlighter and erasers); removed the stale M duplicates of FM-02, ST-07, and ST-08. |
 | 2026-10-16 | 1 | IN-05 and IN-06 evidence: eraser sizes and grazing cuts (PR 1.11 follow-ups). Scores unchanged. |
 | 2026-10-16 | 1 | PR 1.13: ST-02 P, ST-03 D, ST-04 D, ST-05 D, ST-06 P (structure editing). Removed the stale M duplicates of FM-02, ST-07, and ST-08 left by merges. |
+| 2026-10-16 | 1 | PR 1.5: TX-01, TX-04, CV-04, CV-05, and CV-06 scored P; stale duplicate rows for FM-02, ST-07, and ST-08 removed. |
+| 2026-10-16 | 1 | PR 1.14: FM-08 scored P (fuzz targets in fuzz/ plus bounded mutation tests in cargo test); the 30-minute runs per target remain before it can be D. |
 | 2026-10-16 | 1 | IN-01, IN-03, CV-03, and SH-02 evidence updated (Draw tab parity): pen list, pen menu, Eyedropper, Format Background, smooth curves, thumbnail margin. Scores unchanged. |
