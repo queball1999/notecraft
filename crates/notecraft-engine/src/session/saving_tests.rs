@@ -62,7 +62,7 @@ fn text_edits_undo_and_redo_mark_the_page_dirty_and_save_writes_them() {
 }
 
 #[test]
-fn a_stroke_marks_the_page_dirty_but_only_text_is_written() {
+fn a_stroke_marks_the_page_dirty_and_saving_it_promotes_the_page() {
     let dir = notebook("x\n");
     let mut session = open(&dir);
     let id = page(&session);
@@ -71,9 +71,16 @@ fn a_stroke_marks_the_page_dirty_but_only_text_is_written() {
         .run(&mut session, "ink.add_stroke", args)
         .expect("stroke");
     assert!(session.is_page_dirty(&id));
-    assert_eq!(session.save_page(&id), SaveOutcome::Unchanged);
+    // A stroke on a markdown page is saved with the page, which becomes a `.notecraft` page.
+    let nb = id.split('/').next().unwrap_or_default().to_owned();
+    assert_eq!(
+        session.save_page(&id),
+        SaveOutcome::Promoted {
+            new_id: format!("{nb}/Sec/A.notecraft")
+        }
+    );
     assert!(!session.is_page_dirty(&id));
-    assert_eq!(file(&dir), "x\n");
+    assert!(!dir.path().join("Sec/A.md").exists());
 }
 
 #[test]

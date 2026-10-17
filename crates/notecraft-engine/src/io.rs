@@ -214,14 +214,11 @@ impl SessionIo {
         let Some(journal) = &self.journal else {
             return;
         };
-        for (page_id, path, revision) in session.journal_candidates() {
+        for (_page_id, path, revision, text) in session.journal_candidates() {
             if self.journaled.get(&path) == Some(&revision) {
                 continue;
             }
-            let Some(text) = session.page_text(&page_id) else {
-                continue;
-            };
-            match journal.write(&path, text) {
+            match journal.write(&path, &text) {
                 Ok(()) => {
                     self.journaled.insert(path, revision);
                 }

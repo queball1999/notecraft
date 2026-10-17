@@ -8,10 +8,13 @@ use std::path::{Path, PathBuf};
 use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
+mod save;
 mod saving;
+pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
 use crate::ink::InkState;
+
 use crate::mock;
 use crate::recent::Recents;
 use crate::undo::History;
@@ -32,6 +35,17 @@ pub struct PageSource<'a> {
     /// Changes whenever `text` does.
     pub revision: u64,
     pub text: &'a str,
+}
+
+impl PageSource<'_> {
+    /// The text to lay out: the page without its `notecraft-canvas` block, which holds
+    /// positions and ink and is never shown as text.
+    pub fn visible_text(&self) -> &str {
+        match notecraft_storage::find_canvas_block(self.text) {
+            Some(block) => self.text.get(..block.block.start).unwrap_or(self.text),
+            None => self.text,
+        }
+    }
 }
 
 /// Why the page shown now cannot be edited or did not read cleanly. It is shown on the canvas
@@ -225,6 +239,7 @@ impl Session {
                     .insert(page_id.to_owned(), saving::hash_text(&page.text));
                 // Text restored from the recovery journal while the read was out wins.
                 if !self.page_sources.contains_key(page_id) {
+                    self.load_canvas(page_id, &page.text, page.truncated);
                     self.set_page_source(page_id, page.text);
                 }
             }
@@ -445,15 +460,16 @@ mod page_load_tests {
     }
 
     #[test]
-    fn mock_pages_and_other_file_types_are_not_read() {
+    fn mock_pages_are_not_read_and_notecraft_pages_are() {
         let mut session = Session::new();
         session.set_notebooks(crate::mock::notebooks());
         assert!(!session.load_current_page());
         let dir = notebook(&[("Sec/Sketch.notecraft", b"PK")]);
         let mut session = open(&dir);
-        assert!(!session.load_current_page());
-        assert_eq!(session.current_page_source(), None);
+        assert!(session.load_current_page());
+        assert_eq!(session.current_page_source().expect("text").text, "PK");
         assert_eq!(session.current_page_notice(), None);
+        assert!(session.current_ink().is_none());
     }
 }
 

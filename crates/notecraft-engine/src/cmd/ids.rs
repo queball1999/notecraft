@@ -194,6 +194,8 @@ command_ids! {
     DRAW_THICKNESS = "draw.thickness";
     /// Add a stroke drawn with the current pen to the page.
     INK_ADD_STROKE = "ink.add_stroke";
+    /// Erase ink along a path.
+    INK_ERASE = "ink.erase";
     /// Show or hide the ruler for drawing straight lines.
     DRAW_RULER = "draw.ruler";
     /// Draw a shape.
@@ -318,6 +320,8 @@ command_ids! {
     SECTION_NEW = "section.new";
     /// Add a page to the current section.
     PAGE_NEW = "page.new";
+    /// Turn the page shown into a plain markdown page, dropping its ink and positions.
+    PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
 
     // Search (Phase 2)
     /// Search every open notebook.

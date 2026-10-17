@@ -11,6 +11,7 @@ mod guard;
 pub mod ids;
 mod layout;
 mod nav;
+mod page;
 mod registry;
 pub mod shortcuts;
 #[cfg(test)]

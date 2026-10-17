@@ -61,6 +61,9 @@ pub enum SaveOutcome {
     Conflict,
     /// The page has no file (a sample page, or its path is not valid).
     NoFile,
+    /// A `.md` page got its first stroke and was saved as a `.notecraft` page. The page id
+    /// changed: the session already follows it, but a caller holding the old id must too.
+    Promoted { new_id: String },
     /// The write failed; the page stays unsaved. Holds a short reason.
     Failed(String),
 }
@@ -101,6 +104,32 @@ pub(super) struct SavingState {
 }
 
 impl SavingState {
+    /// Page `old` is now page `new`: move its save state.
+    pub(super) fn rekey(&mut self, old: &str, new: &str) {
+        if self.dirty.remove(old) {
+            self.dirty.insert(new.to_owned());
+        }
+        if self.loading.remove(old) {
+            self.loading.insert(new.to_owned());
+        }
+        if let Some(value) = self.disk_hash.remove(old) {
+            self.disk_hash.insert(new.to_owned(), value);
+        }
+        if let Some(value) = self.conflicts.remove(old) {
+            self.conflicts.insert(new.to_owned(), value);
+        }
+        for request in &mut self.read_requests {
+            if request.page_id == old {
+                request.page_id = new.to_owned();
+            }
+        }
+        for item in &mut self.recovery {
+            if item.page_id == old {
+                item.page_id = new.to_owned();
+            }
+        }
+    }
+
     pub(super) fn forget_notebook(&mut self, prefix: &str) {
         self.loading.retain(|id| !id.starts_with(prefix));
         self.dirty.retain(|id| !id.starts_with(prefix));
@@ -182,11 +211,7 @@ impl Session {
             return Resolved::NotAFile;
         };
         let rel = Path::new(rel);
-        let is_markdown = rel
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
-        if !is_markdown {
+        if super::save::kind_of(rel).is_none() {
             return Resolved::NotAFile;
         }
         if !rel.components().all(|c| matches!(c, Component::Normal(_))) {
@@ -195,7 +220,7 @@ impl Session {
         Resolved::File(root.join(rel))
     }
 
-    /// The `.md` file of page `page_id`, when it has one.
+    /// The `.md` or `.notecraft` file of page `page_id`, when it has one.
     pub fn page_file_path(&self, page_id: &str) -> Option<PathBuf> {
         match self.resolve_page_file(page_id) {
             Resolved::File(path) => Some(path),
@@ -256,17 +281,19 @@ impl Session {
         }
     }
 
-    /// The unsaved pages that the recovery journal should hold: id, file, and text revision
-    /// (changes whenever the text does). Read-only pages are left out.
-    pub fn journal_candidates(&self) -> Vec<(String, PathBuf, u64)> {
+    /// The unsaved pages that the recovery journal should hold: id, file, a revision (a hash
+    /// of the text, which changes whenever the text or the strokes do), and the text to
+    /// journal. The text is the whole file as it would be saved, canvas block with strokes
+    /// included, so recovery brings the strokes back too. Read-only pages are left out.
+    pub fn journal_candidates(&self) -> Vec<(String, PathBuf, u64, String)> {
         self.saving
             .dirty
             .iter()
             .filter(|id| !self.is_read_only(id))
             .filter_map(|id| {
                 let path = self.page_file_path(id)?;
-                let (rev, _) = self.page_sources.get(id)?;
-                Some((id.clone(), path, *rev))
+                let text = self.file_text(id)?.ok()?;
+                Some((id.clone(), path, hash_text(&text), text))
             })
             .collect()
     }
@@ -293,8 +320,10 @@ impl Session {
 
     /// Write page `page_id` if it has unsaved changes. Never writes a read-only page, and
     /// never writes over a file that changed outside NoteCraft since it was read: that
-    /// becomes a conflict for the user to settle. Only the page text is written; strokes are
-    /// saved with the page file format (PR 1.9).
+    /// becomes a conflict for the user to settle. The text and the page's strokes go out in
+    /// one atomic write (the strokes live in the page's canvas block, PR 1.9). A `.md` page
+    /// that has strokes is written as a `.notecraft` page and the `.md` file is removed
+    /// ([`SaveOutcome::Promoted`]).
     pub fn save_page(&mut self, page_id: &str) -> SaveOutcome {
         if !self.saving.dirty.contains(page_id) {
             return SaveOutcome::NotDirty;
@@ -305,12 +334,19 @@ impl Session {
         if self.saving.conflicts.contains_key(page_id) {
             return SaveOutcome::Conflict;
         }
-        let (Some(path), Some(text)) = (self.page_file_path(page_id), self.page_text(page_id))
-        else {
+        let Some(path) = self.page_file_path(page_id) else {
             self.saving.dirty.remove(page_id);
             return SaveOutcome::NoFile;
         };
-        let text = text.to_owned();
+        let Some(text) = self.file_text(page_id) else {
+            self.saving.dirty.remove(page_id);
+            return SaveOutcome::NoFile;
+        };
+        // A canvas block that cannot be rewritten safely is never written over.
+        let Ok(text) = text else {
+            return SaveOutcome::ReadOnly;
+        };
+        let promote = self.needs_promotion(page_id);
         match read_page_file(&path) {
             Ok(disk) => {
                 let known = self.saving.disk_hash.get(page_id).copied();
@@ -327,6 +363,9 @@ impl Session {
                 return SaveOutcome::Failed("the page file cannot be read".to_owned());
             }
         }
+        if promote {
+            return self.promote_and_save(page_id, text);
+        }
         match write_page_text(&path, &text) {
             Ok(outcome) => {
                 self.saving
@@ -334,6 +373,8 @@ impl Session {
                     .insert(page_id.to_owned(), hash_text(&text));
                 self.saving.dirty.remove(page_id);
                 self.note_clean(page_id);
+                // The session text now carries the canvas block the file holds.
+                self.adopt_saved_text(page_id, text);
                 self.mark_changed();
                 match outcome {
                     WriteOutcome::Written => SaveOutcome::Saved,
@@ -412,7 +453,10 @@ impl Session {
             return;
         }
         let dirty = self.saving.dirty.contains(page_id);
-        let ours = self.page_text(page_id).unwrap_or_default();
+        let ours = match self.file_text(page_id) {
+            Some(Ok(text)) => text,
+            _ => self.page_text(page_id).unwrap_or_default().to_owned(),
+        };
         if dirty && ours != page.text {
             // Keep the user's text; the conflict bar offers the outside version.
             if self.saving.conflicts.get(page_id) != Some(&page.text) {
@@ -452,6 +496,7 @@ impl Session {
                 self.page_notices.remove(page_id);
             }
         }
+        self.load_canvas(page_id, &page.text, page.truncated);
         self.set_page_source(page_id, page.text);
     }
 
@@ -479,6 +524,7 @@ impl Session {
             self.saving.dirty.remove(&id);
             self.note_clean(&id);
             self.history.clear_page(&id);
+            self.load_canvas(&id, &theirs, false);
             self.set_page_source(&id, theirs);
         }
         self.mark_changed();
@@ -543,6 +589,8 @@ impl Session {
             self.saving
                 .disk_hash
                 .insert(item.page_id.clone(), item.disk_hash);
+            // The journal holds the whole file text, so the strokes come back with the text.
+            self.load_canvas_from_journal(&item.page_id, &item.text);
             self.set_page_source(&item.page_id, item.text);
             self.saving.dirty.insert(item.page_id);
             restored += 1;
