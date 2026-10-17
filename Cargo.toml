@@ -12,6 +12,8 @@ members = [
     "apps/notecraft-cli",
     "xtask",
 ]
+# The cargo-fuzz crate has its own workspace and needs nightly (PR 1.14); see CONTRIBUTING.md.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.0.0"

@@ -141,7 +141,7 @@ Creating, renaming, moving, coloring, and deleting notebooks, section groups, se
 ## 6. Never crash
 
 - Lints: every `lib.rs` denies `unwrap_used`, `expect_used`, `panic`, `unimplemented`, `todo`, `unreachable`. `unsafe` is forbidden workspace-wide, so OS integrations (pen pressure, spell check, camera) go through safe wrapper crates.
-- Parsers are lenient and bounded (limits in docs/markdown.md section 9). Fuzz targets for the markdown, frontmatter, canvas, and toml parsers land in Phase 1.
+- Parsers are lenient and bounded (limits in docs/markdown.md section 9). Fuzz targets for the markdown, frontmatter, canvas, and toml parsers live in `fuzz/` (nightly, outside the workspace), and the same checks run in `cargo test`.
 - The command guard wraps each command in `std::panic::catch_unwind`. If a dependency panics anyway, the guard rolls back the transaction, logs the error, and shows a toast. The document stays as it was before the command.
 - The guard rolls back by restoring a snapshot of the session taken before the command. The snapshot includes the undo history, so a command that panics or fails after recording a step leaves both the document and the undo and redo stacks as they were. The snapshot stays cheap because ink layers and history steps are shared (`Arc`), not copied; page text is a string per page, so a very large notebook is a reason to revisit this (a transaction-level rollback is the alternative, since every change is already a reversible `Op`). A command that returns an error is rolled back the same way.
 - All writes use `craft-atomic`. A crash mid-save leaves the old file intact.

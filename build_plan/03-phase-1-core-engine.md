@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; PR 1.14 done; notes under PR 1.14.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -489,6 +489,14 @@ Commits:
 
 PR title: `test: fuzz every page parser`.
 
+### PR 1.14 notes: what was built and the calls made
+
+Built on `test/fuzz-parsers` (2026-10-16). FM-08 is scored P, not D.
+
+- `fuzz/` is a separate crate (its own `[workspace]`, listed in the root `exclude`), so stable `cargo xtask ci` and the wasm check never build it. Seven targets: `markdown`, `frontmatter`, `containers`, `canvas_block`, `notebook_toml`, `section_toml`, `recovery_journal` (the plan named four; the container markers, the notebook file, and the journal are parsers too). `fuzz/seed.sh` fills `fuzz/corpus/` from `testdata/`.
+- The checks live once in `fuzz/checks/*.rs` and are included by path from both the fuzz targets and two stable test files (`notecraft-markdown/tests/fuzz_props.rs`, `notecraft-storage/tests/fuzz_props.rs`). The tests use a seeded generator to mutate the testdata (flips, splices, truncation, hostile tokens), 3,000 cases per parser, about 30 seconds in a debug build. This is the only fuzzing that runs in CI.
+- Not done: running each target for 30 minutes. The dev box has only the stable toolchain and no cargo-fuzz, so the targets were not built here. There is no scheduled workflow (the plan allows a manual run, documented in CONTRIBUTING.md under Fuzz the parsers).
+
 ## PR 1.16: command line info, text, check, and run on notebooks
 
 | | |
@@ -563,3 +571,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-16 | 1 | PR 1.11 deviations and the eraser design as built. Hours unchanged. |
 | 2026-10-16 | 1 | PR 1.11 follow-ups: eraser sizes and grazing point eraser decided and built; open questions closed. |
 | 2026-10-16 | 1 | PR 1.13 done: deviations (trash layout, close as notebook delete, commands, sample notebooks read-only) and open questions noted under PR 1.13. |
+| 2026-10-16 | 1 | PR 1.14 done: seven fuzz targets, shared checks run as stable mutation tests, 30-minute runs left as a manual step; notes under PR 1.14. |
