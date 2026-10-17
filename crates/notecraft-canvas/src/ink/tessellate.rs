@@ -261,6 +261,9 @@ fn hermite(p1: Vec2, m1: Vec2, p2: Vec2, m2: Vec2, t: f32) -> Vec2 {
 /// stay one segment; bends get more points in proportion to how much they turn. Radii are
 /// interpolated linearly. Every stored point stays on the curve.
 fn smooth_nodes(nodes: &[Node]) -> Vec<Node> {
+    let Some(first) = nodes.first().copied() else {
+        return Vec::new();
+    };
     if nodes.len() < 3 {
         return nodes.to_vec();
     }
@@ -269,12 +272,12 @@ fn smooth_nodes(nodes: &[Node]) -> Vec<Node> {
         nodes
             .get(i.clamp(0, last) as usize)
             .copied()
-            .unwrap_or(nodes[0])
+            .unwrap_or(first)
     };
     // Fewer subdivisions for very long strokes keep the total bounded.
     let cap = (MAX_SMOOTH_NODES / nodes.len()).clamp(1, MAX_SUBDIVISIONS);
     let mut out = Vec::with_capacity(nodes.len() * 2);
-    out.push(nodes[0]);
+    out.push(first);
     for i in 0..nodes.len() as isize - 1 {
         let (p0, p1, p2, p3) = (at(i - 1), at(i), at(i + 1), at(i + 2));
         let chord = p2.pos - p1.pos;

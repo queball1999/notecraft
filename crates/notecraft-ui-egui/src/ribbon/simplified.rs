@@ -106,7 +106,7 @@ pub(super) fn show(
             }
         },
     );
-    let tools_missing = look.tools.len() > 0 && !shown.iter().any(|(group, _)| has_tools(group));
+    let tools_missing = !look.tools.is_empty() && !shown.iter().any(|(group, _)| has_tools(group));
     if more.is_empty() && !tools_missing {
         return;
     }
