@@ -7,6 +7,9 @@ mod canvas;
 mod draw;
 mod edit;
 mod file;
+mod format;
+#[cfg(test)]
+mod format_tests;
 mod guard;
 pub mod ids;
 mod layout;

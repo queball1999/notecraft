@@ -13,7 +13,8 @@ use notecraft_canvas::text;
 use notecraft_core::Vec2;
 use notecraft_engine::TextCursor;
 use notecraft_markdown::{
-    Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Run, Span, Table,
+    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Run, Script, Span,
+    Table,
 };
 use notecraft_model::Container;
 
@@ -121,6 +122,10 @@ struct Layout<'a> {
     blocks_out: Vec<BlockBox>,
     raws: Vec<Raw>,
     caret: Option<Rect>,
+    /// An alignment comment was just read; it applies to the next paragraph or heading.
+    pending_align: Option<egui::Align>,
+    /// Alignment of the paragraph being laid out.
+    align: egui::Align,
 }
 
 /// Lay out the page's containers at `zoom` (1.0 is 100%). Containers without a position stack
@@ -144,6 +149,8 @@ pub(super) fn layout(
         blocks_out: Vec::new(),
         raws: Vec::new(),
         caret: None,
+        pending_align: None,
+        align: egui::Align::Min,
     };
     let mut y_flow = TOP;
     let mut bottom = TOP;
@@ -426,15 +433,27 @@ impl Layout<'_> {
 
     fn block(&mut self, block: &Block, x: f32, width: f32, y: &mut f32) {
         let tokens = self.tokens;
+        let pending = self.pending_align.take();
+        if let BlockKind::Html { literal } = &block.kind {
+            if let Some(align) = markup::parse_align_comment(literal) {
+                // A paragraph alignment comment draws nothing; it aligns the block below it.
+                self.pending_align = Some(egui_align(align));
+                return;
+            }
+        }
         match &block.kind {
             BlockKind::Heading { level, runs } => {
                 let size = BODY_SIZE * heading_scale(*level);
                 *y += size * 0.35;
+                self.align = pending.unwrap_or(egui::Align::Min);
                 let h = self.text(runs, size, true, tokens.text, x, *y, width);
+                self.align = egui::Align::Min;
                 *y += h + size * 0.3;
             }
             BlockKind::Paragraph { runs } => {
+                self.align = pending.unwrap_or(egui::Align::Min);
                 let h = self.text(runs, BODY_SIZE, false, tokens.text, x, *y, width);
+                self.align = egui::Align::Min;
                 *y += h + BODY_SIZE * 0.6;
             }
             BlockKind::List { kind, items, tight } => {
@@ -656,6 +675,12 @@ impl Layout<'_> {
         let height = galley.size().y / self.zoom;
         let wants_bold = bold || runs.iter().any(|r| r.bold);
         let ghost = wants_bold.then(|| self.galley_bold_only(runs, size, bold, color, width));
+        // With a centered or right alignment the galley is anchored at the middle or right edge.
+        let x = match self.align {
+            egui::Align::Min => x,
+            egui::Align::Center => x + width / 2.0,
+            egui::Align::Max => x + width,
+        };
         self.items.push(Item::Text {
             pos: Pos2::new(x, y),
             galley,
@@ -675,6 +700,7 @@ impl Layout<'_> {
     ) -> LayoutJob {
         let mut job = LayoutJob::default();
         job.wrap.max_width = (width * self.zoom).max(1.0);
+        job.halign = self.align;
         for run in runs {
             let is_bold = bold || run.bold;
             let family = if run.code {
@@ -682,26 +708,45 @@ impl Layout<'_> {
             } else {
                 FontFamily::Proportional
             };
-            let code_size = if run.code { size * 0.92 } else { size };
+            let mut run_size = if run.code { size * 0.92 } else { size };
+            if let Some(points) = run.size_pt {
+                run_size *= f32::from(points) / 11.0;
+            }
+            let valign = match run.script {
+                Script::None => egui::Align::Center,
+                Script::Sub => egui::Align::BOTTOM,
+                Script::Sup => egui::Align::TOP,
+            };
+            if run.script != Script::None {
+                run_size *= 0.7;
+            }
             let mut text_color = if run.link.is_some() {
                 self.tokens.accent
+            } else if let Some(rgb) = run.color {
+                rgb_color(rgb)
             } else {
                 color
             };
             if only_bold && !is_bold {
                 text_color = Color32::TRANSPARENT;
             }
-            let underline = if run.link.is_some() && text_color != Color32::TRANSPARENT {
-                Stroke::new(1.0, text_color)
-            } else {
-                Stroke::NONE
-            };
+            let underline =
+                if (run.link.is_some() || run.underline) && text_color != Color32::TRANSPARENT {
+                    Stroke::new(1.0, text_color)
+                } else {
+                    Stroke::NONE
+                };
             let strikethrough = if run.strike && text_color != Color32::TRANSPARENT {
                 Stroke::new(1.0, text_color)
             } else {
                 Stroke::NONE
             };
-            let background = if run.code && !only_bold {
+            let background = if only_bold {
+                Color32::TRANSPARENT
+            } else if let Some(rgb) = run.highlight {
+                // Blended with the paper so dark text stays readable on it.
+                mix(self.tokens.canvas_bg, rgb_color(rgb), 0.7)
+            } else if run.code {
                 mix(self.tokens.canvas_bg, self.tokens.text, 0.09)
             } else {
                 Color32::TRANSPARENT
@@ -710,12 +755,13 @@ impl Layout<'_> {
                 &run.text,
                 0.0,
                 TextFormat {
-                    font_id: FontId::new(code_size * self.zoom, family),
+                    font_id: FontId::new(run_size * self.zoom, family),
                     color: text_color,
                     italics: run.italic,
                     underline,
                     strikethrough,
                     background,
+                    valign,
                     ..TextFormat::default()
                 },
             );
@@ -810,6 +856,24 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                 }
             }
         }
+    }
+}
+
+/// 0xRRGGBB as an opaque color.
+fn rgb_color(rgb: u32) -> Color32 {
+    Color32::from_rgb(
+        ((rgb >> 16) & 0xFF) as u8,
+        ((rgb >> 8) & 0xFF) as u8,
+        (rgb & 0xFF) as u8,
+    )
+}
+
+/// The egui alignment for a paragraph alignment.
+fn egui_align(align: Align) -> egui::Align {
+    match align {
+        Align::Center => egui::Align::Center,
+        Align::Right => egui::Align::Max,
+        Align::Left | Align::None => egui::Align::Min,
     }
 }
 
@@ -913,6 +977,54 @@ mod tests {
         ] {
             assert!(text.contains(word), "missing {word}");
         }
+    }
+
+    #[test]
+    fn a_gfm_table_draws_its_cells_and_grid() {
+        let tokens = tokens();
+        let flow = with_painter(|painter| {
+            lay(
+                painter,
+                "| Name | Qty |\n|---|---:|\n| Pen | 3 |\n| Ink | 12 |\n",
+                1.0,
+                &tokens,
+                None,
+            )
+        });
+        let cells: Vec<String> = flow
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Text { galley, .. } => Some(galley.text().to_owned()),
+                _ => None,
+            })
+            .collect();
+        for word in ["Name", "Qty", "Pen", "3", "Ink", "12"] {
+            assert!(cells.iter().any(|c| c == word), "missing cell {word}");
+        }
+        assert!(flow.items.iter().any(|i| matches!(i, Item::Line { .. })));
+    }
+
+    #[test]
+    fn formatted_runs_and_alignment_lay_out() {
+        let tokens = tokens();
+        let plain = with_painter(|p| lay(p, "word\n", 1.0, &tokens, None));
+        let styled = with_painter(|p| {
+            lay(
+                p,
+                "<!-- notecraft:align=center -->\n<u>a</u> <sup>b</sup> ==c== <span style=\"color:#FF0000\"><span style=\"font-size:22pt\">d</span></span>\n",
+                1.0,
+                &tokens,
+                None,
+            )
+        });
+        assert!(plain.height.is_finite() && styled.height.is_finite());
+        let texts = styled
+            .items
+            .iter()
+            .filter(|i| matches!(i, Item::Text { .. }))
+            .count();
+        assert_eq!(texts, 1, "the alignment comment draws nothing of its own");
     }
 
     #[test]

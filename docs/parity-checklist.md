@@ -1,6 +1,6 @@
 # Parity checklist
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); PR 1.7: FM-02, FM-04, FM-05, FM-06, and FM-07 scored D (auto-save, crash recovery, outside edits); duplicate FM-02, ST-07, and ST-08 rows from merges removed; ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11: IN-04, IN-05, and IN-06 scored P; stale duplicate FM-02, ST-07, and ST-08 rows removed; PR 1.13: ST-02 and ST-06 scored P, ST-03 to ST-05 scored D (structure editing); stale duplicate M rows for FM-02, ST-07, and ST-08 removed; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; PR 1.14: FM-08 scored P (fuzz targets and bounded property tests for every page parser).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); PR 1.7: FM-02, FM-04, FM-05, FM-06, and FM-07 scored D (auto-save, crash recovery, outside edits); duplicate FM-02, ST-07, and ST-08 rows from merges removed; ST-01 scored D (PR 1.1); SH-06 evidence updated; summary regenerated; PR 1.10: IN-01 and IN-02 scored P, IN-03 scored D; summary regenerated; PR 1.3: FM-01 and FM-04 scored P (markdown read, frontmatter read); page text from disk: FM-01 scored D; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: ST-08 scored P (undo and redo); also: PR 1.4: FM-02 scored P (minimal-diff write library and atomic page writes); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11: IN-04, IN-05, and IN-06 scored P; stale duplicate FM-02, ST-07, and ST-08 rows removed; PR 1.13: ST-02 and ST-06 scored P, ST-03 to ST-05 scored D (structure editing); stale duplicate M rows for FM-02, ST-07, and ST-08 removed; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; PR 1.14: FM-08 scored P (fuzz targets and bounded property tests for every page parser). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D).
 
 
 Every OneNote feature NoteCraft must have, one row each, scored:
@@ -23,13 +23,13 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Themes | 6 | 0 | 0 | 6 | 100% |
 | Canvas | 3 | 3 | 6 | 12 | 25% |
 | Ink | 1 | 5 | 7 | 13 | 7% |
-| Text | 0 | 2 | 10 | 12 | 0% |
+| Text | 5 | 1 | 6 | 12 | 41% |
 | Structure | 4 | 4 | 4 | 12 | 33% |
 | Attachments | 0 | 0 | 8 | 8 | 0% |
 | Format | 6 | 2 | 1 | 9 | 66% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 44 | 16 | 54 | 114 | 38% |
+| Total | 49 | 15 | 50 | 114 | 42% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -123,11 +123,11 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
 | TX-01 | Text | Type plain text in a container | 1 | P | PR 1.5: click text or empty canvas and type; text.insert, text.delete, text.enter, edit.cut, edit.copy, edit.paste are Ready and undo as word-sized steps; caret, Shift selection, word and line moves, Home and End, double and triple click, IME composition, clipboard as markdown or plain text. Tests: engine cmd::text_tests, notecraft-canvas text, ui canvas::editing_tests. Missing: saved to disk (PR 1.7), hand testing with a real keyboard and IME |
-| TX-02 | Text | Bold, italic, strikethrough | 1 | M | |
-| TX-03 | Text | Headings and styles | 1 | M | |
-| TX-04 | Text | Bulleted and numbered lists, indent | 1 | P | PR 1.5: Enter continues bullet, numbered, and task items (an empty item ends the list); Tab and Shift+Tab indent and outdent items. Missing: the list and indent buttons (PR 1.6) |
-| TX-05 | Text | To Do checkboxes (task lists) | 1 | M | |
-| TX-06 | Text | Tables (render) | 1 | M | |
+| TX-02 | Text | Bold, italic, strikethrough | 1 | D | PR 1.6: format.bold, format.italic, format.strikethrough, format.underline, and the sub, super, highlight, color, size, family, and align commands; Ctrl+B, Ctrl+I, Ctrl+U; Home tab buttons |
+| TX-03 | Text | Headings and styles | 1 | D | PR 1.6: style.apply (Heading 1 to 6, Normal, Quote, Code) and the Styles gallery |
+| TX-04 | Text | Bulleted and numbered lists, indent | 1 | D | PR 1.5 and 1.6: format.bullets, format.numbering, format.indent, format.outdent and their buttons; Tab and Shift+Tab; Enter continues lists |
+| TX-05 | Text | To Do checkboxes (task lists) | 1 | D | PR 1.6: tag.todo (Ctrl+1); rendered with checkboxes |
+| TX-06 | Text | Tables (render) | 1 | D | PR 1.6: GFM tables draw read-only on the canvas (editing is Phase 3) |
 | TX-07 | Text | Table editing tools | 3 | M | |
 | TX-09 | Text | Equations | 2 | M | |
 | TX-10 | Text | Text highlight color | 2 | M | |

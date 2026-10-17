@@ -8,6 +8,8 @@ mod editing;
 #[cfg(test)]
 mod editing_tests;
 mod flow;
+#[cfg(test)]
+mod formatting_tests;
 mod ink;
 #[cfg(test)]
 mod ink_tests;
