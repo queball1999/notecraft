@@ -224,3 +224,32 @@ fn a_read_only_page_ignores_typing() {
     assert_eq!(text(&harness), "fixed\n");
     let _ = (json!({}), Value::Null);
 }
+
+#[test]
+fn clicking_the_title_edits_it_instead_of_making_a_container() {
+    use egui_kittest::kittest::NodeT;
+    let mut harness = harness("Hello\n");
+    // The title row is at the top left of the page.
+    click_page(&mut harness, 80.0, 50.0);
+    harness.run();
+    let source = text(&harness);
+    assert!(!source.contains("notecraft:container"), "{source:?}");
+    let field = harness.get_by_label(super::title::TITLE_LABEL);
+    assert!(
+        field.accesskit_node().is_focused(),
+        "the title field has focus"
+    );
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    type_text(&mut harness, "Renamed");
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    // Enter sent page.rename. The built-in sample notebook is not a folder on disk, so the
+    // engine refuses it; renaming a real page is tested in the engine.
+    let toasts: Vec<&str> = harness.state().toasts().texts().collect();
+    assert!(
+        toasts.iter().any(|t| t.starts_with("Rename Page:")),
+        "{toasts:?}"
+    );
+    assert!(harness.query_by_label(super::title::TITLE_LABEL).is_some());
+    assert!(!text(&harness).contains("notecraft:container"));
+}

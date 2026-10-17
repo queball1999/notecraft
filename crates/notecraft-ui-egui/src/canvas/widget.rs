@@ -127,7 +127,18 @@ pub fn show(
                     paper::paper_color(style, tokens),
                 );
                 if let Some(page) = session.current_page() {
-                    title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
+                    let editable = session.page_is_editable(&page.id)
+                        && session.ink().tool() == DrawTool::Type;
+                    title::show(
+                        ui,
+                        map,
+                        (&page.id, &page.title),
+                        editable,
+                        &mut state.title,
+                        mock::CREATED,
+                        tokens,
+                        clicked,
+                    );
                 }
                 if let Some((page_id, text, parsed, flow)) = &page {
                     flow::paint(ui.painter(), map, flow, tokens);
