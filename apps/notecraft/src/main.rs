@@ -24,6 +24,7 @@ mod picker;
 mod prefs;
 
 use craft_settings::{Location, SaveStatus, SettingsStore};
+use notecraft_engine::io::SessionIo;
 use notecraft_ui_egui::font_list::FontList;
 use notecraft_ui_egui::themes::OsFonts;
 use notecraft_ui_egui::{AppInfo, AppShell};
@@ -95,6 +96,8 @@ impl eframe::App for App {
         self.store.update(|p| p.recent.observe(recents));
         let colors = self.shell.recent_colors();
         self.store.update(|p| p.colors.observe(colors));
+        let tools = self.shell.pen_tools();
+        self.store.update(|p| p.draw.observe(tools));
 
         // Remember the window geometry; update() only marks the store dirty on a real change.
         let info = ctx.input(|i| i.viewport().clone());
@@ -127,6 +130,8 @@ impl eframe::App for App {
     }
 
     fn on_exit(&mut self) {
+        // Save every unsaved page before the settings and the process go.
+        self.shell.flush_unsaved();
         if let Some(control) = &self.control {
             control.shutdown();
         }
@@ -224,6 +229,7 @@ fn main() -> eframe::Result<()> {
     let ribbon = (store.get().ribbon.layout(), store.get().ribbon.show());
     let recents = store.get().recent.recents();
     let recent_colors = store.get().colors.recent.clone();
+    let pen_tools = store.get().draw.tools();
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
         .with_app_id(APP_ID)
@@ -257,15 +263,23 @@ fn main() -> eframe::Result<()> {
             let store = pending.take().ok_or("the app was already created")?;
             let ctx = cc.egui_ctx.clone();
             let font_list = FontList::scan_in_background(move || ctx.request_repaint());
+            // Auto-save, the recovery journal (in the settings folder), page reads, and the
+            // folder watcher; worker threads wake the UI to repaint.
+            let wake_ctx = cc.egui_ctx.clone();
+            let io = SessionIo::new(store.dir().map(|dir| dir.join("recovery")), move || {
+                wake_ctx.request_repaint();
+            });
             let mut shell = AppShell::empty()
                 .with_fonts(OsFonts::load())
                 .with_font_list(font_list)
                 .with_picker(Box::new(picker::OsPicker))
-                .with_about(about);
+                .with_about(about)
+                .with_io(io);
             shell.set_theme(theme.preset(), theme.mode());
             shell.set_ribbon(ribbon.0, ribbon.1);
             shell.set_recents(recents);
             shell.set_recent_colors(recent_colors);
+            shell.set_pen_tools(pen_tools);
             // A path on the command line wins; if it cannot open (the shell toasts why), or
             // none was given, reopen what was open last. With nothing recent, the start page
             // shows.

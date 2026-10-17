@@ -8,14 +8,22 @@ mod canvas;
 mod draw;
 mod edit;
 mod file;
+mod format;
+#[cfg(test)]
+mod format_tests;
 mod guard;
 pub mod ids;
 mod layout;
 mod nav;
+mod page;
 mod registry;
 pub mod shortcuts;
+pub(crate) mod structure;
 #[cfg(test)]
 mod tests;
+mod text;
+#[cfg(test)]
+mod text_tests;
 mod theme;
 
 use std::fmt;

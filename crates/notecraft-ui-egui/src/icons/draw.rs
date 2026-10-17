@@ -2,7 +2,7 @@
 
 use egui::Color32;
 
-use super::Pen;
+use super::{Pen, ToolShape};
 
 pub(super) fn type_tool(p: &Pen) {
     // A text cursor (I-beam).
@@ -153,4 +153,89 @@ pub(super) fn ink_to_math(p: &Pen) {
         (10.5, 11.0),
         (14.5, 11.0),
     ]);
+}
+
+pub(super) fn select(p: &Pen) {
+    // An arrow pointer with a short tail.
+    p.polygon(
+        &[
+            (3.5, 1.5),
+            (3.5, 12.5),
+            (6.3, 9.8),
+            (8.3, 14.5),
+            (10.2, 13.6),
+            (8.2, 9.0),
+            (12.0, 9.0),
+        ],
+        Color32::TRANSPARENT,
+    );
+}
+
+pub(super) fn add_tool(p: &Pen, accent: Color32) {
+    // A pen outline with a plus badge.
+    p.polygon(
+        &[(10.5, 1.5), (13.5, 4.5), (5.5, 12.5), (2.5, 9.5)],
+        Color32::TRANSPARENT,
+    );
+    p.line(&[(2.5, 9.5), (1.5, 13.5), (5.5, 12.5)]);
+    p.line_colored(&[(11.5, 11.0), (15.0, 11.0)], 1.5, accent);
+    p.line_colored(&[(13.25, 9.25), (13.25, 12.75)], 1.5, accent);
+}
+
+pub(super) fn format_background(p: &Pen, accent: Color32) {
+    // A page with ruled lines and a tinted corner.
+    p.outline(2.5, 1.5, 13.5, 14.5);
+    p.fill(3.5, 2.5, 6.5, 13.5, accent);
+    p.text_lines(8.0, 12.5, &[5.0, 8.0, 11.0]);
+}
+
+pub(super) fn ink_replay(p: &Pen) {
+    // A circular arrow around a play triangle.
+    p.arc(8.0, 8.0, 6.0, 30.0, 330.0);
+    p.line(&[(12.5, 1.5), (13.8, 4.8), (10.2, 5.2)]);
+    p.solid(&[(6.5, 5.5), (11.0, 8.0), (6.5, 10.5)], p.fg);
+}
+
+/// A tool of the Draw tab: a tall pen, tip down, on a 16 by 40 grid.
+pub(super) fn tool(p: &Pen, shape: ToolShape, color: Color32, body: Color32) {
+    match shape {
+        ToolShape::Pen => {
+            // Barrel with a rounded top, a band of the pen's color, and a tapered tip.
+            let barrel = [
+                (5.0, 4.0),
+                (6.2, 2.0),
+                (9.8, 2.0),
+                (11.0, 4.0),
+                (11.0, 25.0),
+                (5.0, 25.0),
+            ];
+            p.solid(&barrel, body);
+            p.fill(5.0, 7.0, 11.0, 14.0, color);
+            p.polygon(&barrel, Color32::TRANSPARENT);
+            let tip = [(5.0, 25.0), (11.0, 25.0), (8.9, 34.0), (7.1, 34.0)];
+            p.solid(&tip, color);
+            p.polygon(&tip, Color32::TRANSPARENT);
+            p.dot(8.0, 36.0, 1.0);
+        }
+        ToolShape::Highlighter => {
+            // A wide barrel, a neck, and a chisel tip in the marker's color.
+            let barrel = [
+                (3.0, 4.0),
+                (4.5, 2.0),
+                (11.5, 2.0),
+                (13.0, 4.0),
+                (13.0, 22.0),
+                (3.0, 22.0),
+            ];
+            p.solid(&barrel, body);
+            p.fill(3.0, 6.0, 13.0, 12.0, color);
+            p.polygon(&barrel, Color32::TRANSPARENT);
+            let neck = [(4.0, 22.0), (12.0, 22.0), (11.0, 27.0), (5.0, 27.0)];
+            p.solid(&neck, body);
+            p.polygon(&neck, Color32::TRANSPARENT);
+            let chisel = [(5.0, 27.0), (11.0, 27.0), (12.0, 34.0), (6.0, 36.5)];
+            p.solid(&chisel, color);
+            p.polygon(&chisel, Color32::TRANSPARENT);
+        }
+    }
 }

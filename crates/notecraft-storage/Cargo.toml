@@ -16,10 +16,13 @@ craft-atomic.workspace = true
 notecraft-core.workspace = true
 tracing.workspace = true
 toml.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 # SQLite compiles from C, so the index is native only; the wasm32 build skips it.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rusqlite.workspace = true
+notify.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

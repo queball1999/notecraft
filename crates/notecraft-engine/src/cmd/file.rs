@@ -77,13 +77,35 @@ fn open_kind(
     Ok(open(session, item))
 }
 
-/// `file.new_notebook { path }`: create a notebook in a folder. Phase 0 records the folder
-/// and shows the mock notebooks; Phase 1 creates the notebook files.
+/// `file.new_notebook { path }`: create a notebook in a folder and open it. The folder is made
+/// when it does not exist (its parent must), and gets `.notecraft/notebook.toml`; files already
+/// in it stay as they are. A path whose parent does not exist keeps the Phase 0 behavior (record
+/// it, show the mock notebooks if nothing is open).
 pub(super) fn new_notebook(
     session: &mut Session,
     args: &Map<String, Value>,
 ) -> Result<CommandOutput, CommandError> {
-    open_kind(ids::FILE_NEW_NOTEBOOK, RecentKind::Notebook, session, args)
+    let id = ids::FILE_NEW_NOTEBOOK;
+    let path = path_arg(id, args)?;
+    let Some(item) = RecentItem::new(RecentKind::Notebook, path) else {
+        return Err(bad_path(
+            id,
+            &format!("path must be 1 to {MAX_PATH_CHARS} characters with no control characters"),
+        ));
+    };
+    let folder = Path::new(&item.path);
+    let can_create = folder.is_dir() || folder.parent().is_some_and(Path::is_dir);
+    if !can_create {
+        tracing::warn!(path = %item.path, "parent folder not found; showing the sample notebooks");
+        return Ok(open(session, item));
+    }
+    let notebook_id = session
+        .create_notebook(folder)
+        .map_err(|err| bad_path(id, &err.to_string()))?;
+    let value = json!({ "kind": item.kind.id(), "path": item.path, "id": notebook_id });
+    session.recents_mut().push(item);
+    session.mark_changed();
+    Ok(CommandOutput { value })
 }
 
 /// `file.open_notebook { path }`: open a notebook folder. A folder that exists is scanned
@@ -162,6 +184,58 @@ pub(super) fn copy_about_info(
     _args: &Map<String, Value>,
 ) -> Result<CommandOutput, CommandError> {
     Ok(CommandOutput::default())
+}
+
+/// `file.restore_unsaved`: put back the unsaved text found from the last session. The output
+/// has the number of pages restored (`restored`).
+pub(super) fn restore_unsaved(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let restored = session.restore_recovery();
+    Ok(CommandOutput {
+        value: json!({ "restored": restored }),
+    })
+}
+
+/// `file.discard_unsaved`: throw away the unsaved text found from the last session. The
+/// output has the number of pages discarded (`discarded`).
+pub(super) fn discard_unsaved(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let discarded = session.discard_recovery();
+    Ok(CommandOutput {
+        value: json!({ "discarded": discarded }),
+    })
+}
+
+fn settle_conflict(
+    id: CommandId,
+    session: &mut Session,
+    keep_mine: bool,
+) -> Result<CommandOutput, CommandError> {
+    if session.resolve_current_conflict(keep_mine) {
+        Ok(CommandOutput::default())
+    } else {
+        Err(bad_path(id, "the page has no outside change to settle"))
+    }
+}
+
+/// `file.keep_my_version`: keep the page text as it is; the next save replaces the file.
+pub(super) fn keep_my_version(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    settle_conflict(ids::FILE_KEEP_MY_VERSION, session, true)
+}
+
+/// `file.use_outside_version`: replace the page text with the version from disk.
+pub(super) fn use_outside_version(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    settle_conflict(ids::FILE_USE_OUTSIDE_VERSION, session, false)
 }
 
 #[cfg(test)]
@@ -315,7 +389,12 @@ mod tests {
     #[test]
     fn opening_again_keeps_the_selection() {
         let mut session = Session::new();
-        run(&mut session, "file.new_notebook", json!({ "path": "/a" })).unwrap();
+        run(
+            &mut session,
+            "file.new_notebook",
+            json!({ "path": "/no-such-parent/a" }),
+        )
+        .unwrap();
         run(&mut session, "nav.page.select", json!({ "id": "p-ideas" })).unwrap();
         run(&mut session, "file.open", json!({ "path": "/b/Page.MD" })).unwrap();
         assert_eq!(session.selection().page.as_deref(), Some("p-ideas"));
@@ -323,7 +402,7 @@ mod tests {
             recent(&session),
             [
                 (RecentKind::Page, "/b/Page.MD".to_owned()),
-                (RecentKind::Notebook, "/a".to_owned()),
+                (RecentKind::Notebook, "/no-such-parent/a".to_owned()),
             ]
         );
     }
@@ -368,6 +447,19 @@ mod tests {
             2,
             "clearing does not close anything"
         );
+    }
+
+    #[test]
+    fn a_new_notebook_is_created_on_disk_and_opened() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let folder = dir.path().join("Fresh");
+        let path = folder.to_string_lossy().into_owned();
+        let mut session = Session::new();
+        let out = run(&mut session, "file.new_notebook", json!({ "path": path })).unwrap();
+        assert!(folder.join(".notecraft/notebook.toml").is_file());
+        assert_eq!(out["id"], session.current_notebook().unwrap().id.as_str());
+        assert_eq!(session.current_notebook().unwrap().name, "Fresh");
+        assert_eq!(recent(&session), [(RecentKind::Notebook, path)]);
     }
 
     #[test]

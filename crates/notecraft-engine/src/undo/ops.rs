@@ -5,9 +5,12 @@ use std::sync::Arc;
 
 use notecraft_core::{InkPoint, Stroke};
 use notecraft_model::section::MAX_GROUP_DEPTH;
+use notecraft_model::Container;
 use notecraft_model::{Section, SectionNode};
 
 use crate::session::Session;
+
+use super::fsops::FsOp;
 use crate::view::PageStyle;
 
 /// One reversible change to the document.
@@ -34,6 +37,14 @@ pub enum Op {
         removed: String,
         inserted: String,
     },
+    /// Change a container's geometry from `before` to `after`; `None` means "in the flow
+    /// layout with no geometry of its own".
+    SetContainer {
+        page: String,
+        id: String,
+        before: Option<Container>,
+        after: Option<Container>,
+    },
     /// Change a page's style (rule lines, background color, paper size) from `before` to
     /// `after`.
     SetPageStyle {
@@ -53,6 +64,10 @@ pub enum Op {
         /// out of `from`, and may be at most that count (the move is refused otherwise).
         to: Place,
     },
+    /// A change to the files of a notebook: create, move, rewrite a settings file, or take a
+    /// notebook out of the list. Structure editing (PR 1.13) builds on it; see
+    /// [`FsOp`].
+    Fs(FsOp),
 }
 
 /// A spot in a notebook's page lists.
@@ -160,6 +175,17 @@ impl Op {
                 removed: inserted.clone(),
                 inserted: removed.clone(),
             },
+            Op::SetContainer {
+                page,
+                id,
+                before,
+                after,
+            } => Op::SetContainer {
+                page: page.clone(),
+                id: id.clone(),
+                before: after.clone(),
+                after: before.clone(),
+            },
             Op::SetPageStyle {
                 page,
                 before,
@@ -180,6 +206,30 @@ impl Op {
                 from: to.clone(),
                 to: from.clone(),
             },
+            Op::Fs(op) => Op::Fs(op.inverse()),
+        }
+    }
+
+    /// Point ids this operation names at their new values. `map` gives the new id for an old
+    /// one, or `None` to keep it. Used when a rename or move changes the ids of pages.
+    pub(crate) fn rekey(&mut self, map: &dyn Fn(&str) -> Option<String>) {
+        let change = |id: &mut String| {
+            if let Some(new) = map(id) {
+                *id = new;
+            }
+        };
+        match self {
+            Op::InsertStroke { page, .. }
+            | Op::DeleteStroke { page, .. }
+            | Op::ReplaceText { page, .. }
+            | Op::SetContainer { page, .. }
+            | Op::SetPageStyle { page, .. } => change(page),
+            Op::MovePage { page, from, to, .. } => {
+                change(page);
+                change(&mut from.section);
+                change(&mut to.section);
+            }
+            Op::Fs(_) => {}
         }
     }
 
@@ -196,6 +246,9 @@ impl Op {
                 inserted,
                 ..
             } => BASE + page.len() + removed.len() + inserted.len(),
+            Op::SetContainer { page, id, .. } => {
+                BASE + page.len() + id.len() * 3 + size_of::<Container>() * 2
+            }
             Op::SetPageStyle { page, .. } => BASE + page.len() + size_of::<PageStyle>() * 2,
             Op::MovePage {
                 notebook,
@@ -203,12 +256,28 @@ impl Op {
                 from,
                 to,
             } => BASE + notebook.len() + page.len() + from.section.len() + to.section.len(),
+            Op::Fs(op) => op.bytes(),
         }
     }
 
     /// Apply the operation. Returns false, changing nothing, when it does not fit the
     /// document as it is now.
     pub(crate) fn apply(&self, session: &mut Session) -> bool {
+        let applied = self.apply_to_document(session);
+        if applied {
+            // Page text and strokes are saved with the page, so a change to either is an
+            // unsaved edit (PR 1.7). Style and structure changes are not page text yet.
+            if let Op::InsertStroke { page, .. }
+            | Op::DeleteStroke { page, .. }
+            | Op::ReplaceText { page, .. } = self
+            {
+                session.mark_page_dirty(page);
+            }
+        }
+        applied
+    }
+
+    fn apply_to_document(&self, session: &mut Session) -> bool {
         match self {
             Op::InsertStroke {
                 page,
@@ -265,7 +334,19 @@ impl Op {
                 next.push_str(head);
                 next.push_str(inserted);
                 next.push_str(tail);
-                session.set_page_source(page, next);
+                session.replace_page_text(page, next);
+                true
+            }
+            Op::SetContainer {
+                page,
+                id,
+                before,
+                after,
+            } => {
+                if session.stored_container(page, id) != *before {
+                    return false;
+                }
+                session.put_container(page, id, after.clone());
                 true
             }
             Op::SetPageStyle {
@@ -285,6 +366,7 @@ impl Op {
                 from,
                 to,
             } => move_page(session, notebook, page, from, to),
+            Op::Fs(op) => op.apply(session),
         }
     }
 }

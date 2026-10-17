@@ -12,6 +12,8 @@ members = [
     "apps/notecraft-cli",
     "xtask",
 ]
+# The cargo-fuzz crate has its own workspace and needs nightly (PR 1.14); see CONTRIBUTING.md.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.0.0"
@@ -43,11 +45,13 @@ notecraft-engine = { path = "crates/notecraft-engine" }
 notecraft-ui-egui = { path = "crates/notecraft-ui-egui" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = { version = "0.9", default-features = false, features = ["std", "parse", "serde"] }
+toml = { version = "0.9", default-features = false, features = ["std", "parse", "serde", "display"] }
 tempfile = "3"
 tracing = "0.1"
 # SQLite for the rebuildable notebook index (PR 1.2). The bundled feature compiles SQLite (public domain) from C source, so no system library is needed. Native only: not built for wasm32.
 rusqlite = { version = "0.40", features = ["bundled"] }
+# File system watcher for outside edits (PR 1.7). CC0-1.0. Native only: not built for wasm32.
+notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
 # Benchmarks only (dev-dependency). MIT OR Apache-2.0.
 criterion = { version = "0.8", default-features = false }
 # Markdown parser, behind notecraft-markdown. BSD-2-Clause (permissive, compatible with MIT OR Apache-2.0); builds for wasm32.

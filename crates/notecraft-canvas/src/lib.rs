@@ -12,6 +12,7 @@
 pub mod ink;
 pub mod paper;
 pub mod picture;
+pub mod text;
 pub mod viewport;
 
 pub use paper::{PaperSize, RuleKind, RuleLines};

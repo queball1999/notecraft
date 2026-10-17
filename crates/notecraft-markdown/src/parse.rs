@@ -4,7 +4,8 @@
 use comrak::nodes::{AstNode, ListType, NodeValue, Sourcepos, TableAlignment};
 use comrak::{parse_document, Arena, Options};
 
-use crate::block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Span, Table};
+use crate::block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Script, Span, Table};
+use crate::markup::{self, Mark, Tag};
 
 /// Deepest block nesting parsed into structure (docs/markdown.md section 9). Deeper content
 /// is shown as plain text.
@@ -20,6 +21,7 @@ fn options() -> Options<'static> {
     options.extension.strikethrough = true;
     options.extension.tasklist = true;
     options.extension.autolink = true;
+    options.extension.highlight = true;
     options
 }
 
@@ -241,6 +243,12 @@ struct Style {
     bold: bool,
     italic: bool,
     strike: bool,
+    underline: bool,
+    script: Script,
+    highlight: Option<u32>,
+    color: Option<u32>,
+    size_pt: Option<u16>,
+    family: Option<String>,
     link: Option<String>,
 }
 
@@ -260,6 +268,12 @@ fn push(runs: &mut Vec<Run>, text: &str, style: &Style, code: bool) {
         italic: style.italic,
         strike: style.strike,
         code,
+        underline: style.underline,
+        script: style.script,
+        highlight: style.highlight,
+        color: style.color,
+        size_pt: style.size_pt,
+        family: style.family.clone(),
         link: style.link.clone(),
         image: false,
     });
@@ -287,8 +301,13 @@ fn alt_text<'a>(node: &'a AstNode<'a>) -> String {
 /// Alt text kept per image.
 const MAX_ALT_BYTES: usize = 1024;
 
-fn inline_children<'a>(node: &'a AstNode<'a>, style: &Style, depth: usize, runs: &mut Vec<Run>) {
+fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs: &mut Vec<Run>) {
+    // HTML tags (`<u>`, `<mark>`, `<span style=...>`) are sibling nodes, so the style they set
+    // lasts for the rest of this parent.
+    let mut current = outer.clone();
+    let mut open_spans: Vec<Mark> = Vec::new();
     for child in node.children() {
+        let style = &current;
         if depth >= MAX_DEPTH {
             // Too deep to keep the structure: keep only the text.
             for d in child.descendants() {
@@ -303,7 +322,14 @@ fn inline_children<'a>(node: &'a AstNode<'a>, style: &Style, depth: usize, runs:
         match value {
             NodeValue::Text(t) => push(runs, &t, style, false),
             NodeValue::Code(c) => push(runs, &c.literal, style, true),
-            NodeValue::HtmlInline(h) => push(runs, &h, style, false),
+            NodeValue::HtmlInline(h) => match markup::parse_tag(&h) {
+                Some((tag, len)) if len == h.len() => apply_tag(&mut current, &mut open_spans, tag),
+                _ => push(runs, &h, style, false),
+            },
+            NodeValue::Highlight => nested(Style {
+                highlight: Some(markup::DEFAULT_HIGHLIGHT),
+                ..style.clone()
+            }),
             NodeValue::SoftBreak => push(runs, " ", style, false),
             NodeValue::LineBreak => push(runs, "\n", style, false),
             NodeValue::Emph => nested(Style {
@@ -328,6 +354,12 @@ fn inline_children<'a>(node: &'a AstNode<'a>, style: &Style, depth: usize, runs:
                 italic: style.italic,
                 strike: style.strike,
                 code: false,
+                underline: style.underline,
+                script: style.script,
+                highlight: style.highlight,
+                color: style.color,
+                size_pt: style.size_pt,
+                family: style.family.clone(),
                 link: Some(link.url),
                 image: true,
             }),
@@ -348,6 +380,12 @@ fn merge(runs: Vec<Run>) -> Vec<Run> {
                     && last.italic == run.italic
                     && last.strike == run.strike
                     && last.code == run.code
+                    && last.underline == run.underline
+                    && last.script == run.script
+                    && last.highlight == run.highlight
+                    && last.color == run.color
+                    && last.size_pt == run.size_pt
+                    && last.family == run.family
                     && last.link == run.link =>
             {
                 last.text.push_str(&run.text);
@@ -356,4 +394,63 @@ fn merge(runs: Vec<Run>) -> Vec<Run> {
         }
     }
     out
+}
+
+/// Apply a formatting tag to the style that holds for the following siblings.
+fn apply_tag(style: &mut Style, open_spans: &mut Vec<Mark>, tag: Tag) {
+    match tag {
+        Tag::Open(mark, value) => {
+            set_mark(style, mark, value.as_deref(), true);
+            if matches!(mark, Mark::Color | Mark::Size | Mark::Family) {
+                // Bounded: a hostile page cannot grow the stack past its own tag count, but
+                // keep it small anyway.
+                if open_spans.len() < 64 {
+                    open_spans.push(mark);
+                }
+            }
+        }
+        Tag::Close(mark) => set_mark(style, mark, None, false),
+        Tag::CloseSpan => {
+            if let Some(mark) = open_spans.pop() {
+                set_mark(style, mark, None, false);
+            }
+        }
+    }
+}
+
+fn set_mark(style: &mut Style, mark: Mark, value: Option<&str>, on: bool) {
+    match mark {
+        Mark::Underline => style.underline = on,
+        Mark::Subscript => {
+            style.script = if on {
+                Script::Sub
+            } else if style.script == Script::Sub {
+                Script::None
+            } else {
+                style.script
+            }
+        }
+        Mark::Superscript => {
+            style.script = if on {
+                Script::Sup
+            } else if style.script == Script::Sup {
+                Script::None
+            } else {
+                style.script
+            }
+        }
+        Mark::Highlight => {
+            style.highlight = on.then(|| {
+                value
+                    .and_then(markup::color_value)
+                    .unwrap_or(markup::DEFAULT_HIGHLIGHT)
+            });
+        }
+        Mark::Color => style.color = value.and_then(markup::color_value).filter(|_| on),
+        Mark::Size => {
+            style.size_pt = value.and_then(|v| v.parse::<u16>().ok()).filter(|_| on);
+        }
+        Mark::Family => style.family = value.map(str::to_owned).filter(|_| on),
+        Mark::Bold | Mark::Italic | Mark::Strike => {}
+    }
 }

@@ -7,6 +7,15 @@ use notecraft_engine::cmd::shortcuts::{self, Chord};
 
 use crate::ribbon::Clicked;
 
+/// Commands whose keys the text editor handles itself while the user types in the canvas (the
+/// clipboard keys arrive as events, Delete as a key event), so a shortcut would act twice.
+const TEXT_KEYS: [notecraft_engine::cmd::CommandId; 4] = [
+    notecraft_engine::cmd::ids::EDIT_CUT,
+    notecraft_engine::cmd::ids::EDIT_COPY,
+    notecraft_engine::cmd::ids::EDIT_PASTE,
+    notecraft_engine::cmd::ids::EDIT_DELETE,
+];
+
 /// The shortcut map, ready to match against input.
 #[derive(Debug)]
 pub struct Shortcuts {
@@ -48,12 +57,20 @@ impl Shortcuts {
     /// The commands whose shortcuts were pressed this frame. Their key presses are consumed.
     /// Nothing is taken while a text field has focus, so typing and text editing keys work.
     pub fn pressed(&self, ctx: &egui::Context) -> Vec<Clicked> {
-        if ctx.egui_wants_keyboard_input() {
+        // The canvas takes keys while the user types in it (and sets this flag each frame).
+        // Then the shortcuts that are not text keys still work (undo, zoom, tabs); the text
+        // keys and clipboard shortcuts reach the text as key and clipboard events.
+        let typing = ctx.data(|d| {
+            d.get_temp::<bool>(crate::canvas::typing_flag())
+                .unwrap_or(false)
+        });
+        if ctx.egui_wants_keyboard_input() && !typing {
             return Vec::new();
         }
         ctx.input_mut(|input| {
             self.bindings
                 .iter()
+                .filter(|(_, clicked)| !(typing && TEXT_KEYS.contains(&clicked.command)))
                 .filter(|(shortcut, _)| input.consume_shortcut(shortcut))
                 .map(|(_, clicked)| clicked.clone())
                 .collect()

@@ -5,9 +5,10 @@
 //! Text that is already on the page is never re-serialized; it is edited as a span
 //! replacement (see `edit`).
 
-use crate::block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Table};
+use crate::block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Script, Table};
 use crate::edit::format_entry;
 use crate::frontmatter::Value;
+use crate::markup::{self, Mark};
 use crate::style::LineEnding;
 
 /// Deepest nesting written; deeper blocks are dropped instead of recursing without bound.
@@ -248,6 +249,7 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
         if run.strike {
             text = format!("~~{text}~~");
         }
+        text = wrap_html(text, run);
         if run.italic {
             text = format!("*{text}*");
         }
@@ -262,6 +264,35 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
     out
 }
 
+/// Wrap `text` in the HTML tags and `==` that `run` needs beyond markdown emphasis.
+fn wrap_html(mut text: String, run: &Run) -> String {
+    let mut wrap = |mark: Mark, value: Option<&str>| {
+        let (open, close) = markup::delimiters(mark, value);
+        text = format!("{open}{text}{close}");
+    };
+    if run.underline {
+        wrap(Mark::Underline, None);
+    }
+    match run.script {
+        Script::Sub => wrap(Mark::Subscript, None),
+        Script::Sup => wrap(Mark::Superscript, None),
+        Script::None => {}
+    }
+    if let Some(family) = &run.family {
+        wrap(Mark::Family, Some(family));
+    }
+    if let Some(size) = run.size_pt {
+        wrap(Mark::Size, Some(&size.to_string()));
+    }
+    if let Some(color) = run.color {
+        wrap(Mark::Color, Some(&markup::color_text(color)));
+    }
+    if let Some(color) = run.highlight {
+        wrap(Mark::Highlight, Some(&markup::color_text(color)));
+    }
+    text
+}
+
 fn code_span(text: &str) -> String {
     let ticks = "`".repeat(longest_run(text, '`') + 1);
     let pad = if text.starts_with('`') || text.ends_with('`') {
@@ -274,8 +305,11 @@ fn code_span(text: &str) -> String {
 
 fn escape(text: &str, in_cell: bool) -> String {
     let mut out = String::with_capacity(text.len());
+    // `==` is highlight, so a run of equals signs in text is escaped.
+    let has_pair = text.contains("==");
     for c in text.chars() {
         match c {
+            '=' if has_pair => out.push_str("\\="),
             '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '~' => {
                 out.push('\\');
                 out.push(c);
