@@ -233,7 +233,8 @@ impl Session {
     }
 
     /// Move everything the session keeps about page `old` to id `new` (its file got a new
-    /// extension): the page list, selection, text, notice, style, strokes, and the save state
+    /// extension): the page list, selection, text, caret, notice, style, strokes, container
+    /// positions, and the save state
     /// (dirty mark, disk hash, conflict, pending recovery, queued reads). The page title is
     /// the file name without its extension, so it does not change. The undo history is
     /// cleared: its steps name the old id.
@@ -272,6 +273,15 @@ impl Session {
         }
         if let Some(value) = self.ink.layers.remove(old) {
             self.ink.layers.insert(new.to_owned(), value);
+        }
+        if let Some(value) = self.containers.remove(old) {
+            self.containers.insert(new.to_owned(), value);
+        }
+        // Auto-save can promote the page while the user types in it; the caret stays.
+        if let Some((owner, _)) = self.text_cursor.as_mut() {
+            if owner == old {
+                *owner = new.to_owned();
+            }
         }
         self.saving.rekey(old, new);
         self.history.clear_page(old);
