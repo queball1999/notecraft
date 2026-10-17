@@ -14,6 +14,7 @@ mod nav;
 mod page;
 mod registry;
 pub mod shortcuts;
+pub(crate) mod structure;
 #[cfg(test)]
 mod tests;
 mod theme;

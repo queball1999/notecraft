@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -435,6 +435,27 @@ Commits:
 
 PR title: `feat(engine): edit notebook structure`.
 
+### PR 1.13 notes: deviations and open questions
+
+Built on `feat/structure-editing` (2026-10-16), on top of the Phase 1 base (PR 1.1, 1.2, 1.3, 1.4, 1.8, 1.10). What differs from the steps above:
+
+- The design is in docs/architecture.md section 5.1. Structure edits are `Scope::Notebook` transactions of `FsOp`s (create, move, write a settings file, close or reopen a notebook). The disk changes first, and the tree is read from the folder again after every step, undo, and redo. Undo of a rename or move re-applies the inverse file operation; a step that no longer fits the files is dropped without changing anything, and a half-applied step is reversed.
+- Delete goes to `.notecraft/trash/<seconds>-<n>/` with an `origin.toml`, as the plan says ("to trash folder, restore UI comes in Phase 3"). The Recycle Bin list, restore, and the 30 day purge stay in PR 3.5; this PR builds no UI that reads the trash. Notebook "delete" is `file.close_notebook` (OneNote's Close This Notebook): it leaves the list and keeps its folder, because deleting a user's whole folder is not something a menu item should do.
+- Commands (all Ready, undoable except `file.new_notebook`): `page.new`, `page.rename`, `page.delete`, `page.move`, `page.set_level`, `page.make_subpage`, `page.promote_subpage`, `section.new`, `section.group_new`, `section.rename`, `section.delete`, `section.move`, `section.set_color`, `notebook.rename`, `notebook.set_color`, `file.close_notebook`, and `file.new_notebook` (now creates the folder and `notebook.toml`). Sections and section groups share the `section.*` commands. `file.notebook_properties` stays Coming Soon (it is a dialog with the folder path; rename and color are separate commands here).
+- Renaming a notebook changes its display name in `notebook.toml`; the folder keeps its name, so the notebook id and every page id stay the same.
+- A page title is its file name (docs/markdown.md section 2.3), so renaming renames the file. A frontmatter title that differs from the file name is not changed or read yet (titles from frontmatter come with the index worker); the navigation shows the file name.
+- Moving a page to another section also copies the attachments its text links to (found by scanning the text for `attachments/<name>`); the original stays for pages that still use it. The attachment store itself (hash prefixes, linked files) is PR 1.12. Subpages do not travel with their parent page when it is dragged away; the moved page lands at level 0. OneNote moves the subpages of a collapsed parent; subpage collapsing is not built, so this waits for it.
+- A section moved into a group keeps its name; a taken name gets a number. Moving checks the 8 level nesting limit and refuses a group moved into itself.
+- UI (feat(ui) commit): context menus on notebook, group, section (tab and pane), and page rows; double-click or the Rename item renames in place (Enter commits, Esc cancels); drag a page to reorder it or onto a section; drag a section or group to reorder it, into a group, or onto the notebook for the top level; Move Up and Move Down in the page menu do what a drag does for the keyboard. The drag logic is tested through the position math and the commands it emits (`drop_index`, `move_page`, `move_section`); the headless harness does not drive a pointer drag.
+- Section and notebook colors: a Color submenu with eight colors (the six defaults, teal, and gray) writes `color` to `.section.toml` or `notebook.toml`. A custom color picker is not built.
+- Sample (mock) notebooks cannot be edited: the commands fail with "this is a sample notebook; open or create a notebook folder first" (shown as a toast). Open or create a notebook folder first. `page.move` still reorders and moves pages in memory there.
+- The index (PR 1.2) needs no new code: a rename or move is a removal and an addition for `Index::refresh`, which reads the folder. Tests check that the index agrees with a fresh scan after each kind of edit.
+- Not done, by plan: Recycle Bin UI (PR 3.5), password-protected sections (PR 3.x), page links and link updates on rename (Phase 2), a custom color dialog.
+
+Decisions on the open questions (coordinator, 2026-10-16):
+
+- A new section starts with one Untitled Page, created in the same undo step and selected, as in OneNote; Add Page stays at the end of the list; closing is the right meaning of "delete notebook", with no OS trash option.
+
 ## PR 1.14: fuzzing
 
 | | |
@@ -525,3 +546,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |
 | 2026-10-16 | 1 | PR 1.11 deviations and the eraser design as built. Hours unchanged. |
 | 2026-10-16 | 1 | PR 1.11 follow-ups: eraser sizes and grazing point eraser decided and built; open questions closed. |
+| 2026-10-16 | 1 | PR 1.13 done: deviations (trash layout, close as notebook delete, commands, sample notebooks read-only) and open questions noted under PR 1.13. |

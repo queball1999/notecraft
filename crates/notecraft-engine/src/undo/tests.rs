@@ -789,13 +789,17 @@ fn every_ready_undoable_command_has_an_undo_case() {
         let ready = spec.status == crate::cmd::Status::Ready;
         if ready && spec.undoable {
             let id = spec.id.as_str();
+            let covered = UNDO_CASES
+                .iter()
+                .chain(crate::cmd::structure::UNDO_CASES)
+                .any(|(case, _)| *case == id);
             assert!(
-                UNDO_CASES.iter().any(|(case, _)| *case == id),
+                covered,
                 "{id} is Ready and undoable but has no row in UNDO_CASES"
             );
         }
     }
-    for (id, _) in UNDO_CASES {
+    for (id, _) in UNDO_CASES.iter().chain(crate::cmd::structure::UNDO_CASES) {
         let spec = registry.get(id).unwrap();
         assert!(spec.undoable, "{id} is in UNDO_CASES but not undoable");
     }
