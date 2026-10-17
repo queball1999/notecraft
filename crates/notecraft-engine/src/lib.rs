@@ -22,7 +22,7 @@ pub mod view;
 
 pub use ink::{
     default_pen_tools, DrawTool, EraserMode, EraserSize, InkState, PenStyle, PenTool, ToolKind,
-    MAX_PEN_TOOLS,
+    MAX_PEN_POINTS, MAX_PEN_TOOLS, MIN_PEN_POINTS,
 };
 pub use notecraft_storage::RecoveryEntry;
 pub use session::{

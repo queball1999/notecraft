@@ -180,6 +180,23 @@ impl PenTool {
         }
     }
 
+    /// The tool as saved in the settings: kind id, `#RRGGBB[AA]` color, and width in points.
+    pub fn to_saved(self) -> (&'static str, String, f32) {
+        (
+            self.kind.id(),
+            self.style.color.to_hex(),
+            self.style.width_pt,
+        )
+    }
+
+    /// A tool from its saved form. An unknown kind or a color that does not parse gives
+    /// `None`; a width out of range or not a number is put in range.
+    pub fn from_saved(kind: &str, color: &str, width_pt: f32) -> Option<Self> {
+        let kind = ToolKind::parse(kind)?;
+        let color = InkColor::parse(color)?;
+        Some(Self::new(kind, color, width_pt).bounded())
+    }
+
     /// The width, kept inside what the commands accept.
     fn bounded(mut self) -> Self {
         let w = self.style.width_pt;
@@ -205,8 +222,8 @@ pub fn default_pen_tools() -> Vec<PenTool> {
     vec![
         pen("#000000"),
         pen("#E81123"),
-        pen("#0078D4"),
-        pen("#2E9B3E"),
+        pen("#3AA7E8"),
+        pen("#3DAE49"),
         PenTool {
             kind: ToolKind::Highlighter,
             style: DEFAULT_HIGHLIGHTER,

@@ -6,8 +6,8 @@ use craft_ui::buttons::IconButton;
 use egui::{Align, Layout, Popup, PopupCloseBehavior, Rect, SetOpenCommand, Stroke, Ui, UiBuilder};
 
 use super::button::{self, SMALL_HEIGHT};
-use super::spec::{Button, Group, Size};
-use super::{menus, Clicked, KeyFrame, Look};
+use super::spec::{Button, Column, Group, Size};
+use super::{menus, tools, Clicked, KeyFrame, Look};
 
 /// Height of the simplified ribbon's row, under the tab strip.
 pub const BODY_HEIGHT: f32 = 36.0;
@@ -23,31 +23,46 @@ const GAP: f32 = 2.0;
 pub(super) fn fit(
     groups: &'static [Group],
     width: f32,
-) -> (Vec<Vec<&'static Button>>, Vec<&'static Button>) {
-    let mut shown: Vec<Vec<&'static Button>> = Vec::new();
+    tools_width: f32,
+) -> (
+    Vec<(&'static Group, Vec<&'static Button>)>,
+    Vec<&'static Button>,
+) {
+    let mut shown: Vec<(&'static Group, Vec<&'static Button>)> = Vec::new();
     let mut more = Vec::new();
     let mut x = 0.0;
     for group in groups {
         let mut row = Vec::new();
+        // The tools of a Draw tab group take room with its first button.
+        let mut extra = if has_tools(group) { tools_width } else { 0.0 };
         for button in group.buttons() {
             let divider = if row.is_empty() && !shown.is_empty() {
                 DIVIDER
             } else {
                 0.0
             };
-            let needed = divider + button::icon_only_width(button) + GAP;
+            let needed = divider + button::icon_only_width(button) + GAP + extra;
             if more.is_empty() && x + needed <= width {
                 x += needed;
+                extra = 0.0;
                 row.push(button);
             } else {
                 more.push(button);
             }
         }
         if !row.is_empty() {
-            shown.push(row);
+            shown.push((group, row));
         }
     }
     (shown, more)
+}
+
+/// Whether `group` holds the Draw tab's tool list.
+fn has_tools(group: &Group) -> bool {
+    group
+        .columns
+        .iter()
+        .any(|column| matches!(column, Column::Tools))
 }
 
 /// Draw the row for `groups` into `area`.
@@ -59,7 +74,11 @@ pub(super) fn show(
     keys: &KeyFrame,
     out: &mut Vec<Clicked>,
 ) {
-    let (shown, more) = fit(groups, area.width() - MORE_WIDTH);
+    let (shown, more) = fit(
+        groups,
+        area.width() - MORE_WIDTH,
+        tools::compact_width(look),
+    );
     let tokens = look.tokens;
     ui.scope_builder(
         UiBuilder::new()
@@ -67,7 +86,7 @@ pub(super) fn show(
             .layout(Layout::left_to_right(Align::Center)),
         |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(GAP, 0.0);
-            for (index, row) in shown.iter().enumerate() {
+            for (index, (group, row)) in shown.iter().enumerate() {
                 if index > 0 {
                     ui.add_space(3.0);
                     let x = ui.cursor().min.x;
@@ -81,10 +100,14 @@ pub(super) fn show(
                 for &button in row {
                     button::show_sized(ui, button, Size::IconOnly, look, keys, SMALL_HEIGHT, out);
                 }
+                if has_tools(group) {
+                    tools::show_compact(ui, look, out);
+                }
             }
         },
     );
-    if more.is_empty() {
+    let tools_missing = look.tools.len() > 0 && !shown.iter().any(|(group, _)| has_tools(group));
+    if more.is_empty() && !tools_missing {
         return;
     }
     let rect = Rect::from_min_size(
@@ -114,6 +137,9 @@ pub(super) fn show(
             for button in &more {
                 menus::button_item(ui, button, look, out);
             }
+            if tools_missing {
+                tools::menu_rows(ui, look, out);
+            }
         });
 }
 
@@ -134,14 +160,18 @@ mod tests {
     #[test]
     fn everything_fits_in_a_wide_window_and_order_is_kept() {
         let groups = home();
-        let (shown, more) = fit(groups, 10_000.0);
+        let (shown, more) = fit(groups, 10_000.0, 0.0);
         assert!(more.is_empty());
         let all: Vec<&str> = groups
             .iter()
             .flat_map(|g| g.buttons())
             .map(|b| b.label)
             .collect();
-        let drawn: Vec<&str> = shown.iter().flatten().map(|b| b.label).collect();
+        let drawn: Vec<&str> = shown
+            .iter()
+            .flat_map(|(_, row)| row)
+            .map(|b| b.label)
+            .collect();
         assert_eq!(drawn, all);
     }
 
@@ -153,12 +183,16 @@ mod tests {
             .flat_map(|g| g.buttons())
             .map(|b| b.label)
             .collect();
-        let (shown, more) = fit(groups, 200.0);
-        let drawn: Vec<&str> = shown.iter().flatten().map(|b| b.label).collect();
+        let (shown, more) = fit(groups, 200.0, 0.0);
+        let drawn: Vec<&str> = shown
+            .iter()
+            .flat_map(|(_, row)| row)
+            .map(|b| b.label)
+            .collect();
         let rest: Vec<&str> = more.iter().map(|b| b.label).collect();
         assert!(!drawn.is_empty() && !rest.is_empty());
         assert_eq!([drawn, rest].concat(), all);
-        let (shown, more) = fit(groups, 0.0);
+        let (shown, more) = fit(groups, 0.0, 0.0);
         assert!(shown.is_empty());
         assert_eq!(more.len(), all.len());
     }

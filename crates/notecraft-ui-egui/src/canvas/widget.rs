@@ -196,6 +196,26 @@ fn capture_ink(
     };
     let layer_id = ui.layer_id();
     let ctx = ui.ctx().clone();
+    if crate::ribbon::eyedropper_active(&ctx) {
+        // The Eyedropper takes the next click on the page: ink under it gives its color.
+        // Escape or a click elsewhere ends it.
+        ctx.set_cursor_icon(CursorIcon::Crosshair);
+        let escape = ctx.input(|input| input.key_pressed(egui::Key::Escape));
+        if escape {
+            crate::ribbon::set_eyedropper(&ctx, false);
+        } else if response.clicked() {
+            if let Some(at) = response.interact_pointer_pos() {
+                let page = map.page(at);
+                clicked.push(eyedropper_click(page, map.zoom));
+                crate::ribbon::set_eyedropper(&ctx, false);
+            }
+        }
+        return InkFrame {
+            tool,
+            style: None,
+            preview: None,
+        };
+    }
     let can_start = |at: egui::Pos2| shown.contains(at) && ctx.layer_id_at(at) == Some(layer_id);
     let capture = state.ink.capture(ui, map, capture_tool, can_start, clicked);
     if tool != DrawTool::Type && response.hovered() {
@@ -205,6 +225,20 @@ fn capture_ink(
         tool,
         style,
         preview: capture.preview,
+    }
+}
+
+/// The `draw.eyedropper` command for a click at page position `page`. The reach is a few
+/// screen pixels, so thin ink is easy to hit at any zoom.
+fn eyedropper_click(page: Vec2, zoom: f32) -> Clicked {
+    let round = |v: f32| (f64::from(v) * 100.0).round() / 100.0;
+    let mut args = notecraft_engine::cmd::Map::new();
+    args.insert("x".to_owned(), round(page.x).into());
+    args.insert("y".to_owned(), round(page.y).into());
+    args.insert("radius".to_owned(), round(4.0 / zoom.max(0.01)).into());
+    Clicked {
+        command: notecraft_engine::cmd::ids::DRAW_EYEDROPPER,
+        args: notecraft_engine::cmd::Value::Object(args),
     }
 }
 

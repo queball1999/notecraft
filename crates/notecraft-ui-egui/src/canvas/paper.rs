@@ -51,7 +51,10 @@ pub(super) fn draw(
             painter.rect_filled(page, 0.0, color);
         }
         let margin = margin_x(page, map, style.rule_lines);
-        paint_rules(painter, page, map, style.rule_lines, margin, tokens);
+        let color = style.rule_color.map_or(tokens.canvas_rule, |[r, g, b, a]| {
+            Color32::from_rgba_unmultiplied(r, g, b, a)
+        });
+        paint_rules(painter, page, map, style.rule_lines, margin, color, tokens);
     }
     if let Some(edge) = edge {
         let stroke = Stroke::new(1.0, tokens.border);
@@ -62,16 +65,17 @@ pub(super) fn draw(
 /// Draw the rule lines, grid, margin line, or dots of `rules` inside `page`, a part of the
 /// paper on screen. Shared by the canvas and the Rule Lines menu thumbnails. `margin` is the
 /// screen x of the red margin line, if it shows (the canvas computes it from the page; a
-/// thumbnail places it by [`thumbnail_margin_x`]).
+/// thumbnail places it by [`thumbnail_margin_x`]). `color` is the color of the lines and dots.
 fn paint_rules(
     painter: &Painter,
     page: Rect,
     map: PageToScreen,
     rules: RuleLines,
     margin: Option<f32>,
+    color: Color32,
     tokens: &ThemeTokens,
 ) {
-    let stroke = Stroke::new(1.0, tokens.canvas_rule);
+    let stroke = Stroke::new(1.0, color);
     let (rows, columns) = rule_lines(page, map, rules);
     for y in rows {
         painter.hline(page.x_range(), painter.round_to_pixel_center(y), stroke);
@@ -86,7 +90,7 @@ fn paint_rules(
     }
     let radius = dot_radius(map.zoom);
     for dot in dot_positions(page, map, rules) {
-        painter.circle_filled(dot, radius, tokens.canvas_rule);
+        painter.circle_filled(dot, radius, color);
     }
 }
 
@@ -126,6 +130,7 @@ pub(crate) fn paint_thumbnail(
         map,
         rules,
         thumbnail_margin_x(rect, rules),
+        tokens.canvas_rule,
         tokens,
     );
 }

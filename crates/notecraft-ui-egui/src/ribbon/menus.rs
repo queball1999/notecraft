@@ -12,7 +12,9 @@ use notecraft_canvas::paper::RuleKind;
 use notecraft_canvas::RuleLines;
 use notecraft_engine::cmd::{ids, CommandId, Map, Value};
 
-use super::spec::{ArgValue, Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS};
+use super::spec::{
+    ArgValue, BackgroundMenu, Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS,
+};
 use super::{ActivePen, ActiveTool, Clicked, Look};
 use crate::color::{self, Rgba8};
 use crate::themes::{hex, mix};
@@ -39,7 +41,7 @@ fn object(pairs: &[(&str, Value)]) -> Value {
 }
 
 /// A clickable row with an optional preview, as wide as a menu.
-fn row(ui: &mut Ui, label: &str, preview: Preview, look: Look<'_>) -> Response {
+pub(super) fn row(ui: &mut Ui, label: &str, preview: Preview, look: Look<'_>) -> Response {
     marked_row(ui, label, preview, false, look)
 }
 
@@ -173,7 +175,10 @@ pub(super) fn button_item(ui: &mut Ui, button: &Button, look: Look<'_>, out: &mu
             });
         }
         Menu::Papers(list) => {
-            ui.menu_button(button.label, |ui| papers(ui, list, look, out));
+            ui.menu_button(button.label, |ui| papers(ui, list, false, look, out));
+        }
+        Menu::Background(menu) => {
+            ui.menu_button(button.label, |ui| background(ui, menu, look, out));
         }
         Menu::Colors(menu) => {
             ui.menu_button(button.label, |ui| {
@@ -299,16 +304,37 @@ fn paper_card(
 /// The Rule Lines menu: a gallery of thumbnail cards, None first, then "Ruled Lines", then
 /// "Grid Lines" (grids and Dotted). The items stay the source of truth: a card runs its item's
 /// command with its arguments, and picking one closes the menu.
-pub(super) fn papers(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<Clicked>) {
+///
+/// With `format_background` the cards sit under two headings, Rule Lines (None first, then the
+/// ruled densities) and Grid Lines, as in the Draw tab's Format Background menu.
+pub(super) fn papers(
+    ui: &mut Ui,
+    items: &[Item],
+    format_background: bool,
+    look: Look<'_>,
+    out: &mut Vec<Clicked>,
+) {
     /// A group heading (none for the first) and which kinds of paper belong to it.
     type Group = (Option<&'static str>, fn(RuleKind) -> bool);
-    let groups: [Group; 3] = [
-        (None, |kind| kind == RuleKind::None),
-        (Some("Ruled Lines"), |kind| kind == RuleKind::Lines),
-        (Some("Grid Lines"), |kind| {
-            matches!(kind, RuleKind::Grid | RuleKind::Dots)
-        }),
-    ];
+    let groups: [Group; 3] = if format_background {
+        [
+            (Some("Rule Lines"), |kind| {
+                matches!(kind, RuleKind::None | RuleKind::Lines)
+            }),
+            (Some("Grid Lines"), |kind| {
+                matches!(kind, RuleKind::Grid | RuleKind::Dots)
+            }),
+            (None, |_| false),
+        ]
+    } else {
+        [
+            (None, |kind| kind == RuleKind::None),
+            (Some("Ruled Lines"), |kind| kind == RuleKind::Lines),
+            (Some("Grid Lines"), |kind| {
+                matches!(kind, RuleKind::Grid | RuleKind::Dots)
+            }),
+        ]
+    };
     ui.set_min_width(CARD_COLUMNS as f32 * (CARD.x + CARD_GAP));
     for (title, wanted) in groups {
         let cards: Vec<(&Item, RuleLines)> = items
@@ -335,6 +361,34 @@ pub(super) fn papers(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<
             });
         }
     }
+}
+
+/// The Format Background menu: the Rule Lines and Grid Lines cards, a Rule Line Color
+/// submenu, Always Create Pages with Rule Lines (not built yet, so it is disabled), and a Page
+/// Color submenu.
+pub(super) fn background(
+    ui: &mut Ui,
+    menu: &BackgroundMenu,
+    look: Look<'_>,
+    out: &mut Vec<Clicked>,
+) {
+    papers(ui, menu.papers, true, look, out);
+    ui.separator();
+    ui.menu_button("Rule Line Color", |ui| {
+        colors(ui, ids::VIEW_RULE_LINE_COLOR, &menu.rule_color, look, out);
+    });
+    ui.add_enabled_ui(false, |ui| {
+        let _ = row(
+            ui,
+            "Always Create Pages with Rule Lines",
+            Preview::None,
+            look,
+        )
+        .on_disabled_hover_text("Coming Soon");
+    });
+    ui.menu_button("Page Color", |ui| {
+        colors(ui, ids::VIEW_PAGE_COLOR, &menu.page_color, look, out);
+    });
 }
 
 /// One color swatch. Its accessible name is the color's hex value.
@@ -513,7 +567,13 @@ fn remember(ctx: &egui::Context, command: CommandId, value: &str) {
 }
 
 /// Run `command` with `value` as its color argument, remembering real colors.
-fn pick(ctx: &egui::Context, command: CommandId, arg: &str, value: &str, out: &mut Vec<Clicked>) {
+pub(super) fn pick(
+    ctx: &egui::Context,
+    command: CommandId,
+    arg: &str,
+    value: &str,
+    out: &mut Vec<Clicked>,
+) {
     remember(ctx, command, value);
     out.push(Clicked {
         command,
@@ -635,17 +695,28 @@ pub(super) fn colors(
         ui.separator();
         if row(ui, "More Colors...", Preview::None, look).clicked() {
             let current = last_color(&ctx, command, menu).to_srgba_unmultiplied();
-            let dialog = Dialog {
-                command,
-                arg: menu.arg,
-                current,
-                custom: Custom::new(current),
-                tab: DialogTab::Standard,
-            };
-            ctx.data_mut(|data| data.insert_temp(dialog_id(), Some(dialog)));
+            open_colors_dialog(&ctx, command, menu.arg, current);
             ui.close();
         }
     }
+}
+
+/// Open the Colors dialog (More Colors) for `command`: OK runs it with the new color as
+/// `arg`. `current` is the color shown as Current.
+pub(super) fn open_colors_dialog(
+    ctx: &egui::Context,
+    command: CommandId,
+    arg: &'static str,
+    current: Rgba8,
+) {
+    let dialog = Dialog {
+        command,
+        arg,
+        current,
+        custom: Custom::new(current),
+        tab: DialogTab::Standard,
+    };
+    ctx.data_mut(|data| data.insert_temp(dialog_id(), Some(dialog)));
 }
 
 /// Which page of the Colors dialog shows.
