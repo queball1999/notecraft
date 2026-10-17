@@ -56,6 +56,8 @@ pub struct CanvasUi {
     ink: ink::InkUi,
     /// Textures of the pictures on the page shown.
     pictures: pictures::PictureCache,
+    /// The page title being edited in place.
+    title: Option<title::TitleEdit>,
 }
 
 impl Default for CanvasUi {
@@ -68,6 +70,7 @@ impl Default for CanvasUi {
             edit: editing::EditUi::default(),
             ink: ink::InkUi::default(),
             pictures: pictures::PictureCache::default(),
+            title: None,
         }
     }
 }

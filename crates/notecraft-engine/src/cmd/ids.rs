@@ -210,6 +210,8 @@ command_ids! {
     // Text editing in containers (not on the ribbon; keys and clicks send them)
     /// Put the text caret at a position, or extend the selection to it.
     TEXT_SET_CARET = "text.set_caret";
+    /// Drop the text caret and selection, as a click on empty page space does.
+    TEXT_CLEAR_CARET = "text.clear_caret";
     /// Move the text caret by a character, word, or line, or extend the selection.
     TEXT_MOVE = "text.move";
     /// Type text at the caret, replacing the selection.

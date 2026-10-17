@@ -916,6 +916,12 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .args(SET_CARET_ARGS)
     .ready(),
     CommandSpec::new(
+        ids::TEXT_CLEAR_CARET,
+        "Clear Caret",
+        "Drop the text caret and selection, removing the container left if it is empty.",
+    )
+    .ready(),
+    CommandSpec::new(
         ids::TEXT_MOVE,
         "Move Caret",
         "Move the text caret by a character, word, or line, or extend the selection.",
@@ -1461,6 +1467,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::EDIT_PASTE_PICTURE, attach::paste_picture),
     (ids::ATTACHMENT_OPEN, attach::open_attachment),
     (ids::TEXT_SET_CARET, text::set_caret),
+    (ids::TEXT_CLEAR_CARET, text::clear_caret),
     (ids::TEXT_MOVE, text::move_caret),
     (ids::TEXT_INSERT, text::insert),
     (ids::TEXT_DELETE, text::delete),

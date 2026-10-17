@@ -28,6 +28,51 @@ pub(super) fn paper_color(style: PageStyle, tokens: &ThemeTokens) -> Color32 {
     Color32::from_rgb(mix(r, base.r()), mix(g, base.g()), mix(b, base.b()))
 }
 
+/// Relative luminance of a color, 0 (black) to 1 (white).
+fn luminance(c: Color32) -> f32 {
+    let channel = |v: u8| {
+        let v = f32::from(v) / 255.0;
+        if v <= 0.040_45 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * channel(c.r()) + 0.7152 * channel(c.g()) + 0.0722 * channel(c.b())
+}
+
+/// WCAG contrast ratio of two colors (1 to 21).
+fn contrast(a: Color32, b: Color32) -> f32 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// The theme with Automatic text colors for this page: text with no color of its own is dark
+/// on a light page and light on a dark one, as OneNote's Automatic font color is. The theme's
+/// own text colors stay when they already read well on the page color.
+pub(super) fn page_tokens(style: PageStyle, tokens: &ThemeTokens) -> ThemeTokens {
+    let paper = paper_color(style, tokens);
+    if contrast(tokens.text, paper) >= 4.5 {
+        return *tokens;
+    }
+    let (text, muted) = if luminance(paper) > 0.18 {
+        (
+            Color32::from_rgb(0x1F, 0x1F, 0x1F),
+            Color32::from_rgb(0x5F, 0x5F, 0x5F),
+        )
+    } else {
+        (
+            Color32::from_rgb(0xF2, 0xF2, 0xF2),
+            Color32::from_rgb(0xB8, 0xB8, 0xB8),
+        )
+    };
+    ThemeTokens {
+        text,
+        text_muted: muted,
+        ..*tokens
+    }
+}
+
 /// Draw the paper inside `screen`, the visible part of the canvas.
 pub(super) fn draw(
     painter: &Painter,
@@ -246,6 +291,30 @@ mod tests {
         PageToScreen {
             origin: egui::pos2(100.0, 50.0),
             zoom,
+        }
+    }
+
+    #[test]
+    fn automatic_text_reads_on_any_page_color() {
+        use crate::themes::Preset;
+        for preset in Preset::ALL {
+            for dark in [false, true] {
+                let theme = ThemeTokens::for_variant(preset, dark);
+                for color in [None, Some([255, 255, 255, 255]), Some([20, 20, 30, 255])] {
+                    let style = PageStyle {
+                        color,
+                        ..PageStyle::default()
+                    };
+                    let page = page_tokens(style, &theme);
+                    let paper = paper_color(style, &theme);
+                    assert!(
+                        contrast(page.text, paper) >= 4.5,
+                        "{preset:?} dark={dark} page {color:?}"
+                    );
+                }
+                // A page with the theme's own color keeps the theme's text.
+                assert_eq!(page_tokens(PageStyle::default(), &theme).text, theme.text);
+            }
         }
     }
 

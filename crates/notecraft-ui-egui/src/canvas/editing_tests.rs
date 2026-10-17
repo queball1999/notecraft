@@ -53,6 +53,24 @@ fn click_page(harness: &mut Harness, x: f32, y: f32) {
     harness.step();
 }
 
+/// A double click at a page point. Both presses go in one frame: each harness step is a
+/// quarter second, longer than egui allows between the clicks of a double click.
+fn double_click_page(harness: &mut Harness, x: f32, y: f32) {
+    let at = canvas_origin(harness) + egui::vec2(x, y);
+    harness.hover_at(at);
+    harness.step();
+    for pressed in [true, false, true, false] {
+        harness.input_mut().events.push(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    harness.step();
+    harness.step();
+}
+
 fn type_text(harness: &mut Harness, s: &str) {
     harness.event(egui::Event::Text(s.to_owned()));
     harness.step();
@@ -138,9 +156,30 @@ fn clipboard_events_copy_cut_and_paste() {
 }
 
 #[test]
-fn clicking_empty_canvas_makes_a_container_there() {
+fn a_single_click_on_empty_canvas_only_ends_editing() {
     let mut harness = harness("Hello\n");
+    click_page(&mut harness, 120.0, 135.0);
+    assert!(harness.state().session().text_cursor().is_some());
     click_page(&mut harness, 300.0, 500.0);
+    assert!(harness.state().session().text_cursor().is_none());
+    assert_eq!(text(&harness), "Hello\n");
+}
+
+#[test]
+fn clicking_away_from_a_new_empty_container_removes_it() {
+    let mut harness = harness("Hello\n");
+    double_click_page(&mut harness, 300.0, 500.0);
+    assert!(text(&harness).contains("notecraft:container"));
+    click_page(&mut harness, 150.0, 400.0);
+    let source = text(&harness);
+    assert!(!source.contains("id=c1"), "{source:?}");
+    assert!(harness.state().session().text_cursor().is_none());
+}
+
+#[test]
+fn double_clicking_empty_canvas_makes_a_container_there() {
+    let mut harness = harness("Hello\n");
+    double_click_page(&mut harness, 300.0, 500.0);
     let session = harness.state().session();
     let source = session.page_text(PAGE).unwrap_or_default();
     assert!(
@@ -160,7 +199,7 @@ fn clicking_empty_canvas_makes_a_container_there() {
 #[test]
 fn dragging_the_top_bar_moves_a_container_and_its_edge_resizes_it() {
     let mut harness = harness("Hello\n");
-    click_page(&mut harness, 300.0, 500.0);
+    double_click_page(&mut harness, 300.0, 500.0);
     type_text(&mut harness, "box");
     harness.run();
     let origin = canvas_origin(&harness);
@@ -223,4 +262,33 @@ fn a_read_only_page_ignores_typing() {
     type_text(&mut harness, "X");
     assert_eq!(text(&harness), "fixed\n");
     let _ = (json!({}), Value::Null);
+}
+
+#[test]
+fn clicking_the_title_edits_it_instead_of_making_a_container() {
+    use egui_kittest::kittest::NodeT;
+    let mut harness = harness("Hello\n");
+    // The title row is at the top left of the page.
+    click_page(&mut harness, 80.0, 50.0);
+    harness.run();
+    let source = text(&harness);
+    assert!(!source.contains("notecraft:container"), "{source:?}");
+    let field = harness.get_by_label(super::title::TITLE_LABEL);
+    assert!(
+        field.accesskit_node().is_focused(),
+        "the title field has focus"
+    );
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    type_text(&mut harness, "Renamed");
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    // Enter sent page.rename. The built-in sample notebook is not a folder on disk, so the
+    // engine refuses it; renaming a real page is tested in the engine.
+    let toasts: Vec<&str> = harness.state().toasts().texts().collect();
+    assert!(
+        toasts.iter().any(|t| t.starts_with("Rename Page:")),
+        "{toasts:?}"
+    );
+    assert!(harness.query_by_label(super::title::TITLE_LABEL).is_some());
+    assert!(!text(&harness).contains("notecraft:container"));
 }
