@@ -1,7 +1,8 @@
 //! `notecraft-cli`: NoteCraft from the command line, as the related craft apps have one. It
 //! runs the same engine and command registry as the desktop app, without a window, for
-//! scripts, CI, and agents (docs/cli.md). Subcommands that need notebooks on disk (info, text,
-//! check, render, export, search) arrive with the engine work they use.
+//! scripts, CI, and agents (docs/cli.md). The notebook subcommands (info, text, check, and run
+//! with --page) read notebooks through the storage layer and the engine; the others (render,
+//! export, search) arrive with the engine work they use.
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -15,6 +16,11 @@
 use std::io::Write;
 use std::process::ExitCode;
 
+mod info;
+mod notebook;
+
+use notebook::Failure;
+
 use notecraft_engine::cmd::{ArgKind, CommandError, Registry, Status, Value};
 use notecraft_engine::Session;
 
@@ -22,7 +28,17 @@ const USAGE: &str = "\
 notecraft-cli - NoteCraft from the command line
 
 USAGE:
-  notecraft-cli commands [--json]           list every command: id, label, status, arguments
+  notecraft-cli [options] <command> ...
+
+OPTIONS (any command, before or after it):
+  --notebook <path>   notebook folder (default: the current folder if it is a notebook)
+  --json              machine-readable output
+  --quiet             errors only
+  --log-level <level> error, warn, info, debug, or trace (default warn)
+
+COMMANDS:
+  notecraft-cli info                        notebook, section, and page counts and format version
+  notecraft-cli commands                    list every command: id, label, status, arguments
   notecraft-cli run [--sample] --cmd 'id={json}' [--cmd ...]
                                             run commands headlessly, in order, on an empty
                                             session (or the sample notebooks with --sample);
@@ -36,7 +52,7 @@ EXIT CODES:
 ";
 
 /// The subcommands, in `USAGE` order.
-const SUBCOMMANDS: &[&str] = &["commands", "run"];
+const SUBCOMMANDS: &[&str] = &["info", "commands", "run"];
 
 /// Longest `--cmd` value accepted, in bytes (Windows caps a whole command line near 32 KB).
 const MAX_CMD_BYTES: usize = 16 * 1024;
@@ -49,6 +65,7 @@ mod code {
     pub const BAD_ARGS: u8 = 2;
     pub const NOT_FOUND: u8 = 3;
     pub const COMING_SOON: u8 = 4;
+    pub const CONFLICT: u8 = 5;
     pub const TOO_LARGE: u8 = 6;
 }
 
@@ -71,6 +88,85 @@ fn err(text: &str) {
     let _ = writeln!(std::io::stderr(), "{text}");
 }
 
+/// Options every command accepts (docs/cli.md, "Global options").
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Globals {
+    notebook: Option<String>,
+    json: bool,
+    quiet: bool,
+}
+
+const LOG_LEVELS: [&str; 5] = ["error", "warn", "info", "debug", "trace"];
+
+/// Take the global options out of `raw`, wherever they stand, and return them with the rest.
+/// `--cmd` and `--page` values are passed through untouched, so a value that looks like an
+/// option is never taken for one.
+fn extract_globals(raw: Vec<String>) -> Result<(Globals, Vec<String>), String> {
+    let mut globals = Globals::default();
+    let mut rest = Vec::new();
+    let mut args = raw.into_iter();
+    while let Some(arg) = args.next() {
+        let (name, inline) = match arg.split_once('=') {
+            Some((name, value)) if name.starts_with("--") && name != "--cmd" => {
+                (name.to_owned(), Some(value.to_owned()))
+            }
+            _ => (arg.clone(), None),
+        };
+        match name.as_str() {
+            "--json" if inline.is_none() => globals.json = true,
+            "--quiet" if inline.is_none() => globals.quiet = true,
+            "--notebook" | "--log-level" => {
+                let Some(value) = inline.or_else(|| args.next()) else {
+                    return Err(format!("{name} needs a value"));
+                };
+                if name == "--notebook" {
+                    globals.notebook = Some(value);
+                } else if !LOG_LEVELS.contains(&value.as_str()) {
+                    return Err(format!(
+                        "--log-level must be one of {}",
+                        LOG_LEVELS.join(", ")
+                    ));
+                }
+            }
+            "--cmd" | "--page" => {
+                rest.push(arg);
+                if let Some(value) = args.next() {
+                    rest.push(value);
+                }
+            }
+            _ => rest.push(arg),
+        }
+    }
+    Ok((globals, rest))
+}
+
+/// The error name printed with `--json` for an exit code.
+fn code_name(code: u8) -> &'static str {
+    match code {
+        code::BAD_ARGS => "invalid_args",
+        code::NOT_FOUND => "not_found",
+        code::COMING_SOON => "coming_soon",
+        code::CONFLICT => "conflict",
+        code::TOO_LARGE => "limit_exceeded",
+        _ => "error",
+    }
+}
+
+/// Report a failed command: JSON on stdout with `--json`, else one line on stderr.
+fn fail(globals: &Globals, failure: &Failure) -> ExitCode {
+    if globals.json {
+        out(&serde_json::json!({
+            "ok": false,
+            "error": code_name(failure.code),
+            "message": failure.message,
+        })
+        .to_string());
+    } else {
+        err(&format!("notecraft-cli: {}", failure.message));
+    }
+    ExitCode::from(failure.code)
+}
+
 /// A usage error: the message, then the help, and exit code 2.
 fn bad_args(message: &str) -> ExitCode {
     err(&format!("notecraft-cli: {message}\n"));
@@ -87,6 +183,10 @@ fn main() -> ExitCode {
             Err(arg) => return bad_args(&format!("argument is not valid text: {arg:?}")),
         }
     }
+    let (globals, args) = match extract_globals(args) {
+        Ok(parsed) => parsed,
+        Err(message) => return bad_args(&message),
+    };
     let Some((first, rest)) = args.split_first() else {
         let _ = write!(std::io::stdout(), "{USAGE}");
         return ExitCode::SUCCESS;
@@ -105,8 +205,9 @@ fn main() -> ExitCode {
             let _ = write!(std::io::stdout(), "{USAGE}");
             ExitCode::SUCCESS
         }
-        "commands" => commands(rest),
-        "run" => run(rest),
+        "info" => info::info(&globals, rest),
+        "commands" => commands(&globals, rest),
+        "run" => run(&globals, rest),
         other => bad_args(&format!("unknown command `{other}`")),
     }
 }
@@ -129,14 +230,11 @@ fn status_name(status: Status) -> &'static str {
 }
 
 /// `commands [--json]`: every command, sorted by id.
-fn commands(rest: &[String]) -> ExitCode {
-    let mut json = false;
-    for arg in rest {
-        match arg.as_str() {
-            "--json" => json = true,
-            other => return bad_args(&format!("unknown option `{other}` for commands")),
-        }
+fn commands(globals: &Globals, rest: &[String]) -> ExitCode {
+    if let Some(other) = rest.first() {
+        return bad_args(&format!("unknown option `{other}` for commands"));
     }
+    let json = globals.json;
     let registry = Registry::builtin();
     if json {
         let list: Vec<Value> = registry
@@ -225,7 +323,7 @@ fn error_code(error: &CommandError) -> u8 {
 
 /// `run [--sample] --cmd 'id={json}' ...`: run each command in order and print its result
 /// as one JSON line. Stops at the first command that does not run.
-fn run(rest: &[String]) -> ExitCode {
+fn run(_globals: &Globals, rest: &[String]) -> ExitCode {
     let mut sample = false;
     let mut cmds = Vec::new();
     let mut args = rest.iter();
