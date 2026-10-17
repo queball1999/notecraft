@@ -1,6 +1,6 @@
 # NoteCraft roadmap
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.7 landed (auto-save, crash recovery, outside edits); Phase 1 PR 1.1 landed (notebook folder reader); progress log updated; PR 1.10 (ink engine and pen) logged; PR 1.3 landed (markdown read, frontmatter read, flow-layout rendering); progress log updated; added docs/install.md; PR 1.2 landed (rebuildable notebook index); progress log updated. PR 1.8 landed (undo and redo); also: PR 1.4 landed (minimal-diff markdown write); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); Phase 1 PR 1.11 (highlighter and erasers) logged; Phase 1 PR 1.13 landed (structure editing); PR 1.14 landed (fuzz targets, FM-08 P); Draw tab parity (feat/draw-tab-parity): OneNote Draw groups, editable pen list saved in settings, pen menu with palette and Eyedropper, Format Background, smooth curves for ink, Rule Lines thumbnail margin fix; PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor; page text read from disk when a page is shown (FM-01 scored D).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.7 landed (auto-save, crash recovery, outside edits); Phase 1 PR 1.1 landed (notebook folder reader); progress log updated; PR 1.10 (ink engine and pen) logged; PR 1.3 landed (markdown read, frontmatter read, flow-layout rendering); progress log updated; added docs/install.md; PR 1.2 landed (rebuildable notebook index); progress log updated. PR 1.8 landed (undo and redo); also: PR 1.4 landed (minimal-diff markdown write); PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); Phase 1 PR 1.11 (highlighter and erasers) logged; Phase 1 PR 1.13 landed (structure editing); PR 1.14 landed (fuzz targets, FM-08 P); Draw tab parity (feat/draw-tab-parity): OneNote Draw groups, editable pen list saved in settings, pen menu with palette and Eyedropper, Format Background, smooth curves for ink, Rule Lines thumbnail margin fix; PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P). Target: OneNote 2020 era and Microsoft 365 (canvas and ink), on a markdown-first file format that is easy to edit in any text editor; page text read from disk when a page is shown (FM-01 scored D).
 
 
 NoteCraft is a free, open-source, clean-room note-taking app that remakes OneNote one to one (freeform canvas, ink, ribbon, notebook structure, themes), backed by a markdown-first, folder-based file format that is easy to manage and edit in any other editor. Built in pure Rust with egui.
@@ -40,15 +40,15 @@ Hours are summed bottom-up from every PR in `build_plan/` (each PR carries a gen
 | Attachments and media | 0% | 52-91 | 100-180 | 152-271 | [parity](docs/target-app-parity.md#7-attachments-and-media) |
 | Page links, search, note tags | 0% | 92-154 | 0 | 92-154 | [markdown](docs/markdown.md#5-page-links) |
 | Print and export | 0% | 88-153 | 0 | 88-153 | [printing](docs/printing.md) |
-| File formats (.md, .notecraft, .one import) | 0% | 104-176 | 160-320 | 264-496 | [gaps](docs/gaps.md#file-formats) |
+| File formats (.md, .notecraft, OneNote import) | 0% | 364-616 | 24-44 | 388-660 | [gaps](docs/gaps.md#file-formats) |
 | Command registry, undo/redo, command line | 0% | 88-148 | 0 | 88-148 | [architecture](docs/architecture.md) |
 | Localization | 0% | 30-50 | 80-160 | 110-210 | [gaps](docs/gaps.md#localization) |
 | Performance and 1.0 hardening | 0% | 110-210 | 0 | 110-210 | [roadmap](docs/roadmap.md) |
 | Browser build and sync research | 0% | 0 | 100-190 | 100-190 | [Phase 4](build_plan/06-phase-4-advanced.md) |
 | Scaffolding, CI, release | 100% | 87-156 | 8-14 | 95-170 | [Phase -1](build_plan/01-phase-minus-1-scaffolding.md) |
-| Total | 0% | 1,401-2,404 | 644-1,228 | 2,045-3,632 | |
+| Total | 0% | 1,673-2,864 | 508-952 | 2,181-3,816 | |
 
-Calendar, at about 30 focused hours a week: v1.0 in 47-80 weeks; full parity in 68-121 weeks.
+Calendar, at about 30 focused hours a week: v1.0 in 56-95 weeks; full parity in 73-127 weeks.
 
 **Overall: 0% ready for users.** Phase -1 is closed: the workspace, the eight `cargo xtask ci` gates, packaging, and logging exist, and CI runs on GitHub. Every feature is "Coming Soon" until Phase 0 (UI shell) and Phase 1 (core engine) land.
 
@@ -60,9 +60,9 @@ Calendar, at about 30 focused hours a week: v1.0 in 47-80 weeks; full parity in 
 | 0 | UI shell | 284-474 | internal 0.0.1 |
 | 1 | Core engine | 456-776 | v0.1.0 alpha |
 | 2 | Page links, search, note tags | 134-230 | v0.2.0 |
-| 3 | Polish and parity | 404-686 | v0.9.0 beta |
+| 3 | Polish and parity | 664-1,126 | v0.9.0 beta |
 | Hardening | Beta to 1.0 | 80-160 | v1.0.0 |
-| 4 | Remaining parity | 644-1,228 | full OneNote parity (1.x) |
+| 4 | Remaining parity | 508-952 | full OneNote parity (1.x) |
 
 ## Alpha gate (v0.1.0)
 
@@ -135,3 +135,4 @@ The workflows that must work end to end for v0.1.0. Full table with per-row evid
 | 2026-10-16 | Draw tab parity (feat/draw-tab-parity): the Draw tab follows OneNote's groups; pens are an editable list (add, delete, color, thickness) saved in config.toml; the tool in use opens a menu with Thickness, Recent Colors, a 4x4 palette, More Colors, Eyedropper, and Delete Tool; Format Background with rule line color; ink is drawn as smooth curves with an incremental preview; the Rule Lines thumbnail margin is at the left. Textured pens recorded as a gap. |
 | 2026-10-16 | Phase 1 PR 1.12 landed on feat/attachments: Insert Pictures and File Attachment, Paste as Picture, drag and drop onto the window, pictures drawn in flow layout (PNG, JPEG, WebP with decode limits and placeholders), file objects that open in the default app (attachment.open); AT-01 to AT-05 scored P until auto-save writes the page. |
 | 2026-10-17 | Typing fixes from hands-on testing: typing keeps working after a page is promoted to .notecraft, Automatic text color reads on any page color, clicking the page title renames the page, and a double click (not a single click) on empty page space makes a text box. |
+| 2026-10-16 | Plan change (maintainer decision): import of OneNote files (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moves from Phase 4 best effort to Phase 3 with full fidelity: PR 3.16 (reader, 140-240 hours) and PR 3.17 (import, 120-200); PR 4.3 keeps content that needs Phase 4 features (24-44). Export to OneNote formats added to docs/post-parity.md as optional. Totals: 1,673-2,864 to 1.0 and 2,181-3,816 to full parity. No code yet. |

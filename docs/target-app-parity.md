@@ -1,6 +1,7 @@
 # OneNote parity assessment
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 1.10: the pen and input rows are partial; PR 1.8: undo and redo is partial; Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Ink to Math stays not planned; PR 1.11: the highlighter and both erasers are partial.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.10: the pen and input rows are partial; PR 1.8: undo and redo is partial; Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Ink to Math stays not planned; PR 1.11: the highlighter and both erasers are partial.
+
 
 Target: OneNote for Windows as shipped around 2020 (OneNote 2016 desktop and the Microsoft 365 app of that era), with theme presets for 2016, 2019, 2021, and Microsoft 365. NoteCraft matches OneNote's workflow and layout one to one. It differs on purpose in one place: storage. OneNote keeps notebooks in a binary format; NoteCraft keeps them as markdown folders (docs/markdown.md).
 
@@ -152,7 +153,7 @@ Four presets, each in light and dark (docs/themes.md). Palettes are original col
 | Export page, section, or notebook as PDF | Same renderer as print | 3 | M |
 | Export as single-file web page | Self-contained HTML | 3 | M |
 | Export notebook | Zip of the notebook folder | 3 | M |
-| Import OneNote sections | `.one` import from the published spec | 4 | M |
+| Import OneNote sections and notebooks | `.one`, `.onex`, `.onetoc2`, and `.onepkg` import with full fidelity, from the published specs (Phase 4 content in PR 4.3) | 3 | M |
 
 ## 10. Not planned (with reasons)
 
@@ -177,3 +178,4 @@ Four presets, each in light and dark (docs/themes.md). Palettes are original col
 | 2026-10-15 | 1 | Status line only: ink replay stays not planned; the design is in docs/architecture.md section 10.6 if the maintainer schedules it. |
 | 2026-10-15 | 1 | Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); split from the Ink to Math row, which stays not planned. |
 | 2026-10-16 | 1 | PR 1.11: the highlighter and both erasers are partial (strokes are not saved yet; true multiply is later). |
+| 2026-10-16 | 1 | OneNote import covers every OneNote file type with full fidelity, in Phase 3 (maintainer decision). |

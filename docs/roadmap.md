@@ -1,6 +1,7 @@
 # Roadmap: focus, alpha plan, milestones
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.7 landed (auto-save, crash recovery, outside edits); PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8 landed (undo and redo); also: PR 1.4: markdown write library landed; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 landed (highlighter and erasers); PR 1.13 landed (structure editing); PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.7 landed (auto-save, crash recovery, outside edits); PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8 landed (undo and redo); also: PR 1.4: markdown write library landed; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 landed (highlighter and erasers); PR 1.13 landed (structure editing); PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P).
+
 
 The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc says what we are doing now, what the alpha needs, and the milestones after it. The step-by-step execution plan is in [build_plan/](../build_plan/README.md). Optional features OneNote does not have are in [post-parity.md](post-parity.md) and are not on this roadmap.
 
@@ -22,11 +23,11 @@ Hours are summed from every PR in the build plan. They assume one experienced Ru
 | 0 | UI shell | 284-474 | 9-16 weeks | [02](../build_plan/02-phase-0-ui-shell.md) |
 | 1 | Core engine | 456-776 | 15-26 weeks | [03](../build_plan/03-phase-1-core-engine.md) |
 | 2 | Page links, search, note tags | 134-230 | 4-8 weeks | [04](../build_plan/04-phase-2-links-search-tags.md) |
-| 3 | Polish and parity | 404-686 | 13-23 weeks | [05](../build_plan/05-phase-3-polish-parity.md) |
+| 3 | Polish and parity | 664-1,126 | 22-38 weeks | [05](../build_plan/05-phase-3-polish-parity.md) |
 | Hardening | Beta to 1.0 | 80-160 | 3-6 weeks | [05](../build_plan/05-phase-3-polish-parity.md#beta-to-10-hardening) |
-| To 1.0 | | 1,413-2,424 | 47-80 weeks | |
-| 4 | Remaining parity (post-1.0) | 644-1,228 | 22-41 weeks | [06](../build_plan/06-phase-4-advanced.md) |
-| Full parity | | 2,057-3,652 | 68-121 weeks | |
+| To 1.0 | | 1,673-2,864 | 56-95 weeks | |
+| 4 | Remaining parity (post-1.0) | 508-952 | 17-32 weeks | [06](../build_plan/06-phase-4-advanced.md) |
+| Full parity | | 2,181-3,816 | 73-127 weeks | |
 
 ### What changed in the 2026-10-14 re-assessment
 
@@ -61,9 +62,9 @@ v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux.
 | M0 | 0.0.1 (internal test release) | UI shell on mock data | Phase 0 done; first `release` branch build |
 | Alpha | 0.1.0 | Alpha gate plus ink, pictures, attachments, undo | Phase 1 done |
 | M2 | 0.2.0 | Page links, search, note tags, equations | Phase 2 done |
-| Beta | 0.9.0 | Shapes, selection tools, tables, recycle bin, page versions, print, PDF and HTML export | Phase 3 done; parity about 70% |
+| Beta | 0.9.0 | Shapes, selection tools, tables, recycle bin, page versions, print, PDF and HTML export, OneNote file import | Phase 3 done; parity about 70% |
 | 1.0 | 1.0.0 | Beta plus fixes, performance targets (SCRD section 11) | parity about 90% |
-| Full parity | 1.x | Handwriting, ink search, `.one` import, recording, password sections, OCR, docked window, web, translations | Phase 4 done |
+| Full parity | 1.x | Handwriting, ink search, recording, password sections, OCR, docked window, web, translations | Phase 4 done |
 | Post-parity | later | Optional features from post-parity.md, by demand | maintainer decision |
 
 ## How this doc is maintained
@@ -91,3 +92,4 @@ v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux.
 | 2026-10-16 | 1 | PR 1.11 landed (highlighter and erasers): the remaining callers of the undo API are PR 1.5 and 1.13. |
 | 2026-10-16 | 1 | PR 1.13 landed (structure editing): current focus text and alpha gate unchanged; the remaining callers of the undo API are PR 1.5 and 1.11. |
 | 2026-10-16 | 1 | PR 1.12 landed (pictures and attachments): current focus text unchanged; the remaining Phase 1 work is PR 1.5, 1.6, 1.7, 1.9, 1.11, 1.13, 1.14. |
+| 2026-10-16 | 1 | OneNote import of `.one`, `.onex`, `.onetoc2`, and `.onepkg` moved to Phase 3 with full fidelity (maintainer decision); beta milestone updated; totals 1,673-2,864 hours to 1.0 and 2,181-3,816 to full parity. |
