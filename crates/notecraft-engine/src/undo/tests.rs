@@ -749,6 +749,14 @@ fn undo_and_redo_are_specced_with_shortcuts() {
 
 // Every Ready command
 
+/// Ready undoable commands that need a notebook folder on disk, so they are not rows in
+/// `UNDO_CASES`; their undo and redo is tested in `cmd/attach.rs` and `session/attach.rs`.
+const UNDO_TESTED_ELSEWHERE: &[&str] = &[
+    "insert.picture",
+    "insert.file_attachment",
+    "edit.paste_picture",
+];
+
 /// How to run each Ready undoable command in a test. A PR that makes another command
 /// undoable and Ready adds a row here, or `every_ready_undoable_command_has_an_undo_case`
 /// fails.
@@ -866,7 +874,7 @@ fn every_ready_undoable_command_has_an_undo_case() {
                 .chain(crate::cmd::structure::UNDO_CASES)
                 .any(|(case, _)| *case == id);
             assert!(
-                covered,
+                covered || UNDO_TESTED_ELSEWHERE.contains(&id),
                 "{id} is Ready and undoable but has no row in UNDO_CASES"
             );
         }

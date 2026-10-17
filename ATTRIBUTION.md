@@ -33,3 +33,6 @@ Rust dependencies are tracked in `Cargo.lock`; only crates under MIT, Apache-2.0
 | `comrak` | BSD-2-Clause | Markdown parser behind `notecraft-markdown` (PR 1.3). Permissive and compatible with MIT OR Apache-2.0; its copyright notice must travel with binary releases. Builds for `wasm32-unknown-unknown` (checked by `cargo xtask wasm`). |
 | `rusqlite` (with bundled SQLite) | MIT (rusqlite); SQLite is public domain | The rebuildable notebook index in `notecraft-storage` (PR 1.2). SQLite compiles from C source, so it is native only and is not built for `wasm32`. |
 | `criterion` | MIT OR Apache-2.0 | Benchmarks only (dev-dependency of `notecraft-storage`); not shipped. |
+| `image` (png, jpeg, webp features) | MIT OR Apache-2.0 | Picture decoding in `notecraft-canvas` (PR 1.12); the desktop app also uses it for its icon. Pure Rust. |
+| `open` | MIT | The desktop app opens an attachment in the default app (PR 1.12). Native only. |
+| `arboard` | MIT OR Apache-2.0 | The desktop app reads a picture from the clipboard for Paste as Picture (PR 1.12). Native only. |

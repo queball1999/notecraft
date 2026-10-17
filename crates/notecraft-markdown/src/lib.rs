@@ -29,6 +29,8 @@ pub mod format;
 pub mod frontmatter;
 #[cfg(test)]
 mod frontmatter_tests;
+#[cfg(test)]
+mod image_tests;
 pub mod markup;
 #[cfg(test)]
 mod markup_tests;

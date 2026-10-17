@@ -51,6 +51,8 @@ pub struct Run {
     pub family: Option<String>,
     /// The link target, for text inside a link (or an image, whose alt text is shown).
     pub link: Option<String>,
+    /// The run is an image (`![alt](target)`): `text` is the alt text and `link` the target.
+    pub image: bool,
 }
 
 impl Run {
@@ -67,6 +69,7 @@ impl Run {
             || self.italic
             || self.strike
             || self.code
+            || self.image
             || self.underline
             || self.script != Script::None)
             && self.highlight.is_none()

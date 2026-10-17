@@ -13,6 +13,10 @@ mod saving;
 pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
+mod attach;
+
+pub use attach::{AttachKind, Attached, InsertError};
+
 use crate::ink::InkState;
 
 use crate::mock;

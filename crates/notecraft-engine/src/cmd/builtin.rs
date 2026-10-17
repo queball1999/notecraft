@@ -4,8 +4,8 @@
 
 use super::page;
 use super::{
-    canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind, ArgSpec,
-    CommandId, CommandSpec, Handler,
+    attach, canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind,
+    ArgSpec, CommandId, CommandSpec, Handler,
 };
 
 const SET_CARET_ARGS: &[ArgSpec] = &[
@@ -74,6 +74,21 @@ const FILE_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "path",
     ArgKind::String,
     "A .md or .notecraft file; the app asks with a file picker when omitted.",
+)];
+const INSERT_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "path",
+    ArgKind::String,
+    "The file to insert; the app asks with a file picker when omitted.",
+)];
+const PASTE_PICTURE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "path",
+    ArgKind::String,
+    "A picture file; the app uses the picture on the clipboard when omitted.",
+)];
+const ATTACHMENT_SRC_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "src",
+    ArgKind::String,
+    "The link of the attachment as written in the page, such as attachments/a1b2c3-budget.xlsx.",
 )];
 const NAV_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "id",
@@ -483,7 +498,9 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Paste as Picture",
         "Paste the clipboard content as a picture.",
     )
-    .undoable(),
+    .args(PASTE_PICTURE_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::EDIT_FORMAT_PAINTER,
         "Format Painter",
@@ -718,7 +735,9 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "File Attachment",
         "Attach a file to the page as an icon.",
     )
-    .undoable(),
+    .args(INSERT_PATH_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::INSERT_FILE_PRINTOUT,
         "File Printout",
@@ -730,7 +749,16 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Pictures",
         "Insert a picture from a file.",
     )
-    .undoable(),
+    .args(INSERT_PATH_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::ATTACHMENT_OPEN,
+        "Open Attachment",
+        "Open an attached file in its default app.",
+    )
+    .args(ATTACHMENT_SRC_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::INSERT_SCREEN_CLIPPING,
         "Screen Clipping",
@@ -1434,6 +1462,10 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
+    (ids::INSERT_PICTURE, attach::insert_picture),
+    (ids::INSERT_FILE_ATTACHMENT, attach::insert_file),
+    (ids::EDIT_PASTE_PICTURE, attach::paste_picture),
+    (ids::ATTACHMENT_OPEN, attach::open_attachment),
     (ids::TEXT_SET_CARET, text::set_caret),
     (ids::TEXT_CLEAR_CARET, text::clear_caret),
     (ids::TEXT_MOVE, text::move_caret),

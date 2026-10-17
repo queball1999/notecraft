@@ -1136,7 +1136,8 @@ fn read_text_bounded(path: &Path) -> String {
 }
 
 /// File names linked from `attachments/` in page text, such as `](attachments/3f9a2c-a.png)`.
-/// Lenient and bounded: names with `/`, `..`, or control characters are skipped.
+/// Links are percent-decoded as the attachment writer encodes them. Lenient and bounded: names
+/// with `/` (also when encoded as `%2F`), `..`, or control characters are skipped.
 fn attachment_links(text: &str) -> Vec<String> {
     const MARK: &str = "attachments/";
     let mut found = Vec::new();
@@ -1148,7 +1149,8 @@ fn attachment_links(text: &str) -> Vec<String> {
         let end = after
             .find(|c: char| matches!(c, ')' | '>' | '"' | '\'' | '#' | '?') || c.is_control())
             .unwrap_or(after.len());
-        let name = after.get(..end).unwrap_or_default().replace("%20", " ");
+        let name =
+            notecraft_storage::attachments::decode_link_path(after.get(..end).unwrap_or_default());
         let ok = !name.is_empty() && !name.contains(['/', '\\']) && name != ".." && name != ".";
         if ok && !found.contains(&name) {
             found.push(name);

@@ -15,6 +15,7 @@ mod ink;
 mod ink_tests;
 mod keymap;
 pub(crate) mod paper;
+pub(crate) mod pictures;
 mod rawtext;
 mod title;
 mod widget;
@@ -53,6 +54,8 @@ pub struct CanvasUi {
     edit: editing::EditUi,
     /// The stroke being drawn and the stroke mesh cache.
     ink: ink::InkUi,
+    /// Textures of the pictures on the page shown.
+    pictures: pictures::PictureCache,
     /// The page title being edited in place.
     title: Option<title::TitleEdit>,
 }
@@ -66,12 +69,19 @@ impl Default for CanvasUi {
             parsed: None,
             edit: editing::EditUi::default(),
             ink: ink::InkUi::default(),
+            pictures: pictures::PictureCache::default(),
             title: None,
         }
     }
 }
 
 impl CanvasUi {
+    /// Pictures decoded and pictures that could not be shown, on the page shown (tests).
+    #[cfg(test)]
+    pub(crate) fn picture_counts(&self) -> (usize, usize) {
+        self.pictures.counts()
+    }
+
     /// The parsed document for `source`, parsing again only when the page or its text changed.
     fn document(&mut self, source: notecraft_engine::PageSource<'_>) -> std::sync::Arc<Parsed> {
         let kept = self

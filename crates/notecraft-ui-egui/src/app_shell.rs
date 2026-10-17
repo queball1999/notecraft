@@ -63,6 +63,15 @@ const FILE_OPENS: [CommandId; 3] = [
     ids::FILE_OPEN,
 ];
 
+/// Most files taken from one drop.
+const MAX_DROPPED_FILES: usize = 50;
+
+/// Whether a file name has a picture extension the canvas draws.
+fn is_picture_name(name: &str) -> bool {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
+    matches!(ext.as_deref(), Some("png" | "jpg" | "jpeg" | "webp"))
+}
+
 /// Everything inside the main window.
 #[derive(Debug)]
 pub struct AppShell {
@@ -93,6 +102,8 @@ pub struct AppShell {
     about: AppInfo,
     /// Text for the clipboard, put there on the next frame.
     pending_copy: Option<String>,
+    /// The temporary file holding a clipboard picture while Paste as Picture runs.
+    paste_temp: Option<String>,
     /// Ids of the commands that ran through [`AppShell::dispatch`], for tests.
     #[cfg(test)]
     ran: Vec<String>,
@@ -132,6 +143,7 @@ impl AppShell {
             nav: NavUi::default(),
             canvas: CanvasUi::default(),
             picker: Box::new(NoPicker),
+            paste_temp: None,
             shortcuts: Shortcuts::new(),
             installed: None,
             fonts: OsFonts::default(),
@@ -271,6 +283,11 @@ impl AppShell {
         &self.session
     }
 
+    #[cfg(test)]
+    pub(crate) fn picture_counts(&self) -> (usize, usize) {
+        self.canvas.picture_counts()
+    }
+
     /// Show a notice line on page `id`; a read-only notice also stops text editing there.
     pub fn set_page_notice(&mut self, id: &str, text: &str, read_only: bool) {
         self.session.set_page_notice(id, text, read_only);
@@ -350,6 +367,18 @@ impl AppShell {
     ) -> Option<Result<CommandOutput, CommandError>> {
         let args = self.fill_path(id, args)?;
         let result = self.registry.run(&mut self.session, id, args);
+        if let Some(temp) = self.paste_temp.take() {
+            // The clipboard picture was copied into the notebook; the temporary file goes.
+            let _ = std::fs::remove_file(temp);
+        }
+        if id == ids::ATTACHMENT_OPEN.as_str() {
+            if let Ok(output) = &result {
+                let path = output.value.get("path").and_then(Value::as_str);
+                if !path.is_some_and(|p| self.picker.open_in_default_app(p)) {
+                    self.toasts.push("The file could not be opened.");
+                }
+            }
+        }
         // Opening something from the File backstage returns to the notes.
         if let Ok(output) = &result {
             if FILE_OPENS.iter().any(|open| open.as_str() == id) {
@@ -399,6 +428,17 @@ impl AppShell {
             self.picker.pick_folder("Open Notebook")
         } else if id == ids::FILE_OPEN.as_str() {
             self.picker.pick_file("Open File")
+        } else if id == ids::INSERT_PICTURE.as_str() {
+            self.picker.pick_picture("Insert Picture")
+        } else if id == ids::INSERT_FILE_ATTACHMENT.as_str() {
+            self.picker.pick_attachment("Attach File")
+        } else if id == ids::EDIT_PASTE_PICTURE.as_str() {
+            let path = self.picker.clipboard_picture();
+            if path.is_none() {
+                self.toasts.push("There is no picture on the clipboard.");
+            }
+            self.paste_temp = path.clone();
+            path
         } else {
             return Some(Value::Object(map));
         };
@@ -441,6 +481,32 @@ impl AppShell {
         }
     }
 
+    /// Files dropped on the window become pictures (PNG, JPEG, WebP) or file attachments, one
+    /// command each, so each drop is its own undo step. Only a page that is shown takes them.
+    fn insert_dropped_files(&mut self, ctx: &egui::Context) {
+        let dropped = ctx.input_mut(|input| std::mem::take(&mut input.raw.dropped_files));
+        if dropped.is_empty() || self.session.notebooks().is_empty() || self.ribbon.backstage_open()
+        {
+            return;
+        }
+        for file in dropped.into_iter().take(MAX_DROPPED_FILES) {
+            let path = file.path().to_path_buf();
+            let text = path.to_string_lossy().into_owned();
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let id = if is_picture_name(&name) {
+                ids::INSERT_PICTURE
+            } else {
+                ids::INSERT_FILE_ATTACHMENT
+            };
+            let mut args = Map::new();
+            args.insert("path".to_owned(), Value::from(text));
+            self.dispatch(id.as_str(), Value::Object(args));
+        }
+    }
+
     /// Put text a command asked to copy on the clipboard.
     fn flush_copy(&mut self, ctx: &egui::Context) {
         if let Some(text) = self.pending_copy.take() {
@@ -453,6 +519,7 @@ impl AppShell {
         let tokens = self.tokens(ui.ctx());
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
+        self.insert_dropped_files(ui.ctx());
         self.flush_copy(ui.ctx());
         self.font_list.load_previews(ui.ctx());
         if let Some(colors) = self.restore_colors.take() {
@@ -1194,7 +1261,7 @@ mod tests {
         harness.run();
         assert!(harness.state().ribbon().key_tips_showing());
 
-        // N opens Insert; then the code for Pictures presses it.
+        // N opens Insert; then the code for Screen Clipping presses it.
         harness.key_press(egui::Key::N);
         harness.run();
         assert_eq!(harness.state().ribbon().selected(), "Insert");
@@ -1205,7 +1272,7 @@ mod tests {
         let tips = crate::ribbon::keytips::tips_for_tab(insert);
         let code = tips
             .iter()
-            .find(|(button, _)| button.label == "Pictures")
+            .find(|(button, _)| button.label == "Screen Clipping")
             .map(|(_, code)| code.clone())
             .unwrap();
         for c in code.chars() {
@@ -1217,7 +1284,7 @@ mod tests {
             .state()
             .toasts()
             .texts()
-            .any(|t| t == "Coming Soon: Pictures"));
+            .any(|t| t == "Coming Soon: Screen Clipping"));
 
         // F10, then F, opens the backstage; Esc closes it.
         harness.key_press(egui::Key::F10);
@@ -1868,16 +1935,16 @@ mod tests {
     #[test]
     fn coming_soon_command_shows_a_toast_for_three_seconds() {
         let mut shell = AppShell::new();
-        shell.dispatch(ids::EDIT_PASTE_PICTURE.as_str(), Value::Null);
+        shell.dispatch(ids::MEETING_DETAILS.as_str(), Value::Null);
         let mut harness = harness(shell, WINDOW);
 
         harness.run();
-        let _ = harness.get_by_label("Coming Soon: Paste as Picture");
+        let _ = harness.get_by_label("Coming Soon: Meeting Details");
 
         // egui's clock advances one predicted frame (1/60 s) per step without real input.
         harness.run_steps(200);
         assert!(harness
-            .query_by_label("Coming Soon: Paste as Picture")
+            .query_by_label("Coming Soon: Meeting Details")
             .is_none());
         assert!(harness.state().toasts().is_empty());
     }

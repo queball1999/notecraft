@@ -25,6 +25,8 @@ serde_json.workspace = true
 getrandom = "0.3"
 craft-settings.workspace = true
 rfd.workspace = true
+open.workspace = true
+arboard.workspace = true
 craft-quit = { workspace = true, features = ["egui", "menu"] }
 
 [dev-dependencies]

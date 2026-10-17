@@ -549,6 +549,14 @@ fn attachment_links_are_found_leniently() {
 }
 
 #[test]
+fn attachment_links_decode_what_the_attachment_writer_encodes() {
+    let name = "3f9a2c-photo (1) caf\u{e9}.png";
+    let link = notecraft_storage::attachments::encode_link_path(&format!("attachments/{name}"));
+    let page = format!("![p]({link}) [up](attachments/..%2Fsecret) [dir](attachments/a%2Fb)");
+    assert_eq!(attachment_links(&page), [name]);
+}
+
+#[test]
 fn a_new_section_starts_with_one_untitled_page_in_the_same_step() {
     let (dir, mut s, nb) = sample();
     let section = s.create_section(&nb, None, Some("Ideas")).unwrap();
