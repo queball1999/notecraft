@@ -9,7 +9,7 @@
 
 use std::path::Path;
 
-use notecraft_storage::attachments::is_runnable_name;
+use notecraft_storage::attachments::{is_runnable_name, LINK_THRESHOLD_BYTES};
 use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
@@ -47,7 +47,13 @@ fn insert(
     args: &Map<String, Value>,
 ) -> Result<CommandOutput, CommandError> {
     let path = string_arg(id, args, "path")?;
-    match session.insert_attachment(Path::new(path), kind) {
+    // A pasted picture's file is temporary, so it is always copied, never linked in place.
+    let link_over = if id == ids::EDIT_PASTE_PICTURE {
+        u64::MAX
+    } else {
+        LINK_THRESHOLD_BYTES
+    };
+    match session.insert_attachment_with(Path::new(path), kind, link_over) {
         // The commit marked the session changed.
         Ok(done) => Ok(CommandOutput {
             value: json!({ "link": done.link, "name": done.name, "linked": done.linked }),

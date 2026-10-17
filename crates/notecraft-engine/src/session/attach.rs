@@ -11,7 +11,8 @@ use std::path::{Component, Path, PathBuf};
 
 use notecraft_markdown::Editor;
 use notecraft_storage::attachments::{
-    decode_link_path, is_picture_name, store_attachment, AttachError, StoredAttachment,
+    decode_link_path, is_picture_name, store_attachment_with, AttachError, StoredAttachment,
+    LINK_THRESHOLD_BYTES,
 };
 
 use super::Session;
@@ -114,6 +115,18 @@ impl Session {
         source: &Path,
         kind: AttachKind,
     ) -> Result<Attached, InsertError> {
+        self.insert_attachment_with(source, kind, LINK_THRESHOLD_BYTES)
+    }
+
+    /// [`Session::insert_attachment`], linking in place only files over `link_over` bytes.
+    /// A pasted picture passes `u64::MAX`: its source is a temporary file that is deleted
+    /// right after, so it must always be copied.
+    pub fn insert_attachment_with(
+        &mut self,
+        source: &Path,
+        kind: AttachKind,
+        link_over: u64,
+    ) -> Result<Attached, InsertError> {
         let page = self
             .selection
             .page
@@ -139,7 +152,7 @@ impl Session {
         if kind == AttachKind::Picture && !is_picture_name(&name) {
             return Err(fail("pictures must be PNG, JPEG, or WebP files."));
         }
-        let stored = store_attachment(&folder, source)?;
+        let stored = store_attachment_with(&folder, source, link_over)?;
         let (at, inserted) = append_paragraph(text, &paragraph(kind, &stored));
         let label = match kind {
             AttachKind::Picture => "Insert picture",
@@ -303,6 +316,27 @@ mod tests {
             std::fs::read_to_string(dir.path().join("Sec/A.md")).expect("read"),
             "# A\n\nbody\n"
         );
+    }
+
+    #[test]
+    fn a_pasted_picture_is_copied_whatever_its_size() {
+        let dir = notebook(&[("Sec/A.md", b"# A\n"), ("tmp/Pasted.png", b"png")]);
+        let mut session = open(&dir);
+        let source = dir.path().join("tmp/Pasted.png");
+        // Over a 2-byte threshold, an inserted file is linked in place.
+        let linked = session
+            .insert_attachment_with(&source, AttachKind::Picture, 2)
+            .expect("insert");
+        assert!(linked.linked);
+        // With no threshold (as edit.paste_picture runs), it is copied, so deleting the
+        // temporary source afterwards leaves the picture in the notebook.
+        let copied = session
+            .insert_attachment_with(&source, AttachKind::Picture, u64::MAX)
+            .expect("paste");
+        assert!(!copied.linked);
+        std::fs::remove_file(&source).expect("remove temp");
+        let kept = dir.path().join("Sec").join(decode_link_path(&copied.link));
+        assert_eq!(std::fs::read(kept).expect("copy"), b"png");
     }
 
     fn page_id(session: &Session) -> String {
