@@ -20,7 +20,7 @@ pub mod session;
 pub mod undo;
 pub mod view;
 
-pub use ink::{DrawTool, InkState, PenStyle};
+pub use ink::{DrawTool, EraserMode, EraserSize, InkState, PenStyle};
 pub use notecraft_storage::RecoveryEntry;
 pub use session::{
     ConvertOutcome, PageNotice, PageSource, ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome,

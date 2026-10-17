@@ -66,11 +66,36 @@ const PEN_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
 ];
-const ERASER_ARGS: &[ArgSpec] = &[ArgSpec::optional(
-    "mode",
-    ArgKind::String,
-    "stroke or point.",
-)];
+const ERASER_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional("mode", ArgKind::String, "stroke or point."),
+    ArgSpec::optional(
+        "size",
+        ArgKind::String,
+        "small, medium, or large; the size of the point eraser.",
+    ),
+];
+const ERASE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "points",
+        ArgKind::Array,
+        "The path of the eraser's center in page units, each [x, y].",
+    ),
+    ArgSpec::required(
+        "radius",
+        ArgKind::Number,
+        "The eraser's reach in page units.",
+    ),
+    ArgSpec::optional(
+        "mode",
+        ArgKind::String,
+        "stroke or point; the eraser in use when omitted.",
+    ),
+    ArgSpec::optional(
+        "join",
+        ArgKind::Bool,
+        "True to undo together with the erase before it, for the rest of one drag.",
+    ),
+];
 const REQUIRED_COLOR_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "color",
     ArgKind::String,
@@ -565,17 +590,27 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Highlighter",
         "Draw with a highlighter.",
     )
-    .args(PEN_ARGS),
+    .args(PEN_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::DRAW_ERASER,
         "Eraser",
         "Erase ink strokes or parts of strokes.",
     )
-    .args(ERASER_ARGS),
+    .args(ERASER_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::INK_ERASE,
+        "Erase Ink",
+        "Erase ink along a path: whole strokes or only the part under the eraser.",
+    )
+    .args(ERASE_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::DRAW_COLOR,
         "Color",
-        "Set the color of the current pen.",
+        "Set the color of the current pen or highlighter.",
     )
     .args(REQUIRED_COLOR_ARGS)
     .ready(),
@@ -950,6 +985,9 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_ZOOM_PAGE_WIDTH, canvas::zoom_page_width),
     (ids::DRAW_TYPE, draw::draw_type),
     (ids::DRAW_PEN, draw::draw_pen),
+    (ids::DRAW_HIGHLIGHTER, draw::draw_highlighter),
+    (ids::DRAW_ERASER, draw::draw_eraser),
+    (ids::INK_ERASE, draw::erase),
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),

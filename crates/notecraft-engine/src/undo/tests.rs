@@ -754,6 +754,10 @@ fn undo_and_redo_are_specced_with_shortcuts() {
 /// fails.
 const UNDO_CASES: &[(&str, &str)] = &[
     ("ink.add_stroke", r#"{ "points": [[1, 2], [30, 40, 0.5]] }"#),
+    (
+        "ink.erase",
+        r#"{ "points": [[500, 100]], "radius": 10, "mode": "point" }"#,
+    ),
     ("view.rule_lines", r#"{ "style": "college" }"#),
     ("view.page_color", r##"{ "color": "#DCEBF7" }"##),
     ("view.paper_size", r#"{ "size": "a4" }"#),
@@ -805,6 +809,15 @@ fn every_undoable_command_undoes_and_redoes_exactly() {
         let mut session = session_with_pages();
         session.set_page_source("p1", "one");
         session.set_page_source("p2", "two");
+        // A line to erase for ink.erase, put there without an undo step.
+        let line = Stroke {
+            points: vec![
+                InkPoint::new(0.0, 100.0, 1.0),
+                InkPoint::new(1000.0, 100.0, 1.0),
+            ],
+            ..stroke("s1", 0.0)
+        };
+        assert!(insert("p1", 0, line).apply(&mut session));
         let before = document(&session);
 
         run(&mut session, &registry, id, args.clone());
