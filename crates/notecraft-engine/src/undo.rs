@@ -18,8 +18,10 @@ use notecraft_core::Stroke;
 
 use crate::session::Session;
 
+mod fsops;
 mod ops;
 
+pub use fsops::{Content, FsOp};
 pub use ops::{Op, Place};
 
 /// Most steps one stack keeps.
@@ -345,6 +347,29 @@ impl History {
         stack.enforce(max_steps, max_bytes);
     }
 
+    /// Point the page ids in every step at their new values after a rename or move changed
+    /// them: the page stacks move to the new key and the operations inside are rewritten.
+    /// `map` gives the new id for an old one, or `None` to keep it.
+    pub fn rekey(&mut self, map: &dyn Fn(&str) -> Option<String>) {
+        let old = std::mem::take(&mut self.pages);
+        for (id, mut stack) in old {
+            for list in [&mut stack.undo, &mut stack.redo] {
+                for entry in list.iter_mut() {
+                    let entry = Arc::make_mut(entry);
+                    entry.ops.iter_mut().for_each(|op| op.rekey(map));
+                }
+            }
+            let key = map(&id).unwrap_or(id);
+            self.pages.insert(key, stack);
+        }
+        for list in [&mut self.notebook.undo, &mut self.notebook.redo] {
+            for entry in list.iter_mut() {
+                let entry = Arc::make_mut(entry);
+                entry.ops.iter_mut().for_each(|op| op.rekey(map));
+            }
+        }
+    }
+
     /// Forget the steps of one page, for example when its file was replaced by a newer
     /// version from disk and the steps no longer fit the text.
     pub fn clear_page(&mut self, page: &str) {
@@ -381,8 +406,10 @@ impl Session {
             return true;
         }
         if !ops::apply_all(self, tx.ops.iter()) {
+            self.resync_dirty();
             return false;
         }
+        self.resync_dirty();
         self.history.record(tx);
         self.mark_changed();
         true
@@ -411,6 +438,7 @@ impl Session {
             let inverse: Vec<Op> = entry.ops.iter().rev().map(Op::inverse).collect();
             ops::apply_all(self, inverse.iter())
         };
+        self.resync_dirty();
         if !applied {
             tracing::warn!("dropped a history step that could no longer be applied: {label}");
             return None;

@@ -4,8 +4,8 @@
 
 use super::page;
 use super::{
-    canvas, draw, edit, file, ids, layout, nav, theme, ArgKind, ArgSpec, CommandId, CommandSpec,
-    Handler,
+    canvas, draw, edit, file, ids, layout, nav, structure, theme, ArgKind, ArgSpec, CommandId,
+    CommandSpec, Handler,
 };
 
 const NOTEBOOK_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
@@ -23,6 +23,106 @@ const NAV_ARGS: &[ArgSpec] = &[ArgSpec::required(
     ArgKind::String,
     "The notebook, section, or page id.",
 )];
+const OPTIONAL_ID_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "id",
+    ArgKind::String,
+    "The notebook, section, or page id; the one shown when omitted.",
+)];
+const RENAME_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The notebook, section, or page id; the one shown when omitted.",
+    ),
+    ArgSpec::optional(
+        "name",
+        ArgKind::String,
+        "The new name; the app asks for it when omitted.",
+    ),
+];
+const SET_COLOR_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The notebook or section id; the one shown when omitted.",
+    ),
+    ArgSpec::required("color", ArgKind::String, "Color as #RRGGBB."),
+];
+const NEW_PAGE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "title",
+        ArgKind::String,
+        "The page title; Untitled Page when omitted.",
+    ),
+    ArgSpec::optional(
+        "section",
+        ArgKind::String,
+        "The section id; the section shown when omitted.",
+    ),
+];
+const NEW_SECTION_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "name",
+        ArgKind::String,
+        "The name; New Section when omitted.",
+    ),
+    ArgSpec::optional(
+        "parent",
+        ArgKind::String,
+        "The section group to add it to; the top level when omitted.",
+    ),
+    ArgSpec::optional(
+        "notebook",
+        ArgKind::String,
+        "The notebook id; the notebook shown when omitted.",
+    ),
+];
+const PAGE_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The page id; the page shown when omitted.",
+    ),
+    ArgSpec::optional(
+        "section",
+        ArgKind::String,
+        "The section to move to; the page's own section when omitted.",
+    ),
+    ArgSpec::optional(
+        "index",
+        ArgKind::Integer,
+        "Position among the section's pages; last when omitted.",
+    ),
+];
+const PAGE_LEVEL_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The page id; the page shown when omitted.",
+    ),
+    ArgSpec::required(
+        "level",
+        ArgKind::Integer,
+        "0 for a page, 1 or 2 for a subpage.",
+    ),
+];
+const SECTION_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The section or group id; the section shown when omitted.",
+    ),
+    ArgSpec::optional(
+        "parent",
+        ArgKind::String,
+        "The section group to move into; the top level when omitted.",
+    ),
+    ArgSpec::optional(
+        "index",
+        ArgKind::Integer,
+        "Position among the children of the parent; last when omitted.",
+    ),
+];
 const FONT_FAMILY_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "name",
     ArgKind::String,
@@ -201,8 +301,11 @@ pub(super) static SPECS: &[CommandSpec] = &[
     CommandSpec::new(
         ids::FILE_CLOSE_NOTEBOOK,
         "Close Notebook",
-        "Close the current notebook.",
-    ),
+        "Close the current notebook. Its folder and files stay where they are.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(ids::FILE_PRINT, "Print", "Print the current page.").shortcut("Ctrl+P"),
     CommandSpec::new(
         ids::FILE_PRINT_PREVIEW,
@@ -935,15 +1038,121 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "New Section",
         "Add a section to the current notebook.",
     )
+    .args(NEW_SECTION_ARGS)
     .undoable()
-    .shortcut("Ctrl+T"),
+    .shortcut("Ctrl+T")
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_GROUP_NEW,
+        "New Section Group",
+        "Add a section group to the current notebook.",
+    )
+    .args(NEW_SECTION_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_RENAME,
+        "Rename Section",
+        "Rename a section or section group.",
+    )
+    .args(RENAME_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_DELETE,
+        "Delete Section",
+        "Delete a section or section group. It goes to the trash folder of its notebook.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_MOVE,
+        "Move Section",
+        "Move a section or section group into a group or to the top level.",
+    )
+    .args(SECTION_MOVE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_SET_COLOR,
+        "Section Color",
+        "Set the color of a section or section group.",
+    )
+    .args(SET_COLOR_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::PAGE_NEW,
         "Add Page",
         "Add a page to the current section.",
     )
+    .args(NEW_PAGE_ARGS)
     .undoable()
-    .shortcut("Ctrl+N"),
+    .shortcut("Ctrl+N")
+    .ready(),
+    CommandSpec::new(ids::PAGE_RENAME, "Rename Page", "Rename a page.")
+        .args(RENAME_ARGS)
+        .undoable()
+        .ready(),
+    CommandSpec::new(
+        ids::PAGE_DELETE,
+        "Delete Page",
+        "Delete a page. It goes to the trash folder of its notebook.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_MOVE,
+        "Move Page",
+        "Move a page to another place in its section or to another section.",
+    )
+    .args(PAGE_MOVE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_SET_LEVEL,
+        "Set Page Level",
+        "Set how far a page is indented as a subpage.",
+    )
+    .args(PAGE_LEVEL_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_MAKE_SUBPAGE,
+        "Make Subpage",
+        "Make a page a subpage of the page above it.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_PROMOTE_SUBPAGE,
+        "Promote Subpage",
+        "Move a subpage up one level.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::NOTEBOOK_RENAME,
+        "Rename Notebook",
+        "Rename a notebook. Its folder keeps its name.",
+    )
+    .args(RENAME_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::NOTEBOOK_SET_COLOR,
+        "Notebook Color",
+        "Set the color of a notebook.",
+    )
+    .args(SET_COLOR_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::PAGE_CONVERT_TO_MARKDOWN,
         "Convert to Markdown",
@@ -996,6 +1205,22 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
+    (ids::FILE_CLOSE_NOTEBOOK, structure::close_notebook),
+    (ids::SECTION_NEW, structure::section_new),
+    (ids::SECTION_GROUP_NEW, structure::section_group_new),
+    (ids::SECTION_RENAME, structure::section_rename),
+    (ids::SECTION_DELETE, structure::section_delete),
+    (ids::SECTION_MOVE, structure::section_move),
+    (ids::SECTION_SET_COLOR, structure::section_set_color),
+    (ids::PAGE_NEW, structure::page_new),
+    (ids::PAGE_RENAME, structure::page_rename),
+    (ids::PAGE_DELETE, structure::page_delete),
+    (ids::PAGE_MOVE, structure::page_move),
+    (ids::PAGE_SET_LEVEL, structure::page_set_level),
+    (ids::PAGE_MAKE_SUBPAGE, structure::page_make_subpage),
+    (ids::PAGE_PROMOTE_SUBPAGE, structure::page_promote_subpage),
+    (ids::NOTEBOOK_RENAME, structure::notebook_rename),
+    (ids::NOTEBOOK_SET_COLOR, structure::notebook_set_color),
     (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
 ];
 

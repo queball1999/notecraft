@@ -2,6 +2,7 @@
 //! session and returns commands (`nav.*.select`, `section.new`, `page.new`) for the shell to
 //! dispatch; none of them changes the session directly.
 
+mod edit;
 mod notebooks;
 mod pages;
 mod sections;
@@ -36,6 +37,8 @@ pub struct NavUi {
     /// Ids whose expanded state the user flipped from the default (the current notebook
     /// and every section group start expanded).
     toggled: BTreeSet<String>,
+    /// The name being edited in place, if any (see `edit`).
+    renaming: Option<edit::Renaming>,
 }
 
 impl NavUi {
@@ -96,8 +99,10 @@ impl Row<'_> {
     /// Draw the row across the available width. Returns its response and whether the
     /// arrow (if any) was the part clicked.
     pub(crate) fn show(self, ui: &mut Ui, t: &ThemeTokens) -> (Response, bool) {
-        let (rect, response) =
-            ui.allocate_exact_size(egui::vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
+        let (rect, response) = ui.allocate_exact_size(
+            egui::vec2(ui.available_width(), ROW_HEIGHT),
+            Sense::click_and_drag(),
+        );
         let label = self.label;
         let selected = self.selected;
         if self.item {

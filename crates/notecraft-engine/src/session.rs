@@ -20,6 +20,10 @@ use crate::recent::Recents;
 use crate::undo::History;
 use crate::view::{PageStyle, ViewState};
 
+mod structure;
+
+pub use structure::EditError;
+
 /// Which notebook, section, and page are shown, by id.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Selection {
@@ -81,6 +85,8 @@ pub struct Session {
     /// The folder of each notebook read from disk, by notebook id.
     notebook_roots: BTreeMap<String, PathBuf>,
     recents: Recents,
+    /// Notebooks changed on disk by a structure step that must be read again (see `structure`).
+    dirty: std::collections::BTreeSet<String>,
     ink: InkState,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).

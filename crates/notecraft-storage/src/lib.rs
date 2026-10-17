@@ -24,6 +24,7 @@ pub mod paths;
 pub mod reader;
 pub mod recovery;
 pub mod section_toml;
+pub mod structure;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod watch;
 

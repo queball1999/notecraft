@@ -320,6 +320,32 @@ command_ids! {
     SECTION_NEW = "section.new";
     /// Add a page to the current section.
     PAGE_NEW = "page.new";
+    /// Rename a page.
+    PAGE_RENAME = "page.rename";
+    /// Delete a page (it goes to the trash folder of its notebook).
+    PAGE_DELETE = "page.delete";
+    /// Move a page to another place in its section or to another section.
+    PAGE_MOVE = "page.move";
+    /// Set how far a page is indented as a subpage.
+    PAGE_SET_LEVEL = "page.set_level";
+    /// Make a page a subpage of the page above it.
+    PAGE_MAKE_SUBPAGE = "page.make_subpage";
+    /// Move a subpage up one level.
+    PAGE_PROMOTE_SUBPAGE = "page.promote_subpage";
+    /// Add a section group to the current notebook.
+    SECTION_GROUP_NEW = "section.group_new";
+    /// Rename a section or section group.
+    SECTION_RENAME = "section.rename";
+    /// Delete a section or section group (it goes to the trash folder of its notebook).
+    SECTION_DELETE = "section.delete";
+    /// Move a section or section group into a group or to the top level.
+    SECTION_MOVE = "section.move";
+    /// Set the color of a section or section group.
+    SECTION_SET_COLOR = "section.set_color";
+    /// Rename a notebook.
+    NOTEBOOK_RENAME = "notebook.rename";
+    /// Set the color of a notebook.
+    NOTEBOOK_SET_COLOR = "notebook.set_color";
     /// Turn the page shown into a plain markdown page, dropping its ink and positions.
     PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
 
