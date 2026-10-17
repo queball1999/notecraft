@@ -29,6 +29,7 @@ craft-quit = { workspace = true, features = ["egui", "menu"] }
 
 [dev-dependencies]
 egui_kittest.workspace = true
+toml.workspace = true
 
 [build-dependencies]
 # Icon and VERSIONINFO for notecraft.exe; build.rs only uses it when the target is Windows.

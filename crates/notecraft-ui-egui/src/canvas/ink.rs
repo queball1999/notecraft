@@ -140,6 +140,9 @@ pub(crate) struct InkUi {
     touch: Option<egui::TouchId>,
     last_time: Option<f64>,
     cache: MeshCache,
+    /// The stroke being drawn, tessellated in finished chunks so a frame only works on the
+    /// newest points.
+    preview: PreviewCache,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -378,17 +381,17 @@ impl InkUi {
                 append(&mut mesh, &tessellated, map, color, half_pixel);
             }
         }
-        if let Some((points, style)) = preview {
-            let params = TessParams {
-                fringe: true,
-                ..TessParams::for_screen_radius(style.width_units() / 2.0 * map.zoom)
-            };
-            let tessellated = tessellate(points, style.width_units(), params);
-            let color = highlight_color(style.color, paper);
-            append(&mut mesh, &tessellated, map, color, half_pixel);
-        }
         if !mesh.is_empty() {
             painter.add(Shape::mesh(mesh));
+        }
+        if let Some((points, style)) = preview {
+            let color = highlight_color(style.color, paper);
+            let shapes =
+                self.preview
+                    .shapes(points, style.width_units(), color, true, map, half_pixel);
+            painter.extend(shapes);
+        } else {
+            self.preview.clear();
         }
     }
 
@@ -415,16 +418,22 @@ impl InkUi {
                 append(&mut mesh, &tessellated, map, stroke.color, half_pixel);
             }
         }
-        if let Some((points, pen)) = preview {
-            let params = TessParams {
-                fringe: pen.color.0[3] == u8::MAX,
-                ..TessParams::for_screen_radius(pen.width_units() / 2.0 * map.zoom)
-            };
-            let tessellated = tessellate(points, pen.width_units(), params);
-            append(&mut mesh, &tessellated, map, pen.color, half_pixel);
-        }
         if !mesh.is_empty() {
             painter.add(Shape::mesh(mesh));
+        }
+        if let Some((points, pen)) = preview {
+            let fringe = pen.color.0[3] == u8::MAX;
+            let shapes = self.preview.shapes(
+                points,
+                pen.width_units(),
+                pen.color,
+                fringe,
+                map,
+                half_pixel,
+            );
+            painter.extend(shapes);
+        } else {
+            self.preview.clear();
         }
     }
 }
@@ -514,6 +523,104 @@ fn append(
         .extend(tessellated.indices.iter().map(|i| base + i));
 }
 
+/// Points in one finished chunk of the stroke being drawn.
+const PREVIEW_CHUNK: usize = 48;
+/// Points either side of a chunk that are tessellated with it, so the curve through its
+/// ends matches the whole stroke's and the chunks join without a gap. The overlapping parts
+/// are drawn twice in the same color.
+const PREVIEW_OVERLAP: usize = 3;
+
+/// What a finished chunk was made from; a change in any of it rebuilds the chunks.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PreviewKey {
+    origin: egui::Pos2,
+    zoom: f32,
+    half_pixel: f32,
+    color: InkColor,
+    width: f32,
+    fringe: bool,
+    first: Option<InkPoint>,
+}
+
+/// The stroke in progress as finished chunks plus a tail. A frame adds a point or several;
+/// without this every frame would tessellate the whole stroke again, which slows down as the
+/// stroke grows. Chunks are screen-space meshes shared with the painter by `Arc`.
+#[derive(Debug, Default)]
+struct PreviewCache {
+    key: Option<PreviewKey>,
+    chunks: Vec<Arc<Mesh>>,
+}
+
+impl PreviewCache {
+    fn clear(&mut self) {
+        self.key = None;
+        self.chunks.clear();
+    }
+
+    /// The shapes that draw `points`: cached chunks for the settled part and a mesh for the
+    /// rest, built now. A translucent stroke (`fringe` false) is drawn whole, because
+    /// overlapping chunks would darken it.
+    fn shapes(
+        &mut self,
+        points: &[InkPoint],
+        width: f32,
+        color: InkColor,
+        fringe: bool,
+        map: PageToScreen,
+        half_pixel: f32,
+    ) -> Vec<Shape> {
+        let key = PreviewKey {
+            origin: map.origin,
+            zoom: map.zoom,
+            half_pixel,
+            color,
+            width,
+            fringe,
+            first: points.first().copied(),
+        };
+        let too_many = self.chunks.len() * PREVIEW_CHUNK + PREVIEW_OVERLAP > points.len();
+        if self.key != Some(key) || too_many {
+            self.chunks.clear();
+            self.key = Some(key);
+        }
+        let params = TessParams {
+            fringe,
+            ..TessParams::for_screen_radius(width / 2.0 * map.zoom)
+        };
+        let chunked = fringe;
+        let build = |range: std::ops::Range<usize>| {
+            let slice = points.get(range).unwrap_or_default();
+            let mut mesh = Mesh::default();
+            append(
+                &mut mesh,
+                &tessellate(slice, width, params),
+                map,
+                color,
+                half_pixel,
+            );
+            mesh
+        };
+        // A chunk is final once OVERLAP more points follow it.
+        while chunked && (self.chunks.len() + 1) * PREVIEW_CHUNK + PREVIEW_OVERLAP <= points.len() {
+            let index = self.chunks.len();
+            let start = (index * PREVIEW_CHUNK).saturating_sub(PREVIEW_OVERLAP);
+            let end = (index + 1) * PREVIEW_CHUNK + PREVIEW_OVERLAP;
+            self.chunks.push(Arc::new(build(start..end)));
+        }
+        let mut shapes: Vec<Shape> = self
+            .chunks
+            .iter()
+            .map(|chunk| Shape::mesh(Arc::clone(chunk)))
+            .collect();
+        let settled = self.chunks.len() * PREVIEW_CHUNK;
+        let tail = build(settled.saturating_sub(PREVIEW_OVERLAP)..points.len());
+        if !tail.is_empty() {
+            shapes.push(Shape::mesh(tail));
+        }
+        shapes
+    }
+}
+
 /// A tessellated stroke and what it was made from, to notice when it is stale.
 #[derive(Debug)]
 struct CachedMesh {
@@ -563,6 +670,7 @@ impl MeshCache {
             TessParams {
                 cap_segments,
                 fringe,
+                curve: true,
             },
         ));
         self.meshes.insert(
@@ -820,5 +928,82 @@ mod tests {
         // Changing page empties it.
         cache.set_page(Some("p2"));
         assert!(cache.meshes.is_empty());
+    }
+
+    /// Mouse moves for one frame: `n` distinct positions along a line.
+    fn moves(n: usize) -> Vec<egui::Event> {
+        (0..n)
+            .map(|i| egui::Event::PointerMoved(egui::pos2(110.0 + 3.0 * i as f32, 70.0)))
+            .collect()
+    }
+
+    #[test]
+    fn every_pointer_sample_of_a_frame_reaches_the_stroke() {
+        // egui delivers many moves in one frame when the app is slower than the mouse; none
+        // may be dropped, only the same point twice.
+        let mut events = vec![button(egui::pos2(110.0, 70.0), true)];
+        events.extend(moves(200));
+        events.push(button(egui::pos2(110.0 + 3.0 * 200.0, 70.0), false));
+        let mut touch = None;
+        let out = pointer_events(&events, MAP, Some(1.0), 1.016, &mut touch);
+        assert_eq!(out.len(), 202);
+        assert!(out.windows(2).all(|w| w[0].sample.time < w[1].sample.time));
+        let mut builder = StrokeBuilder::default();
+        for event in out {
+            builder.push(event.sample);
+        }
+        // The first move repeats the press position, so one sample is a duplicate.
+        assert_eq!(builder.points().len(), 201);
+    }
+
+    fn circle_points(n: usize) -> Vec<InkPoint> {
+        (0..n)
+            .map(|i| {
+                let a = std::f32::consts::TAU * i as f32 / 120.0;
+                InkPoint::new(300.0 + 100.0 * a.cos(), 300.0 + 100.0 * a.sin(), 0.8)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_preview_reuses_finished_chunks_and_matches_a_whole_tessellation() {
+        let map = PageToScreen {
+            origin: egui::pos2(0.0, 0.0),
+            zoom: 1.0,
+        };
+        let mut cache = PreviewCache::default();
+        let all = circle_points(200);
+        let first = cache.shapes(&all[..120], 4.0, InkColor::BLACK, true, map, 0.25);
+        let chunks = cache.chunks.len();
+        assert_eq!(chunks, (120 - PREVIEW_OVERLAP) / PREVIEW_CHUNK);
+        assert!(chunks >= 2);
+        let kept: Vec<Arc<Mesh>> = cache.chunks.clone();
+        let more = cache.shapes(&all, 4.0, InkColor::BLACK, true, map, 0.25);
+        // The chunks that were finished are the very same meshes.
+        for (old, new) in kept.iter().zip(&cache.chunks) {
+            assert!(Arc::ptr_eq(old, new));
+        }
+        assert!(cache.chunks.len() > chunks);
+        assert!(more.len() > first.len() - 1);
+        // The drawn area covers the same box as the whole stroke tessellated at once.
+        let bounds = |shapes: &[Shape]| {
+            shapes
+                .iter()
+                .filter_map(|shape| match shape {
+                    Shape::Mesh(mesh) => Some(mesh.calc_bounds()),
+                    _ => None,
+                })
+                .fold(egui::Rect::NOTHING, |a, b| a.union(b))
+        };
+        let mut whole = Mesh::default();
+        let full = tessellate(&all, 4.0, TessParams::default());
+        append(&mut whole, &full, map, InkColor::BLACK, 0.25);
+        let (a, b) = (bounds(&more), whole.calc_bounds());
+        assert!((a.min - b.min).length() < 0.5 && (a.max - b.max).length() < 0.5);
+        // A different stroke starts over, and a translucent one is drawn whole.
+        let _ = cache.shapes(&all[10..], 4.0, InkColor::BLACK, true, map, 0.25);
+        assert!(cache.chunks.len() * PREVIEW_CHUNK + PREVIEW_OVERLAP <= all.len() - 10);
+        let _ = cache.shapes(&all, 4.0, InkColor([0, 0, 0, 128]), false, map, 0.25);
+        assert!(cache.chunks.is_empty());
     }
 }

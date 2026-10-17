@@ -180,6 +180,16 @@ impl AppShell {
     }
 
     /// The Recent Colors of the color menus, newest first.
+    /// Replace the Draw tab's pens and highlighters (restoring saved settings).
+    pub fn set_pen_tools(&mut self, tools: Vec<notecraft_engine::PenTool>) {
+        self.session.set_pen_tools(tools);
+    }
+
+    /// The Draw tab's pens and highlighters, for saving in the settings.
+    pub fn pen_tools(&self) -> &[notecraft_engine::PenTool] {
+        self.session.ink().tools()
+    }
+
     pub fn recent_colors(&self) -> &[String] {
         &self.recent_colors
     }
@@ -454,12 +464,25 @@ impl AppShell {
                 self.families = families;
             }
         }
+        let tool_views: Vec<ribbon::ToolView> = self
+            .session
+            .ink()
+            .tools()
+            .iter()
+            .map(|tool| ribbon::ToolView {
+                highlighter: tool.kind == notecraft_engine::ToolKind::Highlighter,
+                color: tool.style.color.0,
+                width_pt: tool.style.width_pt,
+            })
+            .collect();
         let look = ribbon::Look {
             tokens: &tokens,
             registry: &self.registry,
             fonts: &self.families,
             rule_lines: self.session.page_style().rule_lines.id(),
             pen: active_pen(self.session.ink()),
+            tools: &tool_views,
+            selected_tool: self.session.ink().selected_tool(),
             can_undo: self.session.can_undo(),
             can_redo: self.session.can_redo(),
         };
@@ -1463,27 +1486,27 @@ mod tests {
     fn color_picker_swatches_and_custom_color_run_the_command() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.get_by_label("Draw").click();
+        harness.get_by_label("View").click();
         harness.run();
 
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
-        harness.get_by_label("#C62828").click();
+        harness.get_by_label("#DCEBF7").click();
         harness.run();
-        // draw.color is Ready (PR 1.10): it sets the pen color, with no toast.
+        // view.page_color is Ready: it sets the page color, with no toast.
         assert!(toasts(&harness).is_empty());
         assert_eq!(
-            harness.state().session().ink().pen().color.to_hex(),
-            "#C62828"
+            harness.state().session().page_style().color,
+            Some([0xDC, 0xEB, 0xF7, 0xFF])
         );
-        assert!(harness.query_by_label("#C62828").is_none(), "picker closes");
+        assert!(harness.query_by_label("#DCEBF7").is_none(), "picker closes");
 
         // The pick joins Recent Colors.
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
         let _ = harness.get_by_label("Recent Colors");
         assert!(
-            harness.get_all_by_label("#C62828").count() >= 2,
+            harness.get_all_by_label("#DCEBF7").count() >= 2,
             "grid and recent"
         );
 
@@ -1500,7 +1523,7 @@ mod tests {
         assert!(harness.query_by_label("OK").is_none(), "dialog closes");
         assert_eq!(
             harness.state().recent_colors().first().map(String::as_str),
-            Some("#C62828"),
+            Some("#DCEBF7"),
             "the dialog starts from the last color"
         );
     }
@@ -1575,19 +1598,19 @@ mod tests {
     fn colors_dialog_picker_square_and_sliders_change_the_color() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.get_by_label("Draw").click();
+        harness.get_by_label("View").click();
         harness.run();
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
         harness.get_by_label("More Colors...").click();
         harness.run();
         harness.get_by_label("Custom").click();
         harness.run();
-        let _ = harness.get_by_label("New #1F1F1F");
+        let _ = harness.get_by_label("New #DCEBF7");
         harness.get_by_label("Saturation and brightness").click();
         harness.run();
         assert!(
-            harness.query_by_label("New #1F1F1F").is_none(),
+            harness.query_by_label("New #DCEBF7").is_none(),
             "the square sets it"
         );
         let _ = harness.get_by_label("Hue");
@@ -1618,9 +1641,9 @@ mod tests {
     fn custom_color_takes_rgba_text_and_number_fields() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.get_by_label("Draw").click();
+        harness.get_by_label("View").click();
         harness.run();
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
         harness.get_by_label("More Colors...").click();
         harness.run();
@@ -1795,7 +1818,7 @@ mod tests {
     }
 
     #[test]
-    fn table_grid_and_width_previews_open() {
+    fn table_grid_opens() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         harness.get_by_label("Insert").click();
@@ -1806,16 +1829,6 @@ mod tests {
         harness.get_by_label("Insert Table").click();
         harness.run();
         assert_eq!(toasts(&harness), ["Coming Soon: Table"]);
-
-        harness.get_by_label("Draw").click();
-        harness.run();
-        harness.get_by_label("Thickness").click();
-        harness.run();
-        harness.get_by_label("2 pt").click();
-        harness.run();
-        // draw.thickness is Ready (PR 1.10): it sets the pen width, with no toast.
-        assert!(!toasts(&harness).iter().any(|t| t.contains("Thickness")));
-        assert_eq!(harness.state().session().ink().pen().width_pt, 2.0);
     }
 
     #[test]
@@ -2537,9 +2550,9 @@ mod tests {
     fn shortcuts_wait_while_a_text_field_has_focus() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.get_by_label("Draw").click();
+        harness.get_by_label("View").click();
         harness.run();
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
         harness.get_by_label("More Colors...").click();
         harness.run();

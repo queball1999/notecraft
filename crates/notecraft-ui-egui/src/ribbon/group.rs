@@ -5,7 +5,7 @@ use egui::{Align2, FontId, Sense, Stroke, Ui};
 use super::button::{self, SMALL_HEIGHT};
 use super::gallery;
 use super::spec::{Column, Group};
-use super::{Clicked, KeyFrame, Look, BODY_HEIGHT};
+use super::{tools, Clicked, KeyFrame, Look, BODY_HEIGHT};
 
 /// Height of the group name row.
 const NAME_HEIGHT: f32 = 16.0;
@@ -39,14 +39,14 @@ pub(super) fn show(
         );
     });
     let rect = response.response.rect;
-    ui.add_space(4.0);
+    ui.add_space(2.0);
     let x = ui.cursor().min.x;
     ui.painter().vline(
         x,
         (rect.min.y + 4.0)..=(rect.max.y - 2.0),
         Stroke::new(1.0, look.tokens.border),
     );
-    ui.add_space(5.0);
+    ui.add_space(3.0);
 }
 
 fn show_column(
@@ -59,6 +59,7 @@ fn show_column(
 ) {
     match column {
         Column::Gallery(gallery) => gallery::show(ui, gallery, look, keys, out),
+        Column::Tools => tools::show(ui, look, content_height, out),
         Column::Large(large) => button::show(ui, large, look, keys, content_height, out),
         Column::Stack(buttons) => {
             ui.vertical(|ui| {

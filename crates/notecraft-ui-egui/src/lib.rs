@@ -15,6 +15,8 @@ mod app_shell;
 pub mod bars;
 pub mod canvas;
 pub mod color;
+#[cfg(test)]
+mod draw_tab_tests;
 pub mod font_list;
 pub mod icons;
 pub mod nav;

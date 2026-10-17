@@ -21,9 +21,11 @@ mod picker;
 mod simplified;
 pub mod spec;
 mod tab;
+pub(crate) mod tools;
 
 pub(crate) use button::style as button_style;
 pub(crate) use menus::{recent_colors, set_recent_colors};
+pub(crate) use tools::{eyedropper_active, set_eyedropper};
 
 use craft_ui::buttons::IconButton;
 use egui::{
@@ -80,9 +82,21 @@ pub struct Look<'a> {
     /// The pen in use (the Draw tab's Pen is the tool): its color as 0xRRGGBB and its width in
     /// points. The pen, color, and thickness menus mark the entry that matches.
     pub pen: Option<ActivePen>,
+    /// The Draw tab's pens and highlighters, in order, and the one in use.
+    pub tools: &'a [ToolView],
+    pub selected_tool: Option<usize>,
     /// Whether Undo and Redo have a step; the quick access buttons are disabled when not.
     pub can_undo: bool,
     pub can_redo: bool,
+}
+
+/// One pen or highlighter of the Draw tab's list, as the ribbon draws it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ToolView {
+    pub highlighter: bool,
+    /// RGBA.
+    pub color: [u8; 4],
+    pub width_pt: f32,
 }
 
 /// The pen the Draw tab has selected, for marking it in the menus.

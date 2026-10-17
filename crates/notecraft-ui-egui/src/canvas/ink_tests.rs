@@ -65,7 +65,7 @@ fn dragging_with_the_pen_makes_a_stroke() {
     // Pick up the pen from the Draw tab, as a user does.
     harness.get_by_label("Draw").click();
     harness.run();
-    harness.get_by_label("Pen").click();
+    harness.get_by_label("Black Pen").click();
     harness.run();
     assert_eq!(harness.state().session().ink().tool().id(), "pen");
     pen(&mut harness, json!({ "color": "#1565C0", "width": 3.0 }));

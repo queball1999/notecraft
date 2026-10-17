@@ -760,6 +760,7 @@ const UNDO_CASES: &[(&str, &str)] = &[
     ),
     ("view.rule_lines", r#"{ "style": "college" }"#),
     ("view.page_color", r##"{ "color": "#DCEBF7" }"##),
+    ("view.rule_line_color", r##"{ "color": "#9FB6CD" }"##),
     ("view.paper_size", r#"{ "size": "a4" }"#),
     ("text.insert", r#"{ "text": "X" }"#),
     ("text.delete", r#"{ "direction": "backward" }"#),

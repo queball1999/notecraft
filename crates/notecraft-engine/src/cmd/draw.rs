@@ -9,7 +9,10 @@ use notecraft_core::{InkColor, InkPoint, InkTool, Stroke, Vec2};
 use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
-use crate::ink::{DrawTool, EraserMode, EraserSize, MAX_PEN_POINTS, MIN_PEN_POINTS};
+use crate::ink::{
+    DrawTool, EraserMode, EraserSize, PenTool, ToolKind, MAX_PEN_POINTS, MAX_PEN_TOOLS,
+    MIN_PEN_POINTS,
+};
 use crate::session::Session;
 use crate::undo::Op;
 
@@ -77,13 +80,182 @@ fn pen_output(session: &Session) -> CommandOutput {
     CommandOutput { value }
 }
 
+/// The tool list entry still in use after `draw.pen` or `draw.highlighter`: kept when the
+/// command changed nothing about the pen and the entry is of `kind`.
+fn keep_selection(ink: &crate::ink::InkState, kind: ToolKind, restyled: bool) -> Option<usize> {
+    let slot = ink.selected.filter(|i| *i < ink.tools.len())?;
+    let same = ink.tools.get(slot).is_some_and(|tool| tool.kind == kind);
+    (same && !restyled).then_some(slot)
+}
+
+/// `draw.tool_select { index }`: pick up the pen or highlighter at `index` of the list, with
+/// its color and width.
+pub(super) fn tool_select(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let id = ids::DRAW_TOOL_SELECT;
+    let index = index_arg(id, args, session.ink().tools.len())?;
+    let ink = session.ink_mut();
+    let Some(tool) = ink.tools.get(index).copied() else {
+        return Err(invalid(id, "no such tool".to_owned()));
+    };
+    ink.selected = Some(index);
+    match tool.kind {
+        ToolKind::Pen => {
+            ink.tool = DrawTool::Pen;
+            ink.pen = tool.style;
+        }
+        ToolKind::Highlighter => {
+            ink.tool = DrawTool::Highlighter;
+            ink.highlighter = tool.style;
+        }
+    }
+    session.mark_changed();
+    Ok(tools_output(session))
+}
+
+/// `draw.tool_add { kind?, color?, width? }`: add a pen (or highlighter) to the end of the
+/// list and pick it up. A color or width not given comes from the kind's default.
+pub(super) fn tool_add(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let id = ids::DRAW_TOOL_ADD;
+    let kind = match args.get("kind") {
+        None => ToolKind::Pen,
+        Some(value) => value
+            .as_str()
+            .and_then(ToolKind::parse)
+            .ok_or_else(|| invalid(id, "kind must be \"pen\" or \"highlighter\"".to_owned()))?,
+    };
+    let color = color_arg(id, args)?;
+    let width = width_arg(id, args)?;
+    if session.ink().tools.len() >= MAX_PEN_TOOLS {
+        return Err(invalid(
+            id,
+            format!("the list holds at most {MAX_PEN_TOOLS} tools"),
+        ));
+    }
+    let base = kind.default_style();
+    let tool = PenTool::new(
+        kind,
+        color.unwrap_or(base.color),
+        width.unwrap_or(base.width_pt),
+    );
+    let ink = session.ink_mut();
+    ink.tools.push(tool);
+    let index = ink.tools.len() - 1;
+    let mut select = Map::new();
+    select.insert("index".to_owned(), Value::from(index));
+    tool_select(session, &select)
+}
+
+/// `draw.tool_delete { index? }`: remove a tool from the list; the one in use when no index
+/// is given (and nothing changes when none is in use). Deleting the tool in use goes back to typing and selecting.
+pub(super) fn tool_delete(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let id = ids::DRAW_TOOL_DELETE;
+    let ink = session.ink();
+    let index = if args.contains_key("index") {
+        index_arg(id, args, ink.tools.len())?
+    } else {
+        // Nothing in use and no index: nothing to delete.
+        let Some(selected) = ink.selected_tool() else {
+            return Ok(tools_output(session));
+        };
+        selected
+    };
+    let ink = session.ink_mut();
+    if index < ink.tools.len() {
+        ink.tools.remove(index);
+    }
+    match ink.selected {
+        Some(selected) if selected == index => {
+            ink.selected = None;
+            ink.tool = DrawTool::Type;
+        }
+        Some(selected) if selected > index => ink.selected = Some(selected - 1),
+        _ => {}
+    }
+    session.mark_changed();
+    Ok(tools_output(session))
+}
+
+/// `draw.eyedropper { x, y, radius? }`: set the color of the current pen (or highlighter)
+/// to the color of the topmost stroke at the page point. Nothing there changes nothing and
+/// returns null.
+pub(super) fn eyedropper(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let id = ids::DRAW_EYEDROPPER;
+    let number = |name: &str| {
+        args.get(name)
+            .and_then(Value::as_f64)
+            .map(|v| v as f32)
+            .filter(|v| v.is_finite())
+    };
+    let (Some(x), Some(y)) = (number("x"), number("y")) else {
+        return Err(invalid(id, "x and y must be finite numbers".to_owned()));
+    };
+    let radius = number("radius").unwrap_or(2.0).clamp(0.0, 100.0);
+    let found = session.current_ink().and_then(|layer| {
+        let point = Vec2::new(x, y);
+        let stroke = layer
+            .topmost_at(point, radius)
+            .and_then(|id| layer.get(id))?;
+        Some(stroke.color)
+    });
+    let Some(color) = found else {
+        return Ok(CommandOutput { value: Value::Null });
+    };
+    // The eyedropper works for a pen: from typing or the eraser it picks the pen up. The
+    // color keeps its alpha, so a translucent stroke gives a translucent pen.
+    if matches!(session.ink().tool, DrawTool::Type | DrawTool::Eraser) {
+        let ink = session.ink_mut();
+        ink.tool = DrawTool::Pen;
+        ink.selected = None;
+    }
+    let ink = session.ink_mut();
+    ink.brush_mut().color = color;
+    ink.sync_selected();
+    session.mark_changed();
+    Ok(pen_output(session))
+}
+
+/// The `index` argument, in range for a list of `len`.
+fn index_arg(id: CommandId, args: &Map<String, Value>, len: usize) -> Result<usize, CommandError> {
+    let index = args
+        .get("index")
+        .and_then(Value::as_u64)
+        .and_then(|i| usize::try_from(i).ok())
+        .filter(|i| *i < len);
+    index.ok_or_else(|| invalid(id, format!("index must be 0 to {}", len.saturating_sub(1))))
+}
+
+/// What the tool list commands return: the tool in use as `pen_output` reports it, plus
+/// the number of tools and which one is in use.
+fn tools_output(session: &Session) -> CommandOutput {
+    let mut out = pen_output(session);
+    if let Some(map) = out.value.as_object_mut() {
+        map.insert("count".to_owned(), json!(session.ink().tools().len()));
+        map.insert("selected".to_owned(), json!(session.ink().selected_tool()));
+    }
+    out
+}
+
 /// `draw.type`: dragging on the canvas types and selects again.
 pub(super) fn draw_type(
     session: &mut Session,
     _args: &Map<String, Value>,
 ) -> Result<CommandOutput, CommandError> {
     if session.ink().tool != DrawTool::Type {
-        session.ink_mut().tool = DrawTool::Type;
+        let ink = session.ink_mut();
+        ink.tool = DrawTool::Type;
+        ink.selected = None;
         session.mark_changed();
     }
     Ok(pen_output(session))
@@ -96,7 +268,11 @@ pub(super) fn draw_pen(
 ) -> Result<CommandOutput, CommandError> {
     let color = color_arg(ids::DRAW_PEN, args)?;
     let width = width_arg(ids::DRAW_PEN, args)?;
-    let before = (session.ink().tool, session.ink().pen);
+    let before = (
+        session.ink().tool,
+        session.ink().pen,
+        session.ink().selected,
+    );
     let ink = session.ink_mut();
     ink.tool = DrawTool::Pen;
     if let Some(color) = color {
@@ -105,7 +281,8 @@ pub(super) fn draw_pen(
     if let Some(width) = width {
         ink.pen.width_pt = width;
     }
-    if (ink.tool, ink.pen) != before {
+    ink.selected = keep_selection(ink, ToolKind::Pen, color.is_some() || width.is_some());
+    if (ink.tool, ink.pen, ink.selected) != before {
         session.mark_changed();
     }
     Ok(pen_output(session))
@@ -119,7 +296,11 @@ pub(super) fn draw_highlighter(
 ) -> Result<CommandOutput, CommandError> {
     let color = color_arg(ids::DRAW_HIGHLIGHTER, args)?;
     let width = width_arg(ids::DRAW_HIGHLIGHTER, args)?;
-    let before = (session.ink().tool, session.ink().highlighter);
+    let before = (
+        session.ink().tool,
+        session.ink().highlighter,
+        session.ink().selected,
+    );
     let ink = session.ink_mut();
     ink.tool = DrawTool::Highlighter;
     if let Some(color) = color {
@@ -128,7 +309,12 @@ pub(super) fn draw_highlighter(
     if let Some(width) = width {
         ink.highlighter.width_pt = width;
     }
-    if (ink.tool, ink.highlighter) != before {
+    ink.selected = keep_selection(
+        ink,
+        ToolKind::Highlighter,
+        color.is_some() || width.is_some(),
+    );
+    if (ink.tool, ink.highlighter, ink.selected) != before {
         session.mark_changed();
     }
     Ok(pen_output(session))
@@ -172,9 +358,11 @@ pub(super) fn draw_eraser(
         session.ink().tool,
         session.ink().eraser,
         session.ink().eraser_size,
+        session.ink().selected,
     );
     let ink = session.ink_mut();
     ink.tool = DrawTool::Eraser;
+    ink.selected = None;
     if let Some(mode) = mode {
         ink.eraser = mode;
     } else if size.is_some() {
@@ -183,7 +371,7 @@ pub(super) fn draw_eraser(
     if let Some(size) = size {
         ink.eraser_size = size;
     }
-    if (ink.tool, ink.eraser, ink.eraser_size) != before {
+    if (ink.tool, ink.eraser, ink.eraser_size, ink.selected) != before {
         session.mark_changed();
     }
     Ok(pen_output(session))
@@ -196,7 +384,9 @@ pub(super) fn draw_color(
 ) -> Result<CommandOutput, CommandError> {
     let color = color_arg(ids::DRAW_COLOR, args)?;
     if let Some(color) = color.filter(|c| *c != session.ink().brush().color) {
-        session.ink_mut().brush_mut().color = color;
+        let ink = session.ink_mut();
+        ink.brush_mut().color = color;
+        ink.sync_selected();
         session.mark_changed();
     }
     Ok(pen_output(session))
@@ -210,7 +400,9 @@ pub(super) fn draw_thickness(
 ) -> Result<CommandOutput, CommandError> {
     let width = width_arg(ids::DRAW_THICKNESS, args)?;
     if let Some(width) = width.filter(|w| *w != session.ink().brush().width_pt) {
-        session.ink_mut().brush_mut().width_pt = width;
+        let ink = session.ink_mut();
+        ink.brush_mut().width_pt = width;
+        ink.sync_selected();
         session.mark_changed();
     }
     Ok(pen_output(session))
@@ -894,5 +1086,210 @@ mod tests {
             json!({ "points": [[1, 1]], "radius": 3 }),
         );
         assert_eq!(out, Ok(json!({ "removed": [], "added": [] })));
+    }
+
+    // The Draw tab's list of pens
+
+    fn tool_ids(session: &Session) -> Vec<(&'static str, String, f32)> {
+        session
+            .ink()
+            .tools()
+            .iter()
+            .map(|t| (t.kind.id(), t.style.color.to_hex(), t.style.width_pt))
+            .collect()
+    }
+
+    #[test]
+    fn a_fresh_session_has_black_red_blue_green_pens_and_a_highlighter() {
+        let session = with_page();
+        let tools = tool_ids(&session);
+        assert_eq!(tools.len(), 5);
+        assert_eq!(tools[0], ("pen", "#000000".to_owned(), 1.0));
+        assert_eq!(tools[4].0, "highlighter");
+        assert_eq!(session.ink().selected_tool(), None);
+    }
+
+    #[test]
+    fn picking_up_a_tool_sets_the_pen_and_marks_the_tool() {
+        let mut session = with_page();
+        let out = run(&mut session, "draw.tool_select", json!({ "index": 1 })).unwrap();
+        assert_eq!(out["tool"], "pen");
+        assert_eq!(out["color"], "#E81123");
+        assert_eq!(out["selected"], 1);
+        assert_eq!(session.ink().pen().color.to_hex(), "#E81123");
+        let out = run(&mut session, "draw.tool_select", json!({ "index": 4 })).unwrap();
+        assert_eq!(out["tool"], "highlighter");
+        assert_eq!(session.ink().tool(), DrawTool::Highlighter);
+        assert_eq!(session.ink().highlighter().width_pt, 8.0);
+        // Other tools let go of the selection.
+        run(&mut session, "draw.eraser", json!(null)).unwrap();
+        assert_eq!(session.ink().selected_tool(), None);
+        run(&mut session, "draw.tool_select", json!({ "index": 0 })).unwrap();
+        run(&mut session, "draw.type", json!(null)).unwrap();
+        assert_eq!(session.ink().selected_tool(), None);
+        for bad in [json!({ "index": 5 }), json!({ "index": -1 }), json!({})] {
+            assert_eq!(
+                run(&mut session, "draw.tool_select", bad.clone()),
+                Err("invalid_args"),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn color_and_thickness_change_the_tool_in_use() {
+        let mut session = with_page();
+        run(&mut session, "draw.tool_select", json!({ "index": 2 })).unwrap();
+        run(&mut session, "draw.color", json!({ "color": "#7F6000" })).unwrap();
+        run(&mut session, "draw.thickness", json!({ "width": 3.5 })).unwrap();
+        assert_eq!(tool_ids(&session)[2], ("pen", "#7F6000".to_owned(), 3.5));
+        // The other tools stay as they were.
+        assert_eq!(tool_ids(&session)[1].1, "#E81123");
+        // A pen not from the list changes no entry.
+        run(&mut session, "draw.pen", json!({ "color": "#112233" })).unwrap();
+        assert_eq!(session.ink().selected_tool(), None);
+        run(&mut session, "draw.color", json!({ "color": "#445566" })).unwrap();
+        assert_eq!(tool_ids(&session)[2].1, "#7F6000");
+        // Picking the entry up again brings its look back.
+        run(&mut session, "draw.tool_select", json!({ "index": 2 })).unwrap();
+        assert_eq!(session.ink().pen().color.to_hex(), "#7F6000");
+        // A plain draw.pen keeps the entry in use.
+        run(&mut session, "draw.type", json!(null)).unwrap();
+        run(&mut session, "draw.tool_select", json!({ "index": 2 })).unwrap();
+        run(&mut session, "draw.pen", json!(null)).unwrap();
+        assert_eq!(session.ink().selected_tool(), Some(2));
+    }
+
+    #[test]
+    fn tools_are_added_with_defaults_and_up_to_a_limit() {
+        let mut session = with_page();
+        let out = run(&mut session, "draw.tool_add", json!(null)).unwrap();
+        assert_eq!(out["count"], 6);
+        assert_eq!(out["selected"], 5);
+        assert_eq!(tool_ids(&session)[5], ("pen", "#000000".to_owned(), 1.0));
+        let out = run(
+            &mut session,
+            "draw.tool_add",
+            json!({ "kind": "highlighter", "color": "#80DEEA", "width": 12 }),
+        )
+        .unwrap();
+        assert_eq!(out["tool"], "highlighter");
+        assert_eq!(
+            tool_ids(&session)[6],
+            ("highlighter", "#80DEEA".to_owned(), 12.0)
+        );
+        for bad in [
+            json!({ "kind": "pencil" }),
+            json!({ "color": "red" }),
+            json!({ "width": 500 }),
+        ] {
+            assert_eq!(
+                run(&mut session, "draw.tool_add", bad.clone()),
+                Err("invalid_args"),
+                "{bad}"
+            );
+        }
+        while session.ink().tools().len() < crate::MAX_PEN_TOOLS {
+            run(&mut session, "draw.tool_add", json!(null)).unwrap();
+        }
+        let before = session.clone();
+        assert_eq!(
+            run(&mut session, "draw.tool_add", json!(null)),
+            Err("invalid_args")
+        );
+        assert_eq!(session, before);
+    }
+
+    #[test]
+    fn deleting_a_tool_keeps_the_selection_in_step() {
+        let mut session = with_page();
+        run(&mut session, "draw.tool_select", json!({ "index": 3 })).unwrap();
+        // Deleting an earlier tool moves the selection up one place.
+        let out = run(&mut session, "draw.tool_delete", json!({ "index": 0 })).unwrap();
+        assert_eq!(out["count"], 4);
+        assert_eq!(session.ink().selected_tool(), Some(2));
+        assert_eq!(session.ink().tool(), DrawTool::Pen);
+        // Deleting a later one leaves it.
+        run(&mut session, "draw.tool_delete", json!({ "index": 3 })).unwrap();
+        assert_eq!(session.ink().selected_tool(), Some(2));
+        // With no index the tool in use goes, and typing is back.
+        run(&mut session, "draw.tool_delete", json!(null)).unwrap();
+        assert_eq!(session.ink().selected_tool(), None);
+        assert_eq!(session.ink().tool(), DrawTool::Type);
+        assert_eq!(session.ink().tools().len(), 2);
+        // No tool in use and no index: nothing to delete.
+        let before = session.clone();
+        assert!(run(&mut session, "draw.tool_delete", json!(null)).is_ok());
+        assert_eq!(session, before);
+        assert_eq!(
+            run(&mut session, "draw.tool_delete", json!({ "index": 9 })),
+            Err("invalid_args")
+        );
+        // The list can be emptied; Add still works.
+        run(&mut session, "draw.tool_delete", json!({ "index": 0 })).unwrap();
+        run(&mut session, "draw.tool_delete", json!({ "index": 0 })).unwrap();
+        assert!(session.ink().tools().is_empty());
+        run(&mut session, "draw.tool_add", json!(null)).unwrap();
+        assert_eq!(session.ink().tools().len(), 1);
+    }
+
+    #[test]
+    fn saved_tools_restore_bounded_and_without_a_selection() {
+        use crate::ink::{PenTool, ToolKind};
+        let mut session = with_page();
+        run(&mut session, "draw.tool_select", json!({ "index": 1 })).unwrap();
+        let wild = PenTool::new(ToolKind::Pen, notecraft_core::InkColor::BLACK, f32::NAN);
+        let huge = PenTool::new(
+            ToolKind::Highlighter,
+            notecraft_core::InkColor::BLACK,
+            1.0e9,
+        );
+        let mut list = vec![wild, huge];
+        list.extend(std::iter::repeat_n(wild, 100));
+        session.set_pen_tools(list);
+        assert_eq!(session.ink().tools().len(), crate::MAX_PEN_TOOLS);
+        assert_eq!(session.ink().selected_tool(), None);
+        assert_eq!(session.ink().tools()[0].style.width_pt, 1.0);
+        assert_eq!(session.ink().tools()[1].style.width_pt, 72.0);
+    }
+
+    #[test]
+    fn the_eyedropper_takes_the_color_of_the_stroke_under_the_point() {
+        let mut session = with_page();
+        run(&mut session, "draw.pen", json!({ "color": "#C62828" })).unwrap();
+        let points: Vec<Value> = (0..=100).map(|x| json!([x, 20, 1.0])).collect();
+        run(&mut session, "ink.add_stroke", json!({ "points": points })).unwrap();
+        run(&mut session, "draw.pen", json!({ "color": "#1565C0" })).unwrap();
+        run(&mut session, "draw.type", json!(null)).unwrap();
+        let out = run(
+            &mut session,
+            "draw.eyedropper",
+            json!({ "x": 50, "y": 20.5 }),
+        )
+        .unwrap();
+        assert_eq!(out["color"], "#C62828");
+        // The pen was picked up with that color.
+        assert_eq!(session.ink().tool(), DrawTool::Pen);
+        assert_eq!(session.ink().pen().color.to_hex(), "#C62828");
+        // Empty paper changes nothing.
+        let before = session.clone();
+        let out = run(
+            &mut session,
+            "draw.eyedropper",
+            json!({ "x": 50, "y": 300 }),
+        );
+        assert_eq!(out, Ok(Value::Null));
+        assert_eq!(session, before);
+        for bad in [json!({ "x": 1 }), json!({ "x": "a", "y": 2 })] {
+            assert_eq!(
+                run(&mut session, "draw.eyedropper", bad.clone()),
+                Err("invalid_args"),
+                "{bad}"
+            );
+        }
+        // It also follows a tool of the list.
+        run(&mut session, "draw.tool_select", json!({ "index": 3 })).unwrap();
+        run(&mut session, "draw.eyedropper", json!({ "x": 10, "y": 20 })).unwrap();
+        assert_eq!(tool_ids(&session)[3].1, "#C62828");
     }
 }
