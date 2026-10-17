@@ -34,6 +34,9 @@ pub fn show(
     let origin = state.viewport.origin();
     let view_size = Vec2::new(rect.width(), rect.height()) / zoom;
     let style = session.page_style();
+    // Text with no color of its own is Automatic: it reads on whatever color the page is.
+    let page_tokens = paper::page_tokens(style, tokens);
+    let tokens = &page_tokens;
     // The page text, laid out in flow layout (read-only). One seam: the page source text.
     let page = session.current_page_source().map(|source| {
         let parsed = state.document(source);
