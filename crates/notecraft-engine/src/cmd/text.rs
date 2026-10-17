@@ -303,6 +303,24 @@ pub(super) fn set_caret(
     Ok(applied(true))
 }
 
+/// `text.clear_caret`: drop the caret and selection, as a click on empty page space does. A
+/// container left with no text is removed, as when the caret moves out of it.
+pub(super) fn clear_caret(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    if session.text_cursor().is_none() {
+        return Ok(applied(false));
+    }
+    if let Some(ctx) = Ctx::new(session) {
+        // A caret past the end of the text is outside every container.
+        let away = TextCursor::caret(ctx.text.len().saturating_add(1));
+        prune_left_container(session, &ctx, away);
+    }
+    session.clear_text_cursor();
+    Ok(applied(true))
+}
+
 /// `text.move { motion, extend? }`: move the caret (or extend the selection) by a character,
 /// word, or line end, or to the start or end of the text.
 pub(super) fn move_caret(

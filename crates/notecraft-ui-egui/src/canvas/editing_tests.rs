@@ -53,6 +53,24 @@ fn click_page(harness: &mut Harness, x: f32, y: f32) {
     harness.step();
 }
 
+/// A double click at a page point. Both presses go in one frame: each harness step is a
+/// quarter second, longer than egui allows between the clicks of a double click.
+fn double_click_page(harness: &mut Harness, x: f32, y: f32) {
+    let at = canvas_origin(harness) + egui::vec2(x, y);
+    harness.hover_at(at);
+    harness.step();
+    for pressed in [true, false, true, false] {
+        harness.input_mut().events.push(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+    }
+    harness.step();
+    harness.step();
+}
+
 fn type_text(harness: &mut Harness, s: &str) {
     harness.event(egui::Event::Text(s.to_owned()));
     harness.step();
@@ -138,9 +156,30 @@ fn clipboard_events_copy_cut_and_paste() {
 }
 
 #[test]
-fn clicking_empty_canvas_makes_a_container_there() {
+fn a_single_click_on_empty_canvas_only_ends_editing() {
     let mut harness = harness("Hello\n");
+    click_page(&mut harness, 120.0, 135.0);
+    assert!(harness.state().session().text_cursor().is_some());
     click_page(&mut harness, 300.0, 500.0);
+    assert!(harness.state().session().text_cursor().is_none());
+    assert_eq!(text(&harness), "Hello\n");
+}
+
+#[test]
+fn clicking_away_from_a_new_empty_container_removes_it() {
+    let mut harness = harness("Hello\n");
+    double_click_page(&mut harness, 300.0, 500.0);
+    assert!(text(&harness).contains("notecraft:container"));
+    click_page(&mut harness, 150.0, 400.0);
+    let source = text(&harness);
+    assert!(!source.contains("id=c1"), "{source:?}");
+    assert!(harness.state().session().text_cursor().is_none());
+}
+
+#[test]
+fn double_clicking_empty_canvas_makes_a_container_there() {
+    let mut harness = harness("Hello\n");
+    double_click_page(&mut harness, 300.0, 500.0);
     let session = harness.state().session();
     let source = session.page_text(PAGE).unwrap_or_default();
     assert!(
@@ -160,7 +199,7 @@ fn clicking_empty_canvas_makes_a_container_there() {
 #[test]
 fn dragging_the_top_bar_moves_a_container_and_its_edge_resizes_it() {
     let mut harness = harness("Hello\n");
-    click_page(&mut harness, 300.0, 500.0);
+    double_click_page(&mut harness, 300.0, 500.0);
     type_text(&mut harness, "box");
     harness.run();
     let origin = canvas_origin(&harness);

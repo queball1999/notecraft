@@ -434,15 +434,9 @@ fn pointer(
             clicked.push(select(at, "line"));
         }
     } else if response.double_clicked() {
-        if let Hit::Offset(at) = at {
-            clicked.push(select(at, "word"));
-        }
-    } else if response.clicked() {
         match at {
-            Hit::Offset(at) => {
-                clicked.push(set_caret(at, shift));
-                edit.h_pos = None;
-            }
+            Hit::Offset(at) => clicked.push(select(at, "word")),
+            // A double click on empty space starts a new container there.
             Hit::Empty => {
                 if let Some(p) = click_at {
                     let page = frame.map.page(p);
@@ -455,6 +449,15 @@ fn pointer(
                     ));
                 }
             }
+        }
+    } else if response.clicked() {
+        match at {
+            Hit::Offset(at) => {
+                clicked.push(set_caret(at, shift));
+                edit.h_pos = None;
+            }
+            // A single click on empty space only ends editing; it does not make a container.
+            Hit::Empty => clicked.push(command(ids::TEXT_CLEAR_CARET, &[])),
         }
     }
 }
