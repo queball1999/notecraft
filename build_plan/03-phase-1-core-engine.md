@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers. PR 1.6 notes added.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -205,6 +205,14 @@ Commits:
 5. `feat(ui): enable home tab formatting buttons`
 
 PR title: `feat(engine): add text formatting commands`.
+
+Notes (as built):
+- Commits landed as markdown format edits (inline and block marks, lists, tasks, indent, alignment, state at the caret), engine commands, canvas drawing of the new run styles, enabling the buttons, and tests; the five listed commits were regrouped because the markdown and engine halves needed each other. Tables already drew read-only from PR 1.5 and gained a layout test here.
+- Format commands: `format.bold`, `format.italic`, `format.strikethrough`, `format.underline`, `format.subscript`, `format.superscript`, `format.highlight`, `format.font_color`, `format.font_size`, `format.font_family`, `format.clear`, `format.bullets`, `format.numbering`, `format.indent`, `format.outdent`, `format.align_left`, `format.align_center`, `format.align_right`, `style.apply`, and `tag.todo` (Ctrl+1). Each is one trimmed splice through the PR 1.5 guard (one undo step); toggles on the selection or the word at the caret.
+- Markup beyond CommonMark and GFM (docs/markdown.md section 3.2): `<u>`, `<sub>`, `<sup>`, `==yellow==`, one-property `<span style>` for color, size, and family, and a `<!-- notecraft:align=... -->` comment line above a paragraph. All are plain text a reader without NoteCraft still sees.
+- Formatting is bounded to the text before the `notecraft-canvas` block, and never reaches the frontmatter or a container marker; container marker lines come only from `notecraft_markdown::container` through `split_containers`.
+- Not done: a bold face in the canvas font (bold is drawn with the existing ghost pass), per-character formatting inside the raw-edit block, Format Painter and Clear Formatting beyond `format.clear` (Phase 2), table editing (Phase 3).
+- Open questions: (1) alignment as a comment line is invisible in other editors; an HTML `<p align>` would show but break plain markdown. (2) Heading 1 to 6 and Normal replace the line prefix; mixed selections change every line they touch.
 
 ## PR 1.7: auto-save, crash recovery, outside edits
 
