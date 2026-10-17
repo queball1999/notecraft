@@ -2,9 +2,10 @@
 //! every id in [`ids`]. Commands whose engine work is not done yet are Coming Soon; a
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
+use super::page;
 use super::{
-    canvas, draw, edit, file, format, ids, layout, nav, text, theme, ArgKind, ArgSpec, CommandId,
-    CommandSpec, Handler,
+    canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind, ArgSpec,
+    CommandId, CommandSpec, Handler,
 };
 
 const SET_CARET_ARGS: &[ArgSpec] = &[
@@ -79,6 +80,106 @@ const NAV_ARGS: &[ArgSpec] = &[ArgSpec::required(
     ArgKind::String,
     "The notebook, section, or page id.",
 )];
+const OPTIONAL_ID_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "id",
+    ArgKind::String,
+    "The notebook, section, or page id; the one shown when omitted.",
+)];
+const RENAME_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The notebook, section, or page id; the one shown when omitted.",
+    ),
+    ArgSpec::optional(
+        "name",
+        ArgKind::String,
+        "The new name; the app asks for it when omitted.",
+    ),
+];
+const SET_COLOR_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The notebook or section id; the one shown when omitted.",
+    ),
+    ArgSpec::required("color", ArgKind::String, "Color as #RRGGBB."),
+];
+const NEW_PAGE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "title",
+        ArgKind::String,
+        "The page title; Untitled Page when omitted.",
+    ),
+    ArgSpec::optional(
+        "section",
+        ArgKind::String,
+        "The section id; the section shown when omitted.",
+    ),
+];
+const NEW_SECTION_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "name",
+        ArgKind::String,
+        "The name; New Section when omitted.",
+    ),
+    ArgSpec::optional(
+        "parent",
+        ArgKind::String,
+        "The section group to add it to; the top level when omitted.",
+    ),
+    ArgSpec::optional(
+        "notebook",
+        ArgKind::String,
+        "The notebook id; the notebook shown when omitted.",
+    ),
+];
+const PAGE_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The page id; the page shown when omitted.",
+    ),
+    ArgSpec::optional(
+        "section",
+        ArgKind::String,
+        "The section to move to; the page's own section when omitted.",
+    ),
+    ArgSpec::optional(
+        "index",
+        ArgKind::Integer,
+        "Position among the section's pages; last when omitted.",
+    ),
+];
+const PAGE_LEVEL_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The page id; the page shown when omitted.",
+    ),
+    ArgSpec::required(
+        "level",
+        ArgKind::Integer,
+        "0 for a page, 1 or 2 for a subpage.",
+    ),
+];
+const SECTION_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "id",
+        ArgKind::String,
+        "The section or group id; the section shown when omitted.",
+    ),
+    ArgSpec::optional(
+        "parent",
+        ArgKind::String,
+        "The section group to move into; the top level when omitted.",
+    ),
+    ArgSpec::optional(
+        "index",
+        ArgKind::Integer,
+        "Position among the children of the parent; last when omitted.",
+    ),
+];
 const FONT_FAMILY_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "name",
     ArgKind::String,
@@ -122,11 +223,36 @@ const PEN_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
 ];
-const ERASER_ARGS: &[ArgSpec] = &[ArgSpec::optional(
-    "mode",
-    ArgKind::String,
-    "stroke or point.",
-)];
+const ERASER_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional("mode", ArgKind::String, "stroke or point."),
+    ArgSpec::optional(
+        "size",
+        ArgKind::String,
+        "small, medium, or large; the size of the point eraser.",
+    ),
+];
+const ERASE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "points",
+        ArgKind::Array,
+        "The path of the eraser's center in page units, each [x, y].",
+    ),
+    ArgSpec::required(
+        "radius",
+        ArgKind::Number,
+        "The eraser's reach in page units.",
+    ),
+    ArgSpec::optional(
+        "mode",
+        ArgKind::String,
+        "stroke or point; the eraser in use when omitted.",
+    ),
+    ArgSpec::optional(
+        "join",
+        ArgKind::Bool,
+        "True to undo together with the erase before it, for the rest of one drag.",
+    ),
+];
 const REQUIRED_COLOR_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "color",
     ArgKind::String,
@@ -146,6 +272,11 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "kind",
     ArgKind::String,
     "Shape kind, for example line, arrow, rectangle, or ellipse.",
+)];
+const CONVERT_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "confirm",
+    ArgKind::Bool,
+    "True to convert; without it the command only returns the warning to show first.",
 )];
 const RULE_LINE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "style",
@@ -227,8 +358,11 @@ pub(super) static SPECS: &[CommandSpec] = &[
     CommandSpec::new(
         ids::FILE_CLOSE_NOTEBOOK,
         "Close Notebook",
-        "Close the current notebook.",
-    ),
+        "Close the current notebook. Its folder and files stay where they are.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(ids::FILE_PRINT, "Print", "Print the current page.").shortcut("Ctrl+P"),
     CommandSpec::new(
         ids::FILE_PRINT_PREVIEW,
@@ -252,6 +386,32 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Copy About Info",
         "Copy the version, build, and system details to the clipboard for a bug report.",
     )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_RESTORE_UNSAVED,
+        "Restore Unsaved Changes",
+        "Put back the unsaved text found from the last session.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_DISCARD_UNSAVED,
+        "Discard Unsaved Changes",
+        "Throw away the unsaved text found from the last session.",
+    )
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_KEEP_MY_VERSION,
+        "Keep My Version",
+        "Keep the text on the page when the file also changed outside NoteCraft.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_USE_OUTSIDE_VERSION,
+        "Use Outside Version",
+        "Replace the text on the page with the version changed outside NoteCraft.",
+    )
+    .destructive()
     .ready(),
     // Home tab: Clipboard group
     CommandSpec::new(ids::EDIT_CUT, "Cut", "Move the selection to the clipboard.")
@@ -619,17 +779,27 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Highlighter",
         "Draw with a highlighter.",
     )
-    .args(PEN_ARGS),
+    .args(PEN_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::DRAW_ERASER,
         "Eraser",
         "Erase ink strokes or parts of strokes.",
     )
-    .args(ERASER_ARGS),
+    .args(ERASER_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::INK_ERASE,
+        "Erase Ink",
+        "Erase ink along a path: whole strokes or only the part under the eraser.",
+    )
+    .args(ERASE_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::DRAW_COLOR,
         "Color",
-        "Set the color of the current pen.",
+        "Set the color of the current pen or highlighter.",
     )
     .args(REQUIRED_COLOR_ARGS)
     .ready(),
@@ -1021,15 +1191,129 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "New Section",
         "Add a section to the current notebook.",
     )
+    .args(NEW_SECTION_ARGS)
     .undoable()
-    .shortcut("Ctrl+T"),
+    .shortcut("Ctrl+T")
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_GROUP_NEW,
+        "New Section Group",
+        "Add a section group to the current notebook.",
+    )
+    .args(NEW_SECTION_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_RENAME,
+        "Rename Section",
+        "Rename a section or section group.",
+    )
+    .args(RENAME_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_DELETE,
+        "Delete Section",
+        "Delete a section or section group. It goes to the trash folder of its notebook.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_MOVE,
+        "Move Section",
+        "Move a section or section group into a group or to the top level.",
+    )
+    .args(SECTION_MOVE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::SECTION_SET_COLOR,
+        "Section Color",
+        "Set the color of a section or section group.",
+    )
+    .args(SET_COLOR_ARGS)
+    .undoable()
+    .ready(),
     CommandSpec::new(
         ids::PAGE_NEW,
         "Add Page",
         "Add a page to the current section.",
     )
+    .args(NEW_PAGE_ARGS)
     .undoable()
-    .shortcut("Ctrl+N"),
+    .shortcut("Ctrl+N")
+    .ready(),
+    CommandSpec::new(ids::PAGE_RENAME, "Rename Page", "Rename a page.")
+        .args(RENAME_ARGS)
+        .undoable()
+        .ready(),
+    CommandSpec::new(
+        ids::PAGE_DELETE,
+        "Delete Page",
+        "Delete a page. It goes to the trash folder of its notebook.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_MOVE,
+        "Move Page",
+        "Move a page to another place in its section or to another section.",
+    )
+    .args(PAGE_MOVE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_SET_LEVEL,
+        "Set Page Level",
+        "Set how far a page is indented as a subpage.",
+    )
+    .args(PAGE_LEVEL_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_MAKE_SUBPAGE,
+        "Make Subpage",
+        "Make a page a subpage of the page above it.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_PROMOTE_SUBPAGE,
+        "Promote Subpage",
+        "Move a subpage up one level.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::NOTEBOOK_RENAME,
+        "Rename Notebook",
+        "Rename a notebook. Its folder keeps its name.",
+    )
+    .args(RENAME_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::NOTEBOOK_SET_COLOR,
+        "Notebook Color",
+        "Set the color of a notebook.",
+    )
+    .args(SET_COLOR_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_CONVERT_TO_MARKDOWN,
+        "Convert to Markdown",
+        "Turn the page into a plain markdown page. Ink and note positions are removed.",
+    )
+    .args(CONVERT_ARGS)
+    .destructive()
+    .ready(),
     CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
@@ -1041,6 +1325,10 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
     (ids::FILE_ABOUT, file::about),
     (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),
+    (ids::FILE_RESTORE_UNSAVED, file::restore_unsaved),
+    (ids::FILE_DISCARD_UNSAVED, file::discard_unsaved),
+    (ids::FILE_KEEP_MY_VERSION, file::keep_my_version),
+    (ids::FILE_USE_OUTSIDE_VERSION, file::use_outside_version),
     (ids::VIEW_THEME_SET, theme::theme_set),
     (ids::VIEW_MODE_TOGGLE, theme::mode_toggle),
     (ids::VIEW_MODE_SET, theme::mode_set),
@@ -1059,6 +1347,9 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_ZOOM_PAGE_WIDTH, canvas::zoom_page_width),
     (ids::DRAW_TYPE, draw::draw_type),
     (ids::DRAW_PEN, draw::draw_pen),
+    (ids::DRAW_HIGHLIGHTER, draw::draw_highlighter),
+    (ids::DRAW_ERASER, draw::draw_eraser),
+    (ids::INK_ERASE, draw::erase),
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
@@ -1102,6 +1393,23 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
+    (ids::FILE_CLOSE_NOTEBOOK, structure::close_notebook),
+    (ids::SECTION_NEW, structure::section_new),
+    (ids::SECTION_GROUP_NEW, structure::section_group_new),
+    (ids::SECTION_RENAME, structure::section_rename),
+    (ids::SECTION_DELETE, structure::section_delete),
+    (ids::SECTION_MOVE, structure::section_move),
+    (ids::SECTION_SET_COLOR, structure::section_set_color),
+    (ids::PAGE_NEW, structure::page_new),
+    (ids::PAGE_RENAME, structure::page_rename),
+    (ids::PAGE_DELETE, structure::page_delete),
+    (ids::PAGE_MOVE, structure::page_move),
+    (ids::PAGE_SET_LEVEL, structure::page_set_level),
+    (ids::PAGE_MAKE_SUBPAGE, structure::page_make_subpage),
+    (ids::PAGE_PROMOTE_SUBPAGE, structure::page_promote_subpage),
+    (ids::NOTEBOOK_RENAME, structure::notebook_rename),
+    (ids::NOTEBOOK_SET_COLOR, structure::notebook_set_color),
+    (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
 ];
 
 /// The handler for `id`, if it has one.

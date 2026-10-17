@@ -1,0 +1,9 @@
+# A page with no canvas block
+
+It opens in flow layout.
+
+````text
+```notecraft-canvas
+this is inside another block, so it is just code
+```
+````

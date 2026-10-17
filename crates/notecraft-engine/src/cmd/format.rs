@@ -33,24 +33,33 @@ fn invalid(id: CommandId, reason: &str) -> CommandError {
     }
 }
 
+/// The page text formatting may touch: everything before the `notecraft-canvas` block.
+fn visible_text(text: &str) -> &str {
+    let end = notecraft_storage::find_canvas_block(text).map_or(text.len(), |b| b.block.start);
+    text.get(..end.min(text.len())).unwrap_or(text)
+}
+
 /// Where formatting may start: after the frontmatter and after the marker line of the
-/// container that holds `at`. Code fences are counted from here.
-fn floor_for(text: &str, at: usize) -> usize {
-    let body = notecraft_markdown::parse_frontmatter(text).map_or(0, |f| f.span.end);
-    let head = text.get(..at.min(text.len())).unwrap_or("");
-    let marker = head.rfind("<!-- notecraft:container").map_or(0, |i| {
-        text.get(i..)
-            .and_then(|t| t.find('\n'))
-            .map_or(text.len(), |n| i + n + 1)
-    });
-    body.max(marker)
+/// container that holds `at`, as `split_containers` reads them. Code fences are counted from
+/// here.
+fn floor_for(shown: &str, at: usize) -> usize {
+    let doc = notecraft_markdown::parse(shown);
+    let runs = notecraft_markdown::split_containers(shown, &doc);
+    let marker = runs
+        .iter()
+        .filter(|r| r.marker.is_some() && r.content.start <= at)
+        .map(|r| r.content.start)
+        .max()
+        .unwrap_or(0);
+    doc.body_start.max(marker)
 }
 
 fn format_ctx<'a>(ctx: &'a Ctx) -> fmt::Ctx<'a> {
     let lo = ctx.cursor.anchor.min(ctx.cursor.head);
+    let shown = ctx.text.get(..ctx.visible).unwrap_or(&ctx.text);
     fmt::Ctx {
-        text: &ctx.text,
-        floor: floor_for(&ctx.text, lo),
+        text: shown,
+        floor: floor_for(shown, lo),
         anchor: ctx.cursor.anchor,
         head: ctx.cursor.head,
         eol: ctx.eol,
@@ -298,6 +307,7 @@ impl Session {
             return FormatState::default();
         };
         let lo = cursor.anchor.min(cursor.head);
+        let text = visible_text(text);
         fmt::state_at(&fmt::Ctx {
             text,
             floor: floor_for(text, lo),

@@ -33,6 +33,8 @@ pub const NEW_CONTAINER_WIDTH: f32 = 420.0;
 pub(super) struct Ctx {
     pub(super) page: String,
     pub(super) text: String,
+    /// Where the editable text ends: the start of the `notecraft-canvas` block, or the end.
+    pub(super) visible: usize,
     pub(super) doc: Document,
     pub(super) runs: Vec<ContainerRun>,
     pub(super) cursor: TextCursor,
@@ -58,19 +60,23 @@ impl Ctx {
             return None;
         }
         let text = session.page_text(&page).unwrap_or_default().to_owned();
-        let doc = parse(&text);
-        let runs = split_containers(&text, &doc);
+        let visible = notecraft_storage::find_canvas_block(&text)
+            .map_or(text.len(), |b| b.block.start.min(text.len()));
+        let shown = text.get(..visible).unwrap_or(&text);
+        let doc = parse(shown);
+        let runs = split_containers(shown, &doc);
         let eol = LineEnding::detect(&text).as_str();
         let mut ctx = Self {
             page,
             text,
+            visible,
             doc,
             runs,
             cursor: TextCursor::default(),
             eol,
         };
         let cursor = session.text_cursor().unwrap_or_else(|| {
-            let end = ctx.runs.last().map_or(ctx.text.len(), |r| r.content.end);
+            let end = ctx.runs.last().map_or(ctx.visible, |r| r.content.end);
             TextCursor::caret(end)
         });
         ctx.cursor = TextCursor {
@@ -83,7 +89,7 @@ impl Ctx {
     /// `at` moved to the nearest place the caret may be: on a character boundary, in the body,
     /// and not on a marker line. `forward` picks which way to go when a choice has to be made.
     fn snap_editable(&self, at: usize, forward: bool) -> usize {
-        let len = self.text.len();
+        let len = self.visible;
         let mut at = text::snap(&self.text, at).max(self.doc.body_start.min(len));
         if let Some(marker) = self.runs.first().and_then(|r| r.marker) {
             if at <= marker.start {
@@ -121,7 +127,7 @@ impl Ctx {
     /// so a line break goes after it.
     fn guard(&self, mut edit: TextEdit) -> Option<TextEdit> {
         let end = edit.at.checked_add(edit.remove)?;
-        if end > self.text.len() || edit.at < self.doc.body_start {
+        if end > self.visible || edit.at < self.doc.body_start {
             return None;
         }
         let at_marker_line = self
@@ -129,7 +135,9 @@ impl Ctx {
             .iter()
             .filter_map(|r| r.marker)
             .any(|m| m.start == end && m.start > 0);
-        if !edit.insert.is_empty() && at_marker_line && !edit.insert.ends_with('\n') {
+        let at_canvas = end == self.visible && self.visible < self.text.len();
+        if !edit.insert.is_empty() && (at_marker_line || at_canvas) && !edit.insert.ends_with('\n')
+        {
             edit.insert.push_str(self.eol);
         }
         let head = self.text.get(..edit.at)?;
@@ -626,8 +634,8 @@ pub(super) fn container_new(
         return Ok(null());
     };
     let new_id = next_container_id(&ctx.runs);
-    let added = new_container_text(&ctx.text, &new_id);
-    let at = ctx.text.len();
+    let added = new_container_text(ctx.text.get(..ctx.visible).unwrap_or(&ctx.text), &new_id);
+    let at = ctx.visible;
     let container = Container::at(&new_id, pos, NEW_CONTAINER_WIDTH);
     let tx = Transaction::new(Scope::Page(ctx.page.clone()), "New container")
         .with(Op::ReplaceText {

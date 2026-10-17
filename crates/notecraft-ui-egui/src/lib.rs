@@ -12,6 +12,7 @@
 mod a11y;
 pub mod about;
 mod app_shell;
+pub mod bars;
 pub mod canvas;
 pub mod color;
 pub mod font_list;

@@ -2,20 +2,28 @@
 //! the open notebooks (read from disk, or the mock notebooks until one is opened), which notebook,
 //! section, and page are shown, each page's style and strokes, and the undo history (`undo`).
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Component, Path, PathBuf};
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use notecraft_model::{Notebook, PageRef, Section};
-use notecraft_storage::{read_page_file, PageReadError};
+use notecraft_storage::{read_page_file, PageReadError, PageText};
+
+mod save;
+mod saving;
+pub use save::{ConvertOutcome, CONVERT_WARNING};
+pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
 use crate::ink::InkState;
+
 use crate::mock;
 use crate::recent::Recents;
 use crate::undo::History;
 use crate::view::{PageStyle, ViewState};
 
+mod structure;
 mod text_state;
 
+pub use structure::EditError;
 pub use text_state::TextCursor;
 
 /// Which notebook, section, and page are shown, by id.
@@ -35,6 +43,17 @@ pub struct PageSource<'a> {
     pub text: &'a str,
 }
 
+impl<'a> PageSource<'a> {
+    /// The text to lay out: the page without its `notecraft-canvas` block, which holds
+    /// positions and ink and is never shown as text.
+    pub fn visible_text(&self) -> &'a str {
+        match notecraft_storage::find_canvas_block(self.text) {
+            Some(block) => self.text.get(..block.block.start).unwrap_or(self.text),
+            None => self.text,
+        }
+    }
+}
+
 /// Why the page shown now cannot be edited or did not read cleanly. It is shown on the canvas
 /// as a short plain-text line.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,6 +61,13 @@ pub struct PageNotice {
     pub text: String,
     /// The page must not be edited or saved over (it was cut short, or it did not read).
     pub read_only: bool,
+}
+
+fn read_error_notice(text: &str) -> PageNotice {
+    PageNotice {
+        text: text.to_owned(),
+        read_only: true,
+    }
 }
 
 /// Everything a command can see and change. Commands run on the thread that owns it.
@@ -61,15 +87,17 @@ pub struct Session {
     /// The folder of each notebook read from disk, by notebook id.
     notebook_roots: BTreeMap<String, PathBuf>,
     recents: Recents,
+    /// Notebooks changed on disk by a structure step that must be read again (see `structure`).
+    dirty: std::collections::BTreeSet<String>,
     ink: InkState,
     /// The caret and selection of text editing, with the page they belong to.
     text_cursor: Option<(String, TextCursor)>,
     /// Container geometry by page id, then container id. A container missing here is in the
     /// flow layout at the default width. PR 1.9 stores it in the page's canvas block.
     containers: BTreeMap<String, BTreeMap<String, notecraft_model::Container>>,
-    /// Pages whose text changed since it was read or saved (PR 1.7 saves these).
-    dirty_pages: BTreeSet<String>,
     pub(crate) history: History,
+    /// Saving, recovery, and outside-edit state (`saving.rs`).
+    saving: saving::SavingState,
 }
 
 impl Session {
@@ -150,62 +178,83 @@ impl Session {
 
     /// Remember the folder `notebook_id` was read from, so its pages can be read from disk.
     pub fn set_notebook_root(&mut self, notebook_id: &str, folder: &Path) {
+        // Opened again: unsaved pages go to disk first, because their text is dropped below.
+        let prefix = format!("{notebook_id}/");
+        let unsaved: Vec<String> = self
+            .page_sources
+            .keys()
+            .filter(|id| id.starts_with(&prefix) && self.is_page_dirty(id))
+            .cloned()
+            .collect();
+        for id in unsaved {
+            self.save_page(&id);
+        }
         self.notebook_roots
             .insert(notebook_id.to_owned(), folder.to_path_buf());
         // Pages of a notebook that is opened again are read again.
-        let prefix = format!("{notebook_id}/");
         self.page_sources.retain(|id, _| !id.starts_with(&prefix));
         self.page_notices.retain(|id, _| !id.starts_with(&prefix));
+        self.saving.forget_notebook(&prefix);
     }
 
     /// Read the page shown now from disk if it comes from a notebook folder and has not been
     /// read yet, and hand its text to [`Self::set_page_source`]. Only `.md` pages are read. A
     /// page cut at the size cap is read-only; one that cannot be read gets a short error
     /// notice. Never fails and never panics. Returns whether a read was tried.
+    ///
+    /// With background reads on ([`Self::set_background_reads`]) the read is queued as a
+    /// [`ReadRequest`] for the IO worker instead, and the answer comes back through
+    /// [`Self::finish_read`].
     pub fn load_current_page(&mut self) -> bool {
         let Some(page_id) = self.selection.page.clone() else {
             return false;
         };
-        if self.page_sources.contains_key(&page_id) || self.page_notices.contains_key(&page_id) {
+        if self.page_sources.contains_key(&page_id)
+            || self.page_notices.contains_key(&page_id)
+            || self.saving.loading.contains(&page_id)
+        {
             return false;
         }
-        let Some(notebook_id) = self.selection.notebook.as_deref() else {
-            return false;
-        };
-        let Some(root) = self.notebook_roots.get(notebook_id) else {
-            return false;
-        };
-        let Some(rel) = page_id
-            .strip_prefix(notebook_id)
-            .and_then(|rest| rest.strip_prefix('/'))
-        else {
-            return false;
-        };
-        let rel = Path::new(rel);
-        let is_markdown = rel
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
-        if !is_markdown {
-            return false;
+        match self.resolve_page_file(&page_id) {
+            saving::Resolved::NotAFile => false,
+            saving::Resolved::Invalid => {
+                let text = "This page could not be opened: its path is not valid.";
+                self.page_notices.insert(page_id, read_error_notice(text));
+                true
+            }
+            saving::Resolved::File(path) => {
+                if self.saving.background {
+                    self.queue_read(page_id, path, ReadPurpose::Load);
+                } else {
+                    let result = read_page_file(&path);
+                    self.apply_load_result(&page_id, result);
+                }
+                true
+            }
         }
-        let notice = |text: &str| PageNotice {
-            text: text.to_owned(),
-            read_only: true,
-        };
-        if !rel.components().all(|c| matches!(c, Component::Normal(_))) {
-            let text = "This page could not be opened: its path is not valid.";
-            self.page_notices.insert(page_id, notice(text));
-            return true;
-        }
-        match read_page_file(&root.join(rel)) {
+    }
+
+    /// Store the outcome of reading the page file for `page_id` the first time.
+    pub(crate) fn apply_load_result(
+        &mut self,
+        page_id: &str,
+        result: Result<PageText, PageReadError>,
+    ) {
+        match result {
             Ok(page) => {
                 if let Some(text) = page.warning() {
                     let read_only = page.truncated;
                     self.page_notices
-                        .insert(page_id.clone(), PageNotice { text, read_only });
+                        .insert(page_id.to_owned(), PageNotice { text, read_only });
                 }
-                self.set_page_source(&page_id, page.text);
+                self.saving
+                    .disk_hash
+                    .insert(page_id.to_owned(), saving::hash_text(&page.text));
+                // Text restored from the recovery journal while the read was out wins.
+                if !self.page_sources.contains_key(page_id) {
+                    self.load_canvas(page_id, &page.text, page.truncated);
+                    self.set_page_source(page_id, page.text);
+                }
             }
             Err(err) => {
                 tracing::warn!(page = %page_id, "cannot read page: {err}");
@@ -218,10 +267,12 @@ impl Session {
                         "This page could not be opened: the file cannot be read."
                     }
                 };
-                self.page_notices.insert(page_id, notice(text));
+                self.page_notices
+                    .insert(page_id.to_owned(), read_error_notice(text));
             }
         }
-        true
+        self.saving.loading.remove(page_id);
+        self.mark_changed();
     }
 
     /// The notice for the page shown now: a read-only or error line, if it has one.
@@ -266,8 +317,6 @@ impl Session {
     /// This is the seam the folder reader plugs into; it is not a command.
     pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
         self.put_page_text(id, text.into());
-        // Text that was just read is what is on disk.
-        self.dirty_pages.remove(id);
     }
 
     /// Store `text` as page `id`'s source and bump its revision.
@@ -429,14 +478,18 @@ mod page_load_tests {
     }
 
     #[test]
-    fn mock_pages_and_other_file_types_are_not_read() {
+    fn mock_pages_are_not_read_and_notecraft_pages_are() {
         let mut session = Session::new();
         session.set_notebooks(crate::mock::notebooks());
         assert!(!session.load_current_page());
         let dir = notebook(&[("Sec/Sketch.notecraft", b"PK")]);
         let mut session = open(&dir);
-        assert!(!session.load_current_page());
-        assert_eq!(session.current_page_source(), None);
+        assert!(session.load_current_page());
+        assert_eq!(session.current_page_source().expect("text").text, "PK");
         assert_eq!(session.current_page_notice(), None);
+        assert!(session.current_ink().is_none());
     }
 }
+
+#[cfg(test)]
+mod saving_tests;

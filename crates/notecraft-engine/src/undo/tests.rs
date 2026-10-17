@@ -754,6 +754,10 @@ fn undo_and_redo_are_specced_with_shortcuts() {
 /// fails.
 const UNDO_CASES: &[(&str, &str)] = &[
     ("ink.add_stroke", r#"{ "points": [[1, 2], [30, 40, 0.5]] }"#),
+    (
+        "ink.erase",
+        r#"{ "points": [[500, 100]], "radius": 10, "mode": "point" }"#,
+    ),
     ("view.rule_lines", r#"{ "style": "college" }"#),
     ("view.page_color", r##"{ "color": "#DCEBF7" }"##),
     ("view.paper_size", r#"{ "size": "a4" }"#),
@@ -856,13 +860,17 @@ fn every_ready_undoable_command_has_an_undo_case() {
         let ready = spec.status == crate::cmd::Status::Ready;
         if ready && spec.undoable {
             let id = spec.id.as_str();
+            let covered = UNDO_CASES
+                .iter()
+                .chain(crate::cmd::structure::UNDO_CASES)
+                .any(|(case, _)| *case == id);
             assert!(
-                UNDO_CASES.iter().any(|(case, _)| *case == id),
+                covered,
                 "{id} is Ready and undoable but has no row in UNDO_CASES"
             );
         }
     }
-    for (id, _) in UNDO_CASES {
+    for (id, _) in UNDO_CASES.iter().chain(crate::cmd::structure::UNDO_CASES) {
         let spec = registry.get(id).unwrap();
         assert!(spec.undoable, "{id} is in UNDO_CASES but not undoable");
     }
@@ -883,6 +891,15 @@ fn every_undoable_command_undoes_and_redoes_exactly() {
         if NEEDS_SELECTION.contains(id) {
             run(&mut session, &registry, "edit.select_all", Value::Null);
         }
+        // A line to erase for ink.erase, put there without an undo step.
+        let line = Stroke {
+            points: vec![
+                InkPoint::new(0.0, 100.0, 1.0),
+                InkPoint::new(1000.0, 100.0, 1.0),
+            ],
+            ..stroke("s1", 0.0)
+        };
+        assert!(insert("p1", 0, line).apply(&mut session));
         let before = document(&session);
 
         run(&mut session, &registry, id, args.clone());

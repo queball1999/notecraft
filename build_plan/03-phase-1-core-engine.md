@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers.
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -176,6 +176,7 @@ Built on `feat/container-editing` (2026-10-16). The design is in docs/architectu
 
 - Not split into 1.5a and 1.5b; the PR is about 4,000 lines with tests. Commits: model, markdown container runs, canvas text logic, engine commands, UI widget, UI tests, docs. The plan's commits 2 and 3 (widget, then IME and keyboard) are one commit because the widget cannot be shown without the keyboard.
 - Container model: `notecraft_model::Container` holds id, optional position (none means flow layout), and width, clamped. Text lives in the page markdown (docs/markdown.md section 3.3 markers), read by `notecraft_markdown::split_containers`. A click on empty canvas appends a marker line to the page text and records a position in the session (`SetContainer` undo op); the `.notecraft` canvas block that stores positions is PR 1.9, so positions are not saved yet and a page reopens in flow order. Containers made this way are in a `.md` page with markers; promotion to `.notecraft` is PR 1.9.
+- Merged onto PR 1.9 and PR 1.13 (one container model): the marker reader is `notecraft_markdown::container` (strict markers: a marker comment without an `id=` is an ordinary comment; ids up to 64 characters; fenced code and the canvas block are skipped; at most 10,000 markers; fresh ids are the highest `cN` plus one). `split_containers` is now a thin view over it that adds the content span, the block range, and the id a save will give a bad marker (taken from `fix_container_ids`, so the editor and the save path always agree). The editor also stops at the start of the `notecraft-canvas` block: the block is never laid out, never edited, and a new container is added before it. The PR 1.5 dirty set was dropped in favor of the PR 1.7 save state (`mark_page_dirty` is called by the `ReplaceText` undo op). Container positions are still session-only; storing them in the canvas block is a PR 1.9 follow-up.
 - Command ids: `text.set_caret`, `text.move`, `text.insert`, `text.delete`, `text.enter`, `text.tab`, `container.new`, `container.move`, `container.resize`; the existing Home tab ids `edit.cut`, `edit.copy`, `edit.paste`, `edit.paste_text_only`, `edit.select_all`, and `edit.delete` became Ready. Copy and Cut return the markdown text for the front end to put on the clipboard (the shell reads the clipboard through egui events); Paste takes the clipboard text as an argument. Up, Down, Home, and End follow wrapped rows, which need the layout, so the canvas turns them into `text.set_caret` calls.
 - Edit granularity: edits are splices at byte offsets through `Session::edit_page_text`, finer than the block replacement PR 1.4 allowed; `Editor` is not needed for typing. It remains the tool for PR 1.6 style changes.
 - Decision on the typing pause (the open question from PR 1.8): no pause timer. Word-sized steps from the pure rule were enough in tests, and a clock would make undo depend on typing speed. Revisit after hand testing.
@@ -224,6 +225,26 @@ Commits:
 5. `test(storage): simulate crash and outside edit`
 
 PR title: `feat(storage): auto-save and recover safely`.
+
+### PR 1.7 notes: deviations and open questions
+
+Built on `feat/autosave` (2026-10-16), on top of `wip/phase1-base`. What differs from the steps above:
+
+- Commits: the plan listed five. The storage pieces (recovery journal, folder watcher, and a page reader thread) are one commit; dirty tracking, timed auto-save, and the outside edit logic are one engine commit, because the engine ties them together; the bars are one UI commit; the crash and outside-edit simulations live in the engine tests (`io::tests`) next to the code they exercise, since the session is where the pieces meet. Auto-save and the session logic are in `notecraft-engine` (`session/saving.rs`, `io.rs`), not `notecraft-storage`: storage stays a set of file tools (journal, watcher, reader), and the engine owns the session state. The design is in docs/architecture.md sections 3.2 to 3.4.
+- Dirty tracking API for PR 1.5: `Session::mark_page_dirty(page_id)`. Edits through `commit`, `undo`, and `redo` (page text and strokes) call it already.
+- Only page text is written. Strokes mark a page dirty but add no bytes until PR 1.9 saves the canvas block.
+- Pages whose notice is read-only are never saved or journaled. A page with invalid UTF-8 is editable and saves with the replacement characters (the notice said so when it was shown).
+- Conflict bar (maintainer-visible decision): Keep my version and Use outside version. A side-by-side compare is left out: OneNote has no such view, and the architecture doc's "compare" was a placeholder. A save never writes over a file that changed since NoteCraft last read or wrote it; it turns into the same conflict. While a conflict is open the page is not saved and stays in the journal.
+- Outside reload drops the page's undo steps and logs a line, with no toast (maintainer decision, 2026-10-15).
+- Saves run on the UI thread; page reads and the watcher run on worker threads. Moving saves off the UI thread is possible later; one atomic write of a small file is fast, and doing it inline keeps the quit path simple.
+- The journal is refreshed every 2 s while text changes (the plan gave no interval). It is a JSON file per page, not an append-only log, so a crash loses at most 2 s of edits and replay is a straight text restore.
+- `notify` 8 (CC0-1.0) is a new dependency of notecraft-storage, native only.
+- Quit: `AppShell::flush_unsaved` runs on a close request and from the app's `on_exit`. craft-quit has no save hook of its own; it already runs before eframe closes, so the close request path covers the prompt case.
+
+Open questions:
+
+- Should a deleted page file (outside delete while open) show a bar too? Today it is only logged and the page stays open; the next save recreates the file.
+- Should Restore also offer a per-page choice? Today it restores every offered page.
 
 ## PR 1.8: undo and redo
 
@@ -285,6 +306,19 @@ Commits:
 5. `test(storage): hostile and truncated canvas blocks`
 
 PR title: `feat(storage): add the .notecraft page format`.
+
+### PR 1.9 notes: what was built and the calls made
+
+Built on `feat/notecraft-format` (2026-10-16). Ink saving (IN-01, IN-02) and the container and canvas readers are done; positions for the other canvas objects are not.
+
+- Markdown crate: `read_containers`, `fix_container_ids` (an invalid, `c0`, or duplicate id gets a fresh `cN`; only the id bytes change), `remove_container_markers`. Markers inside code fences and frontmatter do not count; at most 10,000 are read.
+- Storage: `canvas_block` finds the last top-level `notecraft-canvas` fence, reads ink with a streaming lenient reader (unknown fields skipped, bad numbers fall back, coordinates clamped to 1,000,000, ids cut to 64 characters, strokes over 20,000 points simplified with Ramer-Douglas-Peucker in `notecraft_core::simplify`, nesting over 32 refused) and writes only the `"ink"` value, so every other key and all spacing stay byte for byte. A page with no block and no ink stays as it is; the first stroke appends a block. Identical strokes (after rounding to 2 places) leave the text untouched.
+- Failure policy: a block that does not parse, is over 48 MiB, has a newer `format`, or has over 100,000 strokes opens read-only with a notice (`CanvasProblem`), text shown in flow layout, and a copy goes to `.notecraft/history/<page path>/canvas-unreadable.notecraft`. The writer refuses (never rewrites) such a block, and refuses to append a block to a page that ends inside an unclosed code fence.
+- `.md` pages: the spec keeps a markdown page plain, so it has no canvas block. The sensible call: the first stroke on a `.md` page promotes it (`change_page_kind`: atomic write of the `.notecraft` file, then the `.md` file is removed, and a quoted file name in `.section.toml` is rewritten). The page id changes, so the session re-keys everything it holds and clears the undo history.
+- Engine: `load_current_page` reads `.notecraft` pages (whole file text in the session, strokes into the ink layer); `Session::save_page(id)` writes text and strokes in one atomic write; `PageSource::visible_text` hides the block from the layout; `page.convert_to_markdown { confirm }` (destructive, not undoable) returns the warning until `confirm` is true, then drops the markers and the block.
+- One save path (merged with PR 1.7, #39): `Session::save_page` keeps #39's guards (dirty, read-only, open conflict, disk-hash check before writing, journal cleanup) and its outcomes, and adds the ink. The text it writes is `file_text`: the page text with the strokes in the canvas block. A `.md` page with strokes is written as `.notecraft` and the `.md` file removed; the outcome is `Promoted { new_id }`, and the dirty mark, disk hash, conflict, pending recovery, queued reads, selection, page list, text, notice, style, and strokes all follow the new id (`Session::rekey_page`; the page's undo steps are dropped). `SessionIo` (timer, focus loss, page switch, quit) therefore saves ink with no changes. The recovery journal holds the whole file text, canvas block included, so a crash keeps the strokes: `restore_recovery` reads the block back (`load_canvas_from_journal`) and the next save writes it, promoting a `.md` page if needed. An outside change to a `.notecraft` page with unsaved strokes is a conflict, not an overwrite; taking the outside version reloads its strokes.
+
+Open questions: a read-only page whose block did not parse cannot be repaired or saved from the app yet (the copy under history is the way back); positions of containers, shapes, images, and files in the block wait for the PRs that draw them; there is no UI button or warning bar for Convert yet.
 
 ## PR 1.10: ink engine and pen
 
@@ -361,6 +395,21 @@ Commits:
 
 PR title: `feat(canvas): add highlighter and erasers`.
 
+### PR 1.11 notes: deviations and open questions
+
+Built on `feat/ink-erase` (2026-10-16), on top of PR 1.8 and PR 1.10. The design is in docs/architecture.md sections 10.3 and 10.4 ("as built" paragraphs). What differs from the steps above:
+
+- Commits: the engine, canvas geometry, and command work for all three tools landed in one commit (they share the tool state, the ids, and the undo case table), then the front end, then tests and docs. The four commits above were not kept apart.
+- New command `ink.erase { points, radius, mode?, join? }` (Ready, undoable). `draw.highlighter` and `draw.eraser { mode? }` are Ready and only pick the tool; the canvas sends `ink.erase` once per frame of an eraser drag. Both erasers are the same command, selected by `mode` (`stroke` or `point`), so a script can erase without the pointer.
+- No new undo op: a point-eraser split is `DeleteStroke` plus `InsertStroke` ops at the stroke's paint position, in one transaction. The "one undo step per drag" rule uses `merge_into_previous()` but only while the step just before is an erase (`History::erase_chain`); the first sample of a drag sends `join: false`. Without that guard a join right after a pen stroke or an undo would have merged into the wrong step (tested in `a_new_drag_and_other_steps_start_a_new_step`).
+- The highlighter has its own style (default yellow, 8 pt) next to the pen's; `draw.color` and `draw.thickness` change whichever is the tool. The Draw tab menus mark the current highlighter, eraser mode, and thickness (`ribbon::ActiveTool`).
+- Eraser sizes (maintainer decision, 2026-10-16): the Eraser menu lists Stroke Eraser plus Small, Medium, and Large point erasers, as OneNote's does. `draw.eraser` takes `mode` and `size` (a size alone means the point eraser; the size is kept across modes); the circle is 5, 10, or 20 screen pixels and the stroke eraser keeps its 6 px reach. The menu marks the current entry.
+- Point eraser reach (maintainer decision, 2026-10-16): it cuts wherever its circle touches a stroke's outline, including a graze between two stored points. `split_stroke` solves the circle against each segment exactly, adding the drawn half width (nominal width and pressure, interpolated along the segment) to the radius; cut ends sit where the circle meets the outline. Tests: `a_graze_between_points_cuts`, `the_width_at_that_point_counts`, `the_point_eraser_cuts_a_graze_between_stored_points`.
+- The highlighter blends with the paper at 0.5 into an opaque mesh. That covers rule lines under the stroke and does not let strokes darken each other; true multiply is the paint callback in section 10.3, step 3. IN-04 stays P for that and for saving.
+- Shared build folder note for agents: several worktrees building into one `CARGO_TARGET_DIR` can clobber each other's workspace crates (same package id), so this PR was built in `shared-target/ink-erase`.
+
+Decisions that closed the open questions (2026-10-16): eraser sizes and the grazing point eraser are built as above; true multiply for the highlighter stays a recorded gap (docs/gaps.md rank 21), and the maintainer decides where it goes.
+
 ## PR 1.12: attachments
 
 | | |
@@ -401,6 +450,27 @@ Commits:
 5. `test(engine): structure commands with undo`
 
 PR title: `feat(engine): edit notebook structure`.
+
+### PR 1.13 notes: deviations and open questions
+
+Built on `feat/structure-editing` (2026-10-16), on top of the Phase 1 base (PR 1.1, 1.2, 1.3, 1.4, 1.8, 1.10). What differs from the steps above:
+
+- The design is in docs/architecture.md section 5.1. Structure edits are `Scope::Notebook` transactions of `FsOp`s (create, move, write a settings file, close or reopen a notebook). The disk changes first, and the tree is read from the folder again after every step, undo, and redo. Undo of a rename or move re-applies the inverse file operation; a step that no longer fits the files is dropped without changing anything, and a half-applied step is reversed.
+- Delete goes to `.notecraft/trash/<seconds>-<n>/` with an `origin.toml`, as the plan says ("to trash folder, restore UI comes in Phase 3"). The Recycle Bin list, restore, and the 30 day purge stay in PR 3.5; this PR builds no UI that reads the trash. Notebook "delete" is `file.close_notebook` (OneNote's Close This Notebook): it leaves the list and keeps its folder, because deleting a user's whole folder is not something a menu item should do.
+- Commands (all Ready, undoable except `file.new_notebook`): `page.new`, `page.rename`, `page.delete`, `page.move`, `page.set_level`, `page.make_subpage`, `page.promote_subpage`, `section.new`, `section.group_new`, `section.rename`, `section.delete`, `section.move`, `section.set_color`, `notebook.rename`, `notebook.set_color`, `file.close_notebook`, and `file.new_notebook` (now creates the folder and `notebook.toml`). Sections and section groups share the `section.*` commands. `file.notebook_properties` stays Coming Soon (it is a dialog with the folder path; rename and color are separate commands here).
+- Renaming a notebook changes its display name in `notebook.toml`; the folder keeps its name, so the notebook id and every page id stay the same.
+- A page title is its file name (docs/markdown.md section 2.3), so renaming renames the file. A frontmatter title that differs from the file name is not changed or read yet (titles from frontmatter come with the index worker); the navigation shows the file name.
+- Moving a page to another section also copies the attachments its text links to (found by scanning the text for `attachments/<name>`); the original stays for pages that still use it. The attachment store itself (hash prefixes, linked files) is PR 1.12. Subpages do not travel with their parent page when it is dragged away; the moved page lands at level 0. OneNote moves the subpages of a collapsed parent; subpage collapsing is not built, so this waits for it.
+- A section moved into a group keeps its name; a taken name gets a number. Moving checks the 8 level nesting limit and refuses a group moved into itself.
+- UI (feat(ui) commit): context menus on notebook, group, section (tab and pane), and page rows; double-click or the Rename item renames in place (Enter commits, Esc cancels); drag a page to reorder it or onto a section; drag a section or group to reorder it, into a group, or onto the notebook for the top level; Move Up and Move Down in the page menu do what a drag does for the keyboard. The drag logic is tested through the position math and the commands it emits (`drop_index`, `move_page`, `move_section`); the headless harness does not drive a pointer drag.
+- Section and notebook colors: a Color submenu with eight colors (the six defaults, teal, and gray) writes `color` to `.section.toml` or `notebook.toml`. A custom color picker is not built.
+- Sample (mock) notebooks cannot be edited: the commands fail with "this is a sample notebook; open or create a notebook folder first" (shown as a toast). Open or create a notebook folder first. `page.move` still reorders and moves pages in memory there.
+- The index (PR 1.2) needs no new code: a rename or move is a removal and an addition for `Index::refresh`, which reads the folder. Tests check that the index agrees with a fresh scan after each kind of edit.
+- Not done, by plan: Recycle Bin UI (PR 3.5), password-protected sections (PR 3.x), page links and link updates on rename (Phase 2), a custom color dialog.
+
+Decisions on the open questions (coordinator, 2026-10-16):
+
+- A new section starts with one Untitled Page, created in the same undo step and selected, as in OneNote; Add Page stays at the end of the list; closing is the right meaning of "delete notebook", with no OS trash option.
 
 ## PR 1.14: fuzzing
 
@@ -490,3 +560,6 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 1 | PR 1.4 done: deviations (Editor API, canonical serializer scope, minimal save path in storage, corpus location) noted under PR 1.4. |
 | 2026-10-15 | 1 | PR 1.10 follow-ups from the WordCraft survey: anti-aliased stroke edges and a marked current pen; PR 1.11 gains its highlighter and eraser design. Hours unchanged. |
 | 2026-10-15 | 1 | PR 1.8 transactions gain a merge-with-previous flag for the stroke eraser (maintainer decision, 2026-10-15); hours unchanged. |
+| 2026-10-16 | 1 | PR 1.11 deviations and the eraser design as built. Hours unchanged. |
+| 2026-10-16 | 1 | PR 1.11 follow-ups: eraser sizes and grazing point eraser decided and built; open questions closed. |
+| 2026-10-16 | 1 | PR 1.13 done: deviations (trash layout, close as notebook delete, commands, sample notebooks read-only) and open questions noted under PR 1.13. |

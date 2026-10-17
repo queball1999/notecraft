@@ -14,8 +14,10 @@ mod guard;
 pub mod ids;
 mod layout;
 mod nav;
+mod page;
 mod registry;
 pub mod shortcuts;
+pub(crate) mod structure;
 #[cfg(test)]
 mod tests;
 mod text;

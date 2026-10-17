@@ -13,7 +13,7 @@ use notecraft_canvas::RuleLines;
 use notecraft_engine::cmd::{ids, CommandId, Map, Value};
 
 use super::spec::{ArgValue, Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS};
-use super::{ActivePen, Clicked, Look};
+use super::{ActivePen, ActiveTool, Clicked, Look};
 use crate::color::{self, Rgba8};
 use crate::themes::{hex, mix};
 
@@ -209,6 +209,26 @@ fn is_current_pen(item: &Item, pen: Option<ActivePen>) -> bool {
     };
     let same_width = |width: f64| (width as f32 - pen.width_pt).abs() < 1.0e-3;
     let arg = |name: &str| item.args.iter().find(|arg| arg.name == name);
+    if item.command == ids::DRAW_ERASER {
+        let mode = arg("mode").and_then(|arg| match arg.value {
+            ArgValue::Str(text) => Some(text),
+            _ => None,
+        });
+        let size = arg("size").and_then(|arg| match arg.value {
+            ArgValue::Str(text) => Some(text),
+            _ => None,
+        });
+        return match (pen.tool, mode) {
+            // A size entry (point eraser) is current when mode is point and the size matches.
+            (ActiveTool::Eraser(current, current_size), Some(mode)) => {
+                current == mode && size.is_none_or(|size| size == current_size)
+            }
+            _ => false,
+        };
+    }
+    if matches!(pen.tool, ActiveTool::Eraser(..)) {
+        return false;
+    }
     let color = arg("color").and_then(|arg| match arg.value {
         ArgValue::Str(text) => crate::color::parse(text)
             .map(|[r, g, b, _]| u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b)),
@@ -219,7 +239,11 @@ fn is_current_pen(item: &Item, pen: Option<ActivePen>) -> bool {
         ArgValue::Int(value) => Some(value as f64),
         _ => None,
     });
-    if item.command == ids::DRAW_PEN {
+    let own_command = match pen.tool {
+        ActiveTool::Highlighter => ids::DRAW_HIGHLIGHTER,
+        _ => ids::DRAW_PEN,
+    };
+    if item.command == own_command {
         color == Some(pen.color) && width.is_some_and(same_width)
     } else if item.command == ids::DRAW_THICKNESS {
         width.is_some_and(same_width)
@@ -835,10 +859,19 @@ mod tests {
     const WIDTH: Item = Item::new("3.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 3.5)]);
     const HIGHLIGHTER: Item = Item::new("Yellow", ids::DRAW_HIGHLIGHTER)
         .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)]);
+    const ONE_POINT: Item = Item::new("1 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 1.0)]);
+    const STROKE_ERASER: Item =
+        Item::new("Stroke Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "stroke")]);
+    const SMALL_ERASER: Item = Item::new("Small Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "small")]);
+    const LARGE_ERASER: Item = Item::new("Large Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "large")]);
+    const POINT_ERASER: Item = LARGE_ERASER;
 
     #[test]
     fn the_menu_marks_the_pen_in_use() {
         let pen = Some(ActivePen {
+            tool: ActiveTool::Pen,
             color: 0x1565C0,
             width_pt: 1.0,
         });
@@ -848,6 +881,7 @@ mod tests {
         // Another tool's items are never the pen.
         assert!(!is_current_pen(&HIGHLIGHTER, pen));
         let thick = Some(ActivePen {
+            tool: ActiveTool::Pen,
             color: 0x1565C0,
             width_pt: 3.5,
         });
@@ -855,9 +889,40 @@ mod tests {
         // Nothing is marked when the pen is not the tool, or the color differs.
         assert!(!is_current_pen(&BLUE, None));
         let other = Some(ActivePen {
+            tool: ActiveTool::Pen,
             color: 0x000000,
             width_pt: 1.0,
         });
         assert!(!is_current_pen(&BLUE, other));
+    }
+
+    #[test]
+    fn the_menu_marks_the_highlighter_and_eraser_in_use() {
+        let highlighter = Some(ActivePen {
+            tool: ActiveTool::Highlighter,
+            color: 0x1565C0,
+            width_pt: 1.0,
+        });
+        assert!(is_current_pen(&HIGHLIGHTER, highlighter));
+        assert!(!is_current_pen(&BLUE, highlighter));
+        assert!(is_current_pen(&ONE_POINT, highlighter));
+        let point = Some(ActivePen {
+            tool: ActiveTool::Eraser("point", "large"),
+            color: 0,
+            width_pt: 0.0,
+        });
+        assert!(is_current_pen(&LARGE_ERASER, point));
+        assert!(!is_current_pen(&SMALL_ERASER, point));
+        assert!(!is_current_pen(&STROKE_ERASER, point));
+        // The eraser being in use marks no pen, highlighter, or thickness.
+        assert!(!is_current_pen(&BLUE, point));
+        assert!(!is_current_pen(&HIGHLIGHTER, point));
+        // Eraser entries are not marked while a pen is in use.
+        let pen = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0x1565C0,
+            width_pt: 1.0,
+        });
+        assert!(!is_current_pen(&POINT_ERASER, pen));
     }
 }

@@ -1,25 +1,18 @@
-//! Note container runs (docs/markdown.md section 3.3): a page body is cut into runs by marker
-//! comments of the form `<!-- notecraft:container id=c1 -->`. Text before the first marker is
-//! the implicit container `c0`.
-//!
-//! This is the read side that text editing (PR 1.5) needs. PR 1.9 adds the canvas block and
-//! the save-time id repair on top of it.
+//! Container runs for text editing (docs/markdown.md section 3.3). This is a view over the one
+//! container model in [`crate::container`]: markers, fences, limits, and id repair all come
+//! from there. A run adds what the editor needs on top: the content span with the marker line
+//! split off, the blocks inside it, and the id the next save will give a bad marker.
 
-use std::collections::BTreeSet;
 use std::ops::Range;
 
-use crate::{Block, BlockKind, Document, LineEnding, Span};
-
-/// Id of the implicit container that holds the text before the first marker.
-pub const IMPLICIT_ID: &str = "c0";
-/// Most container runs read from one page; later markers are treated as ordinary comments.
-pub const MAX_CONTAINERS: usize = 4096;
+use crate::container::{fix_container_ids, marker_line, read_containers};
+use crate::{Block, Document, LineEnding, Span};
 
 /// One container's run of the page text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContainerRun {
-    /// The marker's id, or a fresh one when the marker's id was missing, invalid, or a
-    /// duplicate (`id_repaired`).
+    /// The marker's id, or the fresh one the next save gives it when the marker's id is
+    /// invalid, `c0`, or a duplicate (`id_repaired`).
     pub id: String,
     /// True when `id` is not what the marker says; the file is fixed on the next save.
     pub id_repaired: bool,
@@ -38,137 +31,64 @@ impl ContainerRun {
     }
 }
 
-/// The id a marker block names, if `text` is a container marker comment.
-fn marker_id(text: &str) -> Option<Option<&str>> {
-    let inner = text
-        .trim()
-        .strip_prefix("<!--")?
-        .strip_suffix("-->")?
-        .trim();
-    let rest = inner.strip_prefix("notecraft:container")?;
-    // A marker with no usable id is still a marker.
-    let id = rest
-        .split_whitespace()
-        .find_map(|part| part.strip_prefix("id="));
-    Some(id)
-}
-
 /// The end of the line that contains `at` (just after its `\n`, or the end of the text).
 fn line_end(source: &str, at: usize) -> usize {
     let tail = source.get(at..).unwrap_or("");
     tail.find('\n').map_or(source.len(), |i| at + i + 1)
 }
 
-fn is_valid_id(id: &str) -> bool {
-    (1..=32).contains(&id.len())
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-}
-
-/// The smallest `cN` (N at least 1) not in `used`.
-fn fresh_id(used: &BTreeSet<String>) -> String {
-    (1_u32..)
-        .map(|n| format!("c{n}"))
-        .find(|id| !used.contains(id))
-        .unwrap_or_else(|| "c-new".to_owned())
-}
-
 /// Cut the body of `doc` into container runs, in page order. The first run is the implicit
 /// container, kept only when it has content or the page has no markers at all. Never fails.
 pub fn split_containers(source: &str, doc: &Document) -> Vec<ContainerRun> {
-    // Markers: (block index, id as written).
-    let mut markers: Vec<(usize, Option<String>)> = Vec::new();
-    for (index, block) in doc.blocks.iter().enumerate() {
-        if markers.len() >= MAX_CONTAINERS {
-            break;
-        }
-        if !matches!(block.kind, BlockKind::Html { .. }) {
-            continue;
-        }
-        if let Some(id) = marker_id(block.source(source)) {
-            markers.push((index, id.map(str::to_owned)));
-        }
-    }
-
-    // Ids that stay as written: valid, first use, not the implicit id.
-    let mut used: BTreeSet<String> = BTreeSet::new();
-    used.insert(IMPLICIT_ID.to_owned());
-    let mut resolved: Vec<(String, bool)> = Vec::new();
-    for (_, id) in &markers {
-        match id {
-            Some(id) if is_valid_id(id) && !used.contains(id) => {
-                used.insert(id.clone());
-                resolved.push((id.clone(), false));
+    let containers = read_containers(source, source.len());
+    // The ids a save would write, from the same repair that save uses.
+    let fixes = fix_container_ids(source, source.len());
+    let mut runs = Vec::with_capacity(containers.len());
+    for c in &containers {
+        let (marker, content_start) = match c.marker {
+            Some(m) => {
+                let end = line_end(source, m.start).min(c.span.end);
+                (Some(Span::new(m.start, end)), end)
             }
-            _ => resolved.push((String::new(), true)),
-        }
-    }
-    for slot in &mut resolved {
-        if slot.1 {
-            let id = fresh_id(&used);
-            used.insert(id.clone());
-            slot.0 = id;
-        }
-    }
-
-    let body_end = source.len();
-    let first_marker_start = markers
-        .first()
-        .and_then(|(i, _)| doc.blocks.get(*i))
-        .map_or(body_end, |b| line_start(source, b.span.start));
-    let mut runs = Vec::new();
-
-    let first_end = markers.first().map_or(doc.blocks.len(), |(i, _)| *i);
-    let implicit = ContainerRun {
-        id: IMPLICIT_ID.to_owned(),
-        id_repaired: false,
-        marker: None,
-        content: Span::new(doc.body_start.min(first_marker_start), first_marker_start),
-        blocks: 0..first_end,
-    };
-    if markers.is_empty() || !implicit.is_blank(source) {
-        runs.push(implicit);
-    }
-
-    for (n, (index, _)) in markers.iter().enumerate() {
-        let Some(block) = doc.blocks.get(*index) else {
-            continue;
+            None => (None, c.span.start),
         };
-        let start = line_start(source, block.span.start);
-        let marker_end = line_end(source, block.span.end.saturating_sub(1).max(start));
-        let next = markers.get(n + 1);
-        let (end, block_end) = match next.and_then(|(i, _)| doc.blocks.get(*i).map(|b| (*i, b))) {
-            Some((i, b)) => (line_start(source, b.span.start), i),
-            None => (body_end, doc.blocks.len()),
+        let content = Span::new(content_start, c.span.end.max(content_start));
+        let fix = c
+            .id_span
+            .and_then(|span| fixes.iter().find(|e| e.span == span));
+        let (id, id_repaired) = match fix {
+            Some(e) => (e.text.clone(), true),
+            None => (c.id.clone(), false),
         };
-        let (id, id_repaired) = resolved.get(n).cloned().unwrap_or_default();
+        let first = doc
+            .blocks
+            .iter()
+            .position(|b| b.span.start >= content.start)
+            .unwrap_or(doc.blocks.len());
+        let last = doc
+            .blocks
+            .iter()
+            .position(|b| b.span.start >= content.end)
+            .unwrap_or(doc.blocks.len());
         runs.push(ContainerRun {
             id,
             id_repaired,
-            marker: Some(Span::new(start, marker_end.min(end))),
-            content: Span::new(marker_end.min(end), end),
-            blocks: index + 1..block_end,
+            marker,
+            content,
+            blocks: first..last.max(first),
         });
     }
     runs
 }
 
-/// The start of the line that contains `at`.
-fn line_start(source: &str, at: usize) -> usize {
-    let head = source.get(..at.min(source.len())).unwrap_or("");
-    head.rfind('\n').map_or(0, |i| i + 1)
-}
-
 /// The container id to give a new container on a page with these runs.
 pub fn next_container_id(runs: &[ContainerRun]) -> String {
-    let used: BTreeSet<String> = runs.iter().map(|r| r.id.clone()).collect();
-    fresh_id(&used)
-}
-
-/// The marker line for container `id`, ending in `eol`.
-pub fn marker_line(id: &str, eol: LineEnding) -> String {
-    format!("<!-- notecraft:container id={id} -->{}", eol.as_str())
+    let highest = runs
+        .iter()
+        .filter_map(|r| r.id.strip_prefix('c')?.parse::<u64>().ok())
+        .max()
+        .unwrap_or(0);
+    format!("c{}", highest.saturating_add(1))
 }
 
 /// Text to append to the page `source` to start the new container `id`: a blank line when the
@@ -183,7 +103,8 @@ pub fn new_container_text(source: &str, id: &str) -> String {
         }
         out.push_str(eol.as_str());
     }
-    out.push_str(&marker_line(id, eol));
+    out.push_str(&marker_line(id));
+    out.push_str(eol.as_str());
     out
 }
 
@@ -244,7 +165,7 @@ mod tests {
 
     #[test]
     fn bad_and_duplicate_ids_get_fresh_ones() {
-        let text = "<!-- notecraft:container id=c1 -->\na\n\n<!-- notecraft:container id=c1 -->\nb\n\n<!-- notecraft:container -->\nc\n\n<!-- notecraft:container id=c0 -->\nd\n";
+        let text = "<!-- notecraft:container id=c1 -->\na\n\n<!-- notecraft:container id=c1 -->\nb\n\n<!-- notecraft:container id=we!rd -->\nc\n\n<!-- notecraft:container id=c0 -->\nd\n";
         let r = runs(text);
         let ids: Vec<(&str, bool)> = r.iter().map(|r| (r.id.as_str(), r.id_repaired)).collect();
         assert_eq!(
@@ -294,7 +215,7 @@ mod tests {
         let text = format!("a\n{}", new_container_text("a\n", "c7"));
         let r = runs(&text);
         assert_eq!(r.last().expect("run").id, "c7");
-        assert_eq!(next_container_id(&r), "c1");
+        assert_eq!(next_container_id(&r), "c8");
     }
 
     #[test]
