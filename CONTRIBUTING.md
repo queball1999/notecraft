@@ -28,6 +28,21 @@ Thanks for helping. Read [AGENTS.md](AGENTS.md) first. Its rules apply to everyo
 
 Run single steps with the commands in the left column while you work.
 
+## Fuzz the parsers
+
+The page parsers (markdown blocks, frontmatter, container markers, the canvas block, `notebook.toml`, `.section.toml`, and the recovery journal) have `cargo fuzz` targets in `fuzz/`. That crate is outside the workspace and needs a nightly toolchain, so `cargo xtask ci` never builds it. The same checks run on stable inside `cargo test` as bounded, seeded mutation tests (`crates/notecraft-markdown/tests/fuzz_props.rs` and `crates/notecraft-storage/tests/fuzz_props.rs`).
+
+Manual run (there is no scheduled workflow; run each target for 30 minutes before a release):
+
+```
+cargo install cargo-fuzz
+bash fuzz/seed.sh
+cd fuzz
+cargo +nightly fuzz run markdown -- -max_total_time=1800
+```
+
+Targets: `markdown`, `frontmatter`, `containers`, `canvas_block`, `notebook_toml`, `section_toml`, `recovery_journal`. A crash writes its input to `fuzz/artifacts/`; turn it into a regression test in the crate that owns the parser, then fix the parser. `fuzz/corpus/` and `fuzz/artifacts/` are not committed.
+
 ## Layering
 
 Crates are stacked in layers L0 to L7 (table in AGENTS.md section 5). A crate may depend only on crates in lower layers. Nothing below L6 may depend on egui, eframe, winit, or rfd. If you need something from a higher layer, pass it in as a trait or a callback instead.
