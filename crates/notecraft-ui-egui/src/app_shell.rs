@@ -1935,16 +1935,16 @@ mod tests {
     #[test]
     fn coming_soon_command_shows_a_toast_for_three_seconds() {
         let mut shell = AppShell::new();
-        shell.dispatch(ids::EDIT_PASTE_PICTURE.as_str(), Value::Null);
+        shell.dispatch(ids::MEETING_DETAILS.as_str(), Value::Null);
         let mut harness = harness(shell, WINDOW);
 
         harness.run();
-        let _ = harness.get_by_label("Coming Soon: Paste as Picture");
+        let _ = harness.get_by_label("Coming Soon: Meeting Details");
 
         // egui's clock advances one predicted frame (1/60 s) per step without real input.
         harness.run_steps(200);
         assert!(harness
-            .query_by_label("Coming Soon: Paste as Picture")
+            .query_by_label("Coming Soon: Meeting Details")
             .is_none());
         assert!(harness.state().toasts().is_empty());
     }
