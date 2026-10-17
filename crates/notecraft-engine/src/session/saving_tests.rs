@@ -88,6 +88,8 @@ fn a_read_only_page_is_never_written() {
     let dir = notebook("x\n");
     let mut session = open(&dir);
     let id = page(&session);
+    // Edited, then found unreadable (an outside change made it read-only): never written.
+    assert!(session.edit_page_text(&id, 0, 0, "y", false));
     session.page_notices.insert(
         id.clone(),
         PageNotice {
@@ -95,8 +97,9 @@ fn a_read_only_page_is_never_written() {
             read_only: true,
         },
     );
-    session.edit_page_text(&id, 0, 0, "y", false);
     assert!(session.journal_candidates().is_empty());
+    // A page that is read-only to begin with refuses edits.
+    assert!(!session.edit_page_text(&id, 0, 0, "z", false));
     assert_eq!(session.save_page(&id), SaveOutcome::ReadOnly);
     assert_eq!(file(&dir), "x\n");
 }

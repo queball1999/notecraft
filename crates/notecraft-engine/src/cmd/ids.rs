@@ -194,6 +194,26 @@ command_ids! {
     DRAW_THICKNESS = "draw.thickness";
     /// Add a stroke drawn with the current pen to the page.
     INK_ADD_STROKE = "ink.add_stroke";
+
+    // Text editing in containers (not on the ribbon; keys and clicks send them)
+    /// Put the text caret at a position, or extend the selection to it.
+    TEXT_SET_CARET = "text.set_caret";
+    /// Move the text caret by a character, word, or line, or extend the selection.
+    TEXT_MOVE = "text.move";
+    /// Type text at the caret, replacing the selection.
+    TEXT_INSERT = "text.insert";
+    /// Delete backward (Backspace) or forward (Delete) by a character or a word.
+    TEXT_DELETE = "text.delete";
+    /// Start a new paragraph or list item, or a line break.
+    TEXT_ENTER = "text.enter";
+    /// Move list items in or out a level.
+    TEXT_TAB = "text.tab";
+    /// Start a new note container at a point on the page.
+    CONTAINER_NEW = "container.new";
+    /// Move a note container to a point on the page.
+    CONTAINER_MOVE = "container.move";
+    /// Change the width of a note container.
+    CONTAINER_RESIZE = "container.resize";
     /// Erase ink along a path.
     INK_ERASE = "ink.erase";
     /// Show or hide the ruler for drawing straight lines.

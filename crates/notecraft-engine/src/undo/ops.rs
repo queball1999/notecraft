@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use notecraft_core::{InkPoint, Stroke};
 use notecraft_model::section::MAX_GROUP_DEPTH;
+use notecraft_model::Container;
 use notecraft_model::{Section, SectionNode};
 
 use crate::session::Session;
@@ -35,6 +36,14 @@ pub enum Op {
         at: usize,
         removed: String,
         inserted: String,
+    },
+    /// Change a container's geometry from `before` to `after`; `None` means "in the flow
+    /// layout with no geometry of its own".
+    SetContainer {
+        page: String,
+        id: String,
+        before: Option<Container>,
+        after: Option<Container>,
     },
     /// Change a page's style (rule lines, background color, paper size) from `before` to
     /// `after`.
@@ -166,6 +175,17 @@ impl Op {
                 removed: inserted.clone(),
                 inserted: removed.clone(),
             },
+            Op::SetContainer {
+                page,
+                id,
+                before,
+                after,
+            } => Op::SetContainer {
+                page: page.clone(),
+                id: id.clone(),
+                before: after.clone(),
+                after: before.clone(),
+            },
             Op::SetPageStyle {
                 page,
                 before,
@@ -202,6 +222,7 @@ impl Op {
             Op::InsertStroke { page, .. }
             | Op::DeleteStroke { page, .. }
             | Op::ReplaceText { page, .. }
+            | Op::SetContainer { page, .. }
             | Op::SetPageStyle { page, .. } => change(page),
             Op::MovePage { page, from, to, .. } => {
                 change(page);
@@ -225,6 +246,9 @@ impl Op {
                 inserted,
                 ..
             } => BASE + page.len() + removed.len() + inserted.len(),
+            Op::SetContainer { page, id, .. } => {
+                BASE + page.len() + id.len() * 3 + size_of::<Container>() * 2
+            }
             Op::SetPageStyle { page, .. } => BASE + page.len() + size_of::<PageStyle>() * 2,
             Op::MovePage {
                 notebook,
@@ -310,7 +334,19 @@ impl Op {
                 next.push_str(head);
                 next.push_str(inserted);
                 next.push_str(tail);
-                session.set_page_source(page, next);
+                session.replace_page_text(page, next);
+                true
+            }
+            Op::SetContainer {
+                page,
+                id,
+                before,
+                after,
+            } => {
+                if session.stored_container(page, id) != *before {
+                    return false;
+                }
+                session.put_container(page, id, after.clone());
                 true
             }
             Op::SetPageStyle {

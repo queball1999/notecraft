@@ -20,6 +20,7 @@ mod canonical;
 #[cfg(test)]
 mod canonical_tests;
 mod container;
+pub mod containers;
 mod document;
 mod edit;
 #[cfg(test)]
@@ -38,6 +39,7 @@ pub use container::{
     fix_container_ids, fresh_container_id, is_valid_id, marker_line, read_containers,
     remove_container_markers, Container, IMPLICIT_ID, MAX_CONTAINERS,
 };
+pub use containers::{split_containers, ContainerRun};
 pub use document::{parse, Document};
 pub use edit::{apply_edits, Edit, EditError, Editor};
 pub use frontmatter::{parse as parse_frontmatter, Entry, Frontmatter, Value};
