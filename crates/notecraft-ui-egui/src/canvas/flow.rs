@@ -980,6 +980,54 @@ mod tests {
     }
 
     #[test]
+    fn a_gfm_table_draws_its_cells_and_grid() {
+        let tokens = tokens();
+        let flow = with_painter(|painter| {
+            lay(
+                painter,
+                "| Name | Qty |\n|---|---:|\n| Pen | 3 |\n| Ink | 12 |\n",
+                1.0,
+                &tokens,
+                None,
+            )
+        });
+        let cells: Vec<String> = flow
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Text { galley, .. } => Some(galley.text().to_owned()),
+                _ => None,
+            })
+            .collect();
+        for word in ["Name", "Qty", "Pen", "3", "Ink", "12"] {
+            assert!(cells.iter().any(|c| c == word), "missing cell {word}");
+        }
+        assert!(flow.items.iter().any(|i| matches!(i, Item::Line { .. })));
+    }
+
+    #[test]
+    fn formatted_runs_and_alignment_lay_out() {
+        let tokens = tokens();
+        let plain = with_painter(|p| lay(p, "word\n", 1.0, &tokens, None));
+        let styled = with_painter(|p| {
+            lay(
+                p,
+                "<!-- notecraft:align=center -->\n<u>a</u> <sup>b</sup> ==c== <span style=\"color:#FF0000\"><span style=\"font-size:22pt\">d</span></span>\n",
+                1.0,
+                &tokens,
+                None,
+            )
+        });
+        assert!(plain.height.is_finite() && styled.height.is_finite());
+        let texts = styled
+            .items
+            .iter()
+            .filter(|i| matches!(i, Item::Text { .. }))
+            .count();
+        assert_eq!(texts, 1, "the alignment comment draws nothing of its own");
+    }
+
+    #[test]
     fn hostile_pages_lay_out_without_panicking() {
         let tokens = tokens();
         let deep = format!("{}x", "> ".repeat(3000));
