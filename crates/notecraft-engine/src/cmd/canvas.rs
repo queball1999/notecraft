@@ -127,6 +127,32 @@ pub(super) fn rule_lines(
     })
 }
 
+/// `view.rule_line_color { color }`: the color of the rule lines and grid, `#RRGGBB`,
+/// `#RRGGBBAA`, or `none` for the theme's own.
+pub(super) fn rule_line_color(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let text = string_arg(args, "color");
+    let color = if text.eq_ignore_ascii_case("none") {
+        None
+    } else {
+        let Some(rgba) = parse_hex(text) else {
+            return Err(invalid(
+                ids::VIEW_RULE_LINE_COLOR,
+                "color",
+                text,
+                "#RRGGBB, #RRGGBBAA, or none",
+            ));
+        };
+        Some(rgba)
+    };
+    restyle(session, "Rule line color", |page| page.rule_color = color);
+    Ok(CommandOutput {
+        value: json!(color.map_or_else(|| "none".to_owned(), format_hex)),
+    })
+}
+
 /// `view.paper_size { size }`
 pub(super) fn paper_size(
     session: &mut Session,
@@ -369,6 +395,39 @@ mod tests {
                 "{bad:?}"
             );
         }
+    }
+
+    #[test]
+    fn rule_line_color_takes_hex_or_none_and_undoes() {
+        let mut session = with_pages();
+        let out = run(
+            &mut session,
+            "view.rule_line_color",
+            json!({ "color": "#9fb6cd" }),
+        );
+        assert_eq!(out, Ok(json!("#9FB6CD")));
+        assert_eq!(
+            session.page_style().rule_color,
+            Some([0x9F, 0xB6, 0xCD, 0xFF])
+        );
+        run(&mut session, "edit.undo", json!(null)).unwrap();
+        assert_eq!(session.page_style().rule_color, None);
+        run(&mut session, "edit.redo", json!(null)).unwrap();
+        run(
+            &mut session,
+            "view.rule_line_color",
+            json!({ "color": "none" }),
+        )
+        .unwrap();
+        assert_eq!(session.page_style().rule_color, None);
+        assert_eq!(
+            run(
+                &mut session,
+                "view.rule_line_color",
+                json!({ "color": "blue" })
+            ),
+            Err("invalid_args")
+        );
     }
 
     #[test]

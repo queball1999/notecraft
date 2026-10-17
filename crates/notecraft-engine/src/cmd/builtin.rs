@@ -166,6 +166,34 @@ const PEN_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
 ];
+const TOOL_INDEX_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "index",
+    ArgKind::Integer,
+    "Position in the Draw tab's list of pens, counting from 0.",
+)];
+const TOOL_DELETE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "index",
+    ArgKind::Integer,
+    "Position in the list, counting from 0; the tool in use when omitted.",
+)];
+const TOOL_ADD_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "kind",
+        ArgKind::String,
+        "pen or highlighter; pen when omitted.",
+    ),
+    ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
+    ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
+];
+const EYEDROPPER_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("x", ArgKind::Number, "Page x in page units."),
+    ArgSpec::required("y", ArgKind::Number, "Page y in page units."),
+    ArgSpec::optional(
+        "radius",
+        ArgKind::Number,
+        "How far from a stroke's edge still counts, in page units.",
+    ),
+];
 const ERASER_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("mode", ArgKind::String, "stroke or point."),
     ArgSpec::optional(
@@ -711,6 +739,40 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable()
     .ready(),
     CommandSpec::new(
+        ids::DRAW_TOOL_SELECT,
+        "Pick Up Tool",
+        "Pick up a pen or highlighter from the Draw tab's list.",
+    )
+    .args(TOOL_INDEX_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::DRAW_TOOL_ADD,
+        "Add Pen",
+        "Add a pen or highlighter to the Draw tab's list and pick it up.",
+    )
+    .args(TOOL_ADD_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::DRAW_TOOL_DELETE,
+        "Delete Tool",
+        "Remove a pen or highlighter from the Draw tab's list.",
+    )
+    .args(TOOL_DELETE_ARGS)
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::DRAW_EYEDROPPER,
+        "Eyedropper",
+        "Take the color of the ink at a point on the page for the current pen.",
+    )
+    .args(EYEDROPPER_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::DRAW_INK_REPLAY,
+        "Ink Replay",
+        "Play back how the ink on the page was drawn.",
+    ),
+    CommandSpec::new(
         ids::DRAW_COLOR,
         "Color",
         "Set the color of the current pen or highlighter.",
@@ -936,6 +998,14 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .undoable()
     .args(RULE_LINE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::VIEW_RULE_LINE_COLOR,
+        "Rule Line Color",
+        "Set the color of the rule lines and grid on the page.",
+    )
+    .undoable()
+    .args(REQUIRED_COLOR_ARGS)
     .ready(),
     CommandSpec::new(
         ids::VIEW_HIDE_TITLE,
@@ -1186,6 +1256,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::VIEW_NORMAL, layout::normal),
     (ids::VIEW_PAGE_COLOR, canvas::page_color),
     (ids::VIEW_RULE_LINES, canvas::rule_lines),
+    (ids::VIEW_RULE_LINE_COLOR, canvas::rule_line_color),
     (ids::VIEW_PAPER_SIZE, canvas::paper_size),
     (ids::VIEW_ZOOM_IN, canvas::zoom_in),
     (ids::VIEW_ZOOM_OUT, canvas::zoom_out),
@@ -1197,6 +1268,10 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_HIGHLIGHTER, draw::draw_highlighter),
     (ids::DRAW_ERASER, draw::draw_eraser),
     (ids::INK_ERASE, draw::erase),
+    (ids::DRAW_TOOL_SELECT, draw::tool_select),
+    (ids::DRAW_TOOL_ADD, draw::tool_add),
+    (ids::DRAW_TOOL_DELETE, draw::tool_delete),
+    (ids::DRAW_EYEDROPPER, draw::eyedropper),
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),

@@ -138,6 +138,8 @@ pub struct PageStyle {
     pub rule_lines: RuleLines,
     /// Background color as RGBA, or `None` for the theme's canvas color.
     pub color: Option<[u8; 4]>,
+    /// Color of the rule lines and grid as RGBA, or `None` for the theme's own.
+    pub rule_color: Option<[u8; 4]>,
     pub paper_size: PaperSize,
 }
 

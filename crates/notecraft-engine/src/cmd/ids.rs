@@ -188,6 +188,16 @@ command_ids! {
     DRAW_HIGHLIGHTER = "draw.highlighter";
     /// Erase ink strokes or parts of strokes.
     DRAW_ERASER = "draw.eraser";
+    /// Pick up a pen or highlighter from the Draw tab's list.
+    DRAW_TOOL_SELECT = "draw.tool_select";
+    /// Add a pen or highlighter to the Draw tab's list.
+    DRAW_TOOL_ADD = "draw.tool_add";
+    /// Remove a pen or highlighter from the Draw tab's list.
+    DRAW_TOOL_DELETE = "draw.tool_delete";
+    /// Pick the color of a stroke on the page for the current pen.
+    DRAW_EYEDROPPER = "draw.eyedropper";
+    /// Play back how the ink on the page was drawn.
+    DRAW_INK_REPLAY = "draw.ink_replay";
     /// Set the color of the current pen.
     DRAW_COLOR = "draw.color";
     /// Set the width of the current pen.
@@ -274,6 +284,8 @@ command_ids! {
     VIEW_PAGE_COLOR = "view.page_color";
     /// Show rule lines or a grid on the page.
     VIEW_RULE_LINES = "view.rule_lines";
+    /// Set the color of the rule lines and grid on the current page.
+    VIEW_RULE_LINE_COLOR = "view.rule_line_color";
     /// Hide the title, date, and time of the page.
     VIEW_HIDE_TITLE = "view.hide_title";
     /// Set the paper size of the page.

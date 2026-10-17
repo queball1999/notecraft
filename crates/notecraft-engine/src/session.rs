@@ -339,6 +339,12 @@ impl Session {
         &mut self.ink
     }
 
+    /// Replace the Draw tab's pens and highlighters without a command, for restoring saved
+    /// settings.
+    pub fn set_pen_tools(&mut self, tools: Vec<crate::ink::PenTool>) {
+        self.ink.replace_tools(tools);
+    }
+
     /// The strokes of the page shown now, if it has any.
     pub fn current_ink(&self) -> Option<&notecraft_canvas::ink::InkLayer> {
         self.ink.layer(self.selection.page.as_deref()?)
