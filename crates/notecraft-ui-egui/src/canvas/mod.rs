@@ -4,11 +4,16 @@
 //! The zoom lives in the session (`view.zoom` and friends), so every zoom, including Ctrl+wheel
 //! and pinch, is a command. The scroll position is front-end state kept here.
 
+mod editing;
+#[cfg(test)]
+mod editing_tests;
 mod flow;
 mod ink;
 #[cfg(test)]
 mod ink_tests;
+mod keymap;
 pub(crate) mod paper;
+mod rawtext;
 mod title;
 mod widget;
 
@@ -16,6 +21,20 @@ use notecraft_canvas::viewport::{self, Viewport};
 use notecraft_core::Vec2;
 
 pub use widget::show;
+
+/// The egui memory id of the flag that is true while the user types in the canvas.
+pub(crate) fn typing_flag() -> egui::Id {
+    egui::Id::new("notecraft.canvas.typing")
+}
+
+/// A page parsed for display and editing.
+#[derive(Debug)]
+pub(crate) struct Parsed {
+    pub doc: notecraft_markdown::Document,
+    pub runs: Vec<notecraft_markdown::ContainerRun>,
+    /// The page text without markdown syntax, for screen readers.
+    pub plain: String,
+}
 
 /// Canvas state kept between frames.
 #[derive(Debug)]
@@ -27,7 +46,9 @@ pub struct CanvasUi {
     /// drag pan); otherwise the scroll area owns the scroll position.
     force_offset: bool,
     /// The parsed page shown now, with the page id and source revision it was parsed for.
-    parsed: Option<(String, u64, notecraft_markdown::Document, String)>,
+    parsed: Option<(String, u64, std::sync::Arc<Parsed>)>,
+    /// Pointer and keyboard editing state.
+    edit: editing::EditUi,
     /// The stroke being drawn and the stroke mesh cache.
     ink: ink::InkUi,
 }
@@ -39,6 +60,7 @@ impl Default for CanvasUi {
             seen_percent: 100,
             force_offset: false,
             parsed: None,
+            edit: editing::EditUi::default(),
             ink: ink::InkUi::default(),
         }
     }
@@ -46,25 +68,28 @@ impl Default for CanvasUi {
 
 impl CanvasUi {
     /// The parsed document for `source`, parsing again only when the page or its text changed.
-    fn document(
-        &mut self,
-        source: notecraft_engine::PageSource<'_>,
-    ) -> &notecraft_markdown::Document {
+    fn document(&mut self, source: notecraft_engine::PageSource<'_>) -> std::sync::Arc<Parsed> {
         let kept = self
             .parsed
             .take()
-            .filter(|(id, rev, _, _)| id == source.page_id && *rev == source.revision);
+            .filter(|(id, rev, _)| id == source.page_id && *rev == source.revision);
         let entry = kept.unwrap_or_else(|| {
             let doc = notecraft_markdown::parse(source.visible_text());
-            let text = doc.plain_text();
-            (source.page_id.to_owned(), source.revision, doc, text)
+            let runs = notecraft_markdown::split_containers(source.visible_text(), &doc);
+            let plain = doc.plain_text();
+            let parsed = Parsed { doc, runs, plain };
+            (
+                source.page_id.to_owned(),
+                source.revision,
+                std::sync::Arc::new(parsed),
+            )
         });
-        &self.parsed.insert(entry).2
+        self.parsed.insert(entry).2.clone()
     }
 
     /// The plain text of the page shown, for screen readers.
     fn reader_text(&self) -> &str {
-        self.parsed.as_ref().map_or("", |(_, _, _, text)| text)
+        self.parsed.as_ref().map_or("", |(_, _, p)| &p.plain)
     }
 
     /// Where the canvas looks now.

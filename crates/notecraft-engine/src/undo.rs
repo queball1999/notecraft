@@ -432,16 +432,26 @@ impl Session {
         let scope = self.history.pick(page.as_deref(), redo)?;
         let entry = self.history.pop(&scope, redo)?;
         let label = entry.label.clone();
-        let applied = if redo {
-            ops::apply_all(self, entry.ops.iter())
+        let to_apply: Vec<Op> = if redo {
+            entry.ops.to_vec()
         } else {
-            let inverse: Vec<Op> = entry.ops.iter().rev().map(Op::inverse).collect();
-            ops::apply_all(self, inverse.iter())
+            entry.ops.iter().rev().map(Op::inverse).collect()
         };
+        let applied = ops::apply_all(self, to_apply.iter());
         self.resync_dirty();
         if !applied {
             tracing::warn!("dropped a history step that could no longer be applied: {label}");
             return None;
+        }
+        // The caret follows the last text change the step made.
+        let caret = to_apply.iter().rev().find_map(|op| match op {
+            Op::ReplaceText {
+                page, at, inserted, ..
+            } => Some((page.clone(), at + inserted.len())),
+            _ => None,
+        });
+        if let Some((page, at)) = caret {
+            self.set_text_cursor(&page, crate::session::TextCursor::caret(at));
         }
         self.history.push_moved(&scope, entry, !redo);
         self.mark_changed();
@@ -499,6 +509,9 @@ impl Session {
         inserted: &str,
         typing: bool,
     ) -> bool {
+        if !self.page_is_editable(page) {
+            return false;
+        }
         let text = self.page_text(page).unwrap_or_default();
         let end = at.saturating_add(remove_len);
         let Some(removed) = text.get(at..end) else {
@@ -553,4 +566,4 @@ impl Session {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

@@ -17,6 +17,9 @@ pub mod shortcuts;
 pub(crate) mod structure;
 #[cfg(test)]
 mod tests;
+mod text;
+#[cfg(test)]
+mod text_tests;
 mod theme;
 
 use std::fmt;
