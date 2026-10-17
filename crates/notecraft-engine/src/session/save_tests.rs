@@ -293,6 +293,160 @@ fn convert_to_markdown_asks_first_then_drops_ink_and_markers() {
 }
 
 #[test]
+fn container_positions_load_from_the_canvas_block() {
+    let dir = notebook(&[("Sec/A.notecraft", BASIC)]);
+    let session = open(&dir);
+    let id = current_id(&session);
+    let c1 = session.container(&id, "c1");
+    assert_eq!(c1.pos, Some(notecraft_core::Vec2::new(48.0, 96.0)));
+    assert_eq!(c1.width, 420.0);
+    assert_eq!(session.page_containers(&id).len(), 2);
+    assert!(!session.is_page_dirty(&id));
+}
+
+#[test]
+fn a_moved_and_resized_container_is_saved_and_reloads() {
+    let dir = notebook(&[("Sec/A.notecraft", BASIC)]);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(
+        &mut session,
+        "container.move",
+        json!({ "id": "c1", "x": 100, "y": 150 }),
+    );
+    assert!(session.is_page_dirty(&id), "a move marks the page dirty");
+    assert_eq!(session.save_page(&id), SaveOutcome::Saved);
+    run(
+        &mut session,
+        "container.resize",
+        json!({ "id": "c2", "width": 250 }),
+    );
+    assert!(session.is_page_dirty(&id), "a resize marks the page dirty");
+    assert_eq!(session.save_page(&id), SaveOutcome::Saved);
+    let file = read(&dir, "Sec/A.notecraft");
+    assert!(file.contains("\"c1\": { \"x\": 100, \"y\": 150, \"w\": 420 }"));
+    assert!(file.contains("\"c2\": { \"x\": 520, \"y\": 96, \"w\": 250 }"));
+    // Ink, shapes, z, and unknown keys are untouched.
+    assert!(file.contains("\"future\": { \"keep\": [\"me\", 1, null] }"));
+    assert!(file.contains("\"sh1\""));
+
+    let again = open(&dir);
+    let id = current_id(&again);
+    assert_eq!(
+        again.container(&id, "c1").pos,
+        Some(notecraft_core::Vec2::new(100.0, 150.0))
+    );
+    assert_eq!(again.container(&id, "c2").width, 250.0);
+    assert_eq!(again.current_ink().unwrap().len(), 2);
+}
+
+#[test]
+fn undoing_a_move_marks_the_page_dirty_and_saves_the_old_place() {
+    let dir = notebook(&[("Sec/A.notecraft", BASIC)]);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(
+        &mut session,
+        "container.move",
+        json!({ "id": "c1", "x": 100, "y": 150 }),
+    );
+    assert_eq!(session.save_page(&id), SaveOutcome::Saved);
+    run(&mut session, "edit.undo", json!({}));
+    assert!(session.is_page_dirty(&id), "undo marks the page dirty");
+    assert_eq!(session.save_page(&id), SaveOutcome::Saved);
+    assert_eq!(read(&dir, "Sec/A.notecraft"), BASIC);
+}
+
+#[test]
+fn a_markdown_page_with_a_positioned_container_is_promoted() {
+    let dir = notebook(&[("Sec/A.md", "# Hi\n")]);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "draw.type", json!({}));
+    run(&mut session, "container.new", json!({ "x": 300, "y": 400 }));
+    run(&mut session, "text.insert", json!({ "text": "typed" }));
+    assert!(session.is_page_dirty(&id));
+    let SaveOutcome::Promoted { new_id } = session.save_page(&id) else {
+        panic!("not promoted");
+    };
+    assert!(new_id.ends_with("Sec/A.notecraft"));
+    assert!(!dir.path().join("Sec/A.md").exists());
+    let file = read(&dir, "Sec/A.notecraft");
+    assert!(file.contains("\"containers\": {"), "{file}");
+    assert!(file.contains("\"x\": 300, \"y\": 400"));
+    assert!(file.contains("typed"));
+
+    let again = open(&dir);
+    let id = current_id(&again);
+    assert_eq!(
+        again.container(&id, "c1").pos,
+        Some(notecraft_core::Vec2::new(300.0, 400.0))
+    );
+}
+
+#[test]
+fn a_markdown_page_without_positions_stays_markdown() {
+    let dir = notebook(&[("Sec/A.md", "# Hi\n")]);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 0 }));
+    run(&mut session, "text.insert", json!({ "text": "x" }));
+    assert_eq!(session.save_page(&id), SaveOutcome::Saved);
+    assert!(dir.path().join("Sec/A.md").exists());
+}
+
+#[test]
+fn convert_to_markdown_forgets_the_positions() {
+    let dir = notebook(&[("Sec/A.notecraft", BASIC)]);
+    let mut session = open(&dir);
+    run(
+        &mut session,
+        "page.convert_to_markdown",
+        json!({ "confirm": true }),
+    );
+    let id = current_id(&session);
+    assert!(session.page_containers(&id).is_empty());
+}
+
+#[test]
+fn a_broken_canvas_block_can_be_repaired() {
+    let text = "Words\n\n```notecraft-canvas\n{ \"ink\": [ \n```\n";
+    let dir = notebook(&[("Sec/A.notecraft", text)]);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    assert!(session.can_repair_canvas());
+    assert!(session.current_page_notice().unwrap().read_only);
+    let out = run(&mut session, "page.repair_canvas", json!({}));
+    assert_eq!(out["repaired"], true);
+    assert_eq!(session.current_page_notice(), None);
+    assert!(session.is_page_dirty(&id));
+    assert!(!session.can_repair_canvas());
+    assert_eq!(session.save_page(&id), SaveOutcome::Saved);
+    let file = read(&dir, "Sec/A.notecraft");
+    assert!(file.starts_with("Words\n\n```notecraft-canvas\n{"));
+    assert!(notecraft_storage::read_canvas(&file).problem.is_none());
+    // The unreadable original is still under history.
+    let copy = dir
+        .path()
+        .join(".notecraft/history/Sec_A.notecraft/canvas-unreadable.notecraft");
+    assert_eq!(std::fs::read_to_string(copy).unwrap(), text);
+    // Nothing left to repair.
+    let out = run(&mut session, "page.repair_canvas", json!({}));
+    assert_eq!(out["repaired"], false);
+}
+
+#[test]
+fn a_newer_format_page_is_not_offered_a_repair() {
+    let text = "Words\n\n```notecraft-canvas\n{ \"format\": 99 }\n```\n";
+    let dir = notebook(&[("Sec/A.notecraft", text)]);
+    let mut session = open(&dir);
+    assert!(session.current_page_notice().unwrap().read_only);
+    assert!(!session.can_repair_canvas());
+    let out = run(&mut session, "page.repair_canvas", json!({}));
+    assert_eq!(out["repaired"], false);
+}
+
+#[test]
 fn mock_pages_are_not_saveable() {
     let mut session = Session::new();
     session.set_notebooks(crate::mock::notebooks());

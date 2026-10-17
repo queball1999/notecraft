@@ -31,8 +31,8 @@ pub mod watch;
 
 pub use canvas_block::{
     can_repair, find_canvas_block, normalized, normalized_container, read_canvas, repair_canvas,
-    strip_canvas_block, write_canvas, write_ink, CanvasBlock, CanvasContainer,
-    CanvasProblem, CanvasRead, WriteInkError,
+    strip_canvas_block, write_canvas, write_ink, CanvasBlock, CanvasContainer, CanvasProblem,
+    CanvasRead, WriteInkError,
 };
 pub use notebook_dir::{
     scan_notebook, scan_notebook_with, GroupEntry, NotebookTree, PageEntry, PageKind, ScanError,

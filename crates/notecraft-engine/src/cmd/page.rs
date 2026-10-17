@@ -1,4 +1,4 @@
-//! Page file commands: `page.convert_to_markdown`.
+//! Page file commands: `page.convert_to_markdown` and `page.repair_canvas`.
 
 use serde_json::json;
 
@@ -25,4 +25,18 @@ pub(super) fn convert_to_markdown(
         ConvertOutcome::Converted { new_id } => json!({ "converted": true, "page": new_id }),
     };
     Ok(CommandOutput { value })
+}
+
+/// `page.repair_canvas`: replace the unreadable canvas block of the `.notecraft` page shown
+/// with a fresh one that keeps what could be read from it. Returns `{ repaired }`. The old
+/// file is already in the notebook history folder (copied when the page opened); the page
+/// becomes editable and unsaved, and its undo steps are cleared.
+pub(super) fn repair_canvas(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let repaired = session.repair_current_canvas();
+    Ok(CommandOutput {
+        value: json!({ "repaired": repaired }),
+    })
 }

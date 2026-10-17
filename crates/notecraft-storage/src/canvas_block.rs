@@ -1164,7 +1164,10 @@ fn append_block(
 /// size limit). A block that is merely newer or has too many strokes is not repairable,
 /// because a fresh block would drop data the file still holds.
 pub fn can_repair(problem: CanvasProblem) -> bool {
-    matches!(problem, CanvasProblem::Unparseable | CanvasProblem::TooLarge)
+    matches!(
+        problem,
+        CanvasProblem::Unparseable | CanvasProblem::TooLarge
+    )
 }
 
 /// `text` with a block that did not parse replaced by a fresh one that holds whatever was read
