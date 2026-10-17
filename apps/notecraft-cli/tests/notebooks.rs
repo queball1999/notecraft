@@ -130,3 +130,167 @@ fn a_missing_notebook_folder_and_bad_global_options_have_exit_codes() {
     let output = cli(&["run", "--cmd", "view.zoom={\"percent\":150}", "--quiet"]);
     assert!(output.status.success());
 }
+
+#[test]
+fn text_prints_a_page_found_by_id_path_or_link_target() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    let expected = "Monday\nWater the plants\nCall the plumber\n";
+    for page in [
+        "Journal/Monday.md",
+        "Journal/Monday",
+        "Monday",
+        "monday",
+        "nb_basic_sample/Journal/Monday.md",
+    ] {
+        let output = cli(&["text", page, "--notebook", &path]);
+        assert!(output.status.success(), "{page}");
+        assert_eq!(stdout(&output), expected, "{page}");
+    }
+    let output = cli(&["--json", "--notebook", &path, "text", "Monday"]);
+    let value = json(&output);
+    assert_eq!(value["page"], "nb_basic_sample/Journal/Monday.md");
+    assert_eq!(value["path"], "Journal/Monday.md");
+    assert_eq!(value["text"], expected);
+
+    // A canvas page shows its text without the canvas block or the container marker.
+    let sketch = stdout(&cli(&["text", "Sketch ideas", "--notebook", &path]));
+    assert!(
+        sketch.contains("A treehouse with a rope bridge"),
+        "{sketch}"
+    );
+    assert!(!sketch.contains("notecraft-canvas"), "{sketch}");
+    assert!(!sketch.contains("notecraft:container"), "{sketch}");
+}
+
+#[test]
+fn text_errors_have_exit_codes() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    assert_eq!(
+        cli(&["text", "No such page", "--notebook", &path])
+            .status
+            .code(),
+        Some(3)
+    );
+    assert_eq!(cli(&["text", "--notebook", &path]).status.code(), Some(2));
+    assert_eq!(
+        cli(&["text", "a", "b", "--notebook", &path]).status.code(),
+        Some(2)
+    );
+    // Two pages share a name: ambiguous (exit 2), but a path picks one.
+    std::fs::write(nb.path().join("Reference").join("Monday.md"), "# Other\n").unwrap();
+    let both = cli(&["text", "Monday", "--notebook", &path]);
+    assert_eq!(both.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&both.stderr).contains("more than one page"));
+    let one = cli(&["text", "Reference/Monday", "--notebook", &path]);
+    assert_eq!(stdout(&one), "Other\n");
+}
+
+#[test]
+fn check_passes_on_a_clean_notebook() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    let output = cli(&["check", "--notebook", &path]);
+    assert!(output.status.success(), "{}", stdout(&output));
+    assert!(stdout(&output).contains("Checked 12 pages: 0 problems"));
+    let value = json(&cli(&["check", "--json", "--notebook", &path]));
+    assert_eq!(value["ok"], true);
+    assert_eq!(value["pages"], 12);
+}
+
+#[test]
+fn check_finds_broken_links_missing_attachments_and_bad_canvas_blocks() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    let journal = nb.path().join("Journal");
+    std::fs::write(
+        journal.join("Links.md"),
+        "# Links\n\nGood [[Monday]] and [[Journal/Tuesday|Tue]] and `[[in code]]`.\n\n\
+         Bad [[Nowhere]] and [[Nowhere]] again.\n\n\
+         ![pic](attachments/gone.png) [file](attachments/a1b2c3-readme.txt) \
+         [web](https://example.org/x) [gone](attachments/missing%20file.pdf)\n",
+    )
+    .unwrap();
+    std::fs::write(
+        journal.join("Broken ink.notecraft"),
+        "Text\n\n```notecraft-canvas\n{ not json\n```\n",
+    )
+    .unwrap();
+
+    let output = cli(&["check", "--notebook", &path]);
+    assert_eq!(output.status.code(), Some(1));
+    let text = stdout(&output);
+    assert!(text.contains("Journal/Links.md: broken_link"), "{text}");
+    assert_eq!(
+        text.matches("[[Nowhere]]").count(),
+        1,
+        "once per page: {text}"
+    );
+    assert!(!text.contains("[[Monday]]"), "{text}");
+    assert!(!text.contains("in code"), "{text}");
+    assert!(text.contains("attachments/gone.png"), "{text}");
+    assert!(text.contains("attachments/missing%20file.pdf"), "{text}");
+    assert!(!text.contains("a1b2c3-readme"), "{text}");
+    assert!(!text.contains("example.org"), "{text}");
+    assert!(
+        text.contains("Journal/Broken ink.notecraft: bad_canvas"),
+        "{text}"
+    );
+
+    let value = json(&cli(&["check", "--json", "--notebook", &path]));
+    assert_eq!(value["ok"], false);
+    let kinds: Vec<&str> = value["problems"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        kinds.iter().filter(|k| **k == "missing_attachment").count(),
+        2
+    );
+    assert_eq!(kinds.iter().filter(|k| **k == "broken_link").count(), 1);
+    assert_eq!(kinds.iter().filter(|k| **k == "bad_canvas").count(), 1);
+
+    // Quiet keeps the problems and drops the summary; the exit code is the same.
+    let quiet = cli(&["check", "--quiet", "--notebook", &path]);
+    assert_eq!(quiet.status.code(), Some(1));
+    assert!(!stdout(&quiet).contains("Checked"));
+}
+
+#[test]
+fn check_reports_pages_that_cannot_be_read_as_text() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    std::fs::write(
+        nb.path().join("Journal").join("Bytes.md"),
+        [0x66, 0xff, 0xfe, 0x67],
+    )
+    .unwrap();
+    let value = json(&cli(&["check", "--json", "--notebook", &path]));
+    let problems = value["problems"].as_array().unwrap();
+    assert_eq!(problems.len(), 1, "{value}");
+    assert_eq!(problems[0]["kind"], "bad_text");
+    assert_eq!(problems[0]["path"], "Journal/Bytes.md");
+}
+
+#[test]
+fn an_ambiguous_link_is_a_warning_not_a_problem() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    std::fs::write(nb.path().join("Reference").join("Monday.md"), "# Other\n").unwrap();
+    let beta = nb.path().join("Projects").join("Beta");
+    std::fs::write(beta.join("Pointer.md"), "See [[Monday]].\n").unwrap();
+    // From the Journal section the link resolves to the page in the same section.
+    std::fs::write(
+        nb.path().join("Journal").join("Near.md"),
+        "See [[Monday]].\n",
+    )
+    .unwrap();
+    let output = cli(&["check", "--notebook", &path]);
+    assert!(output.status.success(), "{}", stdout(&output));
+    let text = stdout(&output);
+    assert!(text.contains("warning: Projects/Beta/Pointer.md"), "{text}");
+    assert!(!text.contains("Near.md"), "{text}");
+}

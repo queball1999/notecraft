@@ -16,8 +16,10 @@
 use std::io::Write;
 use std::process::ExitCode;
 
+mod check;
 mod info;
 mod notebook;
+mod text;
 
 use notebook::Failure;
 
@@ -38,6 +40,8 @@ OPTIONS (any command, before or after it):
 
 COMMANDS:
   notecraft-cli info                        notebook, section, and page counts and format version
+  notecraft-cli text <page>                 print a page's plain text (id, path, or link target)
+  notecraft-cli check                       find unreadable pages, broken links, missing files
   notecraft-cli commands                    list every command: id, label, status, arguments
   notecraft-cli run [--sample] --cmd 'id={json}' [--cmd ...]
                                             run commands headlessly, in order, on an empty
@@ -52,7 +56,7 @@ EXIT CODES:
 ";
 
 /// The subcommands, in `USAGE` order.
-const SUBCOMMANDS: &[&str] = &["info", "commands", "run"];
+const SUBCOMMANDS: &[&str] = &["info", "text", "check", "commands", "run"];
 
 /// Longest `--cmd` value accepted, in bytes (Windows caps a whole command line near 32 KB).
 const MAX_CMD_BYTES: usize = 16 * 1024;
@@ -206,6 +210,8 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         "info" => info::info(&globals, rest),
+        "text" => text::text(&globals, rest),
+        "check" => check::check(&globals, rest),
         "commands" => commands(&globals, rest),
         "run" => run(&globals, rest),
         other => bad_args(&format!("unknown command `{other}`")),
