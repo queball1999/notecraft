@@ -302,14 +302,130 @@ pub fn is_picture_name(name: &str) -> bool {
 
 /// File extensions that run code when opened. Opening an attachment with one of these is
 /// refused; the user can open the folder and decide there.
-const RUNNABLE: [&str; 28] = [
-    "exe", "com", "bat", "cmd", "msi", "msp", "scr", "pif", "lnk", "ps1", "psm1", "vbs", "vbe",
-    "js", "jse", "wsf", "wsh", "hta", "cpl", "reg", "jar", "sh", "command", "app", "desktop",
-    "appimage", "dll", "inf",
+const RUNNABLE: &[&str] = &[
+    // Windows programs, installers, scripts, and files that run or load code when opened.
+    "exe",
+    "com",
+    "bat",
+    "cmd",
+    "msi",
+    "msp",
+    "mst",
+    "scr",
+    "pif",
+    "lnk",
+    "url",
+    "scf",
+    "ps1",
+    "psm1",
+    "psd1",
+    "ps1xml",
+    "ps2",
+    "ps2xml",
+    "psc1",
+    "psc2",
+    "msh",
+    "msh1",
+    "msh2",
+    "mshxml",
+    "msh1xml",
+    "msh2xml",
+    "vb",
+    "vbs",
+    "vbe",
+    "js",
+    "jse",
+    "ws",
+    "wsf",
+    "wsh",
+    "wsc",
+    "sct",
+    "hta",
+    "cpl",
+    "msc",
+    "reg",
+    "inf",
+    "dll",
+    "ocx",
+    "sys",
+    "drv",
+    "chm",
+    "hlp",
+    "gadget",
+    "application",
+    "appref-ms",
+    "xbap",
+    "appx",
+    "appxbundle",
+    "msix",
+    "msixbundle",
+    "appinstaller",
+    "settingcontent-ms",
+    "library-ms",
+    "search-ms",
+    "searchconnector-ms",
+    "website",
+    "diagcab",
+    "diagcfg",
+    "diagpkg",
+    "xll",
+    "mde",
+    "ade",
+    "adp",
+    "iso",
+    "img",
+    "vhd",
+    "vhdx",
+    // Interpreters that run a script on double-click when installed.
+    "jar",
+    "jnlp",
+    "py",
+    "pyw",
+    "pyc",
+    "pyo",
+    "pyz",
+    "pyzw",
+    "pl",
+    "rb",
+    "php",
+    "tcl",
+    // macOS and Linux.
+    "sh",
+    "bash",
+    "zsh",
+    "csh",
+    "ksh",
+    "fish",
+    "command",
+    "terminal",
+    "tool",
+    "app",
+    "pkg",
+    "mpkg",
+    "dmg",
+    "scpt",
+    "scptd",
+    "applescript",
+    "workflow",
+    "action",
+    "fileloc",
+    "desktop",
+    "appimage",
+    "run",
+    "bin",
+    "deb",
+    "rpm",
+    "snap",
+    "flatpak",
+    "flatpakref",
 ];
 
 /// Whether opening a file with this name could run code, so it must not be opened for the user.
+/// Windows drops trailing dots and spaces from a name and `:` starts a data stream, so
+/// `evil.exe.` and `evil.exe:x` count as `.exe`.
 pub fn is_runnable_name(name: &str) -> bool {
+    let name = name.split(':').next().unwrap_or_default();
+    let name = name.trim_end_matches(['.', ' ']);
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
     ext.is_some_and(|ext| RUNNABLE.contains(&ext.as_str()))
 }
@@ -448,5 +564,19 @@ mod tests {
         assert!(!is_picture_name("x.svg") && !is_picture_name("x") && !is_picture_name("x.txt"));
         assert!(is_runnable_name("setup.EXE") && is_runnable_name("a.sh"));
         assert!(!is_runnable_name("a.xlsx") && !is_runnable_name("exe"));
+        for sneaky in [
+            "evil.exe.",
+            "evil.exe . .",
+            "evil.exe:zone",
+            "invoice.pdf.scr",
+            "link.URL",
+            "run.py",
+            "disk.iso",
+        ] {
+            assert!(is_runnable_name(sneaky), "{sneaky}");
+        }
+        for fine in ["notes.pdf", "photo.png", "budget.xlsx", "a.txt."] {
+            assert!(!is_runnable_name(fine), "{fine}");
+        }
     }
 }

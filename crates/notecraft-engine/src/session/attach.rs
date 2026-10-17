@@ -164,11 +164,22 @@ impl Session {
 
     /// Where the link `src` of the page shown now points on disk: a path under the page's
     /// folder, or the absolute path of a linked file. `None` for a web address, an anchor, a
-    /// path that climbs out of the folder, or when no notebook folder is open. The file may
+    /// network share or device path, a path that climbs out of the folder, or when no notebook
+    /// folder is open. The file may
     /// not exist.
     pub fn attachment_path(&self, src: &str) -> Option<PathBuf> {
         let decoded = decode_link_path(src.trim());
         if decoded.is_empty() || decoded.starts_with('#') {
+            return None;
+        }
+        // A network share or device path (`\\server\share`, `//server/share`, `\\?\`, `\\.\`):
+        // reading it can reach another computer and hand it the user's sign-in, and pictures
+        // load as soon as the page shows. Only local files are followed.
+        let mut lead = decoded.chars();
+        if matches!(
+            (lead.next(), lead.next()),
+            (Some('/' | '\\'), Some('/' | '\\'))
+        ) {
             return None;
         }
         // A scheme such as `https:` or `mailto:` (a drive letter is one letter, not a scheme).
@@ -391,6 +402,12 @@ mod tests {
             "mailto:me@example.org",
             "../Other/attachments/a.png",
             "attachments/../../x.png",
+            r"\\server\share\a.png",
+            "//server/share/a.png",
+            "%5C%5Cserver%5Cshare%5Ca.png",
+            r"\\?\C:\a.png",
+            r"\\.\pipe\x",
+            r"/\server\share\a.png",
         ] {
             assert_eq!(session.attachment_path(bad), None, "{bad}");
         }
