@@ -53,6 +53,8 @@ pub struct CanvasUi {
     edit: editing::EditUi,
     /// The stroke being drawn and the stroke mesh cache.
     ink: ink::InkUi,
+    /// The page title being edited in place.
+    title: Option<title::TitleEdit>,
 }
 
 impl Default for CanvasUi {
@@ -64,6 +66,7 @@ impl Default for CanvasUi {
             parsed: None,
             edit: editing::EditUi::default(),
             ink: ink::InkUi::default(),
+            title: None,
         }
     }
 }

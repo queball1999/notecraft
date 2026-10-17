@@ -299,3 +299,26 @@ fn mock_pages_are_not_saveable() {
     session.mark_page_dirty("p-grocery");
     assert_eq!(session.save_page("p-grocery"), SaveOutcome::NotDirty);
 }
+
+#[test]
+fn typing_keeps_working_after_the_page_is_promoted_under_the_caret() {
+    let dir = notebook(&[("Sec/A.md", "# Hi\n")]);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    draw(&mut session, json!([[1, 2], [3, 4]]));
+    run(&mut session, "draw.type", json!({}));
+    run(&mut session, "container.new", json!({ "x": 300, "y": 400 }));
+    assert!(session.text_cursor().is_some());
+    // Auto-save promotes the page while the caret is in the new container.
+    let SaveOutcome::Promoted { new_id } = session.save_page(&id) else {
+        panic!("not promoted");
+    };
+    assert!(
+        session.text_cursor().is_some(),
+        "the caret moves with the page"
+    );
+    let pos = session.container(&new_id, "c1").pos;
+    assert!(pos.is_some(), "the container keeps its place");
+    run(&mut session, "text.insert", json!({ "text": "typed" }));
+    assert!(session.page_text(&new_id).unwrap().contains("-->\ntyped"));
+}

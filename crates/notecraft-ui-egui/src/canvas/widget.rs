@@ -34,6 +34,9 @@ pub fn show(
     let origin = state.viewport.origin();
     let view_size = Vec2::new(rect.width(), rect.height()) / zoom;
     let style = session.page_style();
+    // Text with no color of its own is Automatic: it reads on whatever color the page is.
+    let page_tokens = paper::page_tokens(style, tokens);
+    let tokens = &page_tokens;
     // The page text, laid out in flow layout (read-only). One seam: the page source text.
     let page = session.current_page_source().map(|source| {
         let parsed = state.document(source);
@@ -124,7 +127,18 @@ pub fn show(
                     paper::paper_color(style, tokens),
                 );
                 if let Some(page) = session.current_page() {
-                    title::draw(ui.painter(), map, &page.title, mock::CREATED, tokens);
+                    let editable = session.page_is_editable(&page.id)
+                        && session.ink().tool() == DrawTool::Type;
+                    title::show(
+                        ui,
+                        map,
+                        (&page.id, &page.title),
+                        editable,
+                        &mut state.title,
+                        mock::CREATED,
+                        tokens,
+                        clicked,
+                    );
                 }
                 if let Some((page_id, text, parsed, flow)) = &page {
                     flow::paint(ui.painter(), map, flow, tokens);
