@@ -1,0 +1,36 @@
+---
+title: Meeting notes
+notecraft:
+  id: pg_01J9Z4B2M7XR
+  paper: lined
+---
+<!-- notecraft:container id=c1 -->
+## Agenda
+
+- Budget review
+- Hiring plan
+
+<!-- notecraft:container id=c2 -->
+Remember to send the deck to [[Dana Lee]] before Friday.
+
+```notecraft-canvas
+{
+  "format": 1,
+  "units": "px96",
+  "containers": {
+    "c1": { "x": 60.26, "y": 100, "w": 400 },
+    "c2": { "x": 520, "y": 96, "w": 300 },
+    "c3": { "x": 48, "y": 300, "w": 300 }
+  },
+  "ink": [
+    { "id": "s1", "tool": "pen", "color": "#1F3A93", "width": 2, "points": [[600, 300, 0.42], [604, 302, 0.47], [611, 305, 0.51]] },
+    { "id": "s2", "tool": "highlighter", "color": "#FFEB3B80", "width": 14, "points": [[10.5, 20.25, 1], [200, 20.25, 1]] }
+  ],
+  "shapes": [
+    { "id": "sh1", "kind": "arrow", "from": [480, 140], "to": [515, 140],
+      "stroke": "#333333", "width": 1.5 }
+  ],
+  "z": ["c1", "c2", "sh1", "s1", "s2"],
+  "future": { "keep": ["me", 1, null] }
+}
+```

@@ -30,7 +30,8 @@ pub mod structure;
 pub mod watch;
 
 pub use canvas_block::{
-    find_canvas_block, normalized, read_canvas, strip_canvas_block, write_ink, CanvasBlock,
+    can_repair, find_canvas_block, normalized, normalized_container, read_canvas, repair_canvas,
+    strip_canvas_block, write_canvas, write_ink, CanvasBlock, CanvasContainer,
     CanvasProblem, CanvasRead, WriteInkError,
 };
 pub use notebook_dir::{
