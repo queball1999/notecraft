@@ -86,26 +86,10 @@ impl Session {
         })
     }
 
-    /// Whether page `id` changed since its text was read or last saved.
-    pub fn is_page_dirty(&self, id: &str) -> bool {
-        self.dirty_pages.contains(id)
-    }
-
-    /// The pages with unsaved changes, in id order. PR 1.7 (auto-save) writes these.
-    pub fn dirty_pages(&self) -> impl Iterator<Item = &str> {
-        self.dirty_pages.iter().map(String::as_str)
-    }
-
-    /// Record that page `id` is saved. Not a command: auto-save calls it after a write.
-    pub fn mark_page_saved(&mut self, id: &str) {
-        self.dirty_pages.remove(id);
-    }
-
-    /// Replace the text of page `id` as an edit: like `set_page_source`, but the page counts
-    /// as changed. Only undoable operations call this.
+    /// Replace the text of page `id` as an edit. The undo operation that calls this marks the
+    /// page dirty ([`Session::mark_page_dirty`]), so it is saved. Only undoable operations call it.
     pub(crate) fn replace_page_text(&mut self, id: &str, text: String) {
         self.put_page_text(id, text);
-        self.dirty_pages.insert(id.to_owned());
     }
 
     /// The geometry of container `container` on `page`; a flow container at the default

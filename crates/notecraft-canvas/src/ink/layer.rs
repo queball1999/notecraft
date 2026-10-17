@@ -56,15 +56,27 @@ impl InkLayer {
         self.strokes.iter().find(|s| s.id == id)
     }
 
+    /// Where the stroke with `id` is in paint order (0 is the back).
+    pub fn position(&self, id: &str) -> Option<usize> {
+        self.strokes.iter().position(|s| s.id == id)
+    }
+
     /// An id not used by any stroke here, such as `s12`.
     pub fn next_id(&self) -> String {
+        self.next_ids(1).pop().unwrap_or_else(|| "s1".to_owned())
+    }
+
+    /// `count` different ids, none used by a stroke here, such as `s12`, `s13`.
+    pub fn next_ids(&self, count: usize) -> Vec<String> {
         let highest = self
             .strokes
             .iter()
             .filter_map(|s| s.id.strip_prefix('s')?.parse::<u64>().ok())
             .max()
             .unwrap_or(0);
-        format!("s{}", highest.saturating_add(1))
+        (1..=count as u64)
+            .map(|i| format!("s{}", highest.saturating_add(i)))
+            .collect()
     }
 
     /// Add a stroke on top. Returns false, changing nothing, when the stroke has no points,

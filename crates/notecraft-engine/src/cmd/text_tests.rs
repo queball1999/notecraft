@@ -50,7 +50,6 @@ fn typing_inserts_at_the_caret_and_moves_it() {
     type_str(&mut s, ", you");
     assert_eq!(text(&s), "Hello, you\n");
     assert_eq!(cursor(&s), TextCursor::caret(10));
-    assert!(s.is_page_dirty(PAGE));
 }
 
 #[test]
@@ -433,17 +432,45 @@ fn bad_arguments_are_errors_not_panics() {
 }
 
 #[test]
-fn unsaved_edits_are_flagged_until_saved() {
-    let mut s = session("a");
-    assert!(!s.is_page_dirty(PAGE));
-    caret(&mut s, 1);
+fn typing_marks_a_page_from_a_folder_dirty_until_saved() {
+    use crate::open::open_folder;
+    let dir = tempfile::TempDir::new().expect("temp dir");
+    let file = dir.path().join("Sec/A.md");
+    std::fs::create_dir_all(file.parent().expect("parent")).expect("mkdir");
+    std::fs::write(&file, "a\n").expect("write");
+    let mut s = Session::new();
+    let opened = open_folder(dir.path()).expect("scan");
+    let id = opened.notebook.id.clone();
+    s.open_notebook(opened.notebook);
+    s.set_notebook_root(&id, dir.path());
+    s.load_current_page();
+    let page = s.selection().page.clone().expect("a page");
+    assert!(!s.is_page_dirty(&page));
+    run(&mut s, "text.set_caret", json!({ "at": 1 }));
     type_str(&mut s, "b");
-    assert_eq!(s.dirty_pages().collect::<Vec<_>>(), [PAGE]);
-    s.mark_page_saved(PAGE);
-    assert!(!s.is_page_dirty(PAGE));
+    assert!(s.is_page_dirty(&page));
+    s.save_page(&page);
+    assert!(!s.is_page_dirty(&page));
+    assert_eq!(std::fs::read_to_string(&file).expect("read"), "ab\n");
     run(&mut s, "edit.undo", Value::Null);
-    assert!(s.is_page_dirty(PAGE));
-    // Reading text from disk is not an edit.
-    s.set_page_source(PAGE, "fresh");
-    assert!(!s.is_page_dirty(PAGE));
+    assert!(s.is_page_dirty(&page), "undo is an edit");
+}
+
+#[test]
+fn typing_never_touches_the_canvas_block() {
+    let block = "```notecraft-canvas\n{\"format\":1}\n```\n";
+    let mut s = session(&format!("hi\n{block}"));
+    caret(&mut s, 2);
+    type_str(&mut s, "!");
+    assert_eq!(text(&s), format!("hi!\n{block}"));
+    // The end of the editable text is the start of the block: typing there keeps the block on
+    // its own line.
+    caret(&mut s, usize::MAX);
+    type_str(&mut s, "x");
+    assert!(text(&s).ends_with(block), "{:?}", text(&s));
+    assert!(text(&s).starts_with("hi!\nx"));
+    // A new container goes before the block.
+    run(&mut s, "container.new", json!({ "x": 10.0, "y": 10.0 }));
+    assert!(text(&s).ends_with(block), "{:?}", text(&s));
+    assert!(text(&s).contains("notecraft:container"));
 }

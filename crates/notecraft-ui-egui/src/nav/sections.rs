@@ -7,7 +7,8 @@ use egui::{Color32, CornerRadius, FontId, Popup, Rect, SetOpenCommand, Stroke, U
 use notecraft_engine::cmd::ids;
 use notecraft_engine::Session;
 
-use super::{plain, select, swatch_color};
+use super::edit::{self, DragPage, DragSection};
+use super::{plain, select, swatch_color, NavUi};
 use crate::ribbon::Clicked;
 use crate::themes::contrast::contrast_ratio;
 use crate::themes::ThemeTokens;
@@ -34,6 +35,7 @@ pub(crate) fn show(
     ui: &mut Ui,
     strip: Rect,
     session: &Session,
+    nav: &mut NavUi,
     t: &ThemeTokens,
     out: &mut Vec<Clicked>,
 ) {
@@ -70,6 +72,10 @@ pub(crate) fn show(
             egui::vec2(width, strip.height() - if selected { 3.0 } else { 6.0 }),
         );
         x += width + 2.0;
+        if nav.is_renaming(&section.id) {
+            out.extend(edit::rename_field(ui, nav, rect));
+            continue;
+        }
         let fill = swatch_color(section.color, t);
         let text = text_on(fill);
         let id = ui.id().with(("section_tab", section.id.as_str()));
@@ -96,6 +102,37 @@ pub(crate) fn show(
             });
         if response.clicked() {
             out.push(select(ids::NAV_SECTION_SELECT, &section.id));
+        }
+        if response.double_clicked() {
+            nav.begin_rename(&section.id, edit::Kind::Section, &section.name);
+        }
+        response
+            .context_menu(|ui| edit::section_menu(ui, &section.id, &section.name, false, nav, out));
+        response.dnd_set_drag_payload(DragSection(section.id.clone()));
+        // A page dropped on a tab moves to that section, last.
+        if response.dnd_hover_payload::<DragPage>().is_some() {
+            edit::drop_outline(ui, rect, t);
+            if let Some(dropped) = response.dnd_release_payload::<DragPage>() {
+                out.push(edit::move_page(&dropped.0, &section.id, None));
+            }
+        }
+        // A section dropped on a tab goes just before it (or after it, on its right half).
+        if response.dnd_hover_payload::<DragSection>().is_some() {
+            let right = ui
+                .input(|i| i.pointer.hover_pos())
+                .is_some_and(|pos| pos.x > rect.center().x);
+            let x = if right { rect.max.x } else { rect.min.x };
+            ui.painter()
+                .vline(x, rect.y_range(), Stroke::new(2.0, t.accent));
+            if let Some(dropped) = response.dnd_release_payload::<DragSection>() {
+                let from = sections.iter().position(|s| s.id == dropped.0);
+                let row = sections
+                    .iter()
+                    .position(|s| s.id == section.id)
+                    .unwrap_or(0);
+                let at = edit::drop_index(from, row, right);
+                out.push(edit::move_section(&dropped.0, None, Some(at)));
+            }
         }
     }
 

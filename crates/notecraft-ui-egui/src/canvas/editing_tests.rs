@@ -71,7 +71,6 @@ fn clicking_text_then_typing_edits_the_page_and_undo_restores_it() {
     harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
     harness.run();
     assert_eq!(text(&harness), "Hello world\n");
-    assert!(harness.state().session().is_page_dirty(PAGE));
 }
 
 #[test]
