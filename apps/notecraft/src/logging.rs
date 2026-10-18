@@ -5,6 +5,8 @@
 //!   `notecraft.2.log`.
 //! - The file stops growing at 16 MiB (one line says so), so a runaway loop cannot fill a disk.
 //! - Default level: `info` for NoteCraft crates, `warn` for dependencies. `RUST_LOG` overrides.
+//! - Dependencies that log through the `log` crate (wgpu, naga) are forwarded too, via
+//!   tracing-subscriber's `tracing-log` feature.
 //! - `NOTECRAFT_NO_PREFS=1` disables file logging (agent and test runs).
 //!
 //! Never log note content: page text, titles, file names inside notebooks, or ink. Log ids,

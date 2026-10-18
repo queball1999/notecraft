@@ -78,7 +78,7 @@ craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "457a078
 craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
 craft-quit = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
 craft-settings = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std", "ansi", "registry"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std", "ansi", "registry", "tracing-log"] }
 
 [profile.release]
 lto = "thin"
