@@ -1,11 +1,11 @@
 //! The `notecraft-canvas` block of a `.notecraft` page (docs/markdown.md sections 3.4 and 9).
 //!
 //! The block is the last fenced code block with the info string `notecraft-canvas`. This module
-//! finds it, reads its ink strokes and container positions, and writes them back with a
-//! minimal diff: only the values of the `"ink"` and `"containers"` keys change, so every other
-//! key (shapes, images, files, z, and keys this version does not know) and all spacing stay
-//! byte for byte. A block is created only when there are strokes or container positions to
-//! store.
+//! finds it, reads its ink strokes, container positions, and placed pictures and files, and
+//! writes them back with a minimal diff: only the values of the `"ink"`, `"containers"`,
+//! `"images"`, and `"files"` keys change (and only when they changed), so every other key
+//! (shapes, z, and keys this version does not know) and all spacing stay byte for byte. A
+//! block is created only when there is something to store.
 //!
 //! Reading is lenient and bounded. Unknown fields are skipped, a stroke or point that is not
 //! usable is dropped, bad numbers fall back (pressure to 1, width to 1, color to the default
@@ -37,6 +37,14 @@ const MAX_ID_CHARS: usize = 64;
 pub const MAX_CONTAINERS: usize = 10_000;
 /// Longest container id kept.
 const MAX_CONTAINER_ID: usize = 64;
+/// Most placed pictures, and most placed files, a page keeps.
+pub const MAX_OBJECTS: usize = 10_000;
+/// Longest object id kept.
+const MAX_OBJECT_ID: usize = 64;
+/// Longest object link kept, in characters.
+pub const MAX_OBJECT_SRC: usize = 2048;
+/// Largest `nth` kept.
+const MAX_OBJECT_NTH: usize = 100_000;
 
 /// A container's place on the page as the canvas block stores it (docs/markdown.md section
 /// 3.4). Plain numbers in page units: the model types sit above this crate.
@@ -47,6 +55,21 @@ pub struct CanvasContainer {
     pub y: f32,
     /// Width; `None` when the file gave none (the default width applies).
     pub w: Option<f32>,
+}
+
+/// A picture or file attachment placed on the page as the canvas block stores it
+/// (docs/markdown.md section 3.4). Plain numbers in page units, like [`CanvasContainer`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct CanvasObject {
+    pub id: String,
+    /// A file attachment (the `files` list) rather than a picture (the `images` list).
+    pub file: bool,
+    /// The link as written in the page text.
+    pub src: String,
+    /// Which occurrence of `src` in the page text, counting from 0.
+    pub nth: usize,
+    pub x: f32,
+    pub y: f32,
 }
 
 /// Where the canvas block sits in a page's text.
@@ -101,6 +124,9 @@ pub struct CanvasRead {
     /// The container positions read, in file order. An entry without a usable `x` and `y` is
     /// left out (that container stays in the flow layout); a later entry with the same id wins.
     pub containers: Vec<CanvasContainer>,
+    /// The placed pictures, then the placed files, in file order. An entry without a `src` or a
+    /// usable `x` and `y` is left out; ids are made unique.
+    pub objects: Vec<CanvasObject>,
     pub problem: Option<CanvasProblem>,
     /// Strokes dropped because they had no usable points.
     pub skipped: usize,
@@ -283,7 +309,7 @@ impl<'de> Visitor<'de> for ScalarVisitor {
         Ok(Scalar::Other)
     }
     fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Scalar, E> {
-        Ok(Scalar::Str(v.chars().take(256).collect()))
+        Ok(Scalar::Str(v.chars().take(MAX_OBJECT_SRC).collect()))
     }
     fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Scalar, E> {
         Ok(Scalar::Num(v as f64))
@@ -549,11 +575,97 @@ impl<'de> Deserialize<'de> for ContainerMapRead {
     }
 }
 
+/// One entry of the `images` or `files` list.
+#[derive(Default)]
+struct RawObject {
+    id: Option<Scalar>,
+    src: Option<Scalar>,
+    nth: Option<Scalar>,
+    x: Option<Scalar>,
+    y: Option<Scalar>,
+}
+
+struct ObjectVisitor;
+
+impl<'de> Visitor<'de> for ObjectVisitor {
+    type Value = RawObject;
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a picture or file")
+    }
+    accept_scalars!(RawObject::default());
+    fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<RawObject, A::Error> {
+        drain_seq(seq).map(|()| RawObject::default())
+    }
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<RawObject, A::Error> {
+        let mut o = RawObject::default();
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "id" => o.id = Some(map.next_value()?),
+                "src" => o.src = Some(map.next_value()?),
+                "nth" => o.nth = Some(map.next_value()?),
+                "x" => o.x = Some(map.next_value()?),
+                "y" => o.y = Some(map.next_value()?),
+                _ => {
+                    map.next_value::<IgnoredAny>()?;
+                }
+            }
+        }
+        Ok(o)
+    }
+}
+
+impl<'de> Deserialize<'de> for RawObject {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(ObjectVisitor)
+    }
+}
+
+/// The `images` or `files` list: the first [`MAX_OBJECTS`] entries are kept, the rest skipped.
+#[derive(Default)]
+struct ObjectListRead(Vec<RawObject>);
+
+struct ObjectListVisitor;
+
+impl<'de> Visitor<'de> for ObjectListVisitor {
+    type Value = ObjectListRead;
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a list of pictures or files")
+    }
+    accept_scalars!(ObjectListRead::default());
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<ObjectListRead, A::Error> {
+        drain_map(map).map(|()| ObjectListRead::default())
+    }
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<ObjectListRead, A::Error> {
+        let mut out = Vec::new();
+        loop {
+            if out.len() >= MAX_OBJECTS {
+                if seq.next_element::<IgnoredAny>()?.is_none() {
+                    break;
+                }
+            } else {
+                match seq.next_element::<RawObject>()? {
+                    Some(o) => out.push(o),
+                    None => break,
+                }
+            }
+        }
+        Ok(ObjectListRead(out))
+    }
+}
+
+impl<'de> Deserialize<'de> for ObjectListRead {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(ObjectListVisitor)
+    }
+}
+
 #[derive(Default)]
 struct RawCanvas {
     format: Option<Scalar>,
     ink: Option<StrokeList>,
     containers: Option<ContainerMapRead>,
+    images: Option<ObjectListRead>,
+    files: Option<ObjectListRead>,
 }
 
 struct CanvasVisitor;
@@ -570,6 +682,8 @@ impl<'de> Visitor<'de> for CanvasVisitor {
                 "format" => c.format = Some(map.next_value()?),
                 "ink" => c.ink = Some(map.next_value()?),
                 "containers" => c.containers = Some(map.next_value()?),
+                "images" => c.images = Some(map.next_value()?),
+                "files" => c.files = Some(map.next_value()?),
                 _ => {
                     map.next_value::<IgnoredAny>()?;
                 }
@@ -675,6 +789,59 @@ fn finish_containers(raw: Vec<(String, RawContainer)>) -> Vec<CanvasContainer> {
     out
 }
 
+/// Turn raw `images` or `files` entries into usable ones: an entry without a `src` or a finite
+/// `x` and `y` is dropped, coordinates are clamped, ids are cut and made unique, and a repeat
+/// of the same link and `nth` is dropped. `seen` holds the ids used so far.
+fn finish_objects(
+    raw: Vec<RawObject>,
+    file: bool,
+    seen: &mut HashSet<String>,
+) -> Vec<CanvasObject> {
+    let prefix = if file { 'f' } else { 'i' };
+    let mut out: Vec<CanvasObject> = Vec::new();
+    let mut places: HashSet<(String, usize)> = HashSet::new();
+    for (index, o) in raw.into_iter().enumerate() {
+        let src = match &o.src {
+            Some(Scalar::Str(s)) if !s.trim().is_empty() => s.clone(),
+            _ => continue,
+        };
+        let (Some(x), Some(y)) = (
+            o.x.as_ref().and_then(Scalar::num),
+            o.y.as_ref().and_then(Scalar::num),
+        ) else {
+            continue;
+        };
+        let nth = o
+            .nth
+            .as_ref()
+            .and_then(Scalar::num)
+            .filter(|n| *n >= 0.0 && n.fract() == 0.0)
+            .map_or(0, |n| (n as usize).min(MAX_OBJECT_NTH));
+        if !places.insert((src.clone(), nth)) {
+            continue;
+        }
+        let mut id: String = match &o.id {
+            Some(Scalar::Str(s)) if !s.trim().is_empty() => s.chars().take(MAX_OBJECT_ID).collect(),
+            _ => format!("{prefix}{}", index + 1),
+        };
+        let mut n = index + 1;
+        while !seen.insert(id.clone()) {
+            n += 1;
+            id = format!("{prefix}{n}");
+        }
+        let coord = |n: f64| (n as f32).clamp(-MAX_COORD, MAX_COORD);
+        out.push(CanvasObject {
+            id,
+            file,
+            src,
+            nth,
+            x: coord(x),
+            y: coord(y),
+        });
+    }
+    out
+}
+
 /// Deepest JSON nesting read. serde_json may be built without its own depth limit (another
 /// crate can turn it off through feature unification), so the reader checks first.
 const MAX_JSON_DEPTH: usize = 32;
@@ -737,6 +904,15 @@ pub fn read_canvas(text: &str) -> CanvasRead {
     }
     if let Some(map) = raw.containers {
         read.containers = finish_containers(map.0);
+    }
+    let mut seen_ids = HashSet::new();
+    if let Some(list) = raw.images {
+        read.objects
+            .extend(finish_objects(list.0, false, &mut seen_ids));
+    }
+    if let Some(list) = raw.files {
+        read.objects
+            .extend(finish_objects(list.0, true, &mut seen_ids));
     }
     let Some(list) = raw.ink else {
         return read;
@@ -987,6 +1163,75 @@ fn usable_containers(containers: &[CanvasContainer], default_width: f32) -> Vec<
     out
 }
 
+/// A placed object as the file stores it: id and link cut, `nth` and numbers in range, every
+/// number rounded to 2 decimal places.
+pub fn normalized_object(o: &CanvasObject) -> CanvasObject {
+    let coord = |v: f32| round2(if v.is_finite() { v } else { 0.0 }).clamp(-MAX_COORD, MAX_COORD);
+    CanvasObject {
+        id: o.id.chars().take(MAX_OBJECT_ID).collect(),
+        file: o.file,
+        src: o.src.chars().take(MAX_OBJECT_SRC).collect(),
+        nth: o.nth.min(MAX_OBJECT_NTH),
+        x: coord(o.x),
+        y: coord(o.y),
+    }
+}
+
+/// The placed objects of one kind as they would be written: normalized, entries with no link
+/// or id dropped, a repeat of an id or of a (link, `nth`) dropped, file order kept, at most
+/// [`MAX_OBJECTS`].
+fn usable_objects(objects: &[CanvasObject], file: bool) -> Vec<CanvasObject> {
+    let mut ids = HashSet::new();
+    let mut places = HashSet::new();
+    let mut out = Vec::new();
+    for o in objects.iter().filter(|o| o.file == file) {
+        let o = normalized_object(o);
+        if o.src.trim().is_empty() || o.id.trim().is_empty() {
+            continue;
+        }
+        if !ids.insert(o.id.clone()) || !places.insert((o.src.clone(), o.nth)) {
+            continue;
+        }
+        out.push(o);
+        if out.len() >= MAX_OBJECTS {
+            break;
+        }
+    }
+    out
+}
+
+/// The `[ ... ]` text of an images or files list, one entry per line.
+fn objects_array(objects: &[CanvasObject], eol: &str, indent: usize) -> String {
+    if objects.is_empty() {
+        return "[]".to_owned();
+    }
+    let pad = " ".repeat(indent);
+    let mut out = String::from("[");
+    out.push_str(eol);
+    for (i, o) in objects.iter().enumerate() {
+        out.push_str(&pad);
+        out.push_str("{ \"id\": ");
+        out.push_str(&json_string(&o.id));
+        out.push_str(", \"src\": ");
+        out.push_str(&json_string(&o.src));
+        if o.nth > 0 {
+            out.push_str(&format!(", \"nth\": {}", o.nth));
+        }
+        out.push_str(", \"x\": ");
+        out.push_str(&num(o.x));
+        out.push_str(", \"y\": ");
+        out.push_str(&num(o.y));
+        out.push_str(" }");
+        if i + 1 < objects.len() {
+            out.push(',');
+        }
+        out.push_str(eol);
+    }
+    out.push_str(&" ".repeat(indent.saturating_sub(2)));
+    out.push(']');
+    out
+}
+
 /// The width a container gets when the file stores none (matches the model's default).
 const DEFAULT_CONTAINER_WIDTH: f32 = 720.0;
 
@@ -1023,7 +1268,8 @@ fn containers_object(containers: &[CanvasContainer], eol: &str, indent: usize) -
 /// Container positions already in the block are left as they are. See [`write_canvas`].
 pub fn write_ink(text: &str, strokes: &[Stroke]) -> Result<String, WriteInkError> {
     let current = read_canvas(text);
-    write_canvas_from(text, strokes, &current.containers.clone(), current)
+    let (containers, objects) = (current.containers.clone(), current.objects.clone());
+    write_canvas_from(text, strokes, &containers, &objects, current)
 }
 
 /// The page `text` with its canvas block holding `strokes` and `containers`, changing only
@@ -1043,13 +1289,27 @@ pub fn write_canvas(
     containers: &[CanvasContainer],
 ) -> Result<String, WriteInkError> {
     let current = read_canvas(text);
-    write_canvas_from(text, strokes, containers, current)
+    let objects = current.objects.clone();
+    write_canvas_from(text, strokes, containers, &objects, current)
+}
+
+/// [`write_canvas`] that also writes the placed pictures and files (`objects`, both kinds),
+/// changing only the `"images"` and `"files"` values besides the other two.
+pub fn write_canvas_all(
+    text: &str,
+    strokes: &[Stroke],
+    containers: &[CanvasContainer],
+    objects: &[CanvasObject],
+) -> Result<String, WriteInkError> {
+    let current = read_canvas(text);
+    write_canvas_from(text, strokes, containers, objects, current)
 }
 
 fn write_canvas_from(
     text: &str,
     strokes: &[Stroke],
     containers: &[CanvasContainer],
+    objects: &[CanvasObject],
     current: CanvasRead,
 ) -> Result<String, WriteInkError> {
     if let Some(problem) = current.problem {
@@ -1059,15 +1319,33 @@ fn write_canvas_from(
     let old: Vec<Stroke> = current.strokes.iter().map(normalized).collect();
     let new_containers = usable_containers(containers, DEFAULT_CONTAINER_WIDTH);
     let old_containers = usable_containers(&current.containers, DEFAULT_CONTAINER_WIDTH);
+    let new_images = usable_objects(objects, false);
+    let new_files = usable_objects(objects, true);
+    let old_images = usable_objects(&current.objects, false);
+    let old_files = usable_objects(&current.objects, true);
     let ink_changed = new != old;
     let containers_changed = new_containers != old_containers;
-    let nothing = new.is_empty() && new_containers.is_empty();
-    if !ink_changed && !containers_changed && (current.block.is_some() || nothing) {
+    let images_changed = new_images != old_images;
+    let files_changed = new_files != old_files;
+    let nothing = new.is_empty()
+        && new_containers.is_empty()
+        && new_images.is_empty()
+        && new_files.is_empty();
+    if !ink_changed
+        && !containers_changed
+        && !images_changed
+        && !files_changed
+        && (current.block.is_some() || nothing)
+    {
         return Ok(text.to_owned());
     }
     let eol = eol_of(text);
     let Some(block) = current.block else {
-        let out = append_block(text, &new, &new_containers, eol);
+        let placed = Placed {
+            images: &new_images,
+            files: &new_files,
+        };
+        let out = append_block(text, &new, &new_containers, placed, eol);
         // The page may end inside an unclosed code fence, which would swallow the new block.
         // Check that the block really is found; if not, refuse rather than lose the ink.
         return match find_canvas_block(&out) {
@@ -1103,6 +1381,19 @@ fn write_canvas_from(
             None => added.push(("containers", object)),
         }
     }
+    for (name, changed, list) in [
+        ("images", images_changed, &new_images),
+        ("files", files_changed, &new_files),
+    ] {
+        if !changed {
+            continue;
+        }
+        let array = objects_array(list, eol, 4);
+        match member(name) {
+            Some((_, value)) => replaced.push((base + value.start..base + value.end, array)),
+            None => added.push((name, array)),
+        }
+    }
     if !added.is_empty() {
         let list: Vec<String> = added
             .iter()
@@ -1130,8 +1421,20 @@ fn write_canvas_from(
     Ok(out)
 }
 
+/// The placed pictures and files a fresh block holds.
+#[derive(Clone, Copy)]
+struct Placed<'a> {
+    images: &'a [CanvasObject],
+    files: &'a [CanvasObject],
+}
+
 /// A whole fresh block (fences included, no trailing line ending).
-fn fresh_block(strokes: &[Stroke], containers: &[CanvasContainer], eol: &str) -> String {
+fn fresh_block(
+    strokes: &[Stroke],
+    containers: &[CanvasContainer],
+    placed: Placed<'_>,
+    eol: &str,
+) -> String {
     let mut out = String::new();
     out.push_str("```");
     out.push_str(CANVAS_INFO);
@@ -1146,6 +1449,14 @@ fn fresh_block(strokes: &[Stroke], containers: &[CanvasContainer], eol: &str) ->
         out.push(',');
         out.push_str(eol);
     }
+    for (name, list) in [("images", placed.images), ("files", placed.files)] {
+        if !list.is_empty() {
+            out.push_str(&format!("  \"{name}\": "));
+            out.push_str(&objects_array(list, eol, 4));
+            out.push(',');
+            out.push_str(eol);
+        }
+    }
     out.push_str("  \"ink\": ");
     out.push_str(&ink_array(strokes, eol, 4));
     out.push_str(eol);
@@ -1159,6 +1470,7 @@ fn append_block(
     text: &str,
     strokes: &[Stroke],
     containers: &[CanvasContainer],
+    placed: Placed<'_>,
     eol: &str,
 ) -> String {
     let mut out = text.to_owned();
@@ -1168,7 +1480,7 @@ fn append_block(
         }
         out.push_str(eol);
     }
-    out.push_str(&fresh_block(strokes, containers, eol));
+    out.push_str(&fresh_block(strokes, containers, placed, eol));
     out.push_str(eol);
     out
 }
@@ -1196,7 +1508,13 @@ pub fn repair_canvas(text: &str) -> Option<String> {
     let eol = eol_of(text);
     let strokes = usable(&read.strokes);
     let containers = usable_containers(&read.containers, DEFAULT_CONTAINER_WIDTH);
-    let fresh = fresh_block(&strokes, &containers, eol);
+    let images = usable_objects(&read.objects, false);
+    let files = usable_objects(&read.objects, true);
+    let placed = Placed {
+        images: &images,
+        files: &files,
+    };
+    let fresh = fresh_block(&strokes, &containers, placed, eol);
     let head = text.get(..block.block.start)?;
     let tail = text.get(block.block.end..)?;
     let out = format!("{head}{fresh}{tail}");

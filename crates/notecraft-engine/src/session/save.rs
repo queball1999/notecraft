@@ -15,11 +15,11 @@ use std::sync::Arc;
 
 use notecraft_canvas::ink::InkLayer;
 use notecraft_markdown::{apply_edits, remove_container_markers};
-use notecraft_model::Container;
 use notecraft_model::SectionNode;
+use notecraft_model::{Container, ObjectKind, PlacedObject};
 use notecraft_storage::{
     change_page_kind, keep_unreadable_copy, read_canvas, repair_canvas, strip_canvas_block,
-    write_canvas, CanvasContainer, PageKind,
+    write_canvas_all, CanvasContainer, PageKind,
 };
 
 use super::saving::{hash_text, SaveOutcome};
@@ -49,7 +49,7 @@ pub enum ConvertOutcome {
 }
 
 /// The warning shown before a page is converted to markdown.
-pub const CONVERT_WARNING: &str = "Converting this page to markdown removes its ink and the positions of its notes. The text is kept. This cannot be undone.";
+pub const CONVERT_WARNING: &str = "Converting this page to markdown removes its ink and the positions of its notes, pictures, and files. The text is kept. This cannot be undone.";
 
 impl Session {
     /// The notebook id, folder, and path inside it for page `page_id`.
@@ -132,6 +132,25 @@ impl Session {
                 .collect();
             self.containers.insert(page_id.to_owned(), set);
         }
+        let objects: Vec<PlacedObject> = read
+            .objects
+            .iter()
+            .map(|o| {
+                PlacedObject {
+                    id: o.id.clone(),
+                    kind: if o.file {
+                        ObjectKind::File
+                    } else {
+                        ObjectKind::Picture
+                    },
+                    src: o.src.clone(),
+                    nth: o.nth,
+                    pos: notecraft_core::Vec2::new(o.x, o.y),
+                }
+                .clamped()
+            })
+            .collect();
+        self.put_objects(page_id, objects);
         if read.strokes.is_empty() {
             self.ink_mut().layers.remove(page_id);
         } else {
@@ -150,10 +169,15 @@ impl Session {
         let kind = self.kind_of_page(page_id)?;
         let strokes = self.ink().layer(page_id).map_or(&[][..], InkLayer::strokes);
         let positions = self.canvas_positions(page_id);
-        if kind == PageKind::Markdown && strokes.is_empty() && positions.is_empty() {
+        let objects = self.live_objects(page_id);
+        if kind == PageKind::Markdown
+            && strokes.is_empty()
+            && positions.is_empty()
+            && objects.is_empty()
+        {
             return Some(Ok(text.to_owned()));
         }
-        Some(write_canvas(text, strokes, &positions).map_err(|_| ()))
+        Some(write_canvas_all(text, strokes, &positions, &objects).map_err(|_| ()))
     }
 
     /// The positioned containers of `page_id` as the canvas block stores them.
@@ -177,7 +201,8 @@ impl Session {
     pub(super) fn needs_promotion(&self, page_id: &str) -> bool {
         self.kind_of_page(page_id) == Some(PageKind::Markdown)
             && (self.ink().layer(page_id).is_some_and(|l| !l.is_empty())
-                || !self.canvas_positions(page_id).is_empty())
+                || !self.canvas_positions(page_id).is_empty()
+                || !self.live_objects(page_id).is_empty())
     }
 
     /// True when the page shown is a `.notecraft` page whose canvas block did not parse and a
@@ -313,6 +338,7 @@ impl Session {
                 self.rekey_page(&page_id, &new_id);
                 self.ink_mut().layers.remove(&new_id);
                 self.containers.remove(&new_id);
+                self.objects.remove(&new_id);
                 self.saving
                     .disk_hash
                     .insert(new_id.clone(), hash_text(&markdown));
@@ -372,6 +398,9 @@ impl Session {
         }
         if let Some(value) = self.containers.remove(old) {
             self.containers.insert(new.to_owned(), value);
+        }
+        if let Some(value) = self.objects.remove(old) {
+            self.objects.insert(new.to_owned(), value);
         }
         // Auto-save can promote the page while the user types in it; the caret stays.
         if let Some((owner, _)) = self.text_cursor.as_mut() {

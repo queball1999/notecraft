@@ -2,14 +2,20 @@
 //! and shows a handle at each corner; dragging a corner changes the width and the picture keeps
 //! its proportions. Releasing the handle sends one `picture.resize` command, so a whole drag is
 //! one undo step. While the drag lasts the new size is only a preview in the layout.
+//!
+//! Dragging a picture (anywhere on it) or a file attachment moves it: the object follows the
+//! pointer in the layout, and releasing sends one `picture.move` or `attachment.move` command
+//! with the page point, so a whole drag is one undo step. An object that flowed inside its
+//! container leaves it when dropped (docs/markdown.md section 3.4).
 
 use egui::{CursorIcon, Rect, Sense, Stroke};
 use notecraft_core::Vec2;
-use notecraft_engine::cmd::{ids, Map, Value};
+use notecraft_engine::cmd::{ids, CommandId, Map, Value};
 use notecraft_markdown::image::MIN_WIDTH;
+use notecraft_model::ObjectKind;
 
 use super::flow::{Flow, PictureHit};
-use super::pictures::{PictureCache, ResizeDrag};
+use super::pictures::{MoveDrag, PictureCache, ResizeDrag};
 use super::PageToScreen;
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
@@ -82,6 +88,66 @@ fn resize_command(link: &str, nth: usize, width: f32) -> Clicked {
     }
 }
 
+/// The command that puts an object at `pos` (page units), rounded to a tenth of a unit.
+fn move_command(kind: ObjectKind, link: &str, nth: usize, pos: Vec2) -> Clicked {
+    let tenth = |v: f32| f64::from((v * 10.0).round() / 10.0);
+    let mut args = Map::new();
+    args.insert("src".to_owned(), Value::from(link));
+    args.insert("nth".to_owned(), Value::from(nth));
+    args.insert("x".to_owned(), Value::from(tenth(pos.x)));
+    args.insert("y".to_owned(), Value::from(tenth(pos.y)));
+    let command: CommandId = match kind {
+        ObjectKind::Picture => ids::PICTURE_MOVE,
+        ObjectKind::File => ids::ATTACHMENT_MOVE,
+    };
+    Clicked {
+        command,
+        args: Value::Object(args),
+    }
+}
+
+/// Follow a drag of one object: start it, move it with the pointer, and send the move command
+/// when the pointer is released. Returns true if the object is being dragged.
+fn drag_object(
+    ui: &egui::Ui,
+    response: &egui::Response,
+    map: PageToScreen,
+    cache: &mut PictureCache,
+    object: (ObjectKind, &str, usize, Rect),
+    clicked: &mut Vec<Clicked>,
+) -> bool {
+    let (kind, link, nth, rect) = object;
+    let ours = |m: &MoveDrag| m.kind == kind && m.link == link && m.nth == nth;
+    if response.drag_started() {
+        cache.moving = Some(MoveDrag {
+            kind,
+            link: link.to_owned(),
+            nth,
+            start: Vec2::new(rect.min.x, rect.min.y),
+            delta: Vec2::ZERO,
+        });
+    }
+    let mut dragging = false;
+    if response.dragged() {
+        let delta = response.drag_delta() / map.zoom;
+        if let Some(moving) = cache.moving.as_mut().filter(|m| ours(m)) {
+            moving.delta = Vec2::new(moving.delta.x + delta.x, moving.delta.y + delta.y);
+            dragging = true;
+            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+            ui.ctx().request_repaint();
+        }
+    }
+    if response.drag_stopped() {
+        if let Some(moving) = cache.moving.take_if(|m| ours(m)) {
+            let moved = moving.delta.x.abs().max(moving.delta.y.abs());
+            if moved >= 1.0 {
+                clicked.push(move_command(kind, link, nth, moving.pos()));
+            }
+        }
+    }
+    dragging
+}
+
 /// Click a picture to select it; draw the handles of the selected one and handle their drags.
 /// Returns true if a picture was clicked this frame, so the canvas does not treat the click as
 /// one on the page. `editable` is false for a read-only page: pictures can be selected but
@@ -99,18 +165,32 @@ pub(super) fn show(
     if ui.input(|input| input.key_pressed(egui::Key::Escape)) && cache.drag.is_none() {
         cache.selected = None;
     }
-    for hit in flow.picture_hits.iter().filter(|hit| hit.ready) {
+    for hit in &flow.picture_hits {
         let rect = screen_rect(map, hit);
         if !rect.intersects(ui.clip_rect()) {
             continue;
         }
         let id = ui.id().with(("picture", &hit.link, hit.nth));
-        let response = ui.interact(rect, id, Sense::click());
+        let sense = if editable {
+            Sense::click_and_drag()
+        } else {
+            Sense::click()
+        };
+        let response = ui.interact(rect, id, sense);
         let alt = hit.alt.clone();
         response.widget_info(|| {
             egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("Picture {alt}"))
         });
-        if response.clicked() {
+        if editable {
+            let object = (ObjectKind::Picture, hit.link.as_str(), hit.nth, hit.rect);
+            if drag_object(ui, &response, map, cache, object, clicked) && hit.ready {
+                cache.selected = Some((hit.link.clone(), hit.nth));
+            }
+            if response.drag_started() {
+                picture_clicked = true;
+            }
+        }
+        if response.clicked() && hit.ready {
             cache.selected = Some((hit.link.clone(), hit.nth));
             picture_clicked = true;
         }
@@ -138,6 +218,53 @@ pub(super) fn show(
         handles(ui, map, hit, rect, cache, tokens, clicked);
     }
     picture_clicked
+}
+
+/// File attachments: a click opens the file (`attachment.open`); a drag moves it. Keyboard
+/// users reach each attachment as a button and press Enter.
+pub(super) fn files(
+    ui: &egui::Ui,
+    map: PageToScreen,
+    flow: &Flow,
+    cache: &mut PictureCache,
+    movable: bool,
+    clicked: &mut Vec<Clicked>,
+) {
+    for (index, hit) in flow.files.iter().enumerate() {
+        let rect = Rect::from_min_max(
+            map.pos(Vec2::new(hit.rect.min.x, hit.rect.min.y)),
+            map.pos(Vec2::new(hit.rect.max.x, hit.rect.max.y)),
+        );
+        if !rect.intersects(ui.clip_rect()) {
+            continue;
+        }
+        let id = ui.id().with(("attachment", index));
+        let sense = if movable {
+            Sense::click_and_drag()
+        } else {
+            Sense::click()
+        };
+        let response = ui.interact(rect, id, sense);
+        let name = hit.name.clone();
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("Open {name}"))
+        });
+        if movable {
+            let object = (ObjectKind::File, hit.link.as_str(), hit.nth, hit.rect);
+            drag_object(ui, &response, map, cache, object, clicked);
+        }
+        if response.hovered() && !response.dragged() {
+            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+        }
+        if response.clicked() || response.double_clicked() {
+            let mut args = Map::new();
+            args.insert("src".to_owned(), Value::from(hit.link.clone()));
+            clicked.push(Clicked {
+                command: ids::ATTACHMENT_OPEN,
+                args: Value::Object(args),
+            });
+        }
+    }
 }
 
 fn screen_rect(map: PageToScreen, hit: &PictureHit) -> Rect {

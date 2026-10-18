@@ -15,8 +15,9 @@ pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
 mod attach;
+mod objects;
 
-pub use attach::{AttachKind, Attached, InsertError};
+pub use attach::{AttachKind, Attached, InlineEdit, InsertError};
 
 use crate::ink::InkState;
 
@@ -107,6 +108,8 @@ pub struct Session {
     /// Container geometry by page id, then container id. A container missing here is in the
     /// flow layout at the default width. PR 1.9 stores it in the page's canvas block.
     containers: BTreeMap<String, BTreeMap<String, notecraft_model::Container>>,
+    /// Pictures and file attachments with a place of their own, by page id (see `objects`).
+    objects: BTreeMap<String, Vec<notecraft_model::PlacedObject>>,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).
     saving: saving::SavingState,

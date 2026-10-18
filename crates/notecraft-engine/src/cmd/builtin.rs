@@ -75,16 +75,46 @@ const FILE_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     ArgKind::String,
     "A .md or .notecraft file; the app asks with a file picker when omitted.",
 )];
-const INSERT_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
-    "path",
-    ArgKind::String,
-    "The file to insert; the app asks with a file picker when omitted.",
-)];
-const PASTE_PICTURE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
-    "path",
-    ArgKind::String,
-    "A picture file; the app uses the picture on the clipboard when omitted.",
-)];
+const INSERT_PATH_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "path",
+        ArgKind::String,
+        "The file to insert; the app asks with a file picker when omitted.",
+    ),
+    ArgSpec::optional(
+        "x",
+        ArgKind::Number,
+        "Page x of the top-left corner (with y): the click or drop point. Without a point the object flows with the text.",
+    ),
+    ArgSpec::optional("y", ArgKind::Number, "Page y of the top-left corner (with x)."),
+];
+const PASTE_PICTURE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "path",
+        ArgKind::String,
+        "A picture file; the app uses the picture on the clipboard when omitted.",
+    ),
+    ArgSpec::optional(
+        "x",
+        ArgKind::Number,
+        "Page x of the top-left corner (with y): where the picture is placed. Without a point it flows with the text.",
+    ),
+    ArgSpec::optional("y", ArgKind::Number, "Page y of the top-left corner (with x)."),
+];
+const OBJECT_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "src",
+        ArgKind::String,
+        "The link as written in the page, such as attachments/a1b2c3-photo.png.",
+    ),
+    ArgSpec::required("x", ArgKind::Number, "Page x of the top-left corner."),
+    ArgSpec::required("y", ArgKind::Number, "Page y of the top-left corner."),
+    ArgSpec::optional(
+        "nth",
+        ArgKind::Integer,
+        "Which occurrence of this link, counting from 0 in page order (default 0).",
+    ),
+];
 const ATTACHMENT_SRC_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "src",
     ArgKind::String,
@@ -806,6 +836,22 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Set the display width of a picture; the height follows its proportions.",
     )
     .args(PICTURE_RESIZE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PICTURE_MOVE,
+        "Move Picture",
+        "Put a picture where you drag it on the page.",
+    )
+    .args(OBJECT_MOVE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::ATTACHMENT_MOVE,
+        "Move File",
+        "Put a file attachment where you drag it on the page.",
+    )
+    .args(OBJECT_MOVE_ARGS)
     .undoable()
     .ready(),
     CommandSpec::new(
@@ -1559,6 +1605,8 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::INSERT_FILE_ATTACHMENT, attach::insert_file),
     (ids::EDIT_PASTE_PICTURE, attach::paste_picture),
     (ids::PICTURE_RESIZE, attach::resize_picture),
+    (ids::PICTURE_MOVE, attach::move_picture),
+    (ids::ATTACHMENT_MOVE, attach::move_attachment),
     (ids::ATTACHMENT_OPEN, attach::open_attachment),
     (ids::TEXT_SET_CARET, text::set_caret),
     (ids::TEXT_CLEAR_CARET, text::clear_caret),

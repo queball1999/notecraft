@@ -151,6 +151,7 @@ impl Session {
         rekey_keys(&mut self.page_notices, &map);
         rekey_keys(&mut self.ink.layers, &map);
         rekey_keys(&mut self.containers, &map);
+        rekey_keys(&mut self.objects, &map);
         if let Some((page, _)) = self.text_cursor.as_mut() {
             if let Some(new) = map(page) {
                 *page = new;

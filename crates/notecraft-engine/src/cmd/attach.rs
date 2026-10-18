@@ -4,17 +4,24 @@
 //! clipboard for `edit.paste_picture`) and sends the command again with the path. Run without
 //! a path (from the control channel), they fail with `invalid_args`.
 //!
+//! `picture.move` and `attachment.move` put a picture or file at a place of its own on the page
+//! (dragging one is one command, so one undo step); the insert commands take an optional point
+//! (`x` and `y`) and then place the new object there.
+//!
 //! `attachment.open` only checks and resolves the file and returns its path; the front end
 //! hands the path to the operating system, because the engine never calls the OS.
 
 use std::path::Path;
 
+use notecraft_core::Vec2;
 use notecraft_markdown::image;
+use notecraft_model::ObjectKind;
 use notecraft_storage::attachments::{is_runnable_name, LINK_THRESHOLD_BYTES};
 use serde_json::json;
 
+use super::text::Ctx;
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
-use crate::session::{AttachKind, Session};
+use crate::session::{AttachKind, InlineEdit, Session};
 
 fn invalid(id: CommandId, reason: impl Into<String>) -> CommandError {
     CommandError::InvalidArgs {
@@ -41,6 +48,25 @@ fn string_arg<'a>(
     Ok(value)
 }
 
+/// The page point named by optional `x` and `y` arguments: both or neither.
+fn optional_point(id: CommandId, args: &Map<String, Value>) -> Result<Option<Vec2>, CommandError> {
+    let number = |name: &str| -> Result<Option<f32>, CommandError> {
+        match args.get(name) {
+            None | Some(Value::Null) => Ok(None),
+            Some(value) => value
+                .as_f64()
+                .filter(|n| n.is_finite())
+                .map(|n| Some(n as f32))
+                .ok_or_else(|| invalid(id, format!("{name} must be a number"))),
+        }
+    };
+    match (number("x")?, number("y")?) {
+        (None, None) => Ok(None),
+        (Some(x), Some(y)) => Ok(Some(Vec2::new(x, y))),
+        _ => Err(invalid(id, "x and y go together")),
+    }
+}
+
 fn insert(
     id: CommandId,
     kind: AttachKind,
@@ -54,7 +80,20 @@ fn insert(
     } else {
         LINK_THRESHOLD_BYTES
     };
-    match session.insert_attachment_with(Path::new(path), kind, link_over) {
+    let at = optional_point(id, args)?;
+    // With the caret in a note and no point named, the object goes into the text at the caret,
+    // replacing a selection, as typed text would (PR 1.5 insertion path).
+    let ctx = if at.is_none() && session.text_cursor().is_some() {
+        Ctx::new(session)
+    } else {
+        None
+    };
+    let edit_for = |markdown: &str, kind: AttachKind| {
+        ctx.as_ref()
+            .and_then(|c| c.inline_edit(markdown, kind == AttachKind::File))
+    };
+    let inline: Option<InlineEdit<'_>> = ctx.as_ref().map(|_| &edit_for as InlineEdit<'_>);
+    match session.insert_attachment_full(Path::new(path), kind, link_over, at, inline) {
         // The commit marked the session changed.
         Ok(done) => Ok(CommandOutput {
             value: json!({ "link": done.link, "name": done.name, "linked": done.linked }),
@@ -125,6 +164,51 @@ pub(super) fn resize_picture(
     Ok(CommandOutput {
         value: json!({ "width": width }),
     })
+}
+
+fn move_object(
+    id: CommandId,
+    kind: ObjectKind,
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let src = string_arg(id, args, "src")?;
+    let Some(pos) = optional_point(id, args)? else {
+        return Err(invalid(id, "x and y are required"));
+    };
+    let nth = match args.get("nth") {
+        None | Some(Value::Null) => 0,
+        Some(value) => value
+            .as_u64()
+            .and_then(|n| usize::try_from(n).ok())
+            .filter(|n| *n < 100_000)
+            .ok_or_else(|| invalid(id, "nth must be a small non-negative number"))?,
+    };
+    session
+        .move_object(kind, src, nth, pos)
+        .map_err(|err| invalid(id, err.0))?;
+    Ok(CommandOutput {
+        value: json!({ "x": pos.x, "y": pos.y }),
+    })
+}
+
+/// `picture.move { src, x, y, nth? }`: put the picture with link `src` at page point (`x`, `y`),
+/// its top-left corner. A picture that flowed in its container gets a place of its own; one
+/// that has one moves. One undo step; the page text is not touched (docs/markdown.md section
+/// 3.4). Returns `{ "x", "y" }`.
+pub(super) fn move_picture(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    move_object(ids::PICTURE_MOVE, ObjectKind::Picture, session, args)
+}
+
+/// `attachment.move { src, x, y, nth? }`: the same for a file attachment.
+pub(super) fn move_attachment(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    move_object(ids::ATTACHMENT_MOVE, ObjectKind::File, session, args)
 }
 
 /// `attachment.open { src }`: resolve the link `src` of the page shown to a file on disk, for

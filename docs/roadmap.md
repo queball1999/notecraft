@@ -1,6 +1,6 @@
 # Roadmap: focus, alpha plan, milestones
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-18. Last updated: 2026-10-18. Change: textured pens and the pencil built (IN-01 scored D, hands-on look added to step 9); earlier: PR 1.15 close-out: alpha gate evidence filled, hands-on checklist for the maintainer, open questions (version); PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.7 landed (auto-save, crash recovery, outside edits); PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8 landed (undo and redo); also: PR 1.4: markdown write library landed; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 landed (highlighter and erasers); PR 1.13 landed (structure editing); PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-18. Last updated: 2026-10-18. Change: FM-03 scored D (pictures and files in the canvas block; no longer a P row after this pass); textured pens and the pencil built (IN-01 scored D, hands-on look added to step 9); earlier: PR 1.15 close-out: alpha gate evidence filled, hands-on checklist for the maintainer, open questions (version); PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.7 landed (auto-save, crash recovery, outside edits); PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8 landed (undo and redo); also: PR 1.4: markdown write library landed; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 landed (highlighter and erasers); PR 1.13 landed (structure editing); PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P).
 
 The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc says what we are doing now, what the alpha needs, and the milestones after it. The step-by-step execution plan is in [build_plan/](../build_plan/README.md). Optional features OneNote does not have are in [post-parity.md](post-parity.md) and are not on this roadmap.
 
@@ -84,12 +84,12 @@ One pass, about 6 to 10 hours with the three systems (the first 11 steps on Wind
 | 19 | Run the 30-minute fuzz runs for each target (`cargo +nightly fuzz run <target> -- -max_total_time=1800` from `fuzz/` after `bash fuzz/seed.sh`, see CONTRIBUTING.md; targets: markdown, frontmatter, containers, canvas_block, notebook_toml, section_toml, recovery_journal). | FM-08 |
 | 20 | Record the results, re-score the rows, run `cargo xtask parity`, and decide the version question below. | all |
 
-Rows that stay P after this pass for a reason that is not a hands-on check: FM-03 (pictures and attachments placed freely in the canvas block, being built on feat/canvas-pictures; shapes belong to their own row). ST-02 is D: OneNote has no delete-notebook command, so close is the delete. IN-01 is D: the textured pens and the pencil are built (feat/textured-pens).
+Rows that stay P after this pass for a reason that is not a hands-on check: none. ST-02 is D: OneNote has no delete-notebook command, so close is the delete. IN-01 is D: the textured pens and the pencil are built (feat/textured-pens). FM-03 is D: pictures and file attachments are placed freely in the canvas block (feat/canvas-pictures); shapes belong to IN-07.
 
 ## Open questions
 
 - Version: decided 2026-10-18. Phase 1 ships as v0.0.2 (maintainer decision), not v0.1.0 as the plan first said. v0.0.1 was promoted from pre-release to a full release on GitHub the same day.
-- ST-02 and IN-01: decided 2026-10-18. ST-02 is D (OneNote has no delete-notebook command). IN-01 is D (textured pens and the pencil built). FM-03 free-placed pictures are built before v0.0.2.
+- ST-02 and IN-01: decided 2026-10-18. ST-02 is D (OneNote has no delete-notebook command). IN-01 is D (textured pens and the pencil built). FM-03 is D (pictures and files placed freely in the canvas block).
 
 ## Milestones
 
@@ -131,3 +131,4 @@ Rows that stay P after this pass for a reason that is not a hands-on check: FM-0
 | 2026-10-16 | 1 | PR 1.12 landed (pictures and attachments): current focus text unchanged; the remaining Phase 1 work is PR 1.5, 1.6, 1.7, 1.9, 1.11, 1.13, 1.14. |
 | 2026-10-18 | 1 | PR 1.15 close-out: alpha gate Evidence filled for Markdown write and Auto-save, Notebook navigation updated; hands-on checklist for the maintainer and open questions (the v0.1.0 or v0.0.2 version question) added. Hours unchanged. |
 | 2026-10-18 | 1 | Textured pens and the pencil built: IN-01 removed from the rows that stay P and from the open questions; checklist step 9 also covers a hands-on look at the textures. Hours unchanged. |
+| 2026-10-18 | 1 | FM-03 scored D (pictures and file attachments in the canvas block); the list of rows that stay P no longer names it. |

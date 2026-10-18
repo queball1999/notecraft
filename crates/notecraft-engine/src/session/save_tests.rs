@@ -476,3 +476,375 @@ fn typing_keeps_working_after_the_page_is_promoted_under_the_caret() {
     run(&mut session, "text.insert", json!({ "text": "typed" }));
     assert!(session.page_text(&new_id).unwrap().contains("-->\ntyped"));
 }
+
+fn picture_notebook(page: &str, text: &str) -> tempfile::TempDir {
+    let dir = notebook(&[(page, text)]);
+    std::fs::write(dir.path().join("pic.png"), b"png").unwrap();
+    std::fs::write(dir.path().join("doc.pdf"), b"pdf").unwrap();
+    dir
+}
+
+fn source(dir: &tempfile::TempDir, name: &str) -> String {
+    dir.path().join(name).to_string_lossy().into_owned()
+}
+
+#[test]
+fn a_picture_placed_at_a_point_promotes_a_markdown_page_and_reloads() {
+    let dir = picture_notebook("Sec/A.md", "# Hi\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    let out = run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png"), "x": 300, "y": 220.5 }),
+    );
+    let link = out["link"].as_str().unwrap().to_owned();
+    let objects = session.page_objects(&id);
+    assert_eq!(objects.len(), 1);
+    assert_eq!(objects[0].src, link);
+    assert_eq!(objects[0].pos, notecraft_core::Vec2::new(300.0, 220.5));
+    assert!(session.is_page_dirty(&id));
+    let SaveOutcome::Promoted { new_id } = session.save_page(&id) else {
+        panic!("not promoted");
+    };
+    assert!(!dir.path().join("Sec/A.md").exists());
+    let file = read(&dir, "Sec/A.notecraft");
+    assert!(file.starts_with("# Hi\n\n!["), "{file}");
+    assert!(file.contains("\"images\": ["), "{file}");
+    assert!(file.contains("\"x\": 300, \"y\": 220.5"), "{file}");
+
+    let again = open(&dir);
+    let page = current_id(&again);
+    assert_eq!(page, new_id);
+    assert_eq!(again.page_objects(&page).len(), 1);
+    assert_eq!(
+        again.page_objects(&page)[0].pos,
+        notecraft_core::Vec2::new(300.0, 220.5)
+    );
+}
+
+#[test]
+fn an_insert_goes_before_the_canvas_block_and_undoes_in_one_step() {
+    let dir = picture_notebook("Sec/A.notecraft", BASIC);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(
+        &mut session,
+        "insert.file_attachment",
+        json!({ "path": source(&dir, "doc.pdf"), "x": 40, "y": 50 }),
+    );
+    let text = session.page_text(&id).unwrap().to_owned();
+    let block = text.find("```notecraft-canvas").unwrap();
+    let link = text.find("[doc.pdf](attachments/").unwrap();
+    assert!(link < block, "the file link is before the block");
+    assert!(text.trim_end().ends_with("```"));
+    assert_eq!(session.page_objects(&id).len(), 1);
+    // One undo takes the text and the place out together.
+    assert_eq!(session.undo().as_deref(), Some("Insert file"));
+    assert_eq!(session.page_text(&id).unwrap(), BASIC);
+    assert!(session.page_objects(&id).is_empty());
+    assert!(session.redo().is_some());
+    assert_eq!(session.page_objects(&id).len(), 1);
+}
+
+#[test]
+fn moving_a_picture_is_one_undo_step_and_is_saved() {
+    let dir = picture_notebook("Sec/A.md", "# Hi\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    // No point: the picture flows with the text and has no place of its own.
+    let out = run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png") }),
+    );
+    let link = out["link"].as_str().unwrap().to_owned();
+    assert!(session.page_objects(&id).is_empty());
+    // Dragging it gives it a place.
+    run(
+        &mut session,
+        "picture.move",
+        json!({ "src": link, "x": 100, "y": 120 }),
+    );
+    assert_eq!(session.page_objects(&id).len(), 1);
+    // A second drag moves the same object (one id, one entry).
+    run(
+        &mut session,
+        "picture.move",
+        json!({ "src": link, "x": 400.4, "y": -5 }),
+    );
+    let objects = session.page_objects(&id).to_vec();
+    assert_eq!(objects.len(), 1);
+    assert_eq!(objects[0].id, "i1");
+    assert_eq!(objects[0].pos, notecraft_core::Vec2::new(400.4, 0.0));
+    // The same place again makes no undo step.
+    run(
+        &mut session,
+        "picture.move",
+        json!({ "src": link, "x": 400.4, "y": 0 }),
+    );
+    assert_eq!(session.undo().as_deref(), Some("Move picture"));
+    assert_eq!(
+        session.page_objects(&id)[0].pos,
+        notecraft_core::Vec2::new(100.0, 120.0)
+    );
+    assert_eq!(session.undo().as_deref(), Some("Move picture"));
+    assert!(session.page_objects(&id).is_empty());
+    assert!(session.redo().is_some());
+    assert!(session.redo().is_some());
+    assert_eq!(
+        session.page_objects(&id)[0].pos,
+        notecraft_core::Vec2::new(400.4, 0.0)
+    );
+    let SaveOutcome::Promoted { .. } = session.save_page(&id) else {
+        panic!("not promoted");
+    };
+    assert!(read(&dir, "Sec/A.notecraft").contains("\"x\": 400.4, \"y\": 0"));
+}
+
+#[test]
+fn the_second_copy_of_a_picture_gets_its_own_place() {
+    let dir = picture_notebook("Sec/A.md", "x\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    let args = |x: i32, y: i32| json!({ "path": source(&dir, "pic.png"), "x": x, "y": y });
+    run(&mut session, "insert.picture", args(10, 10));
+    run(&mut session, "insert.picture", args(200, 10));
+    let objects = session.page_objects(&id);
+    assert_eq!(objects.len(), 2);
+    assert_eq!(objects[0].src, objects[1].src);
+    assert_eq!((objects[0].nth, objects[1].nth), (0, 1));
+    assert_eq!(
+        (objects[0].id.as_str(), objects[1].id.as_str()),
+        ("i1", "i2")
+    );
+}
+
+#[test]
+fn deleting_the_picture_text_drops_its_place_on_save() {
+    let dir = picture_notebook("Sec/A.md", "x\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png"), "x": 10, "y": 10 }),
+    );
+    let SaveOutcome::Promoted { new_id } = session.save_page(&id) else {
+        panic!("not promoted");
+    };
+    // The user deletes the picture's line in a text editor.
+    let text = session.page_text(&new_id).unwrap().to_owned();
+    let start = text.find("![").unwrap();
+    let end = start + text[start..].find('\n').unwrap() + 1;
+    session.replace_page_text(&new_id, format!("{}{}", &text[..start], &text[end..]));
+    session.mark_page_dirty(&new_id);
+    assert_eq!(session.save_page(&new_id), SaveOutcome::Saved);
+    let file = read(&dir, "Sec/A.notecraft");
+    assert!(file.contains("\"images\": []"), "{file}");
+    assert!(!file.contains("pic.png"), "{file}");
+}
+
+#[test]
+fn moving_a_picture_that_is_not_on_the_page_fails_and_changes_nothing() {
+    let dir = picture_notebook("Sec/A.md", "x\n");
+    let mut session = open(&dir);
+    for args in [
+        json!({ "src": "attachments/none.png", "x": 1, "y": 1 }),
+        json!({ "src": "attachments/none.png", "x": 1 }),
+        json!({ "src": "a.png", "x": "1", "y": 2 }),
+        json!({ "x": 1, "y": 1 }),
+    ] {
+        let err = Registry::builtin()
+            .run(&mut session, "picture.move", args.clone())
+            .unwrap_err();
+        assert_eq!(err.code(), "invalid_args", "{args}");
+    }
+    let err = Registry::builtin()
+        .run(
+            &mut session,
+            "insert.picture",
+            json!({ "path": source(&dir, "pic.png"), "x": 5 }),
+        )
+        .unwrap_err();
+    assert_eq!(err.code(), "invalid_args");
+    assert!(!session.can_undo());
+}
+
+#[test]
+fn convert_to_markdown_keeps_the_picture_links_and_forgets_the_places() {
+    let dir = picture_notebook("Sec/A.md", "x\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(
+        &mut session,
+        "insert.file_attachment",
+        json!({ "path": source(&dir, "doc.pdf"), "x": 10, "y": 10 }),
+    );
+    let SaveOutcome::Promoted { new_id } = session.save_page(&id) else {
+        panic!("not promoted");
+    };
+    run(
+        &mut session,
+        "page.convert_to_markdown",
+        json!({ "confirm": true }),
+    );
+    let page = current_id(&session);
+    assert_ne!(page, new_id);
+    assert!(session.page_objects(&page).is_empty());
+    assert!(session
+        .page_text(&page)
+        .unwrap()
+        .contains("[doc.pdf](attachments/"));
+    assert!(!session
+        .page_text(&page)
+        .unwrap()
+        .contains("notecraft-canvas"));
+}
+
+#[test]
+fn placed_objects_load_from_the_canvas_block_and_save_back_unchanged() {
+    let text = include_str!("../../../../testdata/notecraft/placed-objects.notecraft");
+    let dir = notebook(&[("Sec/A.notecraft", text)]);
+    let session = open(&dir);
+    let id = current_id(&session);
+    let objects = session.page_objects(&id);
+    assert_eq!(objects.len(), 3);
+    assert_eq!(objects[1].nth, 1);
+    assert_eq!(objects[2].kind, notecraft_model::ObjectKind::File);
+    // Nothing changed, so saving rewrites the file byte for byte.
+    let saved = session.file_text(&id).unwrap().unwrap();
+    assert_eq!(saved, text);
+}
+
+fn cursor_of(session: &Session) -> (usize, usize) {
+    let c = session.text_cursor().unwrap();
+    (c.anchor, c.head)
+}
+
+#[test]
+fn a_picture_goes_into_the_text_at_the_caret_in_one_undo_step() {
+    let dir = picture_notebook("Sec/A.md", "hello world\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 5 }));
+    let out = run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png") }),
+    );
+    let link = out["link"].as_str().unwrap();
+    let md = format!("![pic]({link})");
+    assert_eq!(
+        session.page_text(&id).unwrap(),
+        format!("hello{md} world\n")
+    );
+    assert!(session.page_objects(&id).is_empty());
+    // The caret sits right after the picture.
+    assert_eq!(cursor_of(&session), (5 + md.len(), 5 + md.len()));
+    assert_eq!(session.undo().as_deref(), Some("Insert picture"));
+    assert_eq!(session.page_text(&id).unwrap(), "hello world\n");
+    assert_eq!(cursor_of(&session), (5, 5));
+    assert!(session.redo().is_some());
+    assert!(session.page_text(&id).unwrap().starts_with("hello!["));
+}
+
+#[test]
+fn an_inserted_picture_replaces_the_selection() {
+    let dir = picture_notebook("Sec/A.md", "hello world\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 6 }));
+    run(
+        &mut session,
+        "text.set_caret",
+        json!({ "at": 11, "extend": true }),
+    );
+    let out = run(
+        &mut session,
+        "edit.paste_picture",
+        json!({ "path": source(&dir, "pic.png") }),
+    );
+    let link = out["link"].as_str().unwrap();
+    assert_eq!(
+        session.page_text(&id).unwrap(),
+        format!("hello ![pic]({link})\n")
+    );
+    assert_eq!(session.undo().as_deref(), Some("Insert picture"));
+    assert_eq!(session.page_text(&id).unwrap(), "hello world\n");
+}
+
+#[test]
+fn a_file_at_the_caret_becomes_a_paragraph_of_its_own() {
+    let dir = picture_notebook("Sec/A.md", "one two\n\nnext\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 3 }));
+    run(
+        &mut session,
+        "insert.file_attachment",
+        json!({ "path": source(&dir, "doc.pdf") }),
+    );
+    let text = session.page_text(&id).unwrap().to_owned();
+    assert!(
+        text.starts_with("one\n\n[doc.pdf](attachments/") && text.contains(")\n\n two\n\nnext\n"),
+        "{text:?}"
+    );
+    // The link alone on its line is a file object for the canvas.
+    let slots = notecraft_markdown::objects::object_slots(&notecraft_markdown::parse(&text));
+    assert!(slots
+        .iter()
+        .any(|(k, _)| *k == notecraft_model::ObjectKind::File));
+    assert_eq!(session.undo().as_deref(), Some("Insert file"));
+    assert_eq!(session.page_text(&id).unwrap(), "one two\n\nnext\n");
+}
+
+#[test]
+fn an_inline_insert_keeps_the_canvas_block_last_and_the_markers_intact() {
+    let text = include_str!("../../../../testdata/notecraft/placed-objects.notecraft");
+    let dir = picture_notebook("Sec/A.notecraft", text);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    let at = text.find("sit where").unwrap() + 3;
+    run(&mut session, "text.set_caret", json!({ "at": at }));
+    run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png") }),
+    );
+    let after = session.page_text(&id).unwrap().to_owned();
+    assert!(after.starts_with("<!-- notecraft:container id=c1 -->\n"));
+    let picture = after.find("sit![pic](attachments/").unwrap();
+    let block = after.find("```notecraft-canvas").unwrap();
+    assert!(picture < block);
+    assert!(after.trim_end().ends_with("```"));
+    assert_eq!(read_canvas(&after).problem, None);
+    assert_eq!(session.page_objects(&id).len(), 3);
+    assert_eq!(session.undo().as_deref(), Some("Insert picture"));
+    assert_eq!(session.page_text(&id).unwrap(), text);
+}
+
+#[test]
+fn a_point_or_no_caret_keeps_the_other_placements() {
+    let dir = picture_notebook("Sec/A.md", "hello\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 2 }));
+    // An explicit point wins over the caret: free place, text appended.
+    run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png"), "x": 10, "y": 20 }),
+    );
+    assert_eq!(session.page_objects(&id).len(), 1);
+    assert!(session.page_text(&id).unwrap().starts_with("hello\n\n!["));
+    // No caret and no point: appended, flowing.
+    session.clear_text_cursor();
+    run(
+        &mut session,
+        "insert.file_attachment",
+        json!({ "path": source(&dir, "doc.pdf") }),
+    );
+    assert_eq!(session.page_objects(&id).len(), 1);
+    assert!(session.page_text(&id).unwrap().ends_with(")\n"));
+}

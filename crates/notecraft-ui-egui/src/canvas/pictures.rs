@@ -12,7 +12,9 @@ use std::collections::HashMap;
 
 use egui::{ColorImage, TextureHandle, TextureId, TextureOptions};
 use notecraft_canvas::picture::{load_picture, PictureError};
+use notecraft_core::Vec2;
 use notecraft_engine::Session;
+use notecraft_model::ObjectKind;
 
 /// Most pictures kept for one page; further ones show a placeholder.
 const MAX_ENTRIES: usize = 256;
@@ -41,6 +43,12 @@ pub(super) trait PictureSource {
     /// A width in page units to show the `nth` picture with `link` at instead of its saved
     /// one: the width it is being dragged to.
     fn preview_width(&self, _link: &str, _nth: usize) -> Option<f32> {
+        None
+    }
+
+    /// A page point to show the `nth` object of `kind` with `link` at instead of where it
+    /// is: the spot it is being dragged to.
+    fn preview_pos(&self, _kind: ObjectKind, _link: &str, _nth: usize) -> Option<Vec2> {
         None
     }
 }
@@ -79,6 +87,28 @@ pub(super) struct ResizeDrag {
     pub width: f32,
 }
 
+/// A move drag in progress: the picture or file and how far it has been dragged.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct MoveDrag {
+    pub kind: ObjectKind,
+    pub link: String,
+    pub nth: usize,
+    /// Top-left corner when the drag started, in page units.
+    pub start: Vec2,
+    /// How far the pointer moved since, in page units.
+    pub delta: Vec2,
+}
+
+impl MoveDrag {
+    /// Where the object is shown now.
+    pub fn pos(&self) -> Vec2 {
+        Vec2::new(
+            (self.start.x + self.delta.x).max(0.0),
+            (self.start.y + self.delta.y).max(0.0),
+        )
+    }
+}
+
 /// The pictures of the page shown now.
 #[derive(Default)]
 pub(crate) struct PictureCache {
@@ -88,6 +118,8 @@ pub(crate) struct PictureCache {
     /// The picture with resize handles: its link and which one with that link.
     pub(super) selected: Option<(String, usize)>,
     pub(super) drag: Option<ResizeDrag>,
+    /// A picture or file being dragged to a new place.
+    pub(super) moving: Option<MoveDrag>,
 }
 
 impl std::fmt::Debug for PictureCache {
@@ -107,6 +139,7 @@ impl PictureCache {
             self.entries.clear();
             self.selected = None;
             self.drag = None;
+            self.moving = None;
         }
         self.decoded_this_frame = 0;
     }
@@ -138,6 +171,11 @@ fn reason(err: &PictureError) -> String {
 }
 
 impl PictureSource for PictureLoader<'_> {
+    fn preview_pos(&self, kind: ObjectKind, link: &str, nth: usize) -> Option<Vec2> {
+        let moving = self.cache.moving.as_ref()?;
+        (moving.kind == kind && moving.link == link && moving.nth == nth).then(|| moving.pos())
+    }
+
     fn preview_width(&self, link: &str, nth: usize) -> Option<f32> {
         let drag = self.cache.drag.as_ref()?;
         (drag.link == link && drag.nth == nth).then_some(drag.width)
