@@ -573,8 +573,8 @@ mod tests {
             assert!((-1.0..=1.0).contains(v));
         }
         // The ribbon's own edges sit at exactly +1 and -1.
-        assert!(mesh.across.iter().any(|v| *v == 1.0));
-        assert!(mesh.across.iter().any(|v| *v == -1.0));
+        assert!(mesh.across.contains(&1.0));
+        assert!(mesh.across.contains(&-1.0));
         // A fringe copies the vertex it hangs on.
         let bare = tessellate(
             &line(11, 10.0, 1.0),
