@@ -29,7 +29,9 @@ impl IndexWorker {
         let handle = std::thread::Builder::new()
             .name("notecraft-index".to_owned())
             .spawn(move || {
-                let result = run(&root, &db_path).map_err(|err| err.to_string());
+                let result = refresh_or_rebuild(&root, &db_path)
+                    .map(|(_, report)| report)
+                    .map_err(|err| err.to_string());
                 let _ = tx.send(result);
             })
             .ok();
@@ -58,12 +60,15 @@ impl IndexWorker {
     }
 }
 
-/// Open (rebuilding if needed) and refresh. A database error during the refresh also
-/// deletes the file and tries once more from scratch.
-pub(super) fn run(root: &Path, db_path: &Path) -> Result<WorkerReport, IndexError> {
+/// Open (rebuilding if needed) and refresh, returning the open index with the report. A
+/// database error during the refresh also deletes the file and tries once more from scratch.
+pub fn refresh_or_rebuild(
+    root: &Path,
+    db_path: &Path,
+) -> Result<(Index, WorkerReport), IndexError> {
     let (mut index, mut rebuilt) = Index::open_or_rebuild(db_path)?;
     match index.refresh(root) {
-        Ok(stats) => Ok(WorkerReport { stats, rebuilt }),
+        Ok(stats) => Ok((index, WorkerReport { stats, rebuilt })),
         Err(IndexError::Db(err)) => {
             tracing::warn!("index refresh failed, rebuilding: {err}");
             drop(index);
@@ -71,7 +76,7 @@ pub(super) fn run(root: &Path, db_path: &Path) -> Result<WorkerReport, IndexErro
             rebuilt = true;
             let (mut fresh, _) = Index::open_or_rebuild(db_path)?;
             let stats = fresh.refresh(root)?;
-            Ok(WorkerReport { stats, rebuilt })
+            Ok((fresh, WorkerReport { stats, rebuilt }))
         }
         Err(other) => Err(other),
     }

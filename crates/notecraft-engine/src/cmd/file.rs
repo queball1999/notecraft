@@ -13,7 +13,7 @@ use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
 use crate::mock;
-use crate::open::open_folder;
+use crate::open::{open_folder_for_navigation, NavOpened};
 use crate::recent::{RecentItem, RecentKind, MAX_PATH_CHARS};
 use crate::session::Session;
 
@@ -131,7 +131,8 @@ pub(super) fn open_notebook(
         tracing::warn!(path = %item.path, "notebook folder not found; showing the sample notebooks");
         return Ok(open(session, item));
     }
-    let opened = open_folder(folder).map_err(|err| bad_path(id, &err.to_string()))?;
+    let NavOpened { opened, titles } =
+        open_folder_for_navigation(folder).map_err(|err| bad_path(id, &err.to_string()))?;
     let mut fields = Map::new();
     fields.insert("kind".to_owned(), json!(item.kind.id()));
     fields.insert("path".to_owned(), json!(item.path));
@@ -143,6 +144,7 @@ pub(super) fn open_notebook(
     let notebook_id = opened.notebook.id.clone();
     session.open_notebook(opened.notebook);
     session.set_notebook_root(&notebook_id, folder);
+    session.remember_frontmatter_titles(&notebook_id, titles);
     session.recents_mut().push(item);
     session.mark_changed();
     Ok(CommandOutput { value })

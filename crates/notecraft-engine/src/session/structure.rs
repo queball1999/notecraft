@@ -74,8 +74,13 @@ impl Session {
         let Some(root) = self.notebook_roots.get(id).cloned() else {
             return;
         };
+        // The folder is the truth for the tree; frontmatter titles come from the index.
+        self.bump_tree_generation(id);
         let opened = match open_folder(&root) {
-            Ok(opened) if opened.notebook.id == id => opened,
+            Ok(mut opened) if opened.notebook.id == id => {
+                super::nav::apply_titles(&mut opened.notebook, &self.frontmatter_titles);
+                opened
+            }
             Ok(_) => {
                 tracing::warn!(
                     notebook = id,
@@ -96,7 +101,7 @@ impl Session {
     }
 
     /// Make the selection name things that exist in notebook `id`.
-    fn reselect(&mut self, id: &str) {
+    pub(super) fn reselect(&mut self, id: &str) {
         if self.selection.notebook.as_deref() != Some(id) {
             return;
         }

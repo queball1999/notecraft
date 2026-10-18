@@ -61,8 +61,13 @@ CREATE TABLE attachment_refs (
 CREATE VIRTUAL TABLE fts_pages USING fts5(page UNINDEXED, title, body);
 ";
 
+/// Version 2: the title from a page's frontmatter, read by the engine after a refresh
+/// (storage cannot parse markdown). Null means no frontmatter title is known, and the
+/// file name is the title.
+const V2: &str = "ALTER TABLE pages ADD COLUMN fm_title TEXT;";
+
 /// Migrations in order. Index `n` upgrades version `n` to `n + 1`.
-pub(super) const MIGRATIONS: &[&str] = &[V1];
+pub(super) const MIGRATIONS: &[&str] = &[V1, V2];
 
 /// The schema version this build writes.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
