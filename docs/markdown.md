@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: pictures and file attachments get positions in the canvas block (`images`, `files`; section 3.4); index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -186,8 +186,7 @@ The last thing in a `.notecraft` file is one fenced code block with the info str
       "stroke": "#333333", "width": 1.5 }
   ],
   "images": [
-    { "id": "i1", "src": "attachments/a81b07-whiteboard.jpg",
-      "x": 48, "y": 420, "w": 640, "h": 360 }
+    { "id": "i1", "src": "attachments/a81b07-whiteboard.jpg", "x": 48, "y": 420 }
   ],
   "files": [
     { "id": "f1", "src": "attachments/3f9a2c-budget.xlsx", "x": 720, "y": 420 }
@@ -201,14 +200,15 @@ Rules:
 
 - Units are CSS pixels at 96 per inch, origin at the top left of the page, y down.
 - Ink points are `[x, y, pressure]` with pressure from 0 to 1. Points are rounded to 2 decimal places on save. Strokes over the point cap are simplified (Ramer-Douglas-Peucker) on import.
-- Images and files referenced in the canvas block also appear as markdown links in the body, so a text editor still shows them. If one is missing from the body, NoteCraft re-adds the link at the end of its nearest container.
+- Pictures and file attachments that sit at a place of their own are listed in `images` and `files`. The picture or file stays in the page text as its markdown (`![alt](src)` or a paragraph that is one link `[name](src)`), usually at the end of the last container, so a text editor still shows it. An entry ties to that markdown by `src` and `nth`: `nth` (a whole number, 0 when left out) says which occurrence of that link in the page text, counting `![..](src)` images (or file paragraphs) in reading order. The entry holds only the top-left corner `x`, `y` in page units. A picture's width is the width comment of section 2.4 (the height follows its proportions); a file object has a fixed size. A picture or file with no entry flows inside its container as before. An entry needs a `src` and a finite `x` and `y`; one without is skipped, `id` is made up when missing or repeated, and at most 10,000 entries of each kind are read. An entry whose link is no longer in the page text (the user deleted it) is dropped on the next save, so deleting the markdown deletes the object. Other keys inside a changed `images` or `files` list (such as `w` and `h` from other writers) are not kept.
+- A `.md` page promotes to `.notecraft` as soon as it has a picture or file entry, as it does for ink and container positions (section 3.5). Convert to markdown drops the entries and keeps the links, so the pictures flow in the text again.
 - `z` is the paint order, back to front. Ids missing from `z` paint on top in file order.
 - A canvas block that fails to parse is kept byte-for-byte in a `.notecraft/history/` snapshot, and the page opens in flow layout with a warning bar. NoteCraft never deletes the original block until the user saves.
 - Only one canvas block per file. Extra blocks are treated as normal code.
 
 ### 3.5 Flow layout
 
-A `.md` page, or a `.notecraft` page with no positions, opens in flow layout: containers stack top to bottom at a fixed width, like a document. Moving anything off the flow promotes the page and records positions.
+A `.md` page, or a `.notecraft` page with no positions, opens in flow layout: containers stack top to bottom at a fixed width, like a document. Moving anything off the flow (a container, a picture, a file attachment, or a stroke of ink) promotes the page and records positions.
 
 ## 4. Note tags
 
@@ -332,3 +332,4 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-17 | 1 | Section 2.4: the display width of a resized picture is stored as `<!-- notecraft:width=N -->` after the image; SVG pictures and their limits. |
 | 2026-10-17 | 1 | PR 1.9 follow-ups: the canvas block `containers` map is written (`x`, `y`, `w`, rounded to 2 decimals; an entry for a container that no longer exists is dropped, other keys are kept byte for byte); a `.md` page with a positioned container is promoted like one with ink; a block that did not parse can be replaced on request (`page.repair_canvas`), keeping the ink and positions that could be read, and the original is still in `.notecraft/history/`. The warning bar shows with a Repair button; Convert to Markdown is on the File Info page. |
 | 2026-10-18 | 1 | Index schema version 3: `pages.collapsed` keeps the `collapsed` page entry flag so the navigation built from the index shows collapsed subpages. |
+| 2026-10-18 | 1 | Section 3.4: pictures and file attachments placed on the page are listed in the canvas block `images` and `files` lists (`src`, `nth`, `x`, `y`); the markdown stays in the page text; the width stays the section 2.4 comment; a `.md` page with one promotes to `.notecraft`. Shapes are not stored yet. |
