@@ -11,18 +11,23 @@ mod flow;
 #[cfg(test)]
 mod formatting_tests;
 mod ink;
+pub(crate) use ink::paint_pen_sample;
 #[cfg(test)]
 mod ink_tests;
 mod keymap;
+mod multiply;
 pub(crate) mod paper;
+mod picture_ui;
 pub(crate) mod pictures;
 mod rawtext;
+mod textures;
 mod title;
 mod widget;
 
 use notecraft_canvas::viewport::{self, Viewport};
 use notecraft_core::Vec2;
 
+pub use multiply::install as install_multiply;
 pub use widget::show;
 
 /// The egui memory id of the flag that is true while the user types in the canvas.
@@ -58,6 +63,11 @@ pub struct CanvasUi {
     pictures: pictures::PictureCache,
     /// The page title being edited in place.
     title: Option<title::TitleEdit>,
+    /// Where page points land on screen in the last frame, and the canvas area.
+    last_map: Option<(PageToScreen, egui::Rect)>,
+    /// Where the next inserted picture or file goes: the page and the page point of the last
+    /// click on it (below the note container the click was in).
+    insert_at: Option<(String, Vec2)>,
 }
 
 impl Default for CanvasUi {
@@ -71,11 +81,56 @@ impl Default for CanvasUi {
             ink: ink::InkUi::default(),
             pictures: pictures::PictureCache::default(),
             title: None,
+            last_map: None,
+            insert_at: None,
         }
     }
 }
 
 impl CanvasUi {
+    /// The page point under the screen point `screen`, or `None` when it is outside the canvas
+    /// (a file dropped on the ribbon, say) or nothing was drawn yet.
+    pub fn page_point_at(&self, screen: egui::Pos2) -> Option<Vec2> {
+        let (map, area) = self.last_map?;
+        area.contains(screen).then(|| map.page(screen))
+    }
+
+    /// Where a picture or file inserted into `page` now should go: the last click on that
+    /// page, when that click was on empty canvas. `None` when the last click was inside a
+    /// note (the caret is there, so the object goes inline at the caret) or the page was not
+    /// clicked since it was shown.
+    pub fn insert_point(&self, page: &str) -> Option<Vec2> {
+        self.insert_at
+            .as_ref()
+            .filter(|(owner, _)| owner == page)
+            .map(|(_, at)| *at)
+    }
+
+    /// Move the insert point down and right, so the next object does not cover the last.
+    pub fn step_insert_point(&mut self, by: f32) {
+        if let Some((_, at)) = self.insert_at.as_mut() {
+            *at = Vec2::new(at.x + by, at.y + by);
+        }
+    }
+
+    /// Remember a click on `page` at the page point `at`.
+    fn remember_click(&mut self, page: &str, at: Vec2, flow: &flow::Flow) {
+        let inside = flow
+            .containers
+            .iter()
+            .find(|b| b.rect.contains(egui::pos2(at.x, at.y)) && b.rect.height() > 0.0);
+        self.insert_at = match inside {
+            Some(_) => None,
+            None => Some((page.to_owned(), at)),
+        };
+    }
+
+    /// The screen point of a page point in the last frame (tests).
+    #[cfg(test)]
+    pub(crate) fn screen_point_of(&self, page: Vec2) -> Option<egui::Pos2> {
+        self.last_map.map(|(map, _)| map.pos(page))
+    }
+
     /// Pictures decoded and pictures that could not be shown, on the page shown (tests).
     #[cfg(test)]
     pub(crate) fn picture_counts(&self) -> (usize, usize) {

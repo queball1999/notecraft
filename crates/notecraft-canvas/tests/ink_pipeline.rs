@@ -51,6 +51,7 @@ fn a_noisy_circle_comes_out_smooth_and_hit_testable() {
     }
 
     let stroke = Stroke {
+        texture: Default::default(),
         id: "s1".into(),
         tool: InkTool::Pen,
         color: InkColor::BLACK,
@@ -156,6 +157,7 @@ fn hostile_input_never_panics() {
 
     let mut layer = InkLayer::new();
     let stroke = Stroke {
+        texture: Default::default(),
         id: "s1".into(),
         tool: InkTool::Pen,
         color: InkColor::BLACK,

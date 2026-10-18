@@ -34,6 +34,8 @@ pub struct SessionIo {
     journal: Option<Journal>,
     reader: Option<PageReader<(String, ReadPurpose)>>,
     watchers: BTreeMap<PathBuf, FolderWatcher>,
+    /// Background refreshes of each notebook's index (the navigation reads it).
+    index_sync: index_sync::IndexSync,
     /// Folders already checked for recovery entries.
     offered: Vec<PathBuf>,
     wake: Wake,
@@ -72,6 +74,7 @@ impl SessionIo {
             journal: journal_dir.map(Journal::new),
             reader,
             watchers: BTreeMap::new(),
+            index_sync: index_sync::IndexSync::default(),
             offered: Vec::new(),
             wake,
             debounce: DEBOUNCE,
@@ -113,6 +116,7 @@ impl SessionIo {
         }
 
         self.drain_watchers(session);
+        self.index_sync.pump(session, &self.wake);
         session.load_current_page();
         self.run_reads(session);
 
@@ -190,8 +194,9 @@ impl SessionIo {
     }
 
     fn drain_watchers(&mut self, session: &mut Session) {
-        for watcher in self.watchers.values() {
+        for (root, watcher) in &self.watchers {
             for path in watcher.poll() {
+                self.index_sync.note_change(root, &path);
                 session.note_outside_change(&path);
             }
         }
@@ -237,5 +242,6 @@ impl SessionIo {
     }
 }
 
+mod index_sync;
 #[cfg(test)]
 mod tests;

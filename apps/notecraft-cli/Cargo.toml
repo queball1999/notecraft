@@ -14,4 +14,9 @@ workspace = true
 
 [dependencies]
 notecraft-engine.workspace = true
+notecraft-markdown.workspace = true
+notecraft-storage.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

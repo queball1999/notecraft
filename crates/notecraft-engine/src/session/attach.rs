@@ -5,15 +5,23 @@
 //! for a picture, `[name](link)` for a file. The text change is one undo step. Undo takes the
 //! paragraph back out; the copied file stays in `attachments/`, so Redo works and nothing the
 //! user might have wanted is deleted. Clearing unused attachments is a later task.
+//!
+//! The paragraph goes before the canvas block of a `.notecraft` page, never after it. When the
+//! insert names a point on the page (a click, a drop, a paste), the new object also gets a place
+//! of its own there (docs/markdown.md section 3.4), in the same undo step.
 
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
-use notecraft_markdown::Editor;
+use notecraft_core::Vec2;
+use notecraft_markdown::objects::{count_of, object_slots};
+use notecraft_markdown::{image, Editor};
+use notecraft_model::{ObjectKind, PlacedObject};
 use notecraft_storage::attachments::{
     decode_link_path, is_picture_name, store_attachment_with, AttachError, StoredAttachment,
     LINK_THRESHOLD_BYTES,
 };
+use notecraft_storage::find_canvas_block;
 
 use super::Session;
 use crate::undo::{Op, Scope, Transaction};
@@ -24,6 +32,9 @@ pub enum AttachKind {
     Picture,
     File,
 }
+
+/// Works out the text edit that puts the markdown of a new object (and its kind) at the caret.
+pub type InlineEdit<'a> = &'a dyn Fn(&str, AttachKind) -> Option<notecraft_canvas::text::TextEdit>;
 
 /// What an insert did.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -105,7 +116,7 @@ impl Session {
     }
 
     /// Copy `source` into the attachments folder next to the page shown now and add a link to
-    /// it at the end of the page, as one undo step. A picture must be a PNG, JPEG, or WebP
+    /// it at the end of the page, as one undo step. A picture must be a PNG, JPEG, WebP, or SVG
     /// file. Nothing changes on failure.
     ///
     /// The engine call `insert.picture` and `insert.file_attachment` make; it is not a command
@@ -126,6 +137,34 @@ impl Session {
         source: &Path,
         kind: AttachKind,
         link_over: u64,
+    ) -> Result<Attached, InsertError> {
+        self.insert_attachment_at(source, kind, link_over, None)
+    }
+
+    /// [`Session::insert_attachment_with`], and with `at` the new picture or file also gets a
+    /// place of its own with its top-left corner at that page point (clamped to the page). It
+    /// is still one undo step.
+    pub fn insert_attachment_at(
+        &mut self,
+        source: &Path,
+        kind: AttachKind,
+        link_over: u64,
+        at: Option<Vec2>,
+    ) -> Result<Attached, InsertError> {
+        self.insert_attachment_full(source, kind, link_over, at, None)
+    }
+
+    /// [`Session::insert_attachment_at`], or with `inline` the markdown goes where the text
+    /// edit it returns says (the caret, replacing a selection) and the caret ends where the edit
+    /// puts it. `inline` gets the markdown of the object and its kind; when it returns `None`
+    /// the object is appended to the page instead. Still one undo step.
+    pub fn insert_attachment_full(
+        &mut self,
+        source: &Path,
+        kind: AttachKind,
+        link_over: u64,
+        at: Option<Vec2>,
+        inline: Option<InlineEdit<'_>>,
     ) -> Result<Attached, InsertError> {
         let page = self
             .selection
@@ -150,22 +189,70 @@ impl Session {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if kind == AttachKind::Picture && !is_picture_name(&name) {
-            return Err(fail("pictures must be PNG, JPEG, or WebP files."));
+            return Err(fail("pictures must be PNG, JPEG, WebP, or SVG files."));
         }
         let stored = store_attachment_with(&folder, source, link_over)?;
-        let (at, inserted) = append_paragraph(text, &paragraph(kind, &stored));
+        // The paragraph goes before the canvas block, which stays the last thing in the file.
+        let shown_end = find_canvas_block(text).map_or(text.len(), |b| b.block.start);
+        let shown = text.get(..shown_end).unwrap_or(text);
+        let markdown = paragraph(kind, &stored);
+        let mut caret_after = None;
+        let (offset, removed, inserted) = match inline.and_then(|f| f(&markdown, kind)) {
+            Some(edit) => {
+                caret_after = Some((edit.anchor, edit.head));
+                let end = edit.at.saturating_add(edit.remove);
+                let removed = text.get(edit.at..end).unwrap_or_default().to_owned();
+                (edit.at, removed, edit.insert)
+            }
+            None => {
+                let (offset, mut inserted) = append_paragraph(shown, &markdown);
+                if shown_end < text.len() {
+                    // Keep a blank line between the paragraph and the block.
+                    inserted.push_str(if inserted.contains("\r\n") {
+                        "\r\n"
+                    } else {
+                        "\n"
+                    });
+                }
+                (offset, String::new(), inserted)
+            }
+        };
         let label = match kind {
             AttachKind::Picture => "Insert picture",
             AttachKind::File => "Insert file",
         };
-        let op = Op::ReplaceText {
+        let before = self.page_objects(&page).to_vec();
+        let mut tx = Transaction::new(Scope::Page(page.clone()), label).with(Op::ReplaceText {
             page: page.clone(),
-            at,
-            removed: String::new(),
+            at: offset,
+            removed,
             inserted,
-        };
-        if !self.commit(Transaction::new(Scope::Page(page), label).with(op)) {
+        });
+        if let Some(pos) = at {
+            let object_kind = match kind {
+                AttachKind::Picture => ObjectKind::Picture,
+                AttachKind::File => ObjectKind::File,
+            };
+            let slots = object_slots(&notecraft_markdown::parse(shown));
+            let mut after = before.clone();
+            after.push(PlacedObject {
+                id: super::objects::next_object_id(&before, object_kind),
+                kind: object_kind,
+                src: stored.link.clone(),
+                nth: count_of(&slots, object_kind, &stored.link),
+                pos: super::objects::clamp(pos),
+            });
+            tx = tx.with(Op::SetObjects {
+                page: page.clone(),
+                before,
+                after,
+            });
+        }
+        if !self.commit(tx) {
             return Err(fail("the page could not be changed."));
+        }
+        if let Some((anchor, head)) = caret_after {
+            self.set_text_cursor(&page, super::TextCursor { anchor, head });
         }
         Ok(Attached {
             kind,
@@ -173,6 +260,60 @@ impl Session {
             name: stored.display_name,
             linked: stored.linked,
         })
+    }
+
+    /// Record the display width of a picture on the page shown now, as one undo step: the
+    /// `nth` image (from 0, in page order) whose link is `src` gets `<!-- notecraft:width=N -->`
+    /// right after it, or loses it when `width` is `None` (back to its natural size). Only
+    /// that comment changes, so the page diff is a few bytes. A width outside the allowed
+    /// range is clamped. Nothing happens, and no undo step is made, if the width is already
+    /// that.
+    ///
+    /// The engine call `picture.resize` makes; it is not a command itself.
+    pub fn resize_picture(
+        &mut self,
+        src: &str,
+        nth: usize,
+        width: Option<u16>,
+    ) -> Result<(), InsertError> {
+        let page = self
+            .selection
+            .page
+            .clone()
+            .ok_or_else(|| fail("open a page first."))?;
+        if self
+            .page_notices
+            .get(&page)
+            .is_some_and(|notice| notice.read_only)
+        {
+            return Err(fail("this page is read-only."));
+        }
+        let Some(text) = self.page_text(&page) else {
+            return Err(fail("this page cannot be changed yet."));
+        };
+        let width = width.map(|w| w.clamp(image::MIN_WIDTH, image::MAX_WIDTH));
+        let shown_end = find_canvas_block(text).map_or(text.len(), |b| b.block.start);
+        let shown = text.get(..shown_end).unwrap_or(text);
+        let Some(edit) = image::set_image_width(shown, src, nth, width) else {
+            return Err(fail("that picture is not on the page."));
+        };
+        let removed = shown
+            .get(edit.span.start..edit.span.end)
+            .unwrap_or_default()
+            .to_owned();
+        if removed == edit.text {
+            return Ok(());
+        }
+        let op = Op::ReplaceText {
+            page: page.clone(),
+            at: edit.span.start,
+            removed,
+            inserted: edit.text,
+        };
+        if !self.commit(Transaction::new(Scope::Page(page), "Resize picture").with(op)) {
+            return Err(fail("the page could not be changed."));
+        }
+        Ok(())
     }
 
     /// Where the link `src` of the page shown now points on disk: a path under the page's
@@ -382,7 +523,7 @@ mod tests {
         let err = session
             .insert_attachment(&dir.path().join("notes.txt"), AttachKind::Picture)
             .expect_err("not a picture");
-        assert!(err.0.contains("PNG, JPEG, or WebP"), "{err}");
+        assert!(err.0.contains("PNG, JPEG, WebP, or SVG"), "{err}");
         // A missing file.
         let err = session
             .insert_attachment(&dir.path().join("gone.png"), AttachKind::Picture)

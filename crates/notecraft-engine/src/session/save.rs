@@ -16,8 +16,10 @@ use std::sync::Arc;
 use notecraft_canvas::ink::InkLayer;
 use notecraft_markdown::{apply_edits, remove_container_markers};
 use notecraft_model::SectionNode;
+use notecraft_model::{Container, ObjectKind, PlacedObject};
 use notecraft_storage::{
-    change_page_kind, keep_unreadable_copy, read_canvas, strip_canvas_block, write_ink, PageKind,
+    change_page_kind, keep_unreadable_copy, read_canvas, repair_canvas, strip_canvas_block,
+    write_canvas_all, CanvasContainer, PageKind,
 };
 
 use super::saving::{hash_text, SaveOutcome};
@@ -47,7 +49,7 @@ pub enum ConvertOutcome {
 }
 
 /// The warning shown before a page is converted to markdown.
-pub const CONVERT_WARNING: &str = "Converting this page to markdown removes its ink and the positions of its notes. The text is kept. This cannot be undone.";
+pub const CONVERT_WARNING: &str = "Converting this page to markdown removes its ink and the positions of its notes, pictures, and files. The text is kept. This cannot be undone.";
 
 impl Session {
     /// The notebook id, folder, and path inside it for page `page_id`.
@@ -114,6 +116,41 @@ impl Session {
                 }
             }
         }
+        // Container positions come from the block; a block that did not parse leaves the
+        // page in flow layout.
+        if read.containers.is_empty() {
+            self.containers.remove(page_id);
+        } else {
+            let set = read
+                .containers
+                .iter()
+                .map(|c| {
+                    let width = c.w.unwrap_or(notecraft_model::container::DEFAULT_WIDTH);
+                    let at = notecraft_core::Vec2::new(c.x, c.y);
+                    (c.id.clone(), Container::at(&c.id, at, width))
+                })
+                .collect();
+            self.containers.insert(page_id.to_owned(), set);
+        }
+        let objects: Vec<PlacedObject> = read
+            .objects
+            .iter()
+            .map(|o| {
+                PlacedObject {
+                    id: o.id.clone(),
+                    kind: if o.file {
+                        ObjectKind::File
+                    } else {
+                        ObjectKind::Picture
+                    },
+                    src: o.src.clone(),
+                    nth: o.nth,
+                    pos: notecraft_core::Vec2::new(o.x, o.y),
+                }
+                .clamped()
+            })
+            .collect();
+        self.put_objects(page_id, objects);
         if read.strokes.is_empty() {
             self.ink_mut().layers.remove(page_id);
         } else {
@@ -131,16 +168,85 @@ impl Session {
         let text = self.page_text(page_id)?;
         let kind = self.kind_of_page(page_id)?;
         let strokes = self.ink().layer(page_id).map_or(&[][..], InkLayer::strokes);
-        if kind == PageKind::Markdown && strokes.is_empty() {
+        let positions = self.canvas_positions(page_id);
+        let objects = self.live_objects(page_id);
+        if kind == PageKind::Markdown
+            && strokes.is_empty()
+            && positions.is_empty()
+            && objects.is_empty()
+        {
             return Some(Ok(text.to_owned()));
         }
-        Some(write_ink(text, strokes).map_err(|_| ()))
+        Some(write_canvas_all(text, strokes, &positions, &objects).map_err(|_| ()))
     }
 
-    /// True for a `.md` page that has strokes, which must be saved as `.notecraft`.
+    /// The positioned containers of `page_id` as the canvas block stores them.
+    fn canvas_positions(&self, page_id: &str) -> Vec<CanvasContainer> {
+        self.page_containers(page_id)
+            .into_iter()
+            .filter_map(|c| {
+                let pos = c.pos?;
+                Some(CanvasContainer {
+                    id: c.id,
+                    x: pos.x,
+                    y: pos.y,
+                    w: Some(c.width),
+                })
+            })
+            .collect()
+    }
+
+    /// True for a `.md` page that has strokes or positioned containers, which must be saved
+    /// as `.notecraft`.
     pub(super) fn needs_promotion(&self, page_id: &str) -> bool {
         self.kind_of_page(page_id) == Some(PageKind::Markdown)
-            && self.ink().layer(page_id).is_some_and(|l| !l.is_empty())
+            && (self.ink().layer(page_id).is_some_and(|l| !l.is_empty())
+                || !self.canvas_positions(page_id).is_empty()
+                || !self.live_objects(page_id).is_empty())
+    }
+
+    /// True when the page shown is a `.notecraft` page whose canvas block did not parse and a
+    /// fresh block could replace it (see [`Self::repair_current_canvas`]).
+    pub fn can_repair_canvas(&self) -> bool {
+        let Some(page_id) = self.selection.page.as_deref() else {
+            return false;
+        };
+        if self.kind_of_page(page_id) != Some(PageKind::Canvas) {
+            return false;
+        }
+        if !self
+            .page_notices
+            .get(page_id)
+            .is_some_and(|notice| notice.read_only)
+        {
+            return false;
+        }
+        self.page_text(page_id)
+            .is_some_and(|text| repair_canvas(text).is_some())
+    }
+
+    /// `page.repair_canvas`: replace the canvas block of the page shown, which did not parse,
+    /// with a fresh one that keeps whatever could be read from it. The unreadable file was
+    /// copied to `.notecraft/history/` when the page opened, so the old block stays on disk
+    /// there. The page becomes editable and unsaved; its undo steps are dropped. Returns
+    /// false when there is nothing to repair.
+    pub fn repair_current_canvas(&mut self) -> bool {
+        let Some(page_id) = self.selection.page.clone() else {
+            return false;
+        };
+        if !self.can_repair_canvas() {
+            return false;
+        }
+        let Some(fresh) = self.page_text(&page_id).and_then(repair_canvas) else {
+            return false;
+        };
+        self.page_notices.remove(&page_id);
+        self.set_page_source(&page_id, fresh.clone());
+        self.load_canvas_block(&page_id, &fresh, false);
+        self.history.clear_page(&page_id);
+        self.mark_page_dirty(&page_id);
+        self.mark_changed();
+        true
     }
 
     /// After a save wrote `text` (the page text with the canvas block), make the session text
@@ -175,6 +281,20 @@ impl Session {
                 SaveOutcome::Failed(err.to_string())
             }
         }
+    }
+
+    /// True when `page.convert_to_markdown` would offer to convert the page shown.
+    pub fn can_convert_to_markdown(&self) -> bool {
+        let Some(page_id) = self.selection.page.as_deref() else {
+            return false;
+        };
+        self.kind_of_page(page_id) == Some(PageKind::Canvas)
+            && self.page_text(page_id).is_some()
+            && !self
+                .page_notices
+                .get(page_id)
+                .is_some_and(|notice| notice.read_only)
+            && !self.saving.conflicts.contains_key(page_id)
     }
 
     /// `page.convert_to_markdown`: turn the page shown into a plain `.md` page. Without
@@ -217,6 +337,8 @@ impl Session {
                 self.saving.journal_clean.push(old_path);
                 self.rekey_page(&page_id, &new_id);
                 self.ink_mut().layers.remove(&new_id);
+                self.containers.remove(&new_id);
+                self.objects.remove(&new_id);
                 self.saving
                     .disk_hash
                     .insert(new_id.clone(), hash_text(&markdown));
@@ -276,6 +398,9 @@ impl Session {
         }
         if let Some(value) = self.containers.remove(old) {
             self.containers.insert(new.to_owned(), value);
+        }
+        if let Some(value) = self.objects.remove(old) {
+            self.objects.insert(new.to_owned(), value);
         }
         // Auto-save can promote the page while the user types in it; the caret stays.
         if let Some((owner, _)) = self.text_cursor.as_mut() {

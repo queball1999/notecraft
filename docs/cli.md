@@ -1,10 +1,10 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
+> Stage: pre-alpha (Phase 1). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 
-Status: the `notecraft-cli` binary and `--version` landed in Phase -1. OneNote has no command line, but the CLI now follows the related craft apps (WordCraft's wordcraft-cli has convert, info, text, inspect, render, run, commands, and mcp): a deliberate exception to the OneNote-only scope rule, for the CLI and its MCP server only (maintainer decision, 2026-10-15). `commands` and `run` landed in Phase 0 (PR 0.13); the rest arrive with the engine work they use, as the Phase column says. Only `mcp --connect` stays post-parity (docs/post-parity.md).
+Status: the `notecraft-cli` binary and `--version` landed in Phase -1; `info`, `text`, `check`, and `run --page` landed in PR 1.16. OneNote has no command line, but the CLI now follows the related craft apps (WordCraft's wordcraft-cli has convert, info, text, inspect, render, run, commands, and mcp): a deliberate exception to the OneNote-only scope rule, for the CLI and its MCP server only (maintainer decision, 2026-10-15). `commands` and `run` landed in Phase 0 (PR 0.13); the rest arrive with the engine work they use, as the Phase column says. Only `mcp --connect` stays post-parity (docs/post-parity.md).
 
 ## Desktop app arguments
 
@@ -35,10 +35,10 @@ notecraft [--help] [--version] [<notebook folder or page file>]
 | `notecraft [<notebook folder or page file>]` | Open a notebook or page in the desktop app at launch (the desktop binary, not the CLI) | Phase 0, PR 0.13 |
 | `notecraft-cli commands [--json]` | List every command id, label, status, and arguments | Phase 0, PR 0.13 (landed) |
 | `notecraft-cli run [--sample] --cmd 'id={json}' ...` | Run commands headlessly on an empty session (or the sample notebooks) | Phase 0, PR 0.13 (landed) |
-| `notecraft-cli info` | Notebook, section, and page counts and format version | Phase 1, PR 1.16 |
-| `notecraft-cli text <page>` | Print a page's plain text | Phase 1, PR 1.16 |
-| `notecraft-cli check` | Validate a notebook: unparseable pages, broken links, missing attachments | Phase 1, PR 1.16 |
-| `notecraft-cli run --page <page> --cmd <id> ...` | Run commands against a page of a notebook and save it | Phase 1, PR 1.16 |
+| `notecraft-cli info` | Notebook, section, and page counts and format version | Phase 1, PR 1.16 (landed) |
+| `notecraft-cli text <page>` | Print a page's plain text | Phase 1, PR 1.16 (landed) |
+| `notecraft-cli check` | Validate a notebook: unparseable pages, broken links, missing attachments | Phase 1, PR 1.16 (landed) |
+| `notecraft-cli run --page <page> --cmd <id> ...` | Run commands against a page of a notebook and save it | Phase 1, PR 1.16 (landed) |
 | `notecraft-cli search <query> [--tag <t>] [--limit <n>]` | Full-text search | Phase 2, PR 2.11 |
 | `notecraft-cli index [--rebuild]` | Update or rebuild `index.sqlite` | Phase 2, PR 2.11 |
 | `notecraft-cli render <page> --format pdf\|html\|png [--out <file>]` | Render a page | Phase 3, PR 3.14 |
@@ -53,7 +53,7 @@ notecraft [--help] [--version] [<notebook folder or page file>]
 
 ### `run`
 
-`notecraft-cli run [--sample] --cmd 'id={json}' [--cmd ...]` runs each command in order through the same registry the desktop app uses, on an empty session. `--sample` loads the built-in sample notebooks instead. Each `--cmd` is a command id, optionally followed by `=` and a JSON value for its arguments; `--cmd` is repeatable and a bare id passes no arguments. Each command prints one JSON line: `{"id":..., "ok":true, "value":...}` on success, or `{"id":..., "ok":false, "error":..., "message":...}` on failure. The run stops at the first command that fails and exits with that failure's code. Limits: each `--cmd` is at most 16 KB and a run takes at most 1000 of them (exit code 6 beyond that). From Phase 1 (PR 1.16), `--page <page>` runs the commands against a page of the `--notebook` and saves it.
+`notecraft-cli run [--sample] --cmd 'id={json}' [--cmd ...]` runs each command in order through the same registry the desktop app uses, on an empty session. `--sample` loads the built-in sample notebooks instead. Each `--cmd` is a command id, optionally followed by `=` and a JSON value for its arguments; `--cmd` is repeatable and a bare id passes no arguments. Each command prints one JSON line: `{"id":..., "ok":true, "value":...}` on success, or `{"id":..., "ok":false, "error":..., "message":...}` on failure. The run stops at the first command that fails and exits with that failure's code. Limits: each `--cmd` is at most 16 KB and a run takes at most 1000 of them (exit code 6 beyond that). With `--page <page>` (PR 1.16) the commands run against that page of the `--notebook` instead, and the page is saved afterwards; nothing is saved if a command fails, and exit code 5 means the file changed on disk. `info` prints the notebook name, id, path, format version, and section, group, and page counts; `text` prints the page without markdown syntax; `check` prints one line per problem (`path: kind: message`) and ends with a summary unless `--quiet`.
 
 ```sh
 notecraft-cli run --sample --cmd 'view.zoom={"percent":150}' --cmd view.zoom_in
@@ -70,10 +70,10 @@ notecraft-cli run --sample --cmd 'view.zoom={"percent":150}' --cmd view.zoom_in
 | 2 | Bad arguments |
 | 3 | Not found (notebook, page, command) |
 | 4 | Command is "Coming Soon" |
-| 5 | Conflict (file changed on disk); not used yet, arrives with PR 1.16 |
+| 5 | Conflict (file changed on disk); nothing is written |
 | 6 | Limit exceeded (input too large) |
 
-In use today: 0, 1 (internal error), 2 (bad arguments, including a command given invalid arguments), 3 (unknown command), 4, and 6.
+In use today: all of them. 3 also covers a missing notebook or page; 2 also covers a page name that matches more than one page; `check` exits 1 when it finds problems.
 
 ## Examples
 
@@ -92,3 +92,4 @@ notecraft-cli --notebook ~/Notes/Work run --page "Meeting notes" --cmd page.add_
 | 2026-10-14 | -1 | The release workflow, not the shared one, packages the CLI. |
 | 2026-10-15 | 0 | Documented the desktop app's arguments: `notecraft [<notebook folder or page file>]`, `--help`, `--version`. |
 | 2026-10-15 | 0 | The CLI now follows the related craft apps (maintainer decision). `commands` and `run` landed (PR 0.13); `run --sample`, the `--cmd 'id={json}'` format, and the exit codes in use documented; the other subcommands scheduled in PR 1.16, 2.11, 3.14, and 3.15; only `mcp --connect` stays post-parity. |
+| 2026-10-17 | 1 | PR 1.16 landed: global options, `info`, `text`, `check`, and `run --page`; exit code 5 in use. |

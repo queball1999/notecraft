@@ -58,7 +58,7 @@ pub fn marker_line(id: &str) -> String {
 }
 
 /// The fence a line opens or closes: its character and length, if the line is one.
-fn fence_of(line: &str) -> Option<(u8, usize)> {
+pub(crate) fn fence_of(line: &str) -> Option<(u8, usize)> {
     let indent = line.bytes().take_while(|b| *b == b' ').count();
     if indent > 3 {
         return None;
@@ -80,7 +80,7 @@ fn fence_of(line: &str) -> Option<(u8, usize)> {
 }
 
 /// True if `line` closes a fence opened with `open`.
-fn closes(open: (u8, usize), line: &str) -> bool {
+pub(crate) fn closes(open: (u8, usize), line: &str) -> bool {
     let Some((ch, len)) = fence_of(line) else {
         return false;
     };

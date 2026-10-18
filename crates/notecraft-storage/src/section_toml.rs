@@ -29,6 +29,8 @@ pub struct PageListing {
     pub file: String,
     /// 0 for a page, 1 for a subpage, 2 for a sub-subpage.
     pub level: u8,
+    /// True when the page's subpages are folded away in the page list.
+    pub collapsed: bool,
 }
 
 /// The contents of `.section.toml`.
@@ -128,6 +130,7 @@ fn page_listing(value: &Value) -> Option<PageListing> {
         Value::String(file) => Some(PageListing {
             file: file.clone(),
             level: 0,
+            collapsed: false,
         }),
         Value::Table(table) => {
             let file = table.get("file")?.as_str()?.to_owned();
@@ -135,7 +138,15 @@ fn page_listing(value: &Value) -> Option<PageListing> {
                 .get("level")
                 .and_then(Value::as_integer)
                 .map_or(0, clamp_level);
-            Some(PageListing { file, level })
+            let collapsed = table
+                .get("collapsed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            Some(PageListing {
+                file,
+                level,
+                collapsed,
+            })
         }
         _ => None,
     }
@@ -170,14 +181,34 @@ pages = [
             [
                 PageListing {
                     file: "Meeting notes.notecraft".into(),
-                    level: 0
+                    level: 0,
+                    collapsed: false
                 },
                 PageListing {
                     file: "Action items.md".into(),
-                    level: 1
+                    level: 1,
+                    collapsed: false
                 },
             ]
         );
+    }
+
+    #[test]
+    fn collapsed_flag_is_read_leniently() {
+        let config = SectionConfig::parse(
+            r##"
+pages = [
+  { file = "a.md", collapsed = true },
+  { file = "b.md", collapsed = "yes" },
+  { file = "c.md", collapsed = 1 },
+  { file = "d.md", collapsed = false },
+  "e.md",
+]
+"##,
+        )
+        .unwrap();
+        let flags: Vec<bool> = config.pages.iter().map(|p| p.collapsed).collect();
+        assert_eq!(flags, [true, false, false, false, false]);
     }
 
     #[test]

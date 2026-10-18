@@ -11,6 +11,8 @@ pub struct PageRef {
     pub title: String,
     /// 0 for a page, 1 for a subpage, 2 for a sub-subpage. Larger values are clamped.
     pub level: u8,
+    /// True when the page's subpages are folded away in the page list.
+    pub collapsed: bool,
 }
 
 impl PageRef {
@@ -19,7 +21,14 @@ impl PageRef {
             id: id.into(),
             title: title.into(),
             level: level.min(MAX_PAGE_LEVEL),
+            collapsed: false,
         }
+    }
+
+    /// This page with its subpages folded away (or shown).
+    pub fn with_collapsed(mut self, collapsed: bool) -> Self {
+        self.collapsed = collapsed;
+        self
     }
 
     /// The title to show; an untitled page shows "Untitled Page", as in OneNote.

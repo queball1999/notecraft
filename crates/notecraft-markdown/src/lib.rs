@@ -29,11 +29,13 @@ pub mod format;
 pub mod frontmatter;
 #[cfg(test)]
 mod frontmatter_tests;
+pub mod image;
 #[cfg(test)]
 mod image_tests;
 pub mod markup;
 #[cfg(test)]
 mod markup_tests;
+pub mod objects;
 mod parse;
 #[cfg(test)]
 mod parse_tests;

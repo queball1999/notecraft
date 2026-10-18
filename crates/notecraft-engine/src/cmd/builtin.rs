@@ -75,21 +75,68 @@ const FILE_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     ArgKind::String,
     "A .md or .notecraft file; the app asks with a file picker when omitted.",
 )];
-const INSERT_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
-    "path",
-    ArgKind::String,
-    "The file to insert; the app asks with a file picker when omitted.",
-)];
-const PASTE_PICTURE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
-    "path",
-    ArgKind::String,
-    "A picture file; the app uses the picture on the clipboard when omitted.",
-)];
+const INSERT_PATH_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "path",
+        ArgKind::String,
+        "The file to insert; the app asks with a file picker when omitted.",
+    ),
+    ArgSpec::optional(
+        "x",
+        ArgKind::Number,
+        "Page x of the top-left corner (with y): the click or drop point. Without a point the object flows with the text.",
+    ),
+    ArgSpec::optional("y", ArgKind::Number, "Page y of the top-left corner (with x)."),
+];
+const PASTE_PICTURE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "path",
+        ArgKind::String,
+        "A picture file; the app uses the picture on the clipboard when omitted.",
+    ),
+    ArgSpec::optional(
+        "x",
+        ArgKind::Number,
+        "Page x of the top-left corner (with y): where the picture is placed. Without a point it flows with the text.",
+    ),
+    ArgSpec::optional("y", ArgKind::Number, "Page y of the top-left corner (with x)."),
+];
+const OBJECT_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "src",
+        ArgKind::String,
+        "The link as written in the page, such as attachments/a1b2c3-photo.png.",
+    ),
+    ArgSpec::required("x", ArgKind::Number, "Page x of the top-left corner."),
+    ArgSpec::required("y", ArgKind::Number, "Page y of the top-left corner."),
+    ArgSpec::optional(
+        "nth",
+        ArgKind::Integer,
+        "Which occurrence of this link, counting from 0 in page order (default 0).",
+    ),
+];
 const ATTACHMENT_SRC_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "src",
     ArgKind::String,
     "The link of the attachment as written in the page, such as attachments/a1b2c3-budget.xlsx.",
 )];
+const PICTURE_RESIZE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "src",
+        ArgKind::String,
+        "The link of the picture as written in the page, such as attachments/a1b2c3-photo.png.",
+    ),
+    ArgSpec::required(
+        "width",
+        ArgKind::Integer,
+        "The display width in page units, 16 to 4096; 0 puts the picture back to its natural size.",
+    ),
+    ArgSpec::optional(
+        "nth",
+        ArgKind::Integer,
+        "Which picture with this link, counting from 0 in page order (default 0).",
+    ),
+];
 const NAV_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "id",
     ArgKind::String,
@@ -238,6 +285,15 @@ const PEN_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
 ];
+const PEN_TEXTURE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
+    ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
+    ArgSpec::optional(
+        "texture",
+        ArgKind::String,
+        "plain, pencil, rainbow, galaxy, lava, ocean, gold, silver, bronze, or rose_gold.",
+    ),
+];
 const TOOL_INDEX_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "index",
     ArgKind::Integer,
@@ -256,6 +312,11 @@ const TOOL_ADD_ARGS: &[ArgSpec] = &[
     ),
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
+    ArgSpec::optional(
+        "texture",
+        ArgKind::String,
+        "For a pen: pencil, rainbow, galaxy, lava, ocean, gold, silver, bronze, or rose_gold.",
+    ),
 ];
 const EYEDROPPER_ARGS: &[ArgSpec] = &[
     ArgSpec::required("x", ArgKind::Number, "Page x in page units."),
@@ -264,6 +325,23 @@ const EYEDROPPER_ARGS: &[ArgSpec] = &[
         "radius",
         ArgKind::Number,
         "How far from a stroke's edge still counts, in page units.",
+    ),
+    ArgSpec::optional(
+        "page_color",
+        ArgKind::String,
+        "Page text or background color under the point; used when no stroke is there.",
+    ),
+];
+const ALWAYS_RULE_LINES_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "enabled",
+        ArgKind::Bool,
+        "True or false; the setting is flipped when omitted.",
+    ),
+    ArgSpec::optional(
+        "style",
+        ArgKind::String,
+        "The rule style new pages start with (a view.rule_lines style); the style of the page shown, or narrow, when omitted.",
     ),
 ];
 const ERASER_ARGS: &[ArgSpec] = &[
@@ -753,6 +831,30 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable()
     .ready(),
     CommandSpec::new(
+        ids::PICTURE_RESIZE,
+        "Resize Picture",
+        "Set the display width of a picture; the height follows its proportions.",
+    )
+    .args(PICTURE_RESIZE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PICTURE_MOVE,
+        "Move Picture",
+        "Put a picture where you drag it on the page.",
+    )
+    .args(OBJECT_MOVE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::ATTACHMENT_MOVE,
+        "Move File",
+        "Put a file attachment where you drag it on the page.",
+    )
+    .args(OBJECT_MOVE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
         ids::ATTACHMENT_OPEN,
         "Open Attachment",
         "Open an attached file in its default app.",
@@ -828,7 +930,7 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Move around the page by dragging.",
     ),
     CommandSpec::new(ids::DRAW_PEN, "Pen", "Draw with a pen.")
-        .args(PEN_ARGS)
+        .args(PEN_TEXTURE_ARGS)
         .ready(),
     CommandSpec::new(
         ids::DRAW_HIGHLIGHTER,
@@ -880,6 +982,13 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Take the color of the ink at a point on the page for the current pen.",
     )
     .args(EYEDROPPER_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::DRAW_ALWAYS_RULE_LINES,
+        "Always Create Pages with Rule Lines",
+        "Start every new page with rule lines, as set here or in the Rule Lines menu.",
+    )
+    .args(ALWAYS_RULE_LINES_ARGS)
     .ready(),
     CommandSpec::new(
         ids::DRAW_INK_REPLAY,
@@ -1272,6 +1381,12 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Show Training",
         "Show the training for NoteCraft.",
     ),
+    CommandSpec::new(
+        ids::HELP_WHATS_NEW,
+        "What's New",
+        "Show what changed in this version of NoteCraft.",
+    )
+    .ready(),
     // Navigation: the notebook list, the section tabs, and the page list
     CommandSpec::new(
         ids::NAV_NOTEBOOK_SELECT,
@@ -1387,6 +1502,22 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable()
     .ready(),
     CommandSpec::new(
+        ids::PAGE_COLLAPSE_SUBPAGES,
+        "Collapse Subpages",
+        "Fold the subpages of a page away in the page list.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_EXPAND_SUBPAGES,
+        "Expand Subpages",
+        "Show the subpages of a page in the page list again.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
         ids::PAGE_PROMOTE_SUBPAGE,
         "Promote Subpage",
         "Move a subpage up one level.",
@@ -1418,6 +1549,12 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .args(CONVERT_ARGS)
     .destructive()
     .ready(),
+    CommandSpec::new(
+        ids::PAGE_REPAIR_CANVAS,
+        "Repair Page Layout",
+        "Replace the unreadable ink and layout data of the page with a fresh block that keeps what could be read. The old file is kept in the notebook history folder.",
+    )
+    .ready(),
     CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
@@ -1428,6 +1565,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_OPEN, file::open_file),
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
     (ids::FILE_ABOUT, file::about),
+    (ids::HELP_WHATS_NEW, file::whats_new),
     (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),
     (ids::FILE_RESTORE_UNSAVED, file::restore_unsaved),
     (ids::FILE_DISCARD_UNSAVED, file::discard_unsaved),
@@ -1459,12 +1597,16 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_TOOL_ADD, draw::tool_add),
     (ids::DRAW_TOOL_DELETE, draw::tool_delete),
     (ids::DRAW_EYEDROPPER, draw::eyedropper),
+    (ids::DRAW_ALWAYS_RULE_LINES, draw::always_rule_lines),
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
     (ids::INSERT_PICTURE, attach::insert_picture),
     (ids::INSERT_FILE_ATTACHMENT, attach::insert_file),
     (ids::EDIT_PASTE_PICTURE, attach::paste_picture),
+    (ids::PICTURE_RESIZE, attach::resize_picture),
+    (ids::PICTURE_MOVE, attach::move_picture),
+    (ids::ATTACHMENT_MOVE, attach::move_attachment),
     (ids::ATTACHMENT_OPEN, attach::open_attachment),
     (ids::TEXT_SET_CARET, text::set_caret),
     (ids::TEXT_CLEAR_CARET, text::clear_caret),
@@ -1520,10 +1662,16 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::PAGE_MOVE, structure::page_move),
     (ids::PAGE_SET_LEVEL, structure::page_set_level),
     (ids::PAGE_MAKE_SUBPAGE, structure::page_make_subpage),
+    (
+        ids::PAGE_COLLAPSE_SUBPAGES,
+        structure::page_collapse_subpages,
+    ),
+    (ids::PAGE_EXPAND_SUBPAGES, structure::page_expand_subpages),
     (ids::PAGE_PROMOTE_SUBPAGE, structure::page_promote_subpage),
     (ids::NOTEBOOK_RENAME, structure::notebook_rename),
     (ids::NOTEBOOK_SET_COLOR, structure::notebook_set_color),
     (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
+    (ids::PAGE_REPAIR_CANVAS, page::repair_canvas),
 ];
 
 /// The handler for `id`, if it has one.

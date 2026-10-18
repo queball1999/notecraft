@@ -8,14 +8,16 @@ use std::path::{Path, PathBuf};
 use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
+mod nav;
 mod save;
 mod saving;
 pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
 mod attach;
+mod objects;
 
-pub use attach::{AttachKind, Attached, InsertError};
+pub use attach::{AttachKind, Attached, InlineEdit, InsertError};
 
 use crate::ink::InkState;
 
@@ -83,6 +85,9 @@ pub struct Session {
     selection: Selection,
     /// Page styles by page id; pages missing here use the default style.
     page_styles: BTreeMap<String, PageStyle>,
+    /// The rule style new pages start with (Always Create Pages with Rule Lines); `None` is
+    /// the plain page.
+    default_rule_lines: notecraft_canvas::RuleLines,
     /// Markdown source text by page id, with a counter that goes up on every change. Pages
     /// missing here have no text. Phase 1 fills this from the folder reader (PR 1.1).
     page_sources: BTreeMap<String, (u64, String)>,
@@ -93,12 +98,18 @@ pub struct Session {
     recents: Recents,
     /// Notebooks changed on disk by a structure step that must be read again (see `structure`).
     dirty: std::collections::BTreeSet<String>,
+    /// Frontmatter titles from the notebook index, by page id (see `nav`).
+    frontmatter_titles: BTreeMap<String, String>,
+    /// Per notebook, goes up when the tree is read again; guards background index results.
+    tree_generations: BTreeMap<String, u64>,
     ink: InkState,
     /// The caret and selection of text editing, with the page they belong to.
     text_cursor: Option<(String, TextCursor)>,
     /// Container geometry by page id, then container id. A container missing here is in the
     /// flow layout at the default width. PR 1.9 stores it in the page's canvas block.
     containers: BTreeMap<String, BTreeMap<String, notecraft_model::Container>>,
+    /// Pictures and file attachments with a place of their own, by page id (see `objects`).
+    objects: BTreeMap<String, Vec<notecraft_model::PlacedObject>>,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).
     saving: saving::SavingState,
@@ -195,6 +206,7 @@ impl Session {
         }
         self.notebook_roots
             .insert(notebook_id.to_owned(), folder.to_path_buf());
+        self.bump_tree_generation(notebook_id);
         // Pages of a notebook that is opened again are read again.
         self.page_sources.retain(|id, _| !id.starts_with(&prefix));
         self.page_notices.retain(|id, _| !id.starts_with(&prefix));
@@ -378,6 +390,18 @@ impl Session {
 
     pub(crate) fn recents_mut(&mut self) -> &mut Recents {
         &mut self.recents
+    }
+
+    /// The rule style new pages start with; `RuleLines::None` when Always Create Pages with
+    /// Rule Lines is off.
+    pub fn default_rule_lines(&self) -> notecraft_canvas::RuleLines {
+        self.default_rule_lines
+    }
+
+    /// Set the rule style new pages start with, without a command, for restoring saved
+    /// settings.
+    pub fn set_default_rule_lines(&mut self, style: notecraft_canvas::RuleLines) {
+        self.default_rule_lines = style;
     }
 
     /// The style of page `id` (the default style for a page that never had one set).

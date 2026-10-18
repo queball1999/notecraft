@@ -15,7 +15,8 @@ use std::path::{Path, PathBuf};
 
 use notecraft_core::{InkColor, InkPoint, InkTool, Stroke};
 use notecraft_storage::{
-    find_canvas_block, normalized, read_canvas, strip_canvas_block, write_ink,
+    find_canvas_block, normalized, read_canvas, repair_canvas, strip_canvas_block, write_canvas,
+    write_ink, CanvasContainer,
 };
 
 fn dir() -> PathBuf {
@@ -60,6 +61,7 @@ impl Rng {
 fn random_stroke(rng: &mut Rng, id: usize) -> Stroke {
     let n = 1 + rng.below(40) as usize;
     Stroke {
+        texture: Default::default(),
         id: format!("s{id}"),
         tool: if rng.below(4) == 0 {
             InkTool::Highlighter
@@ -118,6 +120,7 @@ fn adding_a_stroke_matches_the_golden_page() {
     let text = std::fs::read_to_string(dir().join("ink-basic.notecraft")).unwrap();
     let mut strokes = read_canvas(&text).strokes;
     strokes.push(Stroke {
+        texture: Default::default(),
         id: "s3".to_owned(),
         tool: InkTool::Pen,
         color: InkColor::parse("#C0392B").unwrap(),
@@ -258,4 +261,114 @@ fn block_size_and_depth_limits_hold() {
     let read = read_canvas(&long_string);
     assert_eq!(read.strokes.len(), 1);
     assert!(read.strokes[0].id.len() <= 64);
+}
+
+fn container(id: &str, x: f32, y: f32, w: f32) -> CanvasContainer {
+    CanvasContainer {
+        id: id.to_owned(),
+        x,
+        y,
+        w: Some(w),
+    }
+}
+
+#[test]
+fn moving_a_container_matches_the_golden_page() {
+    let text = std::fs::read_to_string(dir().join("ink-basic.notecraft")).unwrap();
+    let read = read_canvas(&text);
+    assert_eq!(read.containers.len(), 2);
+    let mut containers = read.containers.clone();
+    containers[0] = container("c1", 60.255, 100.0, 400.0);
+    containers.push(container("c3", 48.0, 300.0, 300.0));
+    let out = write_canvas(&text, &read.strokes, &containers).unwrap();
+    let golden = dir().join("containers-moved.golden");
+    if std::env::var_os("UPDATE_GOLDEN").is_some() {
+        std::fs::write(&golden, &out).unwrap();
+    }
+    let expected = std::fs::read_to_string(&golden).expect("golden file");
+    assert_eq!(out, expected);
+    // Only the containers value changed: strokes, shapes, z, and unknown keys are kept.
+    assert!(out.contains("\"future\": { \"keep\": [\"me\", 1, null] }"));
+    assert!(out.contains("\"shapes\": ["));
+    assert_eq!(read_canvas(&out).strokes, read.strokes);
+    // Writing the same positions again changes nothing.
+    let again = read_canvas(&out);
+    assert_eq!(
+        write_canvas(&out, &again.strokes, &again.containers).unwrap(),
+        out
+    );
+}
+
+#[test]
+fn positions_alone_create_a_block_and_read_back() {
+    for shape in PAGE_SHAPES.iter().take(4) {
+        let containers = vec![
+            container("c2", 520.5, 96.0, 300.0),
+            container("c1", 48.0, 96.0, 420.0),
+        ];
+        let out = write_canvas(shape, &[], &containers).unwrap();
+        let read = read_canvas(&out);
+        assert_eq!(read.problem, None, "{shape:?}");
+        assert_eq!(read.containers.len(), 2);
+        assert_eq!(read.containers[0].id, "c1", "written sorted by id");
+        assert_eq!(read.containers[1].x, 520.5);
+        assert!(read.strokes.is_empty());
+        // Nothing to store leaves a page alone.
+        assert_eq!(write_canvas(shape, &[], &[]).unwrap(), *shape);
+        assert_eq!(strip_canvas_block(&out).trim_end(), shape.trim_end());
+    }
+}
+
+#[test]
+fn clearing_every_position_empties_the_object_and_keeps_the_ink() {
+    let text = std::fs::read_to_string(dir().join("ink-basic.notecraft")).unwrap();
+    let strokes = read_canvas(&text).strokes;
+    let out = write_canvas(&text, &strokes, &[]).unwrap();
+    assert!(out.contains("\"containers\": {}"));
+    let read = read_canvas(&out);
+    assert!(read.containers.is_empty());
+    assert_eq!(read.strokes, strokes);
+}
+
+#[test]
+fn write_ink_keeps_container_positions() {
+    let text = std::fs::read_to_string(dir().join("ink-basic.notecraft")).unwrap();
+    let out = write_ink(&text, &[]).unwrap();
+    assert_eq!(read_canvas(&out).containers, read_canvas(&text).containers);
+}
+
+#[test]
+fn hostile_container_entries_are_skipped_or_clamped() {
+    let text = "```notecraft-canvas\n{\"containers\": {\"a\": {\"x\": 1e30, \"y\": -5}, \"b\": {\"x\": \"no\"}, \"c\": 7, \"d\": {\"x\": 3, \"y\": 4, \"w\": null}, \"a\": {\"x\": 9, \"y\": 9, \"w\": 100}}}\n```\n";
+    let read = read_canvas(text);
+    assert_eq!(read.problem, None);
+    let ids: Vec<&str> = read.containers.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(ids, ["a", "d"]);
+    assert_eq!(read.containers[0].x, 9.0, "the later duplicate wins");
+    assert_eq!(read.containers[1].w, None);
+    let wide = "```notecraft-canvas\n{\"containers\": {\"a\": {\"x\": 1e30, \"y\": -1e30}}}\n```\n";
+    let c = &read_canvas(wide).containers[0];
+    assert_eq!((c.x, c.y), (1_000_000.0, -1_000_000.0));
+}
+
+#[test]
+fn a_broken_block_is_repaired_into_a_fresh_one() {
+    let broken = "Intro text\n\n```notecraft-canvas\n{\"ink\": [ {oops\n```\nafter\n";
+    assert_eq!(
+        read_canvas(broken).problem,
+        Some(notecraft_storage::CanvasProblem::Unparseable)
+    );
+    let fixed = repair_canvas(broken).unwrap();
+    let read = read_canvas(&fixed);
+    assert_eq!(read.problem, None);
+    assert!(fixed.starts_with("Intro text\n\n```notecraft-canvas\n{"));
+    assert!(fixed.ends_with("```\nafter\n"));
+    // A healthy block, a newer one, and a page with no block are not repaired.
+    assert_eq!(repair_canvas(&fixed), None);
+    assert_eq!(repair_canvas("plain\n"), None);
+    let newer = "```notecraft-canvas\n{\"format\": 99}\n```\n";
+    assert_eq!(repair_canvas(newer), None);
+    // A cut-short block is repaired too.
+    let cut = "text\n```notecraft-canvas\n{\"ink\": [";
+    assert!(read_canvas(&repair_canvas(cut).unwrap()).problem.is_none());
 }

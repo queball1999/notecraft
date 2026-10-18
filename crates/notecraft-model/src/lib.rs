@@ -11,11 +11,13 @@
 
 pub mod container;
 pub mod notebook;
+pub mod object;
 pub mod page;
 pub mod section;
 
 pub use container::Container;
 pub use notebook::Notebook;
+pub use object::{ObjectKind, PlacedObject};
 pub use page::PageRef;
 pub use section::{Section, SectionGroup, SectionNode};
 

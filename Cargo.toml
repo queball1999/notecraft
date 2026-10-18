@@ -60,6 +60,8 @@ comrak = { version = "0.56", default-features = false }
 egui = "0.36"
 eframe = { version = "0.36", default-features = false }
 egui_kittest = "0.36"
+# The highlighter multiply paint callback (ui-egui only). Same release as eframe; MIT OR Apache-2.0.
+egui-wgpu = { version = "0.36", default-features = false }
 # Same font parser egui uses; checks OS fonts before egui loads them.
 skrifa = "0.44"
 # Native open dialogs; only the desktop app (L7) uses them.
@@ -69,6 +71,8 @@ open = "5"
 arboard = { version = "3", default-features = false, features = ["image-data"] }
 # Picture decoding for the canvas (PNG, JPEG, WebP) and the app icon. MIT OR Apache-2.0; pure Rust.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+# SVG pictures on the canvas. resvg is Apache-2.0 OR MIT, pure Rust; its rasterizer tiny-skia is BSD-3-Clause. Text, system fonts, and embedded raster images are off, so an SVG cannot read other files or scan the font folders.
+resvg = { version = "0.48", default-features = false }
 # craft-libs: every crate from one pinned commit (docs/craft-libs.md section 5).
 craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }
 craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "457a078809690994b22debdffb703ff36d3129df" }

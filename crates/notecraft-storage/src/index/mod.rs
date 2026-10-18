@@ -15,7 +15,7 @@ use crate::notebook_dir::PageKind;
 
 pub use refresh::{IndexError, RefreshStats};
 pub use schema::SCHEMA_VERSION;
-pub use worker::{IndexWorker, WorkerReport};
+pub use worker::{refresh_or_rebuild, IndexWorker, WorkerReport};
 
 /// One section or group row, in sidebar order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,10 +39,15 @@ pub struct PageRow {
     pub path: String,
     /// Path of the section that holds the page.
     pub section: String,
+    /// The title to show: the frontmatter title when the page has one, else the file name.
     pub title: String,
+    /// The title from the page's frontmatter, when the engine has read one.
+    pub frontmatter_title: Option<String>,
     pub kind: PageKind,
     /// 0 for a page, 1 for a subpage, 2 for a sub-subpage.
     pub level: u8,
+    /// Whether the page folds its subpages away in the page list.
+    pub collapsed: bool,
     /// File modified time, milliseconds since the Unix epoch.
     pub modified: i64,
 }
@@ -132,6 +137,22 @@ impl Index {
         schema::version(&self.conn)
     }
 
+    /// Record the frontmatter titles read for pages (`None` clears one). Unknown ids are
+    /// ignored. One transaction.
+    pub fn set_frontmatter_titles(
+        &mut self,
+        titles: &[(String, Option<String>)],
+    ) -> rusqlite::Result<()> {
+        let tx = self.conn.transaction()?;
+        for (id, title) in titles {
+            tx.execute(
+                "UPDATE pages SET fm_title = ?1 WHERE id = ?2",
+                rusqlite::params![title, id],
+            )?;
+        }
+        tx.commit()
+    }
+
     /// The sections and pages for the sidebar, in order.
     pub fn sidebar(&self) -> rusqlite::Result<Sidebar> {
         let mut stmt = self
@@ -151,17 +172,23 @@ impl Index {
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let mut stmt = self.conn.prepare_cached(
-            "SELECT id, path, section, title, kind, level, modified FROM pages ORDER BY ord",
+            "SELECT id, path, section, title, kind, level, modified, fm_title, collapsed FROM pages ORDER BY ord",
         )?;
         let pages = stmt
             .query_map([], |row| {
                 let kind: String = row.get(4)?;
                 let level: i64 = row.get(5)?;
+                let file_title: String = row.get(3)?;
+                let frontmatter_title = row
+                    .get::<_, Option<String>>(7)?
+                    .map(|t| t.trim().to_owned())
+                    .filter(|t| !t.is_empty());
                 Ok(PageRow {
                     id: row.get(0)?,
                     path: row.get(1)?,
                     section: row.get(2)?,
-                    title: row.get(3)?,
+                    title: frontmatter_title.clone().unwrap_or(file_title),
+                    frontmatter_title,
                     kind: if kind == "canvas" {
                         PageKind::Canvas
                     } else {
@@ -169,6 +196,7 @@ impl Index {
                     },
                     level: u8::try_from(level).unwrap_or(0),
                     modified: row.get(6)?,
+                    collapsed: row.get::<_, i64>(8)? != 0,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;

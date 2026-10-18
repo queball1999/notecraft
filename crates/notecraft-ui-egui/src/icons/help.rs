@@ -35,6 +35,23 @@ pub(super) fn feedback(p: &Pen) {
     p.text_lines(4.5, 11.5, &[5.0, 8.0]);
 }
 
+/// A four-point sparkle with a small one beside it.
+pub(super) fn whats_new(p: &Pen) {
+    p.line(&[
+        (7.0, 1.5),
+        (8.4, 6.0),
+        (12.5, 7.5),
+        (8.4, 9.0),
+        (7.0, 13.5),
+        (5.6, 9.0),
+        (1.5, 7.5),
+        (5.6, 6.0),
+        (7.0, 1.5),
+    ]);
+    p.line(&[(13.0, 11.0), (13.0, 15.0)]);
+    p.line(&[(11.0, 13.0), (15.0, 13.0)]);
+}
+
 /// A screen showing a play triangle.
 pub(super) fn training(p: &Pen) {
     p.outline(1.5, 2.5, 14.5, 11.5);

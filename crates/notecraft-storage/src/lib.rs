@@ -30,12 +30,14 @@ pub mod structure;
 pub mod watch;
 
 pub use canvas_block::{
-    find_canvas_block, normalized, read_canvas, strip_canvas_block, write_ink, CanvasBlock,
-    CanvasProblem, CanvasRead, WriteInkError,
+    can_repair, find_canvas_block, normalized, normalized_container, normalized_object,
+    read_canvas, repair_canvas, strip_canvas_block, write_canvas, write_canvas_all, write_ink,
+    CanvasBlock, CanvasContainer, CanvasObject, CanvasProblem, CanvasRead, WriteInkError,
 };
 pub use notebook_dir::{
-    scan_notebook, scan_notebook_with, GroupEntry, NotebookTree, PageEntry, PageKind, ScanError,
-    ScanLimits, ScanWarning, SectionEntry, TreeNode, WarningKind,
+    index_path, read_notebook_header, scan_notebook, scan_notebook_with, GroupEntry,
+    NotebookHeader, NotebookTree, PageEntry, PageKind, ScanError, ScanLimits, ScanWarning,
+    SectionEntry, TreeNode, WarningKind,
 };
 pub use notebook_toml::{NotebookConfig, ReadOutcome};
 pub use page_file::{

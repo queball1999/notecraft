@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use notecraft_core::{InkPoint, Stroke};
 use notecraft_model::section::MAX_GROUP_DEPTH;
-use notecraft_model::Container;
+use notecraft_model::{Container, PlacedObject};
 use notecraft_model::{Section, SectionNode};
 
 use crate::session::Session;
@@ -44,6 +44,13 @@ pub enum Op {
         id: String,
         before: Option<Container>,
         after: Option<Container>,
+    },
+    /// Change the places of a page's pictures and file attachments from `before` to `after`
+    /// (docs/markdown.md section 3.4). The text of the page is not touched.
+    SetObjects {
+        page: String,
+        before: Vec<PlacedObject>,
+        after: Vec<PlacedObject>,
     },
     /// Change a page's style (rule lines, background color, paper size) from `before` to
     /// `after`.
@@ -186,6 +193,15 @@ impl Op {
                 before: after.clone(),
                 after: before.clone(),
             },
+            Op::SetObjects {
+                page,
+                before,
+                after,
+            } => Op::SetObjects {
+                page: page.clone(),
+                before: after.clone(),
+                after: before.clone(),
+            },
             Op::SetPageStyle {
                 page,
                 before,
@@ -223,6 +239,7 @@ impl Op {
             | Op::DeleteStroke { page, .. }
             | Op::ReplaceText { page, .. }
             | Op::SetContainer { page, .. }
+            | Op::SetObjects { page, .. }
             | Op::SetPageStyle { page, .. } => change(page),
             Op::MovePage { page, from, to, .. } => {
                 change(page);
@@ -249,6 +266,19 @@ impl Op {
             Op::SetContainer { page, id, .. } => {
                 BASE + page.len() + id.len() * 3 + size_of::<Container>() * 2
             }
+            Op::SetObjects {
+                page,
+                before,
+                after,
+            } => {
+                let list = |objects: &[PlacedObject]| {
+                    objects
+                        .iter()
+                        .map(|o| size_of::<PlacedObject>() + o.id.len() + o.src.len())
+                        .sum::<usize>()
+                };
+                BASE + page.len() + list(before) + list(after)
+            }
             Op::SetPageStyle { page, .. } => BASE + page.len() + size_of::<PageStyle>() * 2,
             Op::MovePage {
                 notebook,
@@ -265,11 +295,14 @@ impl Op {
     pub(crate) fn apply(&self, session: &mut Session) -> bool {
         let applied = self.apply_to_document(session);
         if applied {
-            // Page text and strokes are saved with the page, so a change to either is an
-            // unsaved edit (PR 1.7). Style and structure changes are not page text yet.
+            // Page text, strokes, and container positions are saved with the page, so a change
+            // to any is an unsaved edit (PR 1.7). Style and structure changes are not page
+            // text yet.
             if let Op::InsertStroke { page, .. }
             | Op::DeleteStroke { page, .. }
-            | Op::ReplaceText { page, .. } = self
+            | Op::ReplaceText { page, .. }
+            | Op::SetContainer { page, .. }
+            | Op::SetObjects { page, .. } = self
             {
                 session.mark_page_dirty(page);
             }
@@ -347,6 +380,17 @@ impl Op {
                     return false;
                 }
                 session.put_container(page, id, after.clone());
+                true
+            }
+            Op::SetObjects {
+                page,
+                before,
+                after,
+            } => {
+                if session.page_objects(page) != before.as_slice() {
+                    return false;
+                }
+                session.put_objects(page, after.clone());
                 true
             }
             Op::SetPageStyle {
