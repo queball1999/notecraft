@@ -14,6 +14,7 @@ mod ink;
 #[cfg(test)]
 mod ink_tests;
 mod keymap;
+mod multiply;
 pub(crate) mod paper;
 pub(crate) mod pictures;
 mod rawtext;
@@ -23,6 +24,7 @@ mod widget;
 use notecraft_canvas::viewport::{self, Viewport};
 use notecraft_core::Vec2;
 
+pub use multiply::install as install_multiply;
 pub use widget::show;
 
 /// The egui memory id of the flag that is true while the user types in the canvas.

@@ -579,3 +579,19 @@ fn a_new_section_starts_with_one_untitled_page_in_the_same_step() {
     assert!(!dir.path().join("Folder/Untitled Page.md").exists());
     assert!(s.current_notebook().unwrap().section(&group).is_none());
 }
+
+#[test]
+fn new_pages_take_the_default_rule_style_when_it_is_on() {
+    use notecraft_canvas::RuleLines;
+    let (_dir, mut s, nb) = sample();
+    let section = format!("{nb}/Work");
+    // Off: a plain page.
+    let plain = s.create_page(&section, Some("Plain")).unwrap();
+    assert_eq!(s.style_of(&plain).rule_lines, RuleLines::None);
+    // On: the page starts ruled; pages already there are untouched.
+    s.set_default_rule_lines(RuleLines::College);
+    let ruled = s.create_page(&section, Some("Ruled")).unwrap();
+    assert_eq!(s.style_of(&ruled).rule_lines, RuleLines::College);
+    assert_eq!(s.page_style().rule_lines, RuleLines::College);
+    assert_eq!(s.style_of(&plain).rule_lines, RuleLines::None);
+}

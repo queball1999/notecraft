@@ -21,7 +21,7 @@ use notecraft_core::{
 use notecraft_engine::cmd::{ids, Value};
 use notecraft_engine::PenStyle;
 
-use super::PageToScreen;
+use super::{multiply, PageToScreen};
 use crate::ribbon::Clicked;
 
 /// Pointer events read from one frame, at most.
@@ -395,6 +395,75 @@ impl InkUi {
         }
     }
 
+    /// Whether the page's highlighter strokes in `visible` can go through the multiply paint
+    /// callback: the app installed it and there are not more strokes than one frame draws.
+    pub fn can_multiply(ctx: &egui::Context, layer: Option<&InkLayer>, visible: Aabb) -> bool {
+        multiply::ready(ctx)
+            && layer.is_none_or(|layer| {
+                layer
+                    .strokes_in(visible)
+                    .filter(|stroke| stroke.tool == InkTool::Highlighter)
+                    .count()
+                    < multiply::MAX_STROKES
+            })
+    }
+
+    /// The multiply version of [`Self::paint_highlights`]: each highlighter stroke (and the one
+    /// being drawn) is sent to a paint callback that multiplies it over everything painted so
+    /// far, so this pass goes after the page text and images and before the pens. Rule lines
+    /// and text show through the color, and strokes that cross darken each other. Use only
+    /// when [`Self::can_multiply`] is true.
+    pub fn paint_highlights_multiply(
+        &mut self,
+        painter: &Painter,
+        map: PageToScreen,
+        visible: Aabb,
+        page: Option<&str>,
+        layer: Option<&InkLayer>,
+        preview: Option<(&[InkPoint], PenStyle)>,
+    ) {
+        self.cache.set_page(page);
+        let scale = painter.ctx().pixels_per_point();
+        let half_pixel = 0.5 / scale;
+        let mut strokes = Vec::new();
+        if let Some(layer) = layer {
+            for stroke in layer.strokes_in(visible) {
+                if stroke.tool != InkTool::Highlighter {
+                    continue;
+                }
+                let tessellated = self.cache.mesh_for(stroke, map.zoom);
+                let mut mesh = Mesh::default();
+                let opaque =
+                    InkColor([stroke.color.0[0], stroke.color.0[1], stroke.color.0[2], 255]);
+                append(&mut mesh, &tessellated, map, opaque, half_pixel);
+                strokes.push(gpu_stroke(&[&mesh], stroke.color));
+            }
+        }
+        if let Some((points, style)) = preview {
+            let color = style.color;
+            let opaque = InkColor([color.0[0], color.0[1], color.0[2], 255]);
+            let shapes =
+                self.preview
+                    .shapes(points, style.width_units(), opaque, true, map, half_pixel);
+            let meshes: Vec<&Mesh> = shapes
+                .iter()
+                .filter_map(|shape| match shape {
+                    Shape::Mesh(mesh) => Some(mesh.as_ref()),
+                    _ => None,
+                })
+                .collect();
+            strokes.push(gpu_stroke(&meshes, color));
+        } else {
+            self.preview.clear();
+        }
+        if !strokes.is_empty() {
+            painter.add(egui_wgpu::Callback::new_paint_callback(
+                painter.clip_rect(),
+                multiply::HighlightCallback { strokes },
+            ));
+        }
+    }
+
     /// Paint the page's pen strokes that touch `visible` (page units) and then the pen stroke
     /// being drawn. This pass goes over the page text.
     pub fn paint_pens(
@@ -440,6 +509,33 @@ impl InkUi {
 
 /// Strength of the highlighter over the paper when the stroke's color has no alpha of its own.
 const HIGHLIGHT_ALPHA: f32 = 0.5;
+
+/// One highlighter stroke for the multiply callback: the meshes (screen space, the stroke's
+/// color opaque, so a vertex's alpha is its edge coverage) merged into one list. `color` is
+/// the stroke's own color; its alpha is the strength, or [`HIGHLIGHT_ALPHA`] when stored
+/// opaque.
+fn gpu_stroke(meshes: &[&Mesh], color: InkColor) -> multiply::GpuStroke {
+    let mut stroke = multiply::GpuStroke {
+        vertices: Vec::new(),
+        indices: Vec::new(),
+        rgb: [color.0[0], color.0[1], color.0[2]],
+        strength: if color.0[3] == u8::MAX {
+            HIGHLIGHT_ALPHA
+        } else {
+            f32::from(color.0[3]) / 255.0
+        },
+    };
+    for mesh in meshes {
+        let base = stroke.vertices.len() as u32;
+        stroke.vertices.extend(
+            mesh.vertices
+                .iter()
+                .map(|v| ([v.pos.x, v.pos.y], f32::from(v.color.a()) / 255.0)),
+        );
+        stroke.indices.extend(mesh.indices.iter().map(|i| base + i));
+    }
+    stroke
+}
 
 /// The opaque color a highlighter stroke is drawn in: `color` over `paper` at the stroke's own
 /// alpha, or at [`HIGHLIGHT_ALPHA`] when the stroke is stored opaque.

@@ -184,6 +184,44 @@ fn the_eyedropper_takes_the_color_of_ink_clicked_on_the_page() {
 }
 
 #[test]
+fn the_eyedropper_takes_the_page_color_from_bare_paper() {
+    let mut harness = harness();
+    assert!(harness
+        .state_mut()
+        .dispatch("view.page_color", json!({ "color": "#F7E7B4" })));
+    harness.run();
+    click(&mut harness, "Black Pen");
+    click(&mut harness, "Black Pen");
+    click(&mut harness, "Eyedropper");
+    let canvas = harness.get_by_label("Canvas").rect().min;
+    let target = canvas + egui::vec2(900.0, 500.0);
+    harness.hover_at(target);
+    harness.run();
+    harness.drag_at(target);
+    harness.run();
+    harness.drop_at(target);
+    harness.run();
+    assert!(!crate::ribbon::eyedropper_active(&harness.ctx));
+    assert_eq!(ink(&harness).pen().color.to_hex(), "#F7E7B4");
+}
+
+#[test]
+fn always_create_pages_with_rule_lines_is_a_checked_setting() {
+    let mut harness = harness();
+    assert_eq!(harness.state().session().default_rule_lines().id(), "none");
+    click(&mut harness, "Format Background");
+    click(&mut harness, "Always Create Pages with Rule Lines");
+    assert_eq!(
+        harness.state().session().default_rule_lines().id(),
+        "narrow"
+    );
+    // The menu marks it while on, and the same row turns it off.
+    click(&mut harness, "Format Background");
+    click(&mut harness, "Always Create Pages with Rule Lines");
+    assert_eq!(harness.state().session().default_rule_lines().id(), "none");
+}
+
+#[test]
 fn format_background_offers_rule_lines_grids_and_colors() {
     let mut harness = harness();
     click(&mut harness, "Format Background");

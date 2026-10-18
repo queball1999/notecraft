@@ -18,6 +18,7 @@ notecraft-engine.workspace = true
 notecraft-markdown.workspace = true
 notecraft-model.workspace = true
 egui.workspace = true
+egui-wgpu.workspace = true
 craft-ui.workspace = true
 skrifa.workspace = true
 tracing.workspace = true
@@ -25,5 +26,6 @@ tracing.workspace = true
 [dev-dependencies]
 serde_json.workspace = true
 egui_kittest.workspace = true
+egui-wgpu = { workspace = true, features = ["default"] }
 tempfile.workspace = true
 image.workspace = true

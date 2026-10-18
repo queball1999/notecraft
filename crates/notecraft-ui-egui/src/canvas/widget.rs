@@ -122,18 +122,33 @@ pub fn show(
                         node.set_value(text.clone());
                     }
                 });
-                let frame = capture_ink(ui, &response, session, state, map, shown, clicked);
-                paper::draw(ui.painter(), screen, map, style, tokens);
-                // Highlighter ink goes above the paper and under the text.
-                paint_highlights(
+                let paper_color = paper::paper_color(style, tokens);
+                let frame = capture_ink(
                     ui,
+                    &response,
                     session,
                     state,
                     map,
                     shown,
-                    &frame,
-                    paper::paper_color(style, tokens),
+                    clicked,
+                    PageColors {
+                        flow,
+                        text: tokens.text,
+                        paper: paper_color,
+                    },
                 );
+                paper::draw(ui.painter(), screen, map, style, tokens);
+                // Highlighter ink multiplies over the page content when the app installed the
+                // paint callback (drawn after the text, below). Without it, the ink is an
+                // opaque pre-blend above the paper and under the text.
+                let multiply = ink::InkUi::can_multiply(
+                    ui.ctx(),
+                    session.current_ink(),
+                    ink::visible_box(map, shown),
+                );
+                if !multiply {
+                    paint_highlights(ui, session, state, map, shown, &frame, Some(paper_color));
+                }
                 if let Some(page) = session.current_page() {
                     let editable = session.page_is_editable(&page.id)
                         && session.ink().tool() == DrawTool::Type;
@@ -176,6 +191,9 @@ pub fn show(
                         egui::FontId::proportional(flow::BODY_SIZE * zoom),
                         tokens.accent,
                     );
+                }
+                if multiply {
+                    paint_highlights(ui, session, state, map, shown, &frame, None);
                 }
                 paint_pens(ui, &response, session, state, map, shown, &frame, tokens);
                 if response.has_focus() {
@@ -264,6 +282,7 @@ fn capture_ink(
     map: PageToScreen,
     shown: Rect,
     clicked: &mut Vec<Clicked>,
+    colors: PageColors<'_>,
 ) -> InkFrame {
     let tool = session.ink().tool();
     let style = match tool {
@@ -292,7 +311,7 @@ fn capture_ink(
         } else if response.clicked() {
             if let Some(at) = response.interact_pointer_pos() {
                 let page = map.page(at);
-                clicked.push(eyedropper_click(page, map.zoom));
+                clicked.push(eyedropper_click(page, map.zoom, &colors));
                 crate::ribbon::set_eyedropper(&ctx, false);
             }
         }
@@ -314,14 +333,29 @@ fn capture_ink(
     }
 }
 
+/// What the Eyedropper can read besides ink: the laid out page text and the paper color.
+struct PageColors<'a> {
+    flow: Option<&'a flow::Flow>,
+    /// The color of text with no color of its own.
+    text: egui::Color32,
+    paper: egui::Color32,
+}
+
 /// The `draw.eyedropper` command for a click at page position `page`. The reach is a few
 /// screen pixels, so thin ink is easy to hit at any zoom.
-fn eyedropper_click(page: Vec2, zoom: f32) -> Clicked {
+fn eyedropper_click(page: Vec2, zoom: f32, colors: &PageColors<'_>) -> Clicked {
     let round = |v: f32| (f64::from(v) * 100.0).round() / 100.0;
     let mut args = notecraft_engine::cmd::Map::new();
     args.insert("x".to_owned(), round(page.x).into());
     args.insert("y".to_owned(), round(page.y).into());
     args.insert("radius".to_owned(), round(4.0 / zoom.max(0.01)).into());
+    // With no ink there, the page gives its color: the text under the point, else the paper.
+    let under = colors
+        .flow
+        .and_then(|flow| flow.text_color_at(page, colors.text))
+        .unwrap_or(colors.paper);
+    let text = format!("#{:02X}{:02X}{:02X}", under.r(), under.g(), under.b());
+    args.insert("page_color".to_owned(), text.into());
     Clicked {
         command: notecraft_engine::cmd::ids::DRAW_EYEDROPPER,
         args: notecraft_engine::cmd::Value::Object(args),
@@ -336,22 +370,34 @@ fn paint_highlights(
     map: PageToScreen,
     shown: Rect,
     frame: &InkFrame,
-    paper: egui::Color32,
+    paper: Option<egui::Color32>,
 ) {
     let preview = frame
         .preview
         .as_deref()
         .zip(frame.style)
         .filter(|_| frame.tool == DrawTool::Highlighter);
-    state.ink.paint_highlights(
-        ui.painter(),
-        map,
-        ink::visible_box(map, shown),
-        session.selection().page.as_deref(),
-        session.current_ink(),
-        preview,
-        paper,
-    );
+    let visible = ink::visible_box(map, shown);
+    let page = session.selection().page.as_deref();
+    match paper {
+        Some(paper) => state.ink.paint_highlights(
+            ui.painter(),
+            map,
+            visible,
+            page,
+            session.current_ink(),
+            preview,
+            paper,
+        ),
+        None => state.ink.paint_highlights_multiply(
+            ui.painter(),
+            map,
+            visible,
+            page,
+            session.current_ink(),
+            preview,
+        ),
+    }
 }
 
 /// The pen pass: over the page text, and the eraser's circle at the pointer.

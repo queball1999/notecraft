@@ -83,6 +83,9 @@ pub struct Session {
     selection: Selection,
     /// Page styles by page id; pages missing here use the default style.
     page_styles: BTreeMap<String, PageStyle>,
+    /// The rule style new pages start with (Always Create Pages with Rule Lines); `None` is
+    /// the plain page.
+    default_rule_lines: notecraft_canvas::RuleLines,
     /// Markdown source text by page id, with a counter that goes up on every change. Pages
     /// missing here have no text. Phase 1 fills this from the folder reader (PR 1.1).
     page_sources: BTreeMap<String, (u64, String)>,
@@ -378,6 +381,18 @@ impl Session {
 
     pub(crate) fn recents_mut(&mut self) -> &mut Recents {
         &mut self.recents
+    }
+
+    /// The rule style new pages start with; `RuleLines::None` when Always Create Pages with
+    /// Rule Lines is off.
+    pub fn default_rule_lines(&self) -> notecraft_canvas::RuleLines {
+        self.default_rule_lines
+    }
+
+    /// Set the rule style new pages start with, without a command, for restoring saved
+    /// settings.
+    pub fn set_default_rule_lines(&mut self, style: notecraft_canvas::RuleLines) {
+        self.default_rule_lines = style;
     }
 
     /// The style of page `id` (the default style for a page that never had one set).

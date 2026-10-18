@@ -364,7 +364,7 @@ pub(super) fn papers(
 }
 
 /// The Format Background menu: the Rule Lines and Grid Lines cards, a Rule Line Color
-/// submenu, Always Create Pages with Rule Lines (not built yet, so it is disabled), and a Page
+/// submenu, Always Create Pages with Rule Lines (checked while on), and a Page
 /// Color submenu.
 pub(super) fn background(
     ui: &mut Ui,
@@ -377,15 +377,21 @@ pub(super) fn background(
     ui.menu_button("Rule Line Color", |ui| {
         colors(ui, ids::VIEW_RULE_LINE_COLOR, &menu.rule_color, look, out);
     });
-    ui.add_enabled_ui(false, |ui| {
-        let _ = row(
-            ui,
-            "Always Create Pages with Rule Lines",
-            Preview::None,
-            look,
-        )
-        .on_disabled_hover_text("Coming Soon");
-    });
+    if marked_row(
+        ui,
+        "Always Create Pages with Rule Lines",
+        Preview::None,
+        look.always_rule_lines,
+        look,
+    )
+    .clicked()
+    {
+        out.push(Clicked {
+            command: ids::DRAW_ALWAYS_RULE_LINES,
+            args: Value::Null,
+        });
+        ui.close();
+    }
     ui.menu_button("Page Color", |ui| {
         colors(ui, ids::VIEW_PAGE_COLOR, &menu.page_color, look, out);
     });

@@ -981,6 +981,50 @@ impl Layout<'_> {
     }
 }
 
+impl Flow {
+    /// The color of the text under page position `at`, or `None` when there is no text there.
+    /// Text with no color of its own is drawn in `automatic`.
+    pub(super) fn text_color_at(&self, at: Vec2, automatic: Color32) -> Option<Color32> {
+        let z = self.zoom.max(0.01);
+        for item in &self.items {
+            let Item::Text { pos, galley, .. } = item else {
+                continue;
+            };
+            let local = egui::vec2((at.x - pos.x) * z, (at.y - pos.y) * z);
+            if !galley.rect.contains(local.to_pos2()) {
+                continue;
+            }
+            let on_text = galley
+                .rows
+                .iter()
+                .any(|row| row.rect_without_leading_space().contains(local.to_pos2()));
+            if !on_text {
+                continue;
+            }
+            let char_index = galley.cursor_from_pos(local).index.0;
+            let byte = galley
+                .job
+                .text
+                .char_indices()
+                .nth(char_index)
+                .map_or(galley.job.text.len(), |(b, _)| b);
+            let section = galley
+                .job
+                .sections
+                .iter()
+                .find(|s| s.byte_range.start.0 <= byte && byte < s.byte_range.end.0)
+                .or_else(|| galley.job.sections.last())?;
+            let color = section.format.color;
+            return Some(if color == Color32::PLACEHOLDER || color.a() == 0 {
+                automatic
+            } else {
+                color
+            });
+        }
+        None
+    }
+}
+
 /// Draw the laid-out page.
 pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &ThemeTokens) {
     let clip = painter.clip_rect();
@@ -1282,6 +1326,37 @@ mod tests {
             .filter(|i| matches!(i, Item::Text { .. }))
             .count();
         assert_eq!(texts, 1, "the alignment comment draws nothing of its own");
+    }
+
+    #[test]
+    fn the_color_under_a_point_is_the_text_color_or_none() {
+        let tokens = tokens();
+        let automatic = Color32::from_rgb(1, 2, 3);
+        let plain = with_painter(|p| lay(p, "word\n", 1.0, &tokens, None));
+        let red = with_painter(|p| {
+            lay(
+                p,
+                "<span style=\"color:#FF0000\">word</span>\n",
+                1.0,
+                &tokens,
+                None,
+            )
+        });
+        let origin = |flow: &Flow| {
+            flow.items.iter().find_map(|item| match item {
+                Item::Text { pos, .. } => Some(*pos),
+                _ => None,
+            })
+        };
+        for (flow, expected) in [(&plain, tokens.text), (&red, Color32::from_rgb(255, 0, 0))] {
+            let pos = origin(flow).expect("a text item");
+            let on = Vec2::new(pos.x + 4.0, pos.y + 6.0);
+            assert_eq!(flow.text_color_at(on, automatic), Some(expected));
+            // Past the end of the word, and above the page, is bare paper.
+            let beside = Vec2::new(pos.x + 400.0, pos.y + 6.0);
+            assert_eq!(flow.text_color_at(beside, automatic), None);
+            assert_eq!(flow.text_color_at(Vec2::new(-50.0, -50.0), automatic), None);
+        }
     }
 
     #[test]
