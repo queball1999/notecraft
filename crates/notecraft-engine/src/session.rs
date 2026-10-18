@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
+mod nav;
 mod save;
 mod saving;
 pub use save::{ConvertOutcome, CONVERT_WARNING};
@@ -93,6 +94,10 @@ pub struct Session {
     recents: Recents,
     /// Notebooks changed on disk by a structure step that must be read again (see `structure`).
     dirty: std::collections::BTreeSet<String>,
+    /// Frontmatter titles from the notebook index, by page id (see `nav`).
+    frontmatter_titles: BTreeMap<String, String>,
+    /// Per notebook, goes up when the tree is read again; guards background index results.
+    tree_generations: BTreeMap<String, u64>,
     ink: InkState,
     /// The caret and selection of text editing, with the page they belong to.
     text_cursor: Option<(String, TextCursor)>,
@@ -195,6 +200,7 @@ impl Session {
         }
         self.notebook_roots
             .insert(notebook_id.to_owned(), folder.to_path_buf());
+        self.bump_tree_generation(notebook_id);
         // Pages of a notebook that is opened again are read again.
         self.page_sources.retain(|id, _| !id.starts_with(&prefix));
         self.page_notices.retain(|id, _| !id.starts_with(&prefix));
