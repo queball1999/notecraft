@@ -50,7 +50,22 @@ pub(crate) fn show(
         .auto_shrink([false, false])
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 1.0;
+            // Rows below a collapsed parent are skipped until the level comes back up.
+            let mut hide_below: Option<u8> = None;
             for (index, page) in section.pages.iter().enumerate() {
+                if let Some(level) = hide_below {
+                    if page.level > level {
+                        continue;
+                    }
+                    hide_below = None;
+                }
+                let has_subpages = section
+                    .pages
+                    .get(index + 1)
+                    .is_some_and(|next| next.level > page.level);
+                if has_subpages && page.collapsed {
+                    hide_below = Some(page.level);
+                }
                 if nav.is_renaming(&page.id) {
                     let (rect, _) = ui.allocate_exact_size(
                         egui::vec2(ui.available_width(), ROW_HEIGHT),
@@ -64,20 +79,29 @@ pub(crate) fn show(
                     out.extend(edit::rename_field(ui, nav, field));
                     continue;
                 }
-                let (response, _) = Row {
+                let (response, on_arrow) = Row {
                     label: page.display_title(),
                     selected: current == Some(page.id.as_str()),
                     level: usize::from(page.level),
                     item: true,
                     swatch: None,
-                    arrow: None,
+                    arrow: has_subpages.then_some(!page.collapsed),
                     muted: false,
                 }
                 .show(ui, t);
-                if response.clicked() {
+                if response.clicked() && on_arrow {
+                    out.push(edit::command(
+                        if page.collapsed {
+                            ids::PAGE_EXPAND_SUBPAGES
+                        } else {
+                            ids::PAGE_COLLAPSE_SUBPAGES
+                        },
+                        &[("id", page.id.as_str().into())],
+                    ));
+                } else if response.clicked() {
                     out.push(select(ids::NAV_PAGE_SELECT, &page.id));
                 }
-                if response.double_clicked() {
+                if response.double_clicked() && !on_arrow {
                     nav.begin_rename(&page.id, edit::Kind::Page, &page.title);
                 }
                 response.context_menu(|ui| edit::page_menu(ui, page, section, index, nav, out));
