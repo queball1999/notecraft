@@ -37,6 +37,13 @@ pub struct StrokeMesh {
     /// One per position: how the front end places and fades the vertex. All [`Edge::Inside`]
     /// when the mesh has no fringe.
     pub edges: Vec<Edge>,
+    /// One per position: how far along the stroke's centerline the vertex lies, in page
+    /// units (the arc length of the smoothed centerline; a cap runs on past the ends). A
+    /// texture that follows the stroke reads its horizontal coordinate from this.
+    pub along: Vec<f32>,
+    /// One per position: where the vertex lies across the stroke, from -1 on the right edge
+    /// of the direction of travel to 1 on the left edge, 0 on the centerline.
+    pub across: Vec<f32>,
 }
 
 /// What a vertex is for anti-aliasing. Directions are unit vectors pointing away from the
@@ -159,8 +166,19 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
     };
     // Outline chains (vertex and outward direction) that get a fringe, in order along the edge.
     let mut chains: Vec<Vec<RimVertex>> = Vec::new();
+    // Arc length of the centerline at each node, for textures that follow the stroke.
+    let mut lengths: Vec<f32> = Vec::with_capacity(nodes.len());
+    let mut run = 0.0_f32;
+    for (i, node) in nodes.iter().enumerate() {
+        if let Some(before) = i.checked_sub(1).and_then(|j| nodes.get(j)) {
+            run += before.pos.distance(node.pos);
+        }
+        lengths.push(run);
+    }
     if nodes.len() == 1 {
+        let from = mesh.positions.len();
         chains.push(disc(&mut mesh, first.pos, first.radius, cap * 2));
+        tag(&mut mesh, from, (0.0, first.pos, Vec2::new(1.0, 0.0), first.radius));
         add_fringe(&mut mesh, &chains, params.fringe);
         return mesh;
     }
@@ -193,6 +211,9 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
         let left = node.pos + offset * node.radius;
         let right = node.pos - offset * node.radius;
         let (l1, r1) = (push_vertex(&mut mesh, left), push_vertex(&mut mesh, right));
+        let s = lengths.get(i).copied().unwrap_or(0.0);
+        place(&mut mesh, l1, s, 1.0);
+        place(&mut mesh, r1, s, -1.0);
         if let Some((l0, r0)) = previous {
             // Quad between the last node and this one: (l0, r0, l1) and (r0, r1, l1).
             mesh.indices.extend_from_slice(&[l0, r0, l1, r0, r1, l1]);
@@ -202,6 +223,7 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
         left_edge.push((l1, outward, node.radius));
         right_edge.push((r1, -outward, node.radius));
         if join {
+            let from = mesh.positions.len();
             chains.push(join_disc(
                 &mut mesh,
                 node.pos,
@@ -209,6 +231,7 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
                 (dir_at(i - 1), dir_at(i)),
                 cap,
             ));
+            tag(&mut mesh, from, (s, node.pos, dir_at(i - 1), node.radius));
         }
     }
     chains.push(left_edge);
@@ -217,8 +240,12 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
     // Round caps: half discs facing away from the stroke.
     if let Some(last) = nodes.last() {
         let end_dir = dir_at(dirs.len().saturating_sub(1));
+        let from = mesh.positions.len();
         chains.push(half_disc(&mut mesh, last.pos, last.radius, end_dir, cap));
+        let end = lengths.last().copied().unwrap_or(0.0);
+        tag(&mut mesh, from, (end, last.pos, end_dir, last.radius));
     }
+    let from = mesh.positions.len();
     chains.push(half_disc(
         &mut mesh,
         first.pos,
@@ -226,6 +253,7 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
         -dir_at(0),
         cap,
     ));
+    tag(&mut mesh, from, (0.0, first.pos, dir_at(0), first.radius));
     add_fringe(&mut mesh, &chains, params.fringe);
     mesh
 }
@@ -328,7 +356,38 @@ fn push_vertex(mesh: &mut StrokeMesh, pos: Vec2) -> u32 {
     let index = mesh.positions.len() as u32;
     mesh.positions.push(pos);
     mesh.edges.push(Edge::Inside);
+    mesh.along.push(0.0);
+    mesh.across.push(0.0);
     index
+}
+
+/// Set where one vertex lies along and across the stroke.
+fn place(mesh: &mut StrokeMesh, vertex: u32, along: f32, across: f32) {
+    if let Some(slot) = mesh.along.get_mut(vertex as usize) {
+        *slot = along;
+    }
+    if let Some(slot) = mesh.across.get_mut(vertex as usize) {
+        *slot = across;
+    }
+}
+
+/// Set `along` and `across` for every vertex from index `from` on, as seen from a node of
+/// the centerline: `(arc length at the node, node position, direction of travel, radius)`.
+/// A vertex ahead of the node (a cap) runs on past its arc length.
+fn tag(mesh: &mut StrokeMesh, from: usize, (s, center, dir, radius): (f32, Vec2, Vec2, f32)) {
+    let side = perp(dir);
+    for i in from..mesh.positions.len() {
+        let Some(&p) = mesh.positions.get(i) else {
+            break;
+        };
+        let offset = p - center;
+        let across = if radius > 1.0e-6 {
+            (offset.dot(side) / radius).clamp(-1.0, 1.0)
+        } else {
+            0.0
+        };
+        place(mesh, i as u32, s + offset.dot(dir), across);
+    }
 }
 
 /// Add the fringe along each outline chain: every chain vertex becomes a rim vertex, gets an
@@ -351,6 +410,11 @@ fn add_fringe(mesh: &mut StrokeMesh, chains: &[Vec<RimVertex>], enabled: bool) {
                 };
             }
             let outer = push_vertex(mesh, pos);
+            let (along, across) = (
+                mesh.along.get(vertex as usize).copied().unwrap_or(0.0),
+                mesh.across.get(vertex as usize).copied().unwrap_or(0.0),
+            );
+            place(mesh, outer, along, across);
             if let Some(edge) = mesh.edges.get_mut(outer as usize) {
                 *edge = Edge::Outer(outward);
             }
@@ -491,6 +555,44 @@ mod tests {
                 .iter()
                 .all(|&i| (i as usize) < mesh.positions.len())
             && mesh.positions.iter().all(|p| p.is_finite())
+    }
+
+    #[test]
+    fn every_vertex_knows_where_it_lies_along_and_across_the_stroke() {
+        let mesh = tessellate(&line(11, 10.0, 1.0), 6.0, TessParams::default());
+        assert_eq!(mesh.along.len(), mesh.positions.len());
+        assert_eq!(mesh.across.len(), mesh.positions.len());
+        for ((p, s), v) in mesh.positions.iter().zip(&mesh.along).zip(&mesh.across) {
+            // A straight line along x: arc length is x, and across follows y (down is right).
+            assert!((s - p.x).abs() < 0.01, "{p:?} {s}");
+            assert!((v + p.y / 3.0).abs() < 0.01, "{p:?} {v}");
+            assert!((-1.0..=1.0).contains(v));
+        }
+        // The ribbon's own edges sit at exactly +1 and -1.
+        assert!(mesh.across.iter().any(|v| *v == 1.0));
+        assert!(mesh.across.iter().any(|v| *v == -1.0));
+        // A fringe copies the vertex it hangs on.
+        let bare = tessellate(
+            &line(11, 10.0, 1.0),
+            6.0,
+            TessParams {
+                fringe: false,
+                ..TessParams::default()
+            },
+        );
+        assert!(mesh.positions.len() > bare.positions.len());
+        // A dot and a bend are tagged too.
+        let dot = tessellate(&[InkPoint::new(5.0, 5.0, 1.0)], 4.0, TessParams::default());
+        assert_eq!(dot.along.len(), dot.positions.len());
+        let bend = [
+            InkPoint::new(0.0, 0.0, 1.0),
+            InkPoint::new(50.0, 0.0, 1.0),
+            InkPoint::new(50.0, 50.0, 1.0),
+        ];
+        let mesh = tessellate(&bend, 4.0, TessParams::default());
+        let far = mesh.along.iter().copied().fold(0.0_f32, f32::max);
+        assert!((far - 102.0).abs() < 6.0, "{far}");
+        assert!(mesh.along.iter().all(|s| s.is_finite()));
     }
 
     #[test]
