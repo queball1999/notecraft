@@ -156,6 +156,10 @@ command_ids! {
     INSERT_PICTURE = "insert.picture";
     /// Set the display width of a picture by dragging its corner handles.
     PICTURE_RESIZE = "picture.resize";
+    /// Put a picture at a place of its own on the page by dragging it.
+    PICTURE_MOVE = "picture.move";
+    /// Put a file attachment at a place of its own on the page by dragging it.
+    ATTACHMENT_MOVE = "attachment.move";
     /// Open an attached file in its default app.
     ATTACHMENT_OPEN = "attachment.open";
     /// Capture part of the screen and insert it as a picture.

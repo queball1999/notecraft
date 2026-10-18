@@ -5,11 +5,18 @@
 //! for a picture, `[name](link)` for a file. The text change is one undo step. Undo takes the
 //! paragraph back out; the copied file stays in `attachments/`, so Redo works and nothing the
 //! user might have wanted is deleted. Clearing unused attachments is a later task.
+//!
+//! The paragraph goes before the canvas block of a `.notecraft` page, never after it. When the
+//! insert names a point on the page (a click, a drop, a paste), the new object also gets a place
+//! of its own there (docs/markdown.md section 3.4), in the same undo step.
 
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
+use notecraft_core::Vec2;
+use notecraft_markdown::objects::{count_of, object_slots};
 use notecraft_markdown::{image, Editor};
+use notecraft_model::{ObjectKind, PlacedObject};
 use notecraft_storage::attachments::{
     decode_link_path, is_picture_name, store_attachment_with, AttachError, StoredAttachment,
     LINK_THRESHOLD_BYTES,
@@ -128,6 +135,19 @@ impl Session {
         kind: AttachKind,
         link_over: u64,
     ) -> Result<Attached, InsertError> {
+        self.insert_attachment_at(source, kind, link_over, None)
+    }
+
+    /// [`Session::insert_attachment_with`], and with `at` the new picture or file also gets a
+    /// place of its own with its top-left corner at that page point (clamped to the page). It
+    /// is still one undo step.
+    pub fn insert_attachment_at(
+        &mut self,
+        source: &Path,
+        kind: AttachKind,
+        link_over: u64,
+        at: Option<Vec2>,
+    ) -> Result<Attached, InsertError> {
         let page = self
             .selection
             .page
@@ -154,18 +174,46 @@ impl Session {
             return Err(fail("pictures must be PNG, JPEG, WebP, or SVG files."));
         }
         let stored = store_attachment_with(&folder, source, link_over)?;
-        let (at, inserted) = append_paragraph(text, &paragraph(kind, &stored));
+        // The paragraph goes before the canvas block, which stays the last thing in the file.
+        let shown_end = find_canvas_block(text).map_or(text.len(), |b| b.block.start);
+        let shown = text.get(..shown_end).unwrap_or(text);
+        let (offset, mut inserted) = append_paragraph(shown, &paragraph(kind, &stored));
+        if shown_end < text.len() {
+            // Keep a blank line between the paragraph and the block.
+            inserted.push_str(if inserted.contains("\r\n") { "\r\n" } else { "\n" });
+        }
         let label = match kind {
             AttachKind::Picture => "Insert picture",
             AttachKind::File => "Insert file",
         };
-        let op = Op::ReplaceText {
+        let before = self.page_objects(&page).to_vec();
+        let mut tx = Transaction::new(Scope::Page(page.clone()), label).with(Op::ReplaceText {
             page: page.clone(),
-            at,
+            at: offset,
             removed: String::new(),
             inserted,
-        };
-        if !self.commit(Transaction::new(Scope::Page(page), label).with(op)) {
+        });
+        if let Some(pos) = at {
+            let object_kind = match kind {
+                AttachKind::Picture => ObjectKind::Picture,
+                AttachKind::File => ObjectKind::File,
+            };
+            let slots = object_slots(&notecraft_markdown::parse(shown));
+            let mut after = before.clone();
+            after.push(PlacedObject {
+                id: super::objects::next_object_id(&before, object_kind),
+                kind: object_kind,
+                src: stored.link.clone(),
+                nth: count_of(&slots, object_kind, &stored.link),
+                pos: super::objects::clamp(pos),
+            });
+            tx = tx.with(Op::SetObjects {
+                page: page.clone(),
+                before,
+                after,
+            });
+        }
+        if !self.commit(tx) {
             return Err(fail("the page could not be changed."));
         }
         Ok(Attached {
