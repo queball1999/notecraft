@@ -1387,6 +1387,22 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable()
     .ready(),
     CommandSpec::new(
+        ids::PAGE_COLLAPSE_SUBPAGES,
+        "Collapse Subpages",
+        "Fold the subpages of a page away in the page list.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PAGE_EXPAND_SUBPAGES,
+        "Expand Subpages",
+        "Show the subpages of a page in the page list again.",
+    )
+    .args(OPTIONAL_ID_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
         ids::PAGE_PROMOTE_SUBPAGE,
         "Promote Subpage",
         "Move a subpage up one level.",
@@ -1520,6 +1536,11 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::PAGE_MOVE, structure::page_move),
     (ids::PAGE_SET_LEVEL, structure::page_set_level),
     (ids::PAGE_MAKE_SUBPAGE, structure::page_make_subpage),
+    (
+        ids::PAGE_COLLAPSE_SUBPAGES,
+        structure::page_collapse_subpages,
+    ),
+    (ids::PAGE_EXPAND_SUBPAGES, structure::page_expand_subpages),
     (ids::PAGE_PROMOTE_SUBPAGE, structure::page_promote_subpage),
     (ids::NOTEBOOK_RENAME, structure::notebook_rename),
     (ids::NOTEBOOK_SET_COLOR, structure::notebook_set_color),

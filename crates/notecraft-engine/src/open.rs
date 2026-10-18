@@ -73,6 +73,7 @@ fn section_of(notebook: &str, section: &SectionEntry, colors: &mut usize) -> Sec
                     page.title.clone(),
                     page.level,
                 )
+                .with_collapsed(page.collapsed)
             })
             .collect(),
     }

@@ -368,6 +368,10 @@ command_ids! {
     PAGE_MAKE_SUBPAGE = "page.make_subpage";
     /// Move a subpage up one level.
     PAGE_PROMOTE_SUBPAGE = "page.promote_subpage";
+    /// Fold the subpages of a page away in the page list.
+    PAGE_COLLAPSE_SUBPAGES = "page.collapse_subpages";
+    /// Show the subpages of a page again.
+    PAGE_EXPAND_SUBPAGES = "page.expand_subpages";
     /// Add a section group to the current notebook.
     SECTION_GROUP_NEW = "section.group_new";
     /// Rename a section or section group.

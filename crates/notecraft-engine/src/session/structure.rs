@@ -291,8 +291,48 @@ fn listings(section: &Section) -> Vec<PageListing> {
         .map(|p| PageListing {
             file: base(&p.id).to_owned(),
             level: p.level,
+            collapsed: p.collapsed,
         })
         .collect()
+}
+
+/// How many pages the page at `index` and its subpages span (1 for a page without subpages).
+fn block_len(pages: &[PageListing], index: usize) -> usize {
+    let Some(parent) = pages.get(index) else {
+        return 0;
+    };
+    1 + pages
+        .iter()
+        .skip(index + 1)
+        .take_while(|p| p.level > parent.level)
+        .count()
+}
+
+/// Keep levels valid: the first page is a page and none is more than one level deeper than
+/// the page before it.
+fn clamp_levels(pages: &mut [PageListing]) {
+    let mut limit = 0;
+    for entry in pages.iter_mut() {
+        entry.level = entry.level.min(limit);
+        limit = (entry.level + 1).min(notecraft_model::page::MAX_PAGE_LEVEL);
+    }
+}
+
+/// Put `block` (a page and its subpages) into `pages` at `at`. The block keeps its inner
+/// levels; its first page is lowered if it would sit too deep under the page before it.
+fn insert_block(pages: &mut Vec<PageListing>, at: usize, mut block: Vec<PageListing>) {
+    let at = at.min(pages.len());
+    let ceiling = at
+        .checked_sub(1)
+        .and_then(|i| pages.get(i))
+        .map_or(0, |p| p.level + 1);
+    let top = block.first().map_or(0, |p| p.level);
+    let shift = top.saturating_sub(top.min(ceiling));
+    for entry in &mut block {
+        entry.level = entry.level.saturating_sub(shift);
+    }
+    pages.splice(at..at, block);
+    clamp_levels(pages);
 }
 
 fn join(dir: &str, name: &str) -> String {
@@ -544,7 +584,11 @@ impl Session {
         let rel = join(&dir, &file);
         plan.create(&rel, Content::Text(String::new()));
         let mut pages = listings(&target);
-        pages.push(PageListing { file, level: 0 });
+        pages.push(PageListing {
+            file,
+            level: 0,
+            collapsed: false,
+        });
         plan.page_order(&dir, pages);
         let id = format!("{}/{rel}", plan.id());
         self.commit_plan(plan, "New page")?;
@@ -596,18 +640,33 @@ impl Session {
     pub fn delete_page(&mut self, page: &str) -> Result<(), EditError> {
         let (mut plan, section, index) = self.page_parts(page)?;
         let dir = plan.rel(&section.id).to_owned();
-        let level = section.pages.get(index).map_or(0, |p| p.level);
+        let mut pages = listings(&section);
+        // A parent whose subpages are folded away takes them along, as in OneNote.
+        let count = if pages.get(index).is_some_and(|p| p.collapsed) {
+            block_len(&pages, index)
+        } else {
+            1
+        };
+        let end = index + count;
         let neighbor = section
             .pages
-            .get(index + 1)
+            .get(end)
             .or_else(|| index.checked_sub(1).and_then(|i| section.pages.get(i)))
             .map(|p| p.id.clone());
-        let from = plan.rel(page).to_owned();
-        plan.trash(&from, "page", index, level);
-        let mut pages = listings(&section);
-        pages.remove(index);
+        let doomed = section.pages.get(index..end).unwrap_or_default();
+        for (offset, gone) in doomed.iter().enumerate() {
+            let from = plan.rel(&gone.id).to_owned();
+            plan.trash(&from, "page", index + offset, gone.level);
+        }
+        let hidden: Vec<&str> = doomed.iter().map(|p| p.id.as_str()).collect();
+        let was_shown = self
+            .selection
+            .page
+            .as_deref()
+            .is_some_and(|shown| hidden.contains(&shown));
+        pages.drain(index..end);
+        clamp_levels(&mut pages);
         plan.page_order(&dir, pages);
-        let was_shown = self.selection.page.as_deref() == Some(page);
         self.commit_plan(plan, "Delete page")?;
         if was_shown {
             self.selection.page = neighbor;
@@ -645,53 +704,109 @@ impl Session {
         }
         let from_dir = plan.rel(&from.id).to_owned();
         let to_dir = plan.rel(&target.id).to_owned();
+        // A parent moves with its subpages, keeping their levels.
+        let mut from_pages = listings(&from);
+        let count = block_len(&from_pages, from_index);
+        let block: Vec<PageListing> = from_pages.drain(from_index..from_index + count).collect();
+        let moved_ids: Vec<String> = from
+            .pages
+            .get(from_index..from_index + count)
+            .unwrap_or_default()
+            .iter()
+            .map(|p| p.id.clone())
+            .collect();
         if from.id == target.id {
-            let mut pages = listings(&from);
-            let moved = pages.remove(from_index);
-            pages.insert(index.min(pages.len()), moved);
-            plan.page_order(&from_dir, pages);
+            insert_block(&mut from_pages, index, block);
+            plan.page_order(&from_dir, from_pages);
             self.commit_plan(plan, "Move page")?;
             return Ok(page.to_owned());
         }
-        let file = base(page).to_owned();
-        let ext = file.rsplit_once('.').map_or("md", |(_, e)| e);
-        let stem = file.strip_suffix(&format!(".{ext}")).unwrap_or(&file);
-        let on_disk = names_on_disk(&plan.root.join(&to_dir));
-        let taken: Vec<&str> = on_disk.iter().map(String::as_str).collect();
-        let new_file = unique_file_name(stem, ext, &taken);
-        // Attachments the page links to are copied along (other pages may still use them).
-        let text = match self.page_text(page) {
-            Some(text) => text.to_owned(),
-            None => read_text_bounded(&plan.root.join(plan.rel(page))),
-        };
-        for name in attachment_links(&text) {
-            let source = join(&join(&from_dir, "attachments"), &name);
-            let copy = join(&join(&to_dir, "attachments"), &name);
-            let exists_there = plan.root.join(&copy).exists();
-            if plan.root.join(&source).is_file() && !exists_there {
-                plan.create(&copy, Content::CopyOf(source));
+        let top = block.first().map_or(0, |p| p.level);
+        let mut on_disk = names_on_disk(&plan.root.join(&to_dir));
+        let mut moved = Vec::new();
+        let mut renamed = Vec::new();
+        for (entry, old_id) in block.iter().zip(&moved_ids) {
+            let file = entry.file.clone();
+            let ext = file.rsplit_once('.').map_or("md", |(_, e)| e);
+            let stem = file.strip_suffix(&format!(".{ext}")).unwrap_or(&file);
+            let taken: Vec<&str> = on_disk.iter().map(String::as_str).collect();
+            let new_file = unique_file_name(stem, ext, &taken);
+            on_disk.push(new_file.clone());
+            // Attachments the page links to are copied along (other pages may still use them).
+            let text = match self.page_text(old_id) {
+                Some(text) => text.to_owned(),
+                None => read_text_bounded(&plan.root.join(plan.rel(old_id))),
+            };
+            for name in attachment_links(&text) {
+                let source = join(&join(&from_dir, "attachments"), &name);
+                let copy = join(&join(&to_dir, "attachments"), &name);
+                let exists_there = plan.root.join(&copy).exists();
+                if plan.root.join(&source).is_file() && !exists_there {
+                    plan.create(&copy, Content::CopyOf(source));
+                }
             }
+            plan.relocate(&join(&from_dir, &file), &join(&to_dir, &new_file));
+            renamed.push((
+                old_id.clone(),
+                format!("{}/{}", plan.id(), join(&to_dir, &new_file)),
+            ));
+            moved.push(PageListing {
+                file: new_file,
+                level: entry.level.saturating_sub(top),
+                collapsed: entry.collapsed,
+            });
         }
-        plan.relocate(&join(&from_dir, &file), &join(&to_dir, &new_file));
-        let mut from_pages = listings(&from);
-        from_pages.remove(from_index);
         plan.page_order(&from_dir, from_pages);
         let mut to_pages = listings(&target);
-        to_pages.insert(
-            index.min(to_pages.len()),
-            PageListing {
-                file: new_file.clone(),
-                level: 0,
-            },
-        );
+        insert_block(&mut to_pages, index, moved);
         plan.page_order(&to_dir, to_pages);
-        let id = format!("{}/{}", plan.id(), join(&to_dir, &new_file));
-        let was_shown = self.selection.page.as_deref() == Some(page);
+        let id = renamed
+            .first()
+            .map(|(_, new)| new.clone())
+            .unwrap_or_default();
+        let shown = self.selection.page.clone();
         self.commit_plan(plan, "Move page")?;
-        if was_shown {
-            self.select_page_id(&id);
+        if let Some((_, new)) = renamed.iter().find(|(old, _)| Some(old) == shown.as_ref()) {
+            self.select_page_id(new);
         }
         Ok(id)
+    }
+
+    /// Fold the subpages of `page` away in the page list, or show them again. The state is
+    /// kept in the section's `.section.toml`. One undo step. Folding while a subpage is
+    /// shown selects the parent instead.
+    pub fn set_subpages_collapsed(&mut self, page: &str, collapsed: bool) -> Result<(), EditError> {
+        let (mut plan, section, index) = self.page_parts(page)?;
+        let mut pages = listings(&section);
+        let count = block_len(&pages, index);
+        if collapsed && count < 2 {
+            return fail("the page has no subpages");
+        }
+        if pages.get(index).map(|p| p.collapsed) == Some(collapsed) {
+            return Ok(());
+        }
+        if let Some(entry) = pages.get_mut(index) {
+            entry.collapsed = collapsed;
+        }
+        let dir = plan.rel(&section.id).to_owned();
+        plan.page_order(&dir, pages);
+        let hides_shown = collapsed
+            && section
+                .pages
+                .get(index + 1..index + count)
+                .unwrap_or_default()
+                .iter()
+                .any(|p| Some(p.id.as_str()) == self.selection.page.as_deref());
+        let label = if collapsed {
+            "Collapse subpages"
+        } else {
+            "Expand subpages"
+        };
+        self.commit_plan(plan, label)?;
+        if hides_shown {
+            self.select_page_id(page);
+        }
+        Ok(())
     }
 
     /// Set how far a page is indented as a subpage (0 page, 1 subpage, 2 sub-subpage). The
@@ -810,6 +925,7 @@ impl Session {
                 c.pages = vec![PageListing {
                     file: first_page.clone(),
                     level: 0,
+                    collapsed: false,
                 }];
             }
         });
