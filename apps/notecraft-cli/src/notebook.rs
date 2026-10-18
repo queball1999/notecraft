@@ -203,6 +203,7 @@ mod tests {
             title: strip_extension(&file_name).to_owned(),
             file_name,
             level: 0,
+            collapsed: false,
             kind: PageKind::Markdown,
         }
     }
