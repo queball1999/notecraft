@@ -23,6 +23,49 @@ pub struct Prefs {
     pub recent: RecentPrefs,
     pub colors: ColorPrefs,
     pub draw: DrawPrefs,
+    pub whats_new: WhatsNewPrefs,
+}
+
+/// Which version's What's New dialog the user has already been shown. Stored as text; a value
+/// of the wrong type is read as "never shown" instead of failing the file.
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct WhatsNewPrefs {
+    #[serde(deserialize_with = "lenient_string")]
+    pub seen_version: String,
+}
+
+fn lenient_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Any {
+        Text(String),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Any::deserialize(deserializer)? {
+        Any::Text(text) => text,
+        Any::Other(_) => String::new(),
+    })
+}
+
+impl WhatsNewPrefs {
+    /// Decide whether What's New opens at this launch, and if so record that `version` was
+    /// shown (so a crash right after does not show it again). `allowed` is false for runs
+    /// that must never show it: the control channel, and runs with no settings folder
+    /// (agent and test runs) where nothing could be remembered. Not allowed leaves the
+    /// record alone.
+    pub fn take_launch_slot(&mut self, version: &str, allowed: bool) -> bool {
+        if !allowed
+            || !notecraft_engine::whats_new::should_show_at_launch(&self.seen_version, version)
+        {
+            return false;
+        }
+        version.trim().clone_into(&mut self.seen_version);
+        true
+    }
 }
 
 /// The color menus' Recent Colors, newest first, as `#RRGGBB` or `#RRGGBBAA`. The front end
@@ -329,6 +372,48 @@ impl ThemePrefs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn whats_new_opens_on_the_first_launch_and_records_the_version() {
+        let mut prefs = Prefs::default();
+        assert!(prefs.whats_new.take_launch_slot("0.0.2", true));
+        assert_eq!(prefs.whats_new.seen_version, "0.0.2");
+        // It survives the settings file, so the next launch of the same version is quiet.
+        let text = toml::to_string(&prefs).unwrap();
+        let mut back: Prefs = toml::from_str(&text).unwrap();
+        assert!(!back.whats_new.take_launch_slot("0.0.2", true));
+        // A newer version shows it once more; a downgrade does too.
+        assert!(back.whats_new.take_launch_slot("0.0.3", true));
+        assert!(!back.whats_new.take_launch_slot("0.0.3", true));
+        assert!(back.whats_new.take_launch_slot("0.0.2", true));
+        assert_eq!(back.whats_new.seen_version, "0.0.2");
+    }
+
+    #[test]
+    fn whats_new_survives_a_damaged_stored_value() {
+        for text in [
+            "[whats_new]\nseen_version = 7\n",
+            "[whats_new]\nseen_version = [1, 2]\n",
+            "[whats_new]\nseen_version = \"\"\n",
+            "[whats_new]\nseen_version = \"not a version at all\"\n",
+            "[whats_new]\n",
+        ] {
+            let mut prefs: Prefs = toml::from_str(text).unwrap();
+            assert!(prefs.whats_new.take_launch_slot("0.0.2", true), "{text}");
+            assert_eq!(prefs.whats_new.seen_version, "0.0.2");
+        }
+        // Other settings in the same file are not lost to the damaged key.
+        let prefs: Prefs =
+            toml::from_str("[whats_new]\nseen_version = 7\n[theme]\nmode = \"dark\"\n").unwrap();
+        assert_eq!(prefs.theme.mode, "dark");
+    }
+
+    #[test]
+    fn whats_new_never_opens_when_not_allowed() {
+        let mut prefs = Prefs::default();
+        assert!(!prefs.whats_new.take_launch_slot("0.0.2", false));
+        assert_eq!(prefs.whats_new.seen_version, "");
+    }
 
     #[test]
     fn the_pen_list_is_saved_only_when_changed_and_restores_bounded() {

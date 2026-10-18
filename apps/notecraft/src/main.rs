@@ -265,7 +265,7 @@ fn main() -> eframe::Result<()> {
             if let Err(e) = craft_quit::install_app_menu(&cc.egui_ctx, "NoteCraft") {
                 tracing::warn!(error = %e, "macOS app menu not installed; Cmd+Q quits without asking");
             }
-            let store = pending.take().ok_or("the app was already created")?;
+            let mut store = pending.take().ok_or("the app was already created")?;
             let ctx = cc.egui_ctx.clone();
             let font_list = FontList::scan_in_background(move || ctx.request_repaint());
             // Auto-save, the recovery journal (in the settings folder), page reads, and the
@@ -292,6 +292,23 @@ fn main() -> eframe::Result<()> {
             let opened = open.as_deref().is_some_and(|path| shell.open_path(path));
             if !opened {
                 shell.reopen_last();
+            }
+            // What's New opens on the first launch of each version, over whatever opened
+            // (a path on the command line included, as in Office). Never with the test
+            // control channel or without a settings folder to remember it in. The version is
+            // recorded now, not at close, so a crash does not show it again.
+            let allowed = control_dir.is_none() && store.dir().is_some();
+            let mut shown = false;
+            store.update(|p| {
+                shown = p
+                    .whats_new
+                    .take_launch_slot(env!("CARGO_PKG_VERSION"), allowed);
+            });
+            if shown {
+                shell.open_whats_new();
+                if let Err(e) = store.flush() {
+                    tracing::warn!(error = %e, "saving the What's New record failed");
+                }
             }
             let control = match &control_dir {
                 Some((port, dir)) => {

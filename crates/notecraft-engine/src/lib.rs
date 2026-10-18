@@ -19,6 +19,7 @@ pub mod recent;
 pub mod session;
 pub mod undo;
 pub mod view;
+pub mod whats_new;
 
 pub use ink::{
     default_pen_tools, DrawTool, EraserMode, EraserSize, InkState, PenStyle, PenTool, ToolKind,

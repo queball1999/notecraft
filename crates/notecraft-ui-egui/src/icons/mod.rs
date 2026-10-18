@@ -154,6 +154,7 @@ icons! {
     Support => |p, _| help::support(p);
     Feedback => |p, _| help::feedback(p);
     Training => |p, _| help::training(p);
+    WhatsNew => |p, _| help::whats_new(p);
 }
 
 /// Colors an icon may use besides its main color.

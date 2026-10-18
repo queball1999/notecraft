@@ -29,6 +29,7 @@ pub mod start;
 pub mod status;
 pub mod themes;
 pub mod toast;
+mod whats_new;
 
 pub use about::AppInfo;
 pub use app_shell::{AppShell, REGIONS};

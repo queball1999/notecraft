@@ -348,6 +348,8 @@ command_ids! {
     HELP_FEEDBACK = "help.feedback";
     /// Show the training for NoteCraft.
     HELP_TRAINING = "help.training";
+    /// Show what changed in this version of NoteCraft.
+    HELP_WHATS_NEW = "help.whats_new";
 
     // Navigation: the notebook list, the section tabs, and the page list
     /// Show a notebook, at its first section's first page.

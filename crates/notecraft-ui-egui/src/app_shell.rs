@@ -103,6 +103,8 @@ pub struct AppShell {
     recent_colors: Vec<String>,
     /// Build and system details for the About page, from the app.
     about: AppInfo,
+    /// The What's New dialog.
+    whats_new: crate::whats_new::WhatsNew,
     /// Text for the clipboard, put there on the next frame.
     pending_copy: Option<String>,
     /// The temporary file holding a clipboard picture while Paste as Picture runs.
@@ -160,6 +162,7 @@ impl AppShell {
             restore_colors: None,
             recent_colors: Vec::new(),
             about: AppInfo::default(),
+            whats_new: crate::whats_new::WhatsNew::new(),
             pending_copy: None,
             #[cfg(test)]
             ran: Vec::new(),
@@ -185,6 +188,17 @@ impl AppShell {
     pub fn with_about(mut self, info: AppInfo) -> Self {
         self.about = info;
         self
+    }
+
+    /// Open the What's New dialog now (the app calls this at the first launch of a version).
+    /// The same dialog opens from `help.whats_new`.
+    pub fn open_whats_new(&mut self) {
+        self.whats_new.open();
+    }
+
+    /// Whether the What's New dialog is open.
+    pub fn whats_new_open(&self) -> bool {
+        self.whats_new.is_open()
     }
 
     /// The text `file.copy_about_info` copies, for tests.
@@ -406,6 +420,8 @@ impl AppShell {
                 self.toast_open_warnings(output);
             } else if id == ids::FILE_ABOUT.as_str() {
                 self.ribbon.open_backstage_on(ids::FILE_ABOUT);
+            } else if id == ids::HELP_WHATS_NEW.as_str() {
+                self.whats_new.open();
             } else if id == ids::FILE_COPY_ABOUT_INFO.as_str() {
                 self.pending_copy = Some(self.about.plain_text());
                 self.toasts.push("Copied the version and build details.");
@@ -572,6 +588,8 @@ impl AppShell {
     /// Draw the window contents (eframe `ui`).
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let tokens = self.tokens(ui.ctx());
+        // First, so Esc closes the dialog before any shortcut sees it.
+        self.whats_new.show(ui.ctx(), &tokens, &self.about.version);
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
         self.insert_dropped_files(ui.ctx());
@@ -1267,13 +1285,14 @@ mod tests {
     }
 
     #[test]
-    fn help_tab_has_its_four_buttons() {
+    fn help_tab_has_its_buttons() {
         use egui::accesskit::Role;
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         harness.get_by_label("Help").click();
         harness.run();
         assert_eq!(harness.state().ribbon().selected(), "Help");
+        let _ = harness.get_by_role_and_label(Role::Button, "What's New");
         for label in ["Help", "Support", "Feedback", "Show Training"] {
             harness.get_by_role_and_label(Role::Button, label).click();
             harness.run();

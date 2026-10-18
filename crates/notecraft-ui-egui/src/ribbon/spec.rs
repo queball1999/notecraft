@@ -1251,6 +1251,11 @@ const HELP_GROUPS: &[Group] = &[Group {
             Icon::Training,
             ids::HELP_TRAINING,
         )),
+        Column::Large(Button::large(
+            "What's New",
+            Icon::WhatsNew,
+            ids::HELP_WHATS_NEW,
+        )),
     ],
 }];
 
