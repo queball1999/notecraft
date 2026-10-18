@@ -91,6 +91,22 @@ pub(super) struct FileHit {
     pub name: String,
 }
 
+/// A picture on the page, for clicks and its resize handles.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct PictureHit {
+    /// In page units.
+    pub rect: Rect,
+    /// The link as written in the page.
+    pub link: String,
+    /// Which picture with this link, counting from 0 in the order they are laid out.
+    pub nth: usize,
+    /// The widest it may be shown: the column it sits in.
+    pub max_width: f32,
+    /// It is drawn (not a placeholder), so it can be selected and resized.
+    pub ready: bool,
+    pub alt: String,
+}
+
 /// Gap between containers stacked in the flow, in page units.
 const CONTAINER_GAP: f32 = BODY_SIZE * 0.8;
 /// Most bytes of a raw region laid out; a bigger selection is not shown as raw text.
@@ -127,6 +143,7 @@ pub(super) struct BlockBox {
 pub(super) struct Flow {
     items: Vec<Item>,
     pub files: Vec<FileHit>,
+    pub picture_hits: Vec<PictureHit>,
     /// Bottom of the content, in page units.
     pub height: f32,
     /// Right edge of the content, in page units.
@@ -145,6 +162,9 @@ struct Layout<'a> {
     zoom: f32,
     items: Vec<Item>,
     files: Vec<FileHit>,
+    picture_hits: Vec<PictureHit>,
+    /// How many pictures with each link were laid out so far.
+    picture_counts: std::collections::HashMap<String, usize>,
     pictures: &'a mut dyn PictureSource,
     blocks_out: Vec<BlockBox>,
     raws: Vec<Raw>,
@@ -170,6 +190,8 @@ pub(super) fn layout(
         painter,
         tokens,
         files: Vec::new(),
+        picture_hits: Vec::new(),
+        picture_counts: std::collections::HashMap::new(),
         pictures,
         zoom: if zoom.is_finite() && zoom > 0.0 {
             zoom
@@ -220,6 +242,7 @@ pub(super) fn layout(
         zoom: ctx.zoom,
         items: ctx.items,
         files: ctx.files,
+        picture_hits: ctx.picture_hits,
         containers,
         blocks: ctx.blocks_out,
         raws: ctx.raws,
@@ -635,14 +658,26 @@ impl Layout<'_> {
         } else {
             run.text.clone()
         };
+        let nth = {
+            let seen = self.picture_counts.entry(link.clone()).or_insert(0);
+            *seen += 1;
+            *seen - 1
+        };
         let (w, h, label) = match &shown {
             Shown::Ready {
                 width: w,
                 height: h,
                 ..
             } => {
-                let scale = (width / w.max(1.0)).min(1.0);
-                (w * scale, h * scale, alt)
+                // The width the user chose (or is dragging to), else the natural size; never
+                // wider than the column.
+                let wanted = self
+                    .pictures
+                    .preview_width(&link, nth)
+                    .or(run.image_width.map(f32::from))
+                    .unwrap_or(*w);
+                let scale = (wanted.min(width) / w.max(1.0)).max(0.0);
+                (w * scale, h * scale, alt.clone())
             }
             Shown::Loading => (
                 width.min(240.0),
@@ -657,6 +692,14 @@ impl Layout<'_> {
         };
         let galley = self.small_galley(&label, self.tokens.text_muted, (w - 16.0).max(40.0));
         let rect = Rect::from_min_size(Pos2::new(x, *y), egui::vec2(w.max(1.0), h.max(1.0)));
+        self.picture_hits.push(PictureHit {
+            rect,
+            link: link.clone(),
+            nth,
+            max_width: width,
+            ready: matches!(shown, Shown::Ready { .. }),
+            alt,
+        });
         self.items.push(Item::Picture {
             rect,
             shown,
@@ -1176,6 +1219,54 @@ mod tests {
             preedit: "",
         };
         layout(painter, &input, zoom, tokens, &mut NoPictures)
+    }
+
+    /// Every picture is 400 by 200, with a drag preview for the second one.
+    struct Fixed;
+
+    impl PictureSource for Fixed {
+        fn picture(&mut self, _link: &str) -> Shown {
+            Shown::Ready {
+                texture: egui::TextureId::default(),
+                width: 400.0,
+                height: 200.0,
+            }
+        }
+
+        fn preview_width(&self, _link: &str, nth: usize) -> Option<f32> {
+            (nth == 1).then_some(100.0)
+        }
+    }
+
+    #[test]
+    fn a_picture_shows_at_its_saved_width_and_keeps_its_proportions() {
+        let tokens = tokens();
+        let text = "![a](x.png)\n\n![b](x.png)<!-- notecraft:width=100 -->\n\n![c](y.png)<!-- notecraft:width=300 -->\n\n![d](z.png)<!-- notecraft:width=4000 -->\n";
+        let hits = with_painter(|painter| {
+            let doc = notecraft_markdown::parse(text);
+            let runs = notecraft_markdown::split_containers(text, &doc);
+            let geometry: Vec<Container> = runs.iter().map(|r| Container::flow(&r.id)).collect();
+            let input = Input {
+                text,
+                doc: &doc,
+                runs: &runs,
+                geometry: &geometry,
+                cursor: None,
+                preedit: "",
+            };
+            layout(painter, &input, 1.0, &tokens, &mut Fixed).picture_hits
+        });
+        let sizes: Vec<(usize, f32, f32)> = hits
+            .iter()
+            .map(|h| (h.nth, h.rect.width(), h.rect.height()))
+            .collect();
+        // The second x.png is previewed at 100; y.png is saved at 300; z.png is cut to the
+        // column. Heights follow the 2:1 proportions.
+        assert_eq!(sizes[0], (0, 400.0, 200.0));
+        assert_eq!(sizes[1], (1, 100.0, 50.0));
+        assert_eq!(sizes[2], (0, 300.0, 150.0));
+        assert_eq!(sizes[3].0, 0);
+        assert!(sizes[3].1 <= COLUMN_WIDTH + 0.5 && (sizes[3].1 / sizes[3].2 - 2.0).abs() < 0.01);
     }
 
     #[test]

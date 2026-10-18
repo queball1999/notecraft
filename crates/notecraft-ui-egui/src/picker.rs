@@ -7,7 +7,7 @@ pub trait FilePicker: std::fmt::Debug {
     fn pick_folder(&mut self, title: &str) -> Option<String>;
     /// A `.md` or `.notecraft` page file.
     fn pick_file(&mut self, title: &str) -> Option<String>;
-    /// A PNG, JPEG, or WebP picture to insert.
+    /// A PNG, JPEG, WebP, or SVG picture to insert.
     fn pick_picture(&mut self, _title: &str) -> Option<String> {
         None
     }
@@ -28,7 +28,8 @@ pub trait FilePicker: std::fmt::Debug {
 }
 
 /// The picture types the picture picker offers.
-pub const PICTURE_FILTERS: [(&str, &[&str]); 1] = [("Pictures", &["png", "jpg", "jpeg", "webp"])];
+pub const PICTURE_FILTERS: [(&str, &[&str]); 1] =
+    [("Pictures", &["png", "jpg", "jpeg", "webp", "svg"])];
 
 /// A picker that always cancels, for when no dialogs are available (tests, headless runs).
 #[derive(Clone, Copy, Debug, Default)]

@@ -15,6 +15,7 @@ mod ink;
 mod ink_tests;
 mod keymap;
 pub(crate) mod paper;
+mod picture_ui;
 pub(crate) mod pictures;
 mod rawtext;
 mod title;

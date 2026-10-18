@@ -69,7 +69,10 @@ const MAX_DROPPED_FILES: usize = 50;
 /// Whether a file name has a picture extension the canvas draws.
 fn is_picture_name(name: &str) -> bool {
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
-    matches!(ext.as_deref(), Some("png" | "jpg" | "jpeg" | "webp"))
+    matches!(
+        ext.as_deref(),
+        Some("png" | "jpg" | "jpeg" | "webp" | "svg")
+    )
 }
 
 /// Everything inside the main window.
@@ -104,6 +107,9 @@ pub struct AppShell {
     pending_copy: Option<String>,
     /// The temporary file holding a clipboard picture while Paste as Picture runs.
     paste_temp: Option<String>,
+    /// A text paste (`Event::Paste`) came in since the last Ctrl+V key release, so that Ctrl+V
+    /// was a text paste.
+    paste_seen: bool,
     /// Ids of the commands that ran through [`AppShell::dispatch`], for tests.
     #[cfg(test)]
     ran: Vec<String>,
@@ -144,6 +150,7 @@ impl AppShell {
             canvas: CanvasUi::default(),
             picker: Box::new(NoPicker),
             paste_temp: None,
+            paste_seen: false,
             shortcuts: Shortcuts::new(),
             installed: None,
             fonts: OsFonts::default(),
@@ -394,6 +401,41 @@ impl AppShell {
         Some(result)
     }
 
+    /// Ctrl+V with a picture (and no text) on the clipboard inserts the picture. The window
+    /// system layer turns Ctrl+V into a text paste event only when the clipboard holds text and
+    /// swallows the key press otherwise, but it still reports the key release. So a release of
+    /// V with the command key down, with no text paste since the last one, means the clipboard
+    /// had no text: look for a picture and insert it (`edit.paste_picture`). Nothing is said
+    /// when there is none, because Ctrl+V on an empty clipboard is not an error.
+    fn paste_clipboard_picture(&mut self, ctx: &egui::Context) {
+        let events = ctx.input(|input| input.events.clone());
+        let mut wanted = false;
+        for event in &events {
+            match event {
+                egui::Event::Paste(_) => self.paste_seen = true,
+                egui::Event::Key {
+                    key: egui::Key::V,
+                    pressed: false,
+                    modifiers,
+                    ..
+                } if modifiers.command => {
+                    wanted |= !self.paste_seen;
+                    self.paste_seen = false;
+                }
+                _ => {}
+            }
+        }
+        if !wanted {
+            return;
+        }
+        if let Some(path) = self.picker.clipboard_picture() {
+            self.paste_temp = Some(path.clone());
+            let mut args = Map::new();
+            args.insert("path".to_owned(), Value::from(path));
+            self.dispatch(ids::EDIT_PASTE_PICTURE.as_str(), Value::Object(args));
+        }
+    }
+
     /// Tell the user when opening a notebook folder skipped something (a folder nested too
     /// deep, a settings file that could not be read). The notebook is open either way.
     fn toast_open_warnings(&mut self, output: &CommandOutput) {
@@ -520,6 +562,7 @@ impl AppShell {
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
         self.insert_dropped_files(ui.ctx());
+        self.paste_clipboard_picture(ui.ctx());
         self.flush_copy(ui.ctx());
         self.font_list.load_previews(ui.ctx());
         if let Some(colors) = self.restore_colors.take() {

@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -90,6 +90,14 @@ Embedded files are copied into the section's `attachments/` folder with a short 
 ![Whiteboard photo](attachments/a81b07-whiteboard.jpg)
 [Q3 budget](attachments/3f9a2c-budget.xlsx)
 ```
+
+A picture shows at its natural size. When the user resizes it with the corner handles, NoteCraft records the display width, in page units (one unit is one pixel at 100% zoom), in an HTML comment right after the image, on the same line:
+
+```markdown
+![Whiteboard photo](attachments/a81b07-whiteboard.jpg)<!-- notecraft:width=320 -->
+```
+
+Other markdown readers ignore the comment and show the picture at its natural size. The width is a whole number from 16 to 4096; anything else is left as plain inline HTML. The height always follows the picture's own proportions, so it is never stored. A resize inserts, replaces, or removes just this comment, so the page diff is a few bytes. Pictures can be PNG, JPEG, WebP, or SVG. An SVG is drawn with a pure-Rust renderer under limits (file over 4 MiB, drawing time over 3 seconds, or an unreadable file shows a placeholder); text, fonts, and embedded or linked images inside an SVG are not drawn.
 
 Large files (over 100 MiB by default, configurable) are linked in place instead of copied, using a relative or absolute path, and marked `notecraft: linked` in the canvas block so the UI can warn if the target moves.
 
@@ -318,3 +326,4 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-16 | 1 | PR 1.13: structure edits write `notebook.toml` and `.section.toml` (order, levels, colors, names) with craft-atomic; trash items sit in a numbered folder with `origin.toml` instead of `.trash.toml`. |
 | 2026-10-16 | 1 | PR 1.5: container markers are read for editing (`split_containers`, a view over the section 3.3 marker reader); the status line notes that new containers are marker lines appended to the page; positions wait for the canvas block (PR 1.9). |
 | 2026-10-16 | 1 | PR 1.6: section 3.2 lists the formatting markup the Home tab writes (underline, sub and superscript, font color, size, family, alignment comment); yellow highlight moved to Phase 1. |
+| 2026-10-17 | 1 | Section 2.4: the display width of a resized picture is stored as `<!-- notecraft:width=N -->` after the image; SVG pictures and their limits. |

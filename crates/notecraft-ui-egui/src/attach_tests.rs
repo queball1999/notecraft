@@ -210,3 +210,65 @@ fn paste_as_picture_uses_the_clipboard_picture_and_removes_the_temp_file() {
         .texts()
         .any(|t| t.contains("no picture on the clipboard")));
 }
+
+fn key_v_released(modifiers: egui::Modifiers) -> egui::Event {
+    egui::Event::Key {
+        key: egui::Key::V,
+        physical_key: None,
+        pressed: false,
+        repeat: false,
+        modifiers,
+    }
+}
+
+#[test]
+fn ctrl_v_with_a_picture_and_no_text_inserts_the_picture() {
+    let mut s = setup(Some("photo.png"));
+    s.harness.event(key_v_released(egui::Modifiers::COMMAND));
+    s.harness.run_steps(6);
+    let text = page_text(&s);
+    assert!(text.contains("![photo](attachments/"), "{text}");
+    dispatch(&mut s, "edit.undo", Value::Null);
+    assert_eq!(page_text(&s), "# First\n\nHello.\n");
+}
+
+#[test]
+fn ctrl_v_with_text_does_not_look_for_a_picture() {
+    let mut s = setup(Some("photo.png"));
+    s.harness.event(egui::Event::Paste("words".to_owned()));
+    s.harness.event(key_v_released(egui::Modifiers::COMMAND));
+    s.harness.run_steps(6);
+    assert!(!page_text(&s).contains("![photo]"));
+    // Nor does a key release without the command key.
+    s.harness.event(key_v_released(egui::Modifiers::NONE));
+    s.harness.run_steps(6);
+    assert!(!page_text(&s).contains("![photo]"));
+}
+
+#[test]
+fn an_svg_picture_is_inserted_drawn_and_resized() {
+    let mut s = setup(None);
+    let svg = s.dir.path().join("logo.svg");
+    std::fs::write(
+        &svg,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="#336699"/></svg>"##,
+    )
+    .unwrap();
+    let args = serde_json::json!({ "path": svg.to_string_lossy() });
+    dispatch(&mut s, "insert.picture", args);
+    let text = page_text(&s);
+    assert!(text.contains("![logo](attachments/"), "{text}");
+    assert_eq!(s.harness.state().picture_counts(), (1, 0));
+    let link = text
+        .split("![logo](")
+        .nth(1)
+        .and_then(|rest| rest.split(')').next())
+        .unwrap()
+        .to_owned();
+    let args = serde_json::json!({ "src": link, "width": 200 });
+    dispatch(&mut s, "picture.resize", args);
+    assert!(page_text(&s).contains("<!-- notecraft:width=200 -->"));
+    assert_eq!(s.harness.state().picture_counts(), (1, 0));
+    dispatch(&mut s, "edit.undo", Value::Null);
+    assert!(!page_text(&s).contains("notecraft:width"));
+}
