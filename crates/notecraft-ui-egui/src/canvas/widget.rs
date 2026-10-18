@@ -56,6 +56,7 @@ pub fn show(
             geometry: &geometry,
             cursor,
             preedit: &preedit,
+            objects: session.page_objects(source.page_id),
         };
         let mut loader = pictures::PictureLoader {
             cache: &mut cache,
@@ -106,6 +107,7 @@ pub fn show(
                     origin: content.min,
                     zoom,
                 };
+                state.last_map = Some((map, rect));
                 let screen = visible.translate(content.min.to_vec2());
                 // Screen readers get the visible part of the page, not the whole scrollable
                 // content, so their highlight and their click land on screen.
@@ -164,8 +166,15 @@ pub fn show(
                 }
                 if let Some((page_id, text, parsed, flow)) = &page {
                     flow::paint(ui.painter(), map, flow, tokens);
-                    file_clicks(ui, map, flow, clicked);
                     let type_tool = session.ink().tool() == DrawTool::Type;
+                    picture_ui::files(
+                        ui,
+                        map,
+                        flow,
+                        &mut state.pictures,
+                        type_tool && session.page_is_editable(page_id),
+                        clicked,
+                    );
                     let on_picture = type_tool
                         && picture_ui::show(
                             ui,
@@ -178,6 +187,12 @@ pub fn show(
                         );
                     if response.clicked() && !on_picture {
                         state.pictures.selected = None;
+                    }
+                    if type_tool && !on_picture && (response.clicked() || response.double_clicked())
+                    {
+                        if let Some(pos) = response.interact_pointer_pos() {
+                            state.remember_click(page_id, map.page(pos), flow);
+                        }
                     }
                     let frame = editing::Frame {
                         session,
@@ -243,37 +258,6 @@ pub fn show(
         ui.ctx().set_cursor_icon(CursorIcon::Grab);
     }
     output.inner_rect.width()
-}
-
-/// A click on a file attachment opens it (the `attachment.open` command). Keyboard users
-/// reach each attachment as a button and press Enter.
-fn file_clicks(ui: &egui::Ui, map: PageToScreen, flow: &flow::Flow, clicked: &mut Vec<Clicked>) {
-    for (index, hit) in flow.files.iter().enumerate() {
-        let rect = Rect::from_min_max(
-            map.pos(Vec2::new(hit.rect.min.x, hit.rect.min.y)),
-            map.pos(Vec2::new(hit.rect.max.x, hit.rect.max.y)),
-        );
-        if !rect.intersects(ui.clip_rect()) {
-            continue;
-        }
-        let id = ui.id().with(("attachment", index));
-        let response = ui.interact(rect, id, Sense::click());
-        let name = hit.name.clone();
-        response.widget_info(|| {
-            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("Open {name}"))
-        });
-        if response.hovered() {
-            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
-        }
-        if response.clicked() || response.double_clicked() {
-            let mut args = Map::new();
-            args.insert("src".to_owned(), Value::from(hit.link.clone()));
-            clicked.push(Clicked {
-                command: ids::ATTACHMENT_OPEN,
-                args: Value::Object(args),
-            });
-        }
-    }
 }
 
 /// What one frame of ink capture found, for the two paint passes.

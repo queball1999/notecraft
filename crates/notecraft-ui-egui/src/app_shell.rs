@@ -65,6 +65,9 @@ const FILE_OPENS: [CommandId; 3] = [
 
 /// Most files taken from one drop.
 const MAX_DROPPED_FILES: usize = 50;
+/// How far the insert point moves down and right after each insert or dropped file, in page
+/// units, so the objects do not cover each other.
+const INSERT_STEP: f32 = 24.0;
 
 /// Whether a file name has a picture extension the canvas draws.
 fn is_picture_name(name: &str) -> bool {
@@ -304,6 +307,11 @@ impl AppShell {
     }
 
     #[cfg(test)]
+    pub(crate) fn screen_point_of(&self, page: notecraft_core::Vec2) -> Option<egui::Pos2> {
+        self.canvas.screen_point_of(page)
+    }
+
+    #[cfg(test)]
     pub(crate) fn picture_counts(&self) -> (usize, usize) {
         self.canvas.picture_counts()
     }
@@ -465,6 +473,28 @@ impl AppShell {
         self.toasts.push(text);
     }
 
+    /// A picture or file inserted without a point goes where the user last clicked on the page
+    /// (docs/markdown.md section 3.4). A page not clicked yet keeps the flow placement.
+    fn add_insert_point(&mut self, id: &str, args: &mut Map<String, Value>) {
+        let places = [
+            ids::INSERT_PICTURE,
+            ids::INSERT_FILE_ATTACHMENT,
+            ids::EDIT_PASTE_PICTURE,
+        ];
+        if !places.iter().any(|p| p.as_str() == id) || args.contains_key("x") {
+            return;
+        }
+        let Some(page) = self.session.selection().page.clone() else {
+            return;
+        };
+        let Some(at) = self.canvas.insert_point(&page) else {
+            return;
+        };
+        args.insert("x".to_owned(), Value::from(f64::from(at.x)));
+        args.insert("y".to_owned(), Value::from(f64::from(at.y)));
+        self.canvas.step_insert_point(INSERT_STEP);
+    }
+
     /// `args` with a `path` from the picker if `id` is a file command sent without one.
     /// `None` when the user canceled the picker.
     fn fill_path(&mut self, id: &str, args: Value) -> Option<Value> {
@@ -473,6 +503,7 @@ impl AppShell {
             Value::Object(map) => map,
             other => return Some(other),
         };
+        self.add_insert_point(id, &mut map);
         if map.contains_key("path") {
             return Some(Value::Object(map));
         }
@@ -544,7 +575,12 @@ impl AppShell {
         {
             return;
         }
-        for file in dropped.into_iter().take(MAX_DROPPED_FILES) {
+        // A file dropped on the page lands where it was dropped, each further file a step lower
+        // and to the right.
+        let drop_at = ctx
+            .input(|input| input.pointer.hover_pos().or(input.pointer.latest_pos()))
+            .and_then(|pos| self.canvas.page_point_at(pos));
+        for (index, file) in dropped.into_iter().take(MAX_DROPPED_FILES).enumerate() {
             let path = file.path().to_path_buf();
             let text = path.to_string_lossy().into_owned();
             let name = path
@@ -558,6 +594,11 @@ impl AppShell {
             };
             let mut args = Map::new();
             args.insert("path".to_owned(), Value::from(text));
+            if let Some(at) = drop_at {
+                let step = INSERT_STEP * index as f32;
+                args.insert("x".to_owned(), Value::from(f64::from(at.x + step)));
+                args.insert("y".to_owned(), Value::from(f64::from(at.y + step)));
+            }
             self.dispatch(id.as_str(), Value::Object(args));
         }
     }

@@ -12,11 +12,12 @@ use egui::{Color32, FontFamily, FontId, Galley, Painter, Pos2, Rect, Stroke};
 use notecraft_canvas::text;
 use notecraft_core::Vec2;
 use notecraft_engine::TextCursor;
+use notecraft_markdown::objects::{is_file_link, is_file_paragraph};
 use notecraft_markdown::{
     markup, Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Run, Script, Span,
     Table,
 };
-use notecraft_model::Container;
+use notecraft_model::{Container, ObjectKind, PlacedObject};
 
 use super::pictures::{PictureSource, Shown};
 use super::rawtext::Raw;
@@ -81,13 +82,17 @@ enum Item {
     },
 }
 
-/// A file attachment on the page, for clicks.
+/// A file attachment on the page, for clicks and drags.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct FileHit {
     /// In page units.
     pub rect: Rect,
     /// The link as written in the page.
     pub link: String,
+    /// Which file attachment with this link, counting from 0 in the order they are laid out.
+    pub nth: usize,
+    /// It has a place of its own (or is being dragged), not a spot in its container.
+    pub placed: bool,
     pub name: String,
 }
 
@@ -104,8 +109,13 @@ pub(super) struct PictureHit {
     pub max_width: f32,
     /// It is drawn (not a placeholder), so it can be selected and resized.
     pub ready: bool,
+    /// It has a place of its own (or is being dragged), not a spot in its container.
+    pub placed: bool,
     pub alt: String,
 }
+
+/// Widest a picture or file with a place of its own may be shown, in page units.
+const PLACED_MAX_WIDTH: f32 = 4096.0;
 
 /// Gap between containers stacked in the flow, in page units.
 const CONTAINER_GAP: f32 = BODY_SIZE * 0.8;
@@ -123,6 +133,8 @@ pub(super) struct Input<'a> {
     pub cursor: Option<TextCursor>,
     /// The IME composition shown at the caret.
     pub preedit: &'a str,
+    /// Pictures and files with a place of their own (docs/markdown.md section 3.4).
+    pub objects: &'a [PlacedObject],
 }
 
 /// Where one container landed, in page units.
@@ -165,6 +177,13 @@ struct Layout<'a> {
     picture_hits: Vec<PictureHit>,
     /// How many pictures with each link were laid out so far.
     picture_counts: std::collections::HashMap<String, usize>,
+    /// The same for file attachments.
+    file_counts: std::collections::HashMap<String, usize>,
+    /// Pictures and files with a place of their own.
+    placed: &'a [PlacedObject],
+    /// Right and bottom edge of the objects with a place of their own, in page units.
+    placed_right: f32,
+    placed_bottom: f32,
     pictures: &'a mut dyn PictureSource,
     blocks_out: Vec<BlockBox>,
     raws: Vec<Raw>,
@@ -192,6 +211,10 @@ pub(super) fn layout(
         files: Vec::new(),
         picture_hits: Vec::new(),
         picture_counts: std::collections::HashMap::new(),
+        file_counts: std::collections::HashMap::new(),
+        placed: input.objects,
+        placed_right: 0.0,
+        placed_bottom: 0.0,
         pictures,
         zoom: if zoom.is_finite() && zoom > 0.0 {
             zoom
@@ -236,6 +259,8 @@ pub(super) fn layout(
         bottom = bottom.max(top + height);
         right = right.max(x + width + LEFT);
     }
+    bottom = bottom.max(ctx.placed_bottom);
+    right = right.max(ctx.placed_right + LEFT);
     Flow {
         height: bottom + BOTTOM_MARGIN,
         width: right,
@@ -332,18 +357,6 @@ pub(super) fn probe(
         zoom,
         text: slice.to_owned(),
         preedit: None,
-    }
-}
-
-/// Whether a link points at a file in the notebook (not the web, an anchor, or mail).
-fn is_file_link(link: &str) -> bool {
-    let link = link.trim();
-    if link.is_empty() || link.starts_with('#') || link.starts_with("//") {
-        return false;
-    }
-    match link.split_once(':') {
-        Some((scheme, _)) => scheme.len() == 1,
-        None => true,
     }
 }
 
@@ -625,9 +638,7 @@ impl Layout<'_> {
 
     /// A paragraph that is one link to a file in the notebook: an attachment object.
     fn is_file_paragraph(&self, runs: &[Run]) -> bool {
-        matches!(runs, [run] if !run.image && !run.code
-            && run.link.as_deref().is_some_and(is_file_link)
-            && !run.text.trim().is_empty())
+        is_file_paragraph(runs)
     }
 
     /// Lay out and clear the text collected before or after a picture.
@@ -663,6 +674,13 @@ impl Layout<'_> {
             *seen += 1;
             *seen - 1
         };
+        // A picture with a place of its own is drawn there, wide as it likes, and takes no
+        // room in its container.
+        let place = self.place_of(ObjectKind::Picture, &link, nth);
+        let (x, top, width) = match place {
+            Some(at) => (at.x, at.y, PLACED_MAX_WIDTH),
+            None => (x, *y, width),
+        };
         let (w, h, label) = match &shown {
             Shown::Ready {
                 width: w,
@@ -691,13 +709,14 @@ impl Layout<'_> {
             ),
         };
         let galley = self.small_galley(&label, self.tokens.text_muted, (w - 16.0).max(40.0));
-        let rect = Rect::from_min_size(Pos2::new(x, *y), egui::vec2(w.max(1.0), h.max(1.0)));
+        let rect = Rect::from_min_size(Pos2::new(x, top), egui::vec2(w.max(1.0), h.max(1.0)));
         self.picture_hits.push(PictureHit {
             rect,
             link: link.clone(),
             nth,
             max_width: width,
             ready: matches!(shown, Shown::Ready { .. }),
+            placed: place.is_some(),
             alt,
         });
         self.items.push(Item::Picture {
@@ -705,19 +724,53 @@ impl Layout<'_> {
             shown,
             label: galley,
         });
-        *y += h + BODY_SIZE * 0.6;
+        if place.is_some() {
+            self.note_placed(rect);
+        } else {
+            *y += h + BODY_SIZE * 0.6;
+        }
+    }
+
+    /// Where the `nth` object of `kind` with link `link` sits when it has a place of its own:
+    /// the spot it is being dragged to, else the saved one.
+    fn place_of(&self, kind: ObjectKind, link: &str, nth: usize) -> Option<Pos2> {
+        if let Some(at) = self.pictures.preview_pos(kind, link, nth) {
+            return Some(Pos2::new(at.x, at.y));
+        }
+        self.placed
+            .iter()
+            .find(|o| o.is(kind, link, nth))
+            .map(|o| Pos2::new(o.pos.x, o.pos.y))
+    }
+
+    /// Keep the scrollable page big enough to reach an object with a place of its own.
+    fn note_placed(&mut self, rect: Rect) {
+        self.placed_right = self.placed_right.max(rect.max.x);
+        self.placed_bottom = self.placed_bottom.max(rect.max.y);
     }
 
     /// A file attachment: icon and name. Clicking it opens the file.
     fn file(&mut self, run: &Run, x: f32, width: f32, y: &mut f32) {
         let link = run.link.clone().unwrap_or_default();
         let name = run.text.trim().to_owned();
+        let nth = {
+            let seen = self.file_counts.entry(link.clone()).or_insert(0);
+            *seen += 1;
+            *seen - 1
+        };
+        let place = self.place_of(ObjectKind::File, &link, nth);
+        let (x, top, width) = match place {
+            Some(at) => (at.x, at.y, COLUMN_WIDTH),
+            None => (x, *y, width),
+        };
         let w = (width * 0.6).clamp(180.0, 360.0).min(width);
         let galley = self.small_galley(&name, self.tokens.text, w - FILE_HEIGHT - 8.0);
-        let rect = Rect::from_min_size(Pos2::new(x, *y), egui::vec2(w, FILE_HEIGHT));
+        let rect = Rect::from_min_size(Pos2::new(x, top), egui::vec2(w, FILE_HEIGHT));
         self.files.push(FileHit {
             rect,
             link: link.clone(),
+            nth,
+            placed: place.is_some(),
             name: name.clone(),
         });
         self.items.push(Item::File {
@@ -725,7 +778,11 @@ impl Layout<'_> {
             name: galley,
             ext: extension_of(&link_file_name(&link)),
         });
-        *y += FILE_HEIGHT + BODY_SIZE * 0.6;
+        if place.is_some() {
+            self.note_placed(rect);
+        } else {
+            *y += FILE_HEIGHT + BODY_SIZE * 0.6;
+        }
     }
 
     fn list(
@@ -1261,6 +1318,7 @@ mod tests {
             geometry: &geometry,
             cursor,
             preedit: "",
+            objects: &[],
         };
         layout(painter, &input, zoom, tokens, &mut NoPictures)
     }
@@ -1282,6 +1340,88 @@ mod tests {
         }
     }
 
+    /// Lay out `text` with placed `objects` and the `Fixed` pictures; `Fixed2` drags the
+    /// first picture to (50, 700).
+    fn lay_placed(text: &str, objects: &[PlacedObject], dragged: bool) -> Flow {
+        struct Dragged;
+        impl PictureSource for Dragged {
+            fn picture(&mut self, _link: &str) -> Shown {
+                Fixed.picture("")
+            }
+            fn preview_pos(&self, kind: ObjectKind, _link: &str, nth: usize) -> Option<Vec2> {
+                (kind == ObjectKind::Picture && nth == 0).then(|| Vec2::new(50.0, 700.0))
+            }
+        }
+        let tokens = tokens();
+        with_painter(|painter| {
+            let doc = notecraft_markdown::parse(text);
+            let runs = notecraft_markdown::split_containers(text, &doc);
+            let geometry: Vec<Container> = runs.iter().map(|r| Container::flow(&r.id)).collect();
+            let input = Input {
+                text,
+                doc: &doc,
+                runs: &runs,
+                geometry: &geometry,
+                cursor: None,
+                preedit: "",
+                objects,
+            };
+            if dragged {
+                layout(painter, &input, 1.0, &tokens, &mut Dragged)
+            } else {
+                layout(painter, &input, 1.0, &tokens, &mut Fixed)
+            }
+        })
+    }
+
+    fn placed(kind: ObjectKind, src: &str, nth: usize, x: f32, y: f32) -> PlacedObject {
+        PlacedObject {
+            id: format!("o{nth}"),
+            kind,
+            src: src.to_owned(),
+            nth,
+            pos: Vec2::new(x, y),
+        }
+    }
+
+    #[test]
+    fn a_placed_picture_and_file_sit_at_their_place_and_take_no_room_in_the_text() {
+        let text = "intro\n\n![a](x.png)\n\n[Doc](d.pdf)\n\nafter\n";
+        let flowing = lay_placed(text, &[], false);
+        let objects = [
+            placed(ObjectKind::Picture, "x.png", 0, 900.0, 1500.0),
+            placed(ObjectKind::File, "d.pdf", 0, 300.0, 40.0),
+        ];
+        let free = lay_placed(text, &objects, false);
+        let hit = free.picture_hits.first().expect("picture");
+        assert!(hit.placed && hit.rect.min == Pos2::new(900.0, 1500.0));
+        assert_eq!((hit.rect.width(), hit.rect.height()), (400.0, 200.0));
+        let file = free.files.first().expect("file");
+        assert!(file.placed && file.rect.min == Pos2::new(300.0, 40.0));
+        // The text below no longer waits for them, and the page reaches the far picture.
+        let after = |f: &Flow| f.blocks.last().map(|b| b.rect.min.y).unwrap_or_default();
+        assert!(after(&free) < after(&flowing) - 200.0);
+        assert!(free.height >= 1700.0 && free.width >= 1300.0);
+        // A picture past the column is not squeezed into it.
+        assert_eq!(hit.max_width, PLACED_MAX_WIDTH);
+        // Another file link with the same name is not placed.
+        let other = lay_placed(text, &[placed(ObjectKind::File, "z.pdf", 0, 1.0, 1.0)], false);
+        assert!(!other.files[0].placed);
+        // The second copy of a link is placed only when its own number says so.
+        let two = "![a](x.png)\n\n![a](x.png)\n";
+        let second = lay_placed(two, &[placed(ObjectKind::Picture, "x.png", 1, 500.0, 600.0)], false);
+        assert!(!second.picture_hits[0].placed && second.picture_hits[1].placed);
+    }
+
+    #[test]
+    fn a_dragged_picture_follows_the_pointer_even_when_it_has_no_place_yet() {
+        let text = "![a](x.png)\n\nafter\n";
+        let flow = lay_placed(text, &[], true);
+        let hit = flow.picture_hits.first().expect("picture");
+        assert!(hit.placed);
+        assert_eq!(hit.rect.min, Pos2::new(50.0, 700.0));
+    }
+
     #[test]
     fn a_picture_shows_at_its_saved_width_and_keeps_its_proportions() {
         let tokens = tokens();
@@ -1297,6 +1437,7 @@ mod tests {
                 geometry: &geometry,
                 cursor: None,
                 preedit: "",
+                objects: &[],
             };
             layout(painter, &input, 1.0, &tokens, &mut Fixed).picture_hits
         });
@@ -1546,6 +1687,7 @@ mod tests {
                 geometry: &geometry,
                 cursor: None,
                 preedit: "",
+                objects: &[],
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             let rect = |i: usize| flow.containers.get(i).expect("box").rect;
@@ -1573,6 +1715,7 @@ mod tests {
                 geometry: &geometry,
                 cursor: None,
                 preedit: "",
+                objects: &[],
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             assert!(flow.width >= 3240.0, "width {}", flow.width);
@@ -1608,6 +1751,7 @@ mod tests {
                 geometry: &geometry,
                 cursor: Some(TextCursor::caret(1)),
                 preedit: "\u{4e2d}\u{6587}",
+                objects: &[],
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             let raw = flow.raws.first().expect("raw");
