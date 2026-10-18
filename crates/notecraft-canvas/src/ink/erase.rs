@@ -235,6 +235,7 @@ mod tests {
             })
             .collect();
         Stroke {
+            texture: Default::default(),
             id: id.into(),
             tool: InkTool::Pen,
             color: InkColor::BLACK,

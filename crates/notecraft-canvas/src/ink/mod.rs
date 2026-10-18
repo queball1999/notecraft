@@ -8,6 +8,7 @@ pub mod filter;
 pub mod index;
 pub mod layer;
 pub mod tessellate;
+pub mod texture;
 
 pub use capture::{velocity_pressures, CaptureParams, StrokeBuilder};
 pub use filter::{OneEuro, OneEuroParams};

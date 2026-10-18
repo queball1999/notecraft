@@ -18,7 +18,7 @@ use std::fmt;
 use std::ops::Range;
 
 use notecraft_core::ink::{MAX_STROKE_POINTS, MAX_STROKE_WIDTH, MIN_STROKE_WIDTH};
-use notecraft_core::{simplify, InkColor, InkPoint, InkTool, Stroke};
+use notecraft_core::{simplify, InkColor, InkPoint, InkTexture, InkTool, Stroke};
 use serde::de::{Deserialize, Deserializer, IgnoredAny, MapAccess, SeqAccess, Visitor};
 
 /// The info string of the canvas block.
@@ -385,6 +385,7 @@ struct RawStroke {
     id: Option<Scalar>,
     tool: Option<Scalar>,
     color: Option<Scalar>,
+    texture: Option<Scalar>,
     width: Option<Scalar>,
     points: Points,
 }
@@ -407,6 +408,7 @@ impl<'de> Visitor<'de> for StrokeVisitor {
                 "id" => s.id = Some(map.next_value()?),
                 "tool" => s.tool = Some(map.next_value()?),
                 "color" => s.color = Some(map.next_value()?),
+                "texture" => s.texture = Some(map.next_value()?),
                 "width" => s.width = Some(map.next_value()?),
                 "points" => s.points = map.next_value()?,
                 _ => {
@@ -613,6 +615,11 @@ fn finish_stroke(
         Some(Scalar::Str(s)) => InkColor::parse(s).unwrap_or_default(),
         _ => InkColor::default(),
     };
+    // An unknown texture, or any value that is not text, is a plain color stroke.
+    let texture = match &raw.texture {
+        Some(Scalar::Str(s)) => InkTexture::parse(s).unwrap_or_default(),
+        _ => InkTexture::Plain,
+    };
     let width = raw.width.as_ref().and_then(Scalar::num).map_or(1.0, |w| {
         (w as f32).clamp(MIN_STROKE_WIDTH, MAX_STROKE_WIDTH)
     });
@@ -627,6 +634,7 @@ fn finish_stroke(
             tool,
             color,
             width,
+            texture,
             points,
         }
         .bounded(),
@@ -802,6 +810,11 @@ fn ink_array(strokes: &[Stroke], eol: &str, indent: usize) -> String {
         out.push_str(&s.color.to_hex());
         out.push_str("\", \"width\": ");
         out.push_str(&num(s.width));
+        if s.texture != InkTexture::Plain {
+            out.push_str(", \"texture\": \"");
+            out.push_str(s.texture.id());
+            out.push('"');
+        }
         out.push_str(", \"points\": [");
         for (j, p) in s.points.iter().enumerate() {
             if j > 0 {

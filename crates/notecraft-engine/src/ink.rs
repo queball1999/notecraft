@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use notecraft_canvas::ink::InkLayer;
-use notecraft_core::InkColor;
+use notecraft_core::{InkColor, InkTexture};
 
 /// Page units per point: the page is 96 per inch, a point is 1/72 inch.
 pub const PAGE_UNITS_PER_POINT: f32 = 96.0 / 72.0;
@@ -101,6 +101,8 @@ pub struct PenStyle {
     pub color: InkColor,
     /// Width in points, as the ribbon shows it.
     pub width_pt: f32,
+    /// The pencil or a textured pen; [`InkTexture::Plain`] for a plain pen and a highlighter.
+    pub texture: InkTexture,
 }
 
 impl Default for PenStyle {
@@ -108,11 +110,31 @@ impl Default for PenStyle {
         Self {
             color: InkColor::BLACK,
             width_pt: 1.0,
+            texture: InkTexture::Plain,
         }
     }
 }
 
 impl PenStyle {
+    /// A pen of `texture` with its starting color and `width_pt`.
+    pub fn textured(texture: InkTexture, width_pt: f32) -> Self {
+        Self {
+            color: texture.swatch(),
+            width_pt,
+            texture,
+        }
+    }
+
+    /// This style in `color`. A textured pen whose look is its own (not the pencil) becomes a
+    /// plain pen in that color: picking a color is asking for a plain color.
+    pub fn with_color(mut self, color: InkColor) -> Self {
+        self.color = color;
+        if !self.texture.uses_color() {
+            self.texture = InkTexture::Plain;
+        }
+        self
+    }
+
     /// The widest the stroke gets, in page units.
     pub fn width_units(self) -> f32 {
         self.width_pt * PAGE_UNITS_PER_POINT
@@ -123,6 +145,7 @@ impl PenStyle {
 const DEFAULT_HIGHLIGHTER: PenStyle = PenStyle {
     color: InkColor([0xFF, 0xF1, 0x76, 0xFF]),
     width_pt: 8.0,
+    texture: InkTexture::Plain,
 };
 
 /// Most tools the Draw tab keeps. Past this, Add does nothing.
@@ -158,6 +181,7 @@ impl ToolKind {
             Self::Pen => PenStyle {
                 color: InkColor([0, 0, 0, 0xFF]),
                 width_pt: 1.0,
+                texture: InkTexture::Plain,
             },
             Self::Highlighter => DEFAULT_HIGHLIGHTER,
         }
@@ -176,25 +200,44 @@ impl PenTool {
     pub fn new(kind: ToolKind, color: InkColor, width_pt: f32) -> Self {
         Self {
             kind,
-            style: PenStyle { color, width_pt },
+            style: PenStyle {
+                color,
+                width_pt,
+                texture: InkTexture::Plain,
+            },
         }
     }
 
-    /// The tool as saved in the settings: kind id, `#RRGGBB[AA]` color, and width in points.
-    pub fn to_saved(self) -> (&'static str, String, f32) {
+    /// A pen of `texture` (the pencil or a textured pen) with its starting color.
+    pub fn textured(texture: InkTexture, width_pt: f32) -> Self {
+        Self {
+            kind: ToolKind::Pen,
+            style: PenStyle::textured(texture, width_pt),
+        }
+    }
+
+    /// The tool as saved in the settings: kind id, `#RRGGBB[AA]` color, width in points, and
+    /// the texture id (empty for a plain pen).
+    pub fn to_saved(self) -> (&'static str, String, f32, &'static str) {
         (
             self.kind.id(),
             self.style.color.to_hex(),
             self.style.width_pt,
+            self.style.texture.id(),
         )
     }
 
     /// A tool from its saved form. An unknown kind or a color that does not parse gives
-    /// `None`; a width out of range or not a number is put in range.
-    pub fn from_saved(kind: &str, color: &str, width_pt: f32) -> Option<Self> {
+    /// `None`; a width out of range or not a number is put in range; a texture that is not
+    /// known (or sits on a highlighter) is dropped, leaving a plain pen in the saved color.
+    pub fn from_saved(kind: &str, color: &str, width_pt: f32, texture: &str) -> Option<Self> {
         let kind = ToolKind::parse(kind)?;
         let color = InkColor::parse(color)?;
-        Some(Self::new(kind, color, width_pt).bounded())
+        let mut tool = Self::new(kind, color, width_pt).bounded();
+        if kind == ToolKind::Pen {
+            tool.style.texture = InkTexture::parse(texture).unwrap_or_default();
+        }
+        Some(tool)
     }
 
     /// The width, kept inside what the commands accept.

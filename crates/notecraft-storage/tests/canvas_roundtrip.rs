@@ -61,6 +61,7 @@ impl Rng {
 fn random_stroke(rng: &mut Rng, id: usize) -> Stroke {
     let n = 1 + rng.below(40) as usize;
     Stroke {
+        texture: Default::default(),
         id: format!("s{id}"),
         tool: if rng.below(4) == 0 {
             InkTool::Highlighter
@@ -119,6 +120,7 @@ fn adding_a_stroke_matches_the_golden_page() {
     let text = std::fs::read_to_string(dir().join("ink-basic.notecraft")).unwrap();
     let mut strokes = read_canvas(&text).strokes;
     strokes.push(Stroke {
+        texture: Default::default(),
         id: "s3".to_owned(),
         tool: InkTool::Pen,
         color: InkColor::parse("#C0392B").unwrap(),

@@ -614,6 +614,7 @@ impl AppShell {
                 highlighter: tool.kind == notecraft_engine::ToolKind::Highlighter,
                 color: tool.style.color.0,
                 width_pt: tool.style.width_pt,
+                texture: tool.style.texture,
             })
             .collect();
         let look = ribbon::Look {
@@ -799,6 +800,7 @@ fn active_pen(ink: &notecraft_engine::InkState) -> Option<ribbon::ActivePen> {
         tool,
         color: u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
         width_pt: style.width_pt,
+        texture: style.texture.id(),
     })
 }
 

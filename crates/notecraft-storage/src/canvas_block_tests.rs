@@ -4,6 +4,7 @@ use super::*;
 
 fn stroke(id: &str, pts: &[(f32, f32, f32)]) -> Stroke {
     Stroke {
+        texture: Default::default(),
         id: id.to_owned(),
         tool: InkTool::Pen,
         color: InkColor::parse("#1F3A93").unwrap(),
@@ -265,4 +266,45 @@ fn stripping_the_block_returns_the_markdown() {
     let crlf = "Hi\r\n";
     let with = write_ink(crlf, &[stroke("s1", &[(1.0, 2.0, 0.5)])]).unwrap();
     assert_eq!(strip_canvas_block(&with), crlf);
+}
+
+#[test]
+fn a_textured_stroke_round_trips_and_a_plain_one_writes_no_key() {
+    let mut gold = stroke("s1", &[(1.0, 1.0, 1.0), (30.0, 5.0, 0.5)]);
+    gold.texture = InkTexture::Gold;
+    let mut pencil = stroke("s2", &[(2.0, 2.0, 1.0), (40.0, 9.0, 0.5)]);
+    pencil.texture = InkTexture::Pencil;
+    let plain = stroke("s3", &[(3.0, 3.0, 1.0), (50.0, 7.0, 0.5)]);
+    let strokes = vec![gold, pencil, plain];
+    let text = write_ink("Hello\n", &strokes).unwrap();
+    assert!(text.contains("\"texture\": \"gold\""));
+    assert!(text.contains("\"texture\": \"pencil\""));
+    assert_eq!(text.matches("\"texture\"").count(), 2);
+    let read = read_canvas(&text);
+    assert_eq!(read.problem, None);
+    let textures: Vec<InkTexture> = read.strokes.iter().map(|s| s.texture).collect();
+    assert_eq!(
+        textures,
+        [InkTexture::Gold, InkTexture::Pencil, InkTexture::Plain]
+    );
+    // Saving what was read changes nothing.
+    assert_eq!(write_ink(&text, &read.strokes).unwrap(), text);
+}
+
+#[test]
+fn an_unknown_or_odd_texture_is_a_plain_color_stroke() {
+    let text = "x\n\n```notecraft-canvas\n{\n  \"format\": 1,\n  \"ink\": [\n    \
+        { \"id\": \"a\", \"color\": \"#112233\", \"width\": 2, \"texture\": \"holographic\", \"points\": [[1, 1, 1], [9, 9, 1]] },\n    \
+        { \"id\": \"b\", \"color\": \"#112233\", \"width\": 2, \"texture\": 7, \"points\": [[1, 1, 1], [9, 9, 1]] },\n    \
+        { \"id\": \"c\", \"tool\": \"highlighter\", \"color\": \"#FFEB3B80\", \"width\": 8, \"texture\": \"gold\", \"points\": [[1, 1, 1], [9, 9, 1]] },\n    \
+        { \"id\": \"d\", \"color\": \"#112233\", \"width\": 2, \"texture\": \"ROSE_GOLD\", \"points\": [[1, 1, 1], [9, 9, 1]] }\n  ]\n}\n```\n";
+    let read = read_canvas(text);
+    assert_eq!(read.problem, None);
+    assert_eq!(read.strokes.len(), 4);
+    for s in &read.strokes[..3] {
+        assert_eq!(s.texture, InkTexture::Plain);
+    }
+    // The color stays, so an older reader and this one draw the same plain stroke.
+    assert_eq!(read.strokes[0].color.to_hex(), "#112233");
+    assert_eq!(read.strokes[3].texture, InkTexture::RoseGold);
 }

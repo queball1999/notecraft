@@ -11,6 +11,7 @@ mod flow;
 #[cfg(test)]
 mod formatting_tests;
 mod ink;
+pub(crate) use ink::paint_pen_sample;
 #[cfg(test)]
 mod ink_tests;
 mod keymap;
@@ -19,6 +20,7 @@ pub(crate) mod paper;
 mod picture_ui;
 pub(crate) mod pictures;
 mod rawtext;
+mod textures;
 mod title;
 mod widget;
 

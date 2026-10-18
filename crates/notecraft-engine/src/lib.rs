@@ -25,6 +25,7 @@ pub use ink::{
     default_pen_tools, DrawTool, EraserMode, EraserSize, InkState, PenStyle, PenTool, ToolKind,
     MAX_PEN_POINTS, MAX_PEN_TOOLS, MIN_PEN_POINTS,
 };
+pub use notecraft_core::InkTexture;
 pub use notecraft_storage::RecoveryEntry;
 pub use session::{
     AttachKind, Attached, ConvertOutcome, InsertError, PageNotice, PageSource, ReadPurpose,

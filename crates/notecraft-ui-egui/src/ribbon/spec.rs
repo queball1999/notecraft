@@ -837,6 +837,24 @@ const SHAPE_KINDS: &[Item] = &[
 const ADD_TOOLS: &[Item] = &[
     Item::new("Pen", ids::DRAW_TOOL_ADD).args(&[str_arg("kind", "pen")]),
     Item::new("Highlighter", ids::DRAW_TOOL_ADD).args(&[str_arg("kind", "highlighter")]),
+    Item::new("Pencil", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "pencil")]),
+    Item::new("Rainbow Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "rainbow")]),
+    Item::new("Galaxy Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "galaxy")]),
+    Item::new("Lava Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "lava")]),
+    Item::new("Ocean Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "ocean")]),
+    Item::new("Gold Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "gold")]),
+    Item::new("Silver Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "silver")]),
+    Item::new("Bronze Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "bronze")]),
+    Item::new("Rose Gold Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "rose_gold")]),
 ];
 
 /// The colors of the rule lines and grid: soft grays and hues that read as paper lines.

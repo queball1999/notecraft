@@ -11,6 +11,7 @@ use crate::cmd::{
 
 fn stroke(id: &str, x: f32) -> Stroke {
     Stroke {
+        texture: Default::default(),
         id: id.into(),
         tool: InkTool::Pen,
         color: InkColor::BLACK,
@@ -903,6 +904,7 @@ fn every_undoable_command_undoes_and_redoes_exactly() {
         }
         // A line to erase for ink.erase, put there without an undo step.
         let line = Stroke {
+            texture: Default::default(),
             points: vec![
                 InkPoint::new(0.0, 100.0, 1.0),
                 InkPoint::new(1000.0, 100.0, 1.0),

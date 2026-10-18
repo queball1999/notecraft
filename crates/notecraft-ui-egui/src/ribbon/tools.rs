@@ -10,6 +10,7 @@ use egui::{
     Color32, CornerRadius, Id, Popup, PopupCloseBehavior, Response, Sense, SetOpenCommand, Shape,
     Stroke, StrokeKind, Ui, WidgetInfo, WidgetType,
 };
+use notecraft_core::InkTexture;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::{MAX_PEN_POINTS, MIN_PEN_POINTS};
 
@@ -93,7 +94,12 @@ pub fn tool_label(view: ToolView) -> String {
     } else {
         "Pen"
     };
-    format!("{} {kind}", color_name(rgb))
+    match view.texture {
+        InkTexture::Plain => format!("{} {kind}", color_name(rgb)),
+        // The pencil is named by its color; the other textures are named for their look.
+        InkTexture::Pencil => format!("{} Pencil", color_name(rgb)),
+        texture => format!("{} Pen", texture.name()),
+    }
 }
 
 /// The next thickness up or down from `width` in points: a quarter point at the thin end, a
@@ -214,6 +220,8 @@ fn tool_button(
             let icon = inner.translate(egui::vec2(0.0, lift));
             let shape = if view.highlighter {
                 ToolShape::Highlighter
+            } else if view.texture == InkTexture::Pencil {
+                ToolShape::Pencil
             } else {
                 ToolShape::Pen
             };
@@ -253,6 +261,15 @@ fn menu(ui: &mut Ui, index: usize, view: ToolView, look: Look<'_>, out: &mut Vec
     stroke_preview(ui, view, look);
     menus::heading(ui, "Thickness");
     thickness_row(ui, view, look, out);
+
+    // A pen with a look of its own (not the pencil) has no color to pick: its menu is the
+    // preview, the thickness, and Delete Tool.
+    if !view.texture.uses_color() {
+        menus::heading(ui, view.texture.name());
+        ui.separator();
+        delete_row(ui, index, look, out);
+        return;
+    }
 
     let recent: Vec<[u8; 4]> = menus::recent_colors(&ctx)
         .iter()
@@ -308,6 +325,11 @@ fn menu(ui: &mut Ui, index: usize, view: ToolView, look: Look<'_>, out: &mut Vec
         set_eyedropper(&ctx, true);
         ui.close();
     }
+    delete_row(ui, index, look, out);
+}
+
+/// The Delete Tool row of a tool's menu.
+fn delete_row(ui: &mut Ui, index: usize, look: Look<'_>, out: &mut Vec<Clicked>) {
     if menus::row(ui, "Delete Tool", Preview::None, look).clicked() {
         out.push(Clicked {
             command: ids::DRAW_TOOL_DELETE,
@@ -335,6 +357,18 @@ fn stroke_preview(ui: &mut Ui, view: ToolView, look: Look<'_>) {
         mix(tokens.canvas_bg, tokens.text, 0.04),
     );
     let width = (view.width_pt * 96.0 / 72.0).clamp(1.0, 24.0);
+    if view.texture != InkTexture::Plain {
+        // The same mesh the page paints, so the preview is the look of the stroke.
+        let [r, g, b, _] = view.color;
+        crate::canvas::paint_pen_sample(
+            &painter,
+            rect,
+            view.texture,
+            notecraft_core::InkColor([r, g, b, u8::MAX]),
+            width,
+        );
+        return;
+    }
     let mut color = color32(view.color);
     if view.highlighter {
         color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 140);
@@ -473,6 +507,7 @@ mod tests {
     #[test]
     fn tools_are_named_after_their_color() {
         let view = |highlighter, rgb: u32| ToolView {
+            texture: InkTexture::Plain,
             highlighter,
             color: [(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8, 255],
             width_pt: 1.0,
@@ -483,6 +518,29 @@ mod tests {
         assert_eq!(tool_label(view(true, 0x80DEEA)), "Turquoise Highlighter");
         assert_eq!(color_name(0x123456), "Blue");
         assert_eq!(color_name(0x808080), "Gray");
+    }
+
+    #[test]
+    fn textured_pens_are_named_for_their_look_and_the_pencil_for_its_color() {
+        let view = |texture: InkTexture| ToolView {
+            highlighter: false,
+            color: texture.swatch().0,
+            width_pt: 1.0,
+            texture,
+        };
+        assert_eq!(tool_label(view(InkTexture::Gold)), "Gold Pen");
+        assert_eq!(tool_label(view(InkTexture::RoseGold)), "Rose Gold Pen");
+        assert_eq!(tool_label(view(InkTexture::Galaxy)), "Galaxy Pen");
+        assert_eq!(tool_label(view(InkTexture::Pencil)), "Black Pencil");
+        let mut orange = view(InkTexture::Pencil);
+        orange.color = [0xE3, 0x6C, 0x09, 255];
+        assert_eq!(tool_label(orange), "Burnt Orange Pencil");
+        // Every textured pen has a different name, so each is findable.
+        let names: BTreeSet<String> = InkTexture::ALL
+            .into_iter()
+            .map(|t| tool_label(view(t)))
+            .collect();
+        assert_eq!(names.len(), InkTexture::ALL.len());
     }
 
     #[test]
