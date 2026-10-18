@@ -473,8 +473,9 @@ impl AppShell {
         self.toasts.push(text);
     }
 
-    /// A picture or file inserted without a point goes where the user last clicked on the page
-    /// (docs/markdown.md section 3.4). A page not clicked yet keeps the flow placement.
+    /// A picture or file inserted without a point goes where the user last clicked on empty
+    /// canvas (docs/markdown.md section 3.4). With the caret in a note, or on a page not
+    /// clicked yet, it flows with the text instead.
     fn add_insert_point(&mut self, id: &str, args: &mut Map<String, Value>) {
         let places = [
             ids::INSERT_PICTURE,
@@ -482,6 +483,10 @@ impl AppShell {
             ids::EDIT_PASTE_PICTURE,
         ];
         if !places.iter().any(|p| p.as_str() == id) || args.contains_key("x") {
+            return;
+        }
+        // With the caret in a note the object goes inline at the caret, as OneNote does.
+        if self.session.text_cursor().is_some() {
             return;
         }
         let Some(page) = self.session.selection().page.clone() else {

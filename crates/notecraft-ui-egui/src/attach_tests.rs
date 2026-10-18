@@ -352,15 +352,25 @@ fn insert_picture_lands_where_the_page_was_clicked() {
 }
 
 #[test]
-fn a_click_inside_text_puts_the_picture_below_that_note() {
+fn with_the_caret_in_a_note_pictures_and_files_go_inline() {
     let mut s = setup(None);
+    // An earlier click on empty canvas must not win once the caret is in a note.
+    click_page(&mut s, 700.0, 400.0);
     click_page(&mut s, 100.0, 140.0);
+    assert!(s.harness.state().session().text_cursor().is_some());
+    dispatch(&mut s, "insert.picture", Value::Null);
+    dispatch(&mut s, "insert.file_attachment", Value::Null);
+    assert!(objects(&s).is_empty());
+    let text = page_text(&s);
+    assert!(text.contains("![photo](attachments/"), "{text}");
+    assert!(text.contains("[budget.xlsx](attachments/"), "{text}");
+    // Clicking empty canvas ends editing, and the next insert is free at that point.
+    click_page(&mut s, 700.0, 500.0);
+    assert!(s.harness.state().session().text_cursor().is_none());
     dispatch(&mut s, "insert.picture", Value::Null);
     let placed = objects(&s);
     assert_eq!(placed.len(), 1);
-    // Left edge of the note, under its text.
-    assert!((placed[0].pos.x - 48.0).abs() < 1.5, "{:?}", placed[0].pos);
-    assert!(placed[0].pos.y > 140.0, "{:?}", placed[0].pos);
+    assert!(near(placed[0].pos, 700.0, 500.0), "{:?}", placed[0].pos);
 }
 
 #[test]

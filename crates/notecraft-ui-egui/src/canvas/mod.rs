@@ -85,9 +85,6 @@ impl Default for CanvasUi {
     }
 }
 
-/// Gap kept between a note container and a picture or file inserted below it, in page units.
-const INSERT_GAP: f32 = 12.0;
-
 impl CanvasUi {
     /// The page point under the screen point `screen`, or `None` when it is outside the canvas
     /// (a file dropped on the ribbon, say) or nothing was drawn yet.
@@ -97,8 +94,9 @@ impl CanvasUi {
     }
 
     /// Where a picture or file inserted into `page` now should go: the last click on that
-    /// page. A click inside a note container counts as just below it, so the new object does
-    /// not cover the text. `None` when the page was not clicked since it was shown.
+    /// page, when that click was on empty canvas. `None` when the last click was inside a
+    /// note (the caret is there, so the object goes inline at the caret) or the page was not
+    /// clicked since it was shown.
     pub fn insert_point(&self, page: &str) -> Option<Vec2> {
         self.insert_at
             .as_ref()
@@ -119,11 +117,10 @@ impl CanvasUi {
             .containers
             .iter()
             .find(|b| b.rect.contains(egui::pos2(at.x, at.y)) && b.rect.height() > 0.0);
-        let point = match inside {
-            Some(b) => Vec2::new(b.rect.min.x, b.rect.max.y + INSERT_GAP),
-            None => at,
+        self.insert_at = match inside {
+            Some(_) => None,
+            None => Some((page.to_owned(), at)),
         };
-        self.insert_at = Some((page.to_owned(), point));
     }
 
     /// The screen point of a page point in the last frame (tests).
