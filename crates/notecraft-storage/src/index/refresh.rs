@@ -306,7 +306,8 @@ impl Walk<'_> {
             "INSERT INTO pages (id, path, section, title, kind, level, ord, created, modified, size, hash)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(path) DO UPDATE SET id = ?1, section = ?3, title = ?4, kind = ?5,
-                level = ?6, ord = ?7, modified = ?9, size = ?10, hash = ?11",
+                level = ?6, ord = ?7, modified = ?9, size = ?10, hash = ?11,
+                fm_title = CASE WHEN ?12 THEN fm_title ELSE NULL END",
             params![
                 id,
                 page.rel_path,
@@ -318,7 +319,8 @@ impl Walk<'_> {
                 created,
                 modified,
                 size,
-                hash
+                hash,
+                same_content
             ],
         )?;
         match old {
@@ -396,6 +398,35 @@ mod tests {
         assert_eq!(sidebar.sections.len(), 2);
         assert_eq!(sidebar.pages.len(), 3);
         assert!(sidebar.pages.iter().all(|p| p.id.ends_with(&p.path)));
+    }
+
+    #[test]
+    fn frontmatter_title_shows_until_the_page_changes() {
+        let (_dir, root) = notebook();
+        let mut index = Index::open_in_memory().expect("open");
+        index.refresh(&root).expect("refresh");
+        let id = index.sidebar().expect("sidebar").pages[0].id.clone();
+        index
+            .set_frontmatter_titles(&[(id.clone(), Some("Shown".to_owned()))])
+            .expect("titles");
+        let title_of = |index: &Index| {
+            let sidebar = index.sidebar().expect("sidebar");
+            sidebar
+                .pages
+                .iter()
+                .find(|p| p.id == id)
+                .map(|p| p.title.clone())
+        };
+        assert_eq!(title_of(&index).as_deref(), Some("Shown"));
+        // An untouched refresh keeps it.
+        index.refresh(&root).expect("refresh");
+        assert_eq!(title_of(&index).as_deref(), Some("Shown"));
+        // A changed file drops it until the engine reads the frontmatter again.
+        let path = root.join(id.split_once('/').map(|(_, p)| p).unwrap_or(""));
+        fs::write(&path, "changed content, longer\n").expect("edit");
+        index.refresh(&root).expect("refresh");
+        let title = title_of(&index).expect("page");
+        assert_ne!(title, "Shown");
     }
 
     #[test]

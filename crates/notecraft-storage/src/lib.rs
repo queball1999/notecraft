@@ -34,8 +34,9 @@ pub use canvas_block::{
     CanvasProblem, CanvasRead, WriteInkError,
 };
 pub use notebook_dir::{
-    scan_notebook, scan_notebook_with, GroupEntry, NotebookTree, PageEntry, PageKind, ScanError,
-    ScanLimits, ScanWarning, SectionEntry, TreeNode, WarningKind,
+    index_path, read_notebook_header, scan_notebook, scan_notebook_with, GroupEntry,
+    NotebookHeader, NotebookTree, PageEntry, PageKind, ScanError, ScanLimits, ScanWarning,
+    SectionEntry, TreeNode, WarningKind,
 };
 pub use notebook_toml::{NotebookConfig, ReadOutcome};
 pub use page_file::{
