@@ -218,6 +218,9 @@ pub fn render_section_config(config: &SectionConfig) -> String {
                 let mut entry = Table::new();
                 entry.insert("file".to_owned(), Value::String(page.file.clone()));
                 entry.insert("level".to_owned(), Value::Integer(i64::from(page.level)));
+                if page.collapsed {
+                    entry.insert("collapsed".to_owned(), Value::Boolean(true));
+                }
                 Value::Table(entry)
             })
             .collect();
@@ -340,10 +343,12 @@ mod tests {
                 PageListing {
                     file: "A \"q\".md".into(),
                     level: 0,
+                    collapsed: true,
                 },
                 PageListing {
                     file: "B.notecraft".into(),
                     level: 2,
+                    collapsed: false,
                 },
             ],
             ..SectionConfig::default()
