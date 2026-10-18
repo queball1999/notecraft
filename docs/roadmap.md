@@ -1,6 +1,6 @@
 # Roadmap: focus, alpha plan, milestones
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-18. Last updated: 2026-10-18. Change: PR 1.15 close-out: alpha gate evidence filled, hands-on checklist for the maintainer, open questions (version); PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.7 landed (auto-save, crash recovery, outside edits); PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8 landed (undo and redo); also: PR 1.4: markdown write library landed; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 landed (highlighter and erasers); PR 1.13 landed (structure editing); PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-18. Last updated: 2026-10-18. Change: FM-03 scored D (pictures and files in the canvas block; no longer a P row after this pass); earlier: PR 1.15 close-out: alpha gate evidence filled, hands-on checklist for the maintainer, open questions (version); PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.7 landed (auto-save, crash recovery, outside edits); PR 1.1 landed (notebook folder reader); navigation alpha gate row updated; page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8 landed (undo and redo); also: PR 1.4: markdown write library landed; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 landed (highlighter and erasers); PR 1.13 landed (structure editing); PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P).
 
 The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc says what we are doing now, what the alpha needs, and the milestones after it. The step-by-step execution plan is in [build_plan/](../build_plan/README.md). Optional features OneNote does not have are in [post-parity.md](post-parity.md) and are not on this roadmap.
 
@@ -84,7 +84,7 @@ One pass, about 6 to 10 hours with the three systems (the first 11 steps on Wind
 | 19 | Run the 30-minute fuzz runs for each target (`cargo +nightly fuzz run <target> -- -max_total_time=1800` from `fuzz/` after `bash fuzz/seed.sh`, see CONTRIBUTING.md; targets: markdown, frontmatter, containers, canvas_block, notebook_toml, section_toml, recovery_journal). | FM-08 |
 | 20 | Record the results, re-score the rows, run `cargo xtask parity`, and decide the version question below. | all |
 
-Rows that stay P after this pass for a reason that is not a hands-on check: IN-01 (textured pens and a pencil, gaps rank 21), FM-03 (images, files, and shapes in the canvas block, Phase 2 to 3), ST-02 (moving a closed notebook folder to the OS trash).
+Rows that stay P after this pass for a reason that is not a hands-on check: IN-01 (textured pens and a pencil, gaps rank 21), ST-02 (moving a closed notebook folder to the OS trash).
 
 ## Open questions
 
@@ -130,3 +130,4 @@ Rows that stay P after this pass for a reason that is not a hands-on check: IN-0
 | 2026-10-16 | 1 | PR 1.13 landed (structure editing): current focus text and alpha gate unchanged; the remaining callers of the undo API are PR 1.5 and 1.11. |
 | 2026-10-16 | 1 | PR 1.12 landed (pictures and attachments): current focus text unchanged; the remaining Phase 1 work is PR 1.5, 1.6, 1.7, 1.9, 1.11, 1.13, 1.14. |
 | 2026-10-18 | 1 | PR 1.15 close-out: alpha gate Evidence filled for Markdown write and Auto-save, Notebook navigation updated; hands-on checklist for the maintainer and open questions (the v0.1.0 or v0.0.2 version question) added. Hours unchanged. |
+| 2026-10-18 | 1 | FM-03 scored D (pictures and file attachments in the canvas block); the list of rows that stay P no longer names it. |
