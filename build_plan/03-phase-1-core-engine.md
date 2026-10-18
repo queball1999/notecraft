@@ -2,7 +2,7 @@
 
 > Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-18. Last updated: 2026-10-18. Change: PR 1.15 close-out notes (hands-on checklist, version question); PR 1.13 follow-up: collapse and expand subpages, subpages travel with a moved or deleted parent; earlier: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; PR 1.14 done; notes under PR 1.14. PR 1.6 notes added; PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P); PR 1.12 follow-up: SVG pictures, resize handles, Ctrl+V images; PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.9 follow-ups landed (container positions, repair, warning bar and Convert); PR 1.16 done (command line on notebooks).
 
-Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
+Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.0.2 alpha (maintainer decision, 2026-10-18).
 
 | | |
 |---|---|
@@ -560,9 +560,9 @@ Done (branch `feat/cli-notebook-commands`). Deviations and notes:
 
 ## PR 1.15: close Phase 1 and ship the alpha
 
-Close-out docs done on chore/close-phase-1 (2026-10-18): rows re-scored, alpha gate Evidence filled, and the hands-on checklist for the maintainer is in docs/roadmap.md (numbered steps, each naming the rows it clears). What is left of this PR: the maintainer runs that checklist, fixes what fails, then decides the version (this file and docs/releasing.md say v0.1.0; the maintainer has said v0.0.2) and releases. Original text: follow 00-conventions.md section 6, then release v0.1.0 (docs/releasing.md). Fill every Evidence cell in the docs/roadmap.md alpha gate table first; do not release with an empty cell.
+Close-out docs done on chore/close-phase-1 (2026-10-18): rows re-scored, alpha gate Evidence filled, and the hands-on checklist for the maintainer is in docs/roadmap.md (numbered steps, each naming the rows it clears). What is left of this PR: the maintainer runs that checklist, fixes what fails, then releases v0.0.2 (maintainer decision, 2026-10-18; this plan used to say v0.1.0). Original text: follow 00-conventions.md section 6, then release the alpha (docs/releasing.md). Fill every Evidence cell in the docs/roadmap.md alpha gate table first; do not release with an empty cell.
 
-Also do the hands-on checks deferred from Phase 0 (maintainer decision, 2026-10-15; docs/gaps.md rank 25, 2-4 hours): launch the window and follow system dark mode and the OS UI font on macOS (SH-01, TH-06); follow system dark mode on Linux (TH-06); ribbon key tips on a physical keyboard (SH-05); Narrator on Windows and VoiceOver on macOS (SH-15); shortcuts using Cmd on a Mac (SH-14); the real OS file dialogs on all three systems (SH-12). Record each result in the row's evidence and fix what fails before tagging v0.1.0.
+Also do the hands-on checks deferred from Phase 0 (maintainer decision, 2026-10-15; docs/gaps.md rank 25, 2-4 hours): launch the window and follow system dark mode and the OS UI font on macOS (SH-01, TH-06); follow system dark mode on Linux (TH-06); ribbon key tips on a physical keyboard (SH-05); Narrator on Windows and VoiceOver on macOS (SH-15); shortcuts using Cmd on a Mac (SH-14); the real OS file dialogs on all three systems (SH-12). Record each result in the row's evidence and fix what fails before tagging v0.0.2.
 
 ## Estimate
 
@@ -592,7 +592,7 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 
 - Every row listed at the top scored D.
 - Alpha gate table complete with evidence.
-- v0.1.0 published.
+- v0.0.2 published.
 
 ## Revision history
 

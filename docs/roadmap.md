@@ -6,9 +6,9 @@ The stage summary and progress log are in [ROADMAP.md](../ROADMAP.md). This doc 
 
 ## Current focus
 
-Phase 1, core engine ([build_plan/03](../build_plan/03-phase-1-core-engine.md)): real notebooks, markdown read and write, text editing, ink, pictures, undo, and the v0.1.0 alpha. Every PR of the phase (1.1 to 1.14, 1.16) and the follow-ups (navigation from the index, container positions, SVG pictures and picture resize, highlighter multiply, subpage collapse) are built; PR 1.15 is docs done and waiting for the hands-on checklist below and the version decision. Branch `phase/1-core-engine`, created from `main` after the Phase 0 PR merges.
+Phase 1, core engine ([build_plan/03](../build_plan/03-phase-1-core-engine.md)): real notebooks, markdown read and write, text editing, ink, pictures, undo, and the v0.0.2 alpha. Every PR of the phase (1.1 to 1.14, 1.16) and the follow-ups (navigation from the index, container positions, SVG pictures and picture resize, highlighter multiply, subpage collapse) are built; PR 1.15 is docs done and waiting for the hands-on checklist below. Branch `phase/1-core-engine`, created from `main` after the Phase 0 PR merges.
 
-Phase 0 (UI shell) closed on 2026-10-15: the whole OneNote interface, clickable, on mock data (PR 0.1 to 0.11, 0.13, and the ribbon follow-ups 0.5c to 0.5f). Hands-on checks that agents cannot run (macOS launch and dark mode, Linux dark mode, physical keyboard key tips, Narrator and VoiceOver, Cmd shortcuts on a Mac, the real OS file dialogs) moved to one gap, docs/gaps.md rank 25, to do before the v0.1.0 alpha (maintainer decision, 2026-10-15). Internal release 0.0.1 is cut right after the Phase 0 PR merges into `main`.
+Phase 0 (UI shell) closed on 2026-10-15: the whole OneNote interface, clickable, on mock data (PR 0.1 to 0.11, 0.13, and the ribbon follow-ups 0.5c to 0.5f). Hands-on checks that agents cannot run (macOS launch and dark mode, Linux dark mode, physical keyboard key tips, Narrator and VoiceOver, Cmd shortcuts on a Mac, the real OS file dialogs) moved to one gap, docs/gaps.md rank 25, to do before the v0.0.2 alpha (maintainer decision, 2026-10-15). Internal release 0.0.1 is cut right after the Phase 0 PR merges into `main`.
 
 Phase -1 closed on 2026-10-14 with every exit criterion met. The Release workflow dry run (0.0.0-test.2) built all 20 artifacts on free runners with NoteCraft's own release workflow. Signing secrets are not set yet; add them to the `release` environment before the first real release.
 
@@ -38,7 +38,7 @@ Hours are summed from every PR in the build plan. They assume one experienced Ru
 
 ## Alpha gate
 
-v0.1.0 ships when every row below works end to end on Windows, macOS, and Linux. Evidence is a test name or a PR link with screenshots. SCRD section 5 is updated to match.
+v0.0.2 ships when every row below works end to end on Windows, macOS, and Linux. Evidence is a test name or a PR link with screenshots. SCRD section 5 is updated to match.
 
 | Workflow | Must work | Phase | Checklist rows | Evidence |
 |---|---|---|---|---|
@@ -88,7 +88,7 @@ Rows that stay P after this pass for a reason that is not a hands-on check: IN-0
 
 ## Open questions
 
-- Version: build_plan/03 PR 1.15 and docs/releasing.md name v0.1.0 for the alpha, but the maintainer has talked about releasing v0.0.2 at the end of Phase 1. Not decided here; no tag was made and no version number was changed.
+- Version: decided 2026-10-18. Phase 1 ships as v0.0.2 (maintainer decision), not v0.1.0 as the plan first said. v0.0.1 was promoted from pre-release to a full release on GitHub the same day.
 - Whether ST-02 (notebook delete moves the folder to the OS trash) and IN-01 (textured pens, pencil) must be D before the alpha, or may ship as P. They are not hands-on checks, so the pass above cannot clear them.
 
 ## Milestones
@@ -97,7 +97,7 @@ Rows that stay P after this pass for a reason that is not a hands-on check: IN-0
 |---|---|---|---|
 | M-1 | none | Scaffolding | Phase -1 exit criteria |
 | M0 | 0.0.1 (internal test release) | UI shell on mock data | Phase 0 done; first `release` branch build |
-| Alpha | 0.1.0 | Alpha gate plus ink, pictures, attachments, undo | Phase 1 done |
+| Alpha | 0.0.2 | Alpha gate plus ink, pictures, attachments, undo | Phase 1 done |
 | M2 | 0.2.0 | Page links, search, note tags, equations | Phase 2 done |
 | Beta | 0.9.0 | Shapes, selection tools, tables, recycle bin, page versions, print, PDF and HTML export | Phase 3 done; parity about 70% |
 | 1.0 | 1.0.0 | Beta plus fixes, performance targets (SCRD section 11) | parity about 90% |

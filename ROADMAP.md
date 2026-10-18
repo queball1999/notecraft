@@ -58,15 +58,15 @@ Calendar, at about 30 focused hours a week: v1.0 in 47-80 weeks; full parity in 
 |---|---|---|---|
 | -1 | Scaffolding and CI/CD | 55-98 | CI green, release pipeline proven |
 | 0 | UI shell | 284-474 | internal 0.0.1 |
-| 1 | Core engine | 456-776 | v0.1.0 alpha |
+| 1 | Core engine | 456-776 | v0.0.2 alpha |
 | 2 | Page links, search, note tags | 134-230 | v0.2.0 |
 | 3 | Polish and parity | 404-686 | v0.9.0 beta |
 | Hardening | Beta to 1.0 | 80-160 | v1.0.0 |
 | 4 | Remaining parity | 644-1,228 | full OneNote parity (1.x) |
 
-## Alpha gate (v0.1.0)
+## Alpha gate (v0.0.2)
 
-The workflows that must work end to end for v0.1.0. Full table with per-row evidence: [docs/roadmap.md](docs/roadmap.md#alpha-gate) (mirrors [SCRD.md section 5](SCRD.md)).
+The workflows that must work end to end for v0.0.2. Full table with per-row evidence: [docs/roadmap.md](docs/roadmap.md#alpha-gate) (mirrors [SCRD.md section 5](SCRD.md)).
 
 ## How estimates are maintained
 
