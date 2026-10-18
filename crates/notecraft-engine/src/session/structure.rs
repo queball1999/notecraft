@@ -553,6 +553,14 @@ impl Session {
         plan.page_order(&dir, pages);
         let id = format!("{}/{rel}", plan.id());
         self.commit_plan(plan, "New page")?;
+        // Always Create Pages with Rule Lines: the page starts with the default rule style.
+        if self.default_rule_lines() != notecraft_canvas::RuleLines::None {
+            let style = crate::view::PageStyle {
+                rule_lines: self.default_rule_lines(),
+                ..self.style_of(&id)
+            };
+            self.set_style_of(&id, style);
+        }
         self.select_page_id(&id);
         Ok(id)
     }

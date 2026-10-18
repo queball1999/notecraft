@@ -60,6 +60,8 @@ comrak = { version = "0.56", default-features = false }
 egui = "0.36"
 eframe = { version = "0.36", default-features = false }
 egui_kittest = "0.36"
+# The highlighter multiply paint callback (ui-egui only). Same release as eframe; MIT OR Apache-2.0.
+egui-wgpu = { version = "0.36", default-features = false }
 # Same font parser egui uses; checks OS fonts before egui loads them.
 skrifa = "0.44"
 # Native open dialogs; only the desktop app (L7) uses them.

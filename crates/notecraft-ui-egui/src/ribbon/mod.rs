@@ -79,6 +79,9 @@ pub struct Look<'a> {
     /// The rule lines style of the current page (its `view.rule_lines` id), marked in the Rule
     /// Lines menu.
     pub rule_lines: &'static str,
+    /// Whether new pages start with rule lines (`draw.always_rule_lines`), checked in the Format
+    /// Background menu.
+    pub always_rule_lines: bool,
     /// The pen in use (the Draw tab's Pen is the tool): its color as 0xRRGGBB and its width in
     /// points. The pen, color, and thickness menus mark the entry that matches.
     pub pen: Option<ActivePen>,

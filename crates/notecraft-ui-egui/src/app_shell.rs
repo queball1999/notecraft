@@ -204,6 +204,19 @@ impl AppShell {
         self.session.set_pen_tools(tools);
     }
 
+    /// Set the rule style new pages start with, by its `view.rule_lines` id (restoring saved
+    /// settings). An unknown id means none.
+    pub fn set_default_rule_lines(&mut self, id: &str) {
+        let style = notecraft_canvas::RuleLines::from_id(id).unwrap_or_default();
+        self.session.set_default_rule_lines(style);
+    }
+
+    /// The rule style new pages start with, for saving in the settings (`none` when Always
+    /// Create Pages with Rule Lines is off).
+    pub fn default_rule_lines(&self) -> &'static str {
+        self.session.default_rule_lines().id()
+    }
+
     /// The Draw tab's pens and highlighters, for saving in the settings.
     pub fn pen_tools(&self) -> &[notecraft_engine::PenTool] {
         self.session.ink().tools()
@@ -590,6 +603,8 @@ impl AppShell {
             registry: &self.registry,
             fonts: &self.families,
             rule_lines: self.session.page_style().rule_lines.id(),
+            always_rule_lines: self.session.default_rule_lines()
+                != notecraft_canvas::RuleLines::None,
             pen: active_pen(self.session.ink()),
             tools: &tool_views,
             selected_tool: self.session.ink().selected_tool(),

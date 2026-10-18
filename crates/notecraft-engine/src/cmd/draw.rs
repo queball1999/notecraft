@@ -4,6 +4,7 @@
 //! are kept in the session per page; the canvas block stores them in PR 1.9.
 
 use notecraft_canvas::ink::erase as erase_geometry;
+use notecraft_canvas::RuleLines;
 use notecraft_core::ink::MAX_STROKE_POINTS;
 use notecraft_core::{InkColor, InkPoint, InkTool, Stroke, Vec2};
 use serde_json::json;
@@ -184,7 +185,7 @@ pub(super) fn tool_delete(
     Ok(tools_output(session))
 }
 
-/// `draw.eyedropper { x, y, radius? }`: set the color of the current pen (or highlighter)
+/// `draw.eyedropper { x, y, radius?, page_color? }`: set the color of the current pen (or highlighter)
 /// to the color of the topmost stroke at the page point. Nothing there changes nothing and
 /// returns null.
 pub(super) fn eyedropper(
@@ -202,6 +203,20 @@ pub(super) fn eyedropper(
         return Err(invalid(id, "x and y must be finite numbers".to_owned()));
     };
     let radius = number("radius").unwrap_or(2.0).clamp(0.0, 100.0);
+    // Page colors: with no stroke there, the front end passes the color it draws under the
+    // point (the text color, or the page background) as `page_color`.
+    let page_color = match args.get("page_color") {
+        None => None,
+        Some(value) => match InkColor::parse(value.as_str().unwrap_or_default()) {
+            Some(color) => Some(InkColor([color.0[0], color.0[1], color.0[2], u8::MAX])),
+            None => {
+                return Err(invalid(
+                    id,
+                    "page_color must be #RRGGBB or #RRGGBBAA".to_owned(),
+                ))
+            }
+        },
+    };
     let found = session.current_ink().and_then(|layer| {
         let point = Vec2::new(x, y);
         let stroke = layer
@@ -209,7 +224,7 @@ pub(super) fn eyedropper(
             .and_then(|id| layer.get(id))?;
         Some(stroke.color)
     });
-    let Some(color) = found else {
+    let Some(color) = found.or(page_color) else {
         return Ok(CommandOutput { value: Value::Null });
     };
     // The eyedropper works for a pen: from typing or the eraser it picks the pen up. The
@@ -224,6 +239,48 @@ pub(super) fn eyedropper(
     ink.sync_selected();
     session.mark_changed();
     Ok(pen_output(session))
+}
+
+/// `draw.always_rule_lines { enabled?, style? }`: Always Create Pages with Rule Lines. New pages
+/// start with the style. Flips the setting when `enabled` is omitted; turning it on without a
+/// `style` uses the style of the page shown (narrow when that page has none). A setting, not a
+/// page change, so it is not an undo step.
+pub(super) fn always_rule_lines(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let id = ids::DRAW_ALWAYS_RULE_LINES;
+    let current = session.default_rule_lines();
+    let enabled = args
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(current == RuleLines::None);
+    let style = match args.get("style").and_then(Value::as_str) {
+        None => None,
+        Some(text) => match RuleLines::from_id(text) {
+            Some(style) => Some(style),
+            None => {
+                let shown: String = text.chars().take(64).collect();
+                return Err(invalid(id, format!("unknown style {shown:?}")));
+            }
+        },
+    };
+    let ruled = |s: &RuleLines| *s != RuleLines::None;
+    let next = if enabled {
+        style
+            .filter(ruled)
+            .or_else(|| Some(session.page_style().rule_lines).filter(ruled))
+            .unwrap_or(RuleLines::Narrow)
+    } else {
+        RuleLines::None
+    };
+    if next != current {
+        session.set_default_rule_lines(next);
+        session.mark_changed();
+    }
+    Ok(CommandOutput {
+        value: json!({ "enabled": next != RuleLines::None, "style": next.id() }),
+    })
 }
 
 /// The `index` argument, in range for a list of `len`.
@@ -1291,5 +1348,84 @@ mod tests {
         run(&mut session, "draw.tool_select", json!({ "index": 3 })).unwrap();
         run(&mut session, "draw.eyedropper", json!({ "x": 10, "y": 20 })).unwrap();
         assert_eq!(tool_ids(&session)[3].1, "#C62828");
+    }
+
+    #[test]
+    fn the_eyedropper_reads_page_colors_when_no_ink_is_there() {
+        let mut session = with_page();
+        run(&mut session, "draw.pen", json!({ "color": "#C62828" })).unwrap();
+        let points: Vec<Value> = (0..=100).map(|x| json!([x, 20, 1.0])).collect();
+        run(&mut session, "ink.add_stroke", json!({ "points": points })).unwrap();
+        // Ink wins over the page color under it.
+        let out = run(
+            &mut session,
+            "draw.eyedropper",
+            json!({ "x": 50, "y": 20.5, "page_color": "#336699" }),
+        )
+        .unwrap();
+        assert_eq!(out["color"], "#C62828");
+        // Bare paper gives the page color, opaque, and picks the pen up.
+        run(&mut session, "draw.type", json!(null)).unwrap();
+        let out = run(
+            &mut session,
+            "draw.eyedropper",
+            json!({ "x": 50, "y": 300, "page_color": "#336699" }),
+        )
+        .unwrap();
+        assert_eq!(out["color"], "#336699");
+        assert_eq!(session.ink().tool(), DrawTool::Pen);
+        // A bad color is refused.
+        assert_eq!(
+            run(
+                &mut session,
+                "draw.eyedropper",
+                json!({ "x": 1, "y": 1, "page_color": "blue" })
+            ),
+            Err("invalid_args")
+        );
+    }
+
+    #[test]
+    fn always_rule_lines_flips_and_remembers_a_style() {
+        use notecraft_canvas::RuleLines;
+        let mut session = with_page();
+        assert_eq!(session.default_rule_lines(), RuleLines::None);
+        // On with no style and a plain page: narrow.
+        let out = run(&mut session, "draw.always_rule_lines", json!({})).unwrap();
+        assert_eq!(out["enabled"], true);
+        assert_eq!(session.default_rule_lines(), RuleLines::Narrow);
+        // Flip off.
+        run(&mut session, "draw.always_rule_lines", json!({})).unwrap();
+        assert_eq!(session.default_rule_lines(), RuleLines::None);
+        // On with a style, and the page's own style when none is given.
+        run(
+            &mut session,
+            "draw.always_rule_lines",
+            json!({ "enabled": true, "style": "grid_small" }),
+        )
+        .unwrap();
+        assert_eq!(session.default_rule_lines(), RuleLines::GridSmall);
+        run(
+            &mut session,
+            "draw.always_rule_lines",
+            json!({ "enabled": false }),
+        )
+        .unwrap();
+        run(&mut session, "view.rule_lines", json!({ "style": "wide" })).unwrap();
+        run(
+            &mut session,
+            "draw.always_rule_lines",
+            json!({ "enabled": true }),
+        )
+        .unwrap();
+        assert_eq!(session.default_rule_lines(), RuleLines::Wide);
+        assert_eq!(
+            run(
+                &mut session,
+                "draw.always_rule_lines",
+                json!({ "style": "zigzag" })
+            ),
+            Err("invalid_args")
+        );
     }
 }

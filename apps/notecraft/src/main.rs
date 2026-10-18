@@ -98,6 +98,8 @@ impl eframe::App for App {
         self.store.update(|p| p.colors.observe(colors));
         let tools = self.shell.pen_tools();
         self.store.update(|p| p.draw.observe(tools));
+        let rules = self.shell.default_rule_lines();
+        self.store.update(|p| p.draw.observe_rules(rules));
 
         // Remember the window geometry; update() only marks the store dirty on a real change.
         let info = ctx.input(|i| i.viewport().clone());
@@ -230,6 +232,7 @@ fn main() -> eframe::Result<()> {
     let recents = store.get().recent.recents();
     let recent_colors = store.get().colors.recent.clone();
     let pen_tools = store.get().draw.tools();
+    let default_rules = store.get().draw.default_rules().to_owned();
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
         .with_app_id(APP_ID)
@@ -256,6 +259,8 @@ fn main() -> eframe::Result<()> {
             if let Some(rs) = &cc.wgpu_render_state {
                 let info = rs.adapter.get_info();
                 tracing::info!(backend = ?info.backend, adapter = %info.name, "graphics ready");
+                // The highlighter multiplies over the page through a paint callback.
+                notecraft_ui_egui::canvas::install_multiply(&cc.egui_ctx, rs);
             }
             if let Err(e) = craft_quit::install_app_menu(&cc.egui_ctx, "NoteCraft") {
                 tracing::warn!(error = %e, "macOS app menu not installed; Cmd+Q quits without asking");
@@ -280,6 +285,7 @@ fn main() -> eframe::Result<()> {
             shell.set_recents(recents);
             shell.set_recent_colors(recent_colors);
             shell.set_pen_tools(pen_tools);
+            shell.set_default_rule_lines(&default_rules);
             // A path on the command line wins; if it cannot open (the shell toasts why), or
             // none was given, reopen what was open last. With nothing recent, the start page
             // shows.

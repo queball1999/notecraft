@@ -282,6 +282,23 @@ const EYEDROPPER_ARGS: &[ArgSpec] = &[
         ArgKind::Number,
         "How far from a stroke's edge still counts, in page units.",
     ),
+    ArgSpec::optional(
+        "page_color",
+        ArgKind::String,
+        "Page text or background color under the point; used when no stroke is there.",
+    ),
+];
+const ALWAYS_RULE_LINES_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "enabled",
+        ArgKind::Bool,
+        "True or false; the setting is flipped when omitted.",
+    ),
+    ArgSpec::optional(
+        "style",
+        ArgKind::String,
+        "The rule style new pages start with (a view.rule_lines style); the style of the page shown, or narrow, when omitted.",
+    ),
 ];
 const ERASER_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("mode", ArgKind::String, "stroke or point."),
@@ -907,6 +924,13 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .args(EYEDROPPER_ARGS)
     .ready(),
     CommandSpec::new(
+        ids::DRAW_ALWAYS_RULE_LINES,
+        "Always Create Pages with Rule Lines",
+        "Start every new page with rule lines, as set here or in the Rule Lines menu.",
+    )
+    .args(ALWAYS_RULE_LINES_ARGS)
+    .ready(),
+    CommandSpec::new(
         ids::DRAW_INK_REPLAY,
         "Ink Replay",
         "Play back how the ink on the page was drawn.",
@@ -1490,6 +1514,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_TOOL_ADD, draw::tool_add),
     (ids::DRAW_TOOL_DELETE, draw::tool_delete),
     (ids::DRAW_EYEDROPPER, draw::eyedropper),
+    (ids::DRAW_ALWAYS_RULE_LINES, draw::always_rule_lines),
     (ids::DRAW_COLOR, draw::draw_color),
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),

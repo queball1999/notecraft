@@ -2458,6 +2458,7 @@ version = "0.0.0"
 dependencies = [
  "craft-ui",
  "egui",
+ "egui-wgpu",
  "egui_kittest",
  "image",
  "notecraft-canvas",

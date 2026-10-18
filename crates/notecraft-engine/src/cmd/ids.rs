@@ -200,6 +200,8 @@ command_ids! {
     DRAW_TOOL_DELETE = "draw.tool_delete";
     /// Pick the color of a stroke on the page for the current pen.
     DRAW_EYEDROPPER = "draw.eyedropper";
+    /// Turn on or off Always Create Pages with Rule Lines.
+    DRAW_ALWAYS_RULE_LINES = "draw.always_rule_lines";
     /// Play back how the ink on the page was drawn.
     DRAW_INK_REPLAY = "draw.ink_replay";
     /// Set the color of the current pen.

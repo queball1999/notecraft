@@ -50,6 +50,9 @@ impl ColorPrefs {
 #[serde(default)]
 pub struct DrawPrefs {
     pub tools: Option<Vec<ToolPref>>,
+    /// The rule style new pages start with (Always Create Pages with Rule Lines): a
+    /// `view.rule_lines` id, or `none`. An id this version does not know is read as `none`.
+    pub new_page_rules: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -74,6 +77,22 @@ impl Default for ToolPref {
 }
 
 impl DrawPrefs {
+    /// The saved rule style for new pages; `none` when never set.
+    pub fn default_rules(&self) -> &str {
+        if self.new_page_rules.is_empty() {
+            "none"
+        } else {
+            &self.new_page_rules
+        }
+    }
+
+    /// Record the session's rule style for new pages; leaves it alone when nothing changed.
+    pub fn observe_rules(&mut self, id: &str) {
+        if self.default_rules() != id {
+            self.new_page_rules = id.to_owned();
+        }
+    }
+
     /// The saved tools, with bad entries dropped and the count capped; the built-in set when
     /// the list was never changed.
     pub fn tools(&self) -> Vec<PenTool> {
