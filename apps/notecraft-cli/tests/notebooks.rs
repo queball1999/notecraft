@@ -294,3 +294,135 @@ fn an_ambiguous_link_is_a_warning_not_a_problem() {
     assert!(text.contains("warning: Projects/Beta/Pointer.md"), "{text}");
     assert!(!text.contains("Near.md"), "{text}");
 }
+
+const SET_CARET: &str = r#"text.set_caret={"at":8}"#;
+const TYPE_PLAN: &str = r#"text.insert={"text":" plan"}"#;
+
+#[test]
+fn run_edits_a_page_and_saves_only_that_page() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    let monday = nb.path().join("Journal").join("Monday.md");
+    let tuesday = nb.path().join("Journal").join("Tuesday.md");
+    let tuesday_before = std::fs::read(&tuesday).unwrap();
+    let before = std::fs::read_to_string(&monday).unwrap();
+
+    let output = cli(&[
+        "run",
+        "--notebook",
+        &path,
+        "--page",
+        "Monday",
+        "--cmd",
+        SET_CARET,
+        "--cmd",
+        TYPE_PLAN,
+    ]);
+    assert!(output.status.success(), "{}", stdout(&output));
+    let lines: Vec<serde_json::Value> = stdout(&output)
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(lines.len(), 3, "two commands and the save report");
+    assert_eq!(lines[2]["ok"], true);
+    assert_eq!(
+        lines[2]["saved"][0]["page"],
+        "nb_basic_sample/Journal/Monday.md"
+    );
+    assert_eq!(lines[2]["saved"][0]["outcome"], "saved");
+
+    // Only the typed bytes changed (minimal-diff write); other pages are untouched.
+    let after = std::fs::read_to_string(&monday).unwrap();
+    assert_eq!(after, before.replacen("# Monday", "# Monday plan", 1));
+    assert_eq!(std::fs::read(&tuesday).unwrap(), tuesday_before);
+
+    // The text command sees the change.
+    let text = stdout(&cli(&["text", "Monday", "--notebook", &path]));
+    assert!(text.starts_with("Monday plan\n"), "{text}");
+}
+
+#[test]
+fn run_finds_the_page_by_id_or_path_and_reports_unknown_pages() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    for page in [
+        "nb_basic_sample/Journal/Monday.md",
+        "Journal/Monday.md",
+        "Journal/Monday",
+    ] {
+        let output = cli(&[
+            "run",
+            "--notebook",
+            &path,
+            "--page",
+            page,
+            "--cmd",
+            SET_CARET,
+            "--cmd",
+            TYPE_PLAN,
+        ]);
+        assert!(output.status.success(), "{page}: {}", stdout(&output));
+    }
+    let missing = cli(&[
+        "run",
+        "--notebook",
+        &path,
+        "--page",
+        "Nope",
+        "--cmd",
+        "view.zoom_in",
+    ]);
+    assert_eq!(missing.status.code(), Some(3));
+}
+
+#[test]
+fn run_does_not_save_when_a_command_fails() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    let monday = nb.path().join("Journal").join("Monday.md");
+    let before = std::fs::read(&monday).unwrap();
+    let output = cli(&[
+        "run",
+        "--notebook",
+        &path,
+        "--page",
+        "Monday",
+        "--cmd",
+        SET_CARET,
+        "--cmd",
+        TYPE_PLAN,
+        "--cmd",
+        "no.such.command",
+    ]);
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(std::fs::read(&monday).unwrap(), before);
+}
+
+#[test]
+fn run_with_a_page_needs_a_notebook_and_rejects_sample() {
+    let nb = basic_copy();
+    let path = path_arg(&nb);
+    let empty = tempfile::tempdir().unwrap();
+    let output = cli_in(
+        empty.path(),
+        &["run", "--page", "Monday", "--cmd", "view.zoom_in"],
+    );
+    assert_eq!(output.status.code(), Some(3));
+    let output = cli(&[
+        "run",
+        "--notebook",
+        &path,
+        "--page",
+        "Monday",
+        "--sample",
+        "--cmd",
+        "view.zoom_in",
+    ]);
+    assert_eq!(output.status.code(), Some(2));
+    // --notebook without --page has nothing to open.
+    let output = cli(&["run", "--notebook", &path, "--cmd", "view.zoom_in"]);
+    assert_eq!(output.status.code(), Some(2));
+    // At least one --cmd is required.
+    let output = cli(&["run", "--notebook", &path, "--page", "Monday"]);
+    assert_eq!(output.status.code(), Some(2));
+}

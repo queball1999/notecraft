@@ -19,6 +19,7 @@ use std::process::ExitCode;
 mod check;
 mod info;
 mod notebook;
+mod run_page;
 mod text;
 
 use notebook::Failure;
@@ -43,6 +44,9 @@ COMMANDS:
   notecraft-cli text <page>                 print a page's plain text (id, path, or link target)
   notecraft-cli check                       find unreadable pages, broken links, missing files
   notecraft-cli commands                    list every command: id, label, status, arguments
+  notecraft-cli run --page <page> --cmd 'id={json}' [--cmd ...]
+                                            run commands against a page of the notebook, then
+                                            save it (exit 5 if the file changed on disk)
   notecraft-cli run [--sample] --cmd 'id={json}' [--cmd ...]
                                             run commands headlessly, in order, on an empty
                                             session (or the sample notebooks with --sample);
@@ -52,7 +56,7 @@ COMMANDS:
 
 EXIT CODES:
   0 success, 1 error, 2 bad arguments, 3 unknown command, 4 command is Coming Soon,
-  6 input too large
+  5 the page file changed on disk (nothing was written), 6 input too large
 ";
 
 /// The subcommands, in `USAGE` order.
@@ -327,15 +331,24 @@ fn error_code(error: &CommandError) -> u8 {
     }
 }
 
-/// `run [--sample] --cmd 'id={json}' ...`: run each command in order and print its result
-/// as one JSON line. Stops at the first command that does not run.
-fn run(_globals: &Globals, rest: &[String]) -> ExitCode {
+/// `run [--sample | --page <page>] --cmd 'id={json}' ...`: run each command in order and
+/// print its result as one JSON line. Stops at the first command that does not run. With
+/// `--page`, the commands run against that page of the `--notebook` and the page is saved
+/// afterwards (see `run_page`).
+fn run(globals: &Globals, rest: &[String]) -> ExitCode {
     let mut sample = false;
+    let mut page = None;
     let mut cmds = Vec::new();
     let mut args = rest.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--sample" => sample = true,
+            "--page" => {
+                let Some(value) = args.next() else {
+                    return bad_args("--page needs a value: a page id, path, or link target");
+                };
+                page = Some(value.as_str());
+            }
             "--cmd" => {
                 let Some(value) = args.next() else {
                     return bad_args("--cmd needs a value: 'id={json}'");
@@ -361,15 +374,43 @@ fn run(_globals: &Globals, rest: &[String]) -> ExitCode {
     if cmds.is_empty() {
         return bad_args("run needs at least one --cmd");
     }
+    if let Some(page) = page {
+        if sample {
+            return bad_args("--sample and --page cannot be used together");
+        }
+        return run_page::run_on_page(globals, page, cmds);
+    }
+    if globals.notebook.is_some() {
+        return bad_args("--notebook needs --page: run without --page works on an empty session");
+    }
     let registry = Registry::builtin();
     let mut session = Session::new();
     if sample {
         session.set_notebooks(notecraft_engine::mock::notebooks());
     }
+    match run_commands(&registry, &mut session, cmds, globals.quiet) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(code) => ExitCode::from(code),
+    }
+}
+
+/// Run `cmds` in order on `session`, printing one JSON line for each (successes are left out
+/// with `--quiet`). Stops at the first one that does not run and returns its exit code.
+fn run_commands(
+    registry: &Registry,
+    session: &mut Session,
+    cmds: Vec<(String, Value)>,
+    quiet: bool,
+) -> Result<(), u8> {
     for (id, args) in cmds {
-        match registry.run(&mut session, &id, args) {
+        match registry.run(session, &id, args) {
             Ok(output) => {
-                out(&serde_json::json!({ "id": id, "ok": true, "value": output.value }).to_string())
+                if !quiet {
+                    out(
+                        &serde_json::json!({ "id": id, "ok": true, "value": output.value })
+                            .to_string(),
+                    );
+                }
             }
             Err(error) => {
                 out(&serde_json::json!({
@@ -379,11 +420,11 @@ fn run(_globals: &Globals, rest: &[String]) -> ExitCode {
                     "message": error.to_string(),
                 })
                 .to_string());
-                return ExitCode::from(error_code(&error));
+                return Err(error_code(&error));
             }
         }
     }
-    ExitCode::SUCCESS
+    Ok(())
 }
 
 #[cfg(test)]
