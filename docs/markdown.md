@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -66,6 +66,8 @@ pages = [
   { file = "Action items.md",     level = 1 },  # subpage (OneNote page indent)
 ]
 ```
+
+A page entry may carry `collapsed = true`, which folds the page's subpages away in the page list (an unknown or non-boolean value is ignored).
 
 Pages not listed go at the end in name order. Entries for missing files are dropped on the next save. Section groups use the same file with `kind = "group"` and a `sections` list for order. Nesting is capped at 8 levels.
 
@@ -318,3 +320,4 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-16 | 1 | PR 1.13: structure edits write `notebook.toml` and `.section.toml` (order, levels, colors, names) with craft-atomic; trash items sit in a numbered folder with `origin.toml` instead of `.trash.toml`. |
 | 2026-10-16 | 1 | PR 1.5: container markers are read for editing (`split_containers`, a view over the section 3.3 marker reader); the status line notes that new containers are marker lines appended to the page; positions wait for the canvas block (PR 1.9). |
 | 2026-10-16 | 1 | PR 1.6: section 3.2 lists the formatting markup the Home tab writes (underline, sub and superscript, font color, size, family, alignment comment); yellow highlight moved to Phase 1. |
+| 2026-10-17 | 1 | Subpage collapse: section 2.2 documents the `collapsed` page entry key. |
