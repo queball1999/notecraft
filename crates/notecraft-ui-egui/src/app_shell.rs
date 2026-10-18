@@ -2340,6 +2340,51 @@ mod tests {
     }
 
     #[test]
+    fn collapsing_a_parent_hides_its_subpages_in_the_page_list() {
+        // A temporary notebook: collapsing writes the section file.
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Journal");
+        std::fs::create_dir_all(&section).unwrap();
+        for name in ["Welcome", "Daily log", "Monday", "Morning run", "Tuesday"] {
+            std::fs::write(section.join(format!("{name}.md")), "text").unwrap();
+        }
+        std::fs::write(
+            section.join(".section.toml"),
+            "kind = \"section\"
+pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, { file = \"Morning run.md\", level = 2 }, { file = \"Tuesday.md\", level = 1 }]
+",
+        )
+        .unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        let notebook = harness.state().session().notebooks()[0].id.clone();
+        let parent = format!("{notebook}/Journal/Daily log.md");
+        let subpages = ["Monday", "Morning run", "Tuesday"];
+        for label in subpages {
+            let _ = harness.get_by_label(label);
+        }
+        let run = |h: &mut egui_kittest::Harness<'_, AppShell>, id: &str| {
+            let args = serde_json::json!({ "id": &parent });
+            let done = h.state_mut().run_command(id, args);
+            assert!(matches!(done, Some(Ok(_))), "{id}");
+            h.run();
+        };
+        run(&mut harness, "page.collapse_subpages");
+        for label in subpages {
+            assert!(harness.query_by_label(label).is_none(), "{label}");
+        }
+        let _ = harness.get_by_label("Daily log");
+        let _ = harness.get_by_label("Welcome");
+        run(&mut harness, "page.expand_subpages");
+        for label in subpages {
+            let _ = harness.get_by_label(label);
+        }
+    }
+
+    #[test]
     fn opened_pages_show_their_text_from_disk() {
         let dir = tempfile::TempDir::new().unwrap();
         let section = dir.path().join("Notes");

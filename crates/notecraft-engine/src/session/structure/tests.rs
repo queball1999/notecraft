@@ -595,3 +595,125 @@ fn new_pages_take_the_default_rule_style_when_it_is_on() {
     assert_eq!(s.page_style().rule_lines, RuleLines::College);
     assert_eq!(s.style_of(&plain).rule_lines, RuleLines::None);
 }
+
+/// Work holds A, B (sub of A), C (sub of B), D2 and E2; Home holds H.
+fn nested() -> (tempfile::TempDir, Session, String) {
+    open(&[
+        ("Work/A.md", "a"),
+        ("Work/B.md", "b"),
+        ("Work/C.md", "c"),
+        ("Work/D2.md", "d"),
+        ("Work/E2.md", "e"),
+        (
+            "Work/.section.toml",
+            "kind = \"section\"\npages = [\"A.md\", { file = \"B.md\", level = 1 }, { file = \"C.md\", level = 2 }, \"D2.md\", \"E2.md\"]\n",
+        ),
+        ("Home/H.md", "h"),
+    ])
+}
+
+fn levels(s: &Session, section: &str) -> Vec<(String, u8, bool)> {
+    s.current_notebook()
+        .unwrap()
+        .section(section)
+        .unwrap()
+        .pages
+        .iter()
+        .map(|p| (p.title.clone(), p.level, p.collapsed))
+        .collect()
+}
+
+#[test]
+fn collapsing_subpages_is_saved_in_the_section_file_and_undoable() {
+    let (dir, mut s, nb) = nested();
+    let section = format!("{nb}/Work");
+    let a = format!("{nb}/Work/A.md");
+    assert!(s
+        .set_subpages_collapsed(&format!("{nb}/Work/C.md"), true)
+        .is_err());
+    s.select_page_id(&format!("{nb}/Work/C.md"));
+    s.set_subpages_collapsed(&a, true).unwrap();
+    assert!(levels(&s, &section)[0].2);
+    assert_eq!(s.selection().page.as_deref(), Some(a.as_str()));
+    let text = fs::read_to_string(dir.path().join("Work/.section.toml")).unwrap();
+    assert!(text.contains("collapsed = true"), "{text}");
+    assert_matches_disk(dir.path(), &s);
+    // A restart reads the state back.
+    let reopened = open_folder(dir.path()).unwrap().notebook;
+    assert!(reopened.section(&section).unwrap().pages[0].collapsed);
+    assert_eq!(s.undo().as_deref(), Some("Collapse subpages"));
+    assert!(!levels(&s, &section)[0].2);
+    s.redo();
+    s.set_subpages_collapsed(&a, false).unwrap();
+    assert!(!levels(&s, &section)[0].2);
+    let text = fs::read_to_string(dir.path().join("Work/.section.toml")).unwrap();
+    assert!(!text.contains("collapsed"), "{text}");
+}
+
+#[test]
+fn moving_a_parent_carries_its_subpages_as_one_undo_step() {
+    let (dir, mut s, nb) = nested();
+    let section = format!("{nb}/Work");
+    let a = format!("{nb}/Work/A.md");
+    s.move_page_to(&a, &section, 10).unwrap();
+    assert_eq!(
+        levels(&s, &section)
+            .iter()
+            .map(|(t, l, _)| (t.as_str(), *l))
+            .collect::<Vec<_>>(),
+        [("D2", 0), ("E2", 0), ("A", 0), ("B", 1), ("C", 2)]
+    );
+    assert_matches_disk(dir.path(), &s);
+    assert_eq!(s.undo().as_deref(), Some("Move page"));
+    assert_eq!(pages(&s, &section), ["A", "B", "C", "D2", "E2"]);
+    assert_eq!(levels(&s, &section)[2].1, 2);
+    // To another section, levels kept, one step.
+    let home = format!("{nb}/Home");
+    let new = s.move_page_to(&a, &home, 0).unwrap();
+    assert_eq!(new, format!("{nb}/Home/A.md"));
+    assert_eq!(pages(&s, &home), ["A", "B", "C", "H"]);
+    assert_eq!(
+        levels(&s, &home).iter().map(|x| x.1).collect::<Vec<_>>(),
+        [0, 1, 2, 0]
+    );
+    assert_eq!(pages(&s, &section), ["D2", "E2"]);
+    assert!(dir.path().join("Home/C.md").is_file());
+    assert_matches_disk(dir.path(), &s);
+    assert_eq!(s.undo().as_deref(), Some("Move page"));
+    assert_eq!(pages(&s, &section), ["A", "B", "C", "D2", "E2"]);
+    assert!(!dir.path().join("Home/B.md").exists());
+    assert_matches_disk(dir.path(), &s);
+}
+
+#[test]
+fn deleting_a_collapsed_parent_trashes_its_subpages_too() {
+    let (dir, mut s, nb) = nested();
+    let section = format!("{nb}/Work");
+    let a = format!("{nb}/Work/A.md");
+    // Expanded: only the page goes, and the first subpage is promoted so levels stay valid.
+    s.delete_page(&a).unwrap();
+    assert_eq!(levels(&s, &section)[0], ("B".to_owned(), 0, false));
+    s.undo();
+    s.set_subpages_collapsed(&a, true).unwrap();
+    s.select_page_id(&a);
+    s.delete_page(&a).unwrap();
+    assert_eq!(pages(&s, &section), ["D2", "E2"]);
+    for gone in ["A.md", "B.md", "C.md"] {
+        assert!(!dir.path().join("Work").join(gone).exists());
+    }
+    assert_eq!(
+        fs::read_dir(dir.path().join(".notecraft/trash"))
+            .unwrap()
+            .count(),
+        3
+    );
+    assert_eq!(
+        s.selection().page.as_deref(),
+        Some(format!("{nb}/Work/D2.md").as_str())
+    );
+    assert_matches_disk(dir.path(), &s);
+    assert_eq!(s.undo().as_deref(), Some("Delete page"));
+    assert_eq!(pages(&s, &section), ["A", "B", "C", "D2", "E2"]);
+    assert!(levels(&s, &section)[0].2, "still collapsed after undo");
+    assert_matches_disk(dir.path(), &s);
+}

@@ -71,6 +71,8 @@ pub struct PageEntry {
     pub title: String,
     /// 0 for a page, 1 for a subpage, 2 for a sub-subpage.
     pub level: u8,
+    /// True when the page's subpages are folded away in the page list.
+    pub collapsed: bool,
     pub kind: PageKind,
 }
 
@@ -456,14 +458,12 @@ impl Scanner {
         let mut entries = Vec::new();
         for file in ordered {
             // The first listing of a file decides its level.
-            let level = config
-                .pages
-                .iter()
-                .find(|listing| listing.file == file)
-                .map_or(0, |listing| listing.level);
-            let Some(entry) = page_entry(rel, &file, level) else {
+            let listing = config.pages.iter().find(|listing| listing.file == file);
+            let level = listing.map_or(0, |listing| listing.level);
+            let Some(mut entry) = page_entry(rel, &file, level) else {
                 continue;
             };
+            entry.collapsed = listing.is_some_and(|listing| listing.collapsed);
             if !seen.insert(entry.title.to_lowercase()) {
                 self.warn(&entry.rel_path, WarningKind::DuplicatePage);
             }
@@ -523,6 +523,7 @@ fn page_entry(section_rel: &str, file: &str, level: u8) -> Option<PageEntry> {
         file_name: file.to_owned(),
         title: stem.to_owned(),
         level: level.min(MAX_PAGE_LEVEL),
+        collapsed: false,
         kind,
     })
 }
