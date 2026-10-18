@@ -1008,6 +1008,7 @@ mod tests {
         let mut cache = MeshCache::default();
         cache.set_page(Some("p1"));
         let mut stroke = Stroke {
+            texture: Default::default(),
             id: "s1".into(),
             tool: notecraft_core::InkTool::Pen,
             color: InkColor::BLACK,

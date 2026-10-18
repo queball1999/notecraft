@@ -6,12 +6,12 @@
 use notecraft_canvas::ink::erase as erase_geometry;
 use notecraft_canvas::RuleLines;
 use notecraft_core::ink::MAX_STROKE_POINTS;
-use notecraft_core::{InkColor, InkPoint, InkTool, Stroke, Vec2};
+use notecraft_core::{InkColor, InkPoint, InkTexture, InkTool, Stroke, Vec2};
 use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
 use crate::ink::{
-    DrawTool, EraserMode, EraserSize, PenTool, ToolKind, MAX_PEN_POINTS, MAX_PEN_TOOLS,
+    DrawTool, EraserMode, EraserSize, PenStyle, PenTool, ToolKind, MAX_PEN_POINTS, MAX_PEN_TOOLS,
     MIN_PEN_POINTS,
 };
 use crate::session::Session;
@@ -63,7 +63,7 @@ fn width_arg(id: CommandId, args: &Map<String, Value>) -> Result<Option<f32>, Co
 fn pen_output(session: &Session) -> CommandOutput {
     let ink = session.ink();
     let brush = ink.brush();
-    let value = if ink.tool() == DrawTool::Eraser {
+    let mut value = if ink.tool() == DrawTool::Eraser {
         json!({
             "tool": ink.tool().id(),
             "color": brush.color.to_hex(),
@@ -78,6 +78,12 @@ fn pen_output(session: &Session) -> CommandOutput {
             "width": brush.width_pt,
         })
     };
+    // A textured pen (or the pencil) names its texture; a plain pen says nothing.
+    if ink.tool() == DrawTool::Pen && brush.texture != InkTexture::Plain {
+        if let Some(map) = value.as_object_mut() {
+            map.insert("texture".to_owned(), json!(brush.texture.id()));
+        }
+    }
     CommandOutput { value }
 }
 
@@ -132,6 +138,10 @@ pub(super) fn tool_add(
     };
     let color = color_arg(id, args)?;
     let width = width_arg(id, args)?;
+    let texture = texture_arg(id, args)?.unwrap_or_default();
+    if texture != InkTexture::Plain && kind != ToolKind::Pen {
+        return Err(invalid(id, "only a pen takes a texture".to_owned()));
+    }
     if session.ink().tools.len() >= MAX_PEN_TOOLS {
         return Err(invalid(
             id,
@@ -139,11 +149,17 @@ pub(super) fn tool_add(
         ));
     }
     let base = kind.default_style();
-    let tool = PenTool::new(
+    let base = if texture == InkTexture::Plain {
+        base
+    } else {
+        PenStyle::textured(texture, base.width_pt)
+    };
+    let mut tool = PenTool::new(
         kind,
         color.unwrap_or(base.color),
         width.unwrap_or(base.width_pt),
     );
+    tool.style.texture = base.texture;
     let ink = session.ink_mut();
     ink.tools.push(tool);
     let index = ink.tools.len() - 1;
@@ -235,7 +251,8 @@ pub(super) fn eyedropper(
         ink.selected = None;
     }
     let ink = session.ink_mut();
-    ink.brush_mut().color = color;
+    let style = ink.brush();
+    *ink.brush_mut() = style.with_color(color);
     ink.sync_selected();
     session.mark_changed();
     Ok(pen_output(session))
@@ -318,13 +335,41 @@ pub(super) fn draw_type(
     Ok(pen_output(session))
 }
 
-/// `draw.pen { color?, width? }`: pick up the pen, optionally with a color and a width.
+/// The `texture` argument: a texture id, or an empty string or `plain` for none.
+fn texture_arg(
+    id: CommandId,
+    args: &Map<String, Value>,
+) -> Result<Option<InkTexture>, CommandError> {
+    let Some(value) = args.get("texture") else {
+        return Ok(None);
+    };
+    let text = value.as_str().unwrap_or("\u{0}").trim();
+    if text.is_empty() || text.eq_ignore_ascii_case("plain") {
+        return Ok(Some(InkTexture::Plain));
+    }
+    match InkTexture::parse(text) {
+        Some(texture) => Ok(Some(texture)),
+        None => {
+            let names: Vec<&str> = InkTexture::ALL.iter().map(|t| t.id()).collect();
+            Err(invalid(
+                id,
+                format!("texture must be \"plain\" or one of {}", names.join(", ")),
+            ))
+        }
+    }
+}
+
+/// `draw.pen { color?, width?, texture? }`: pick up the pen, optionally with a color, a width,
+/// and a texture (`pencil`, `rainbow`, ...; `plain` for none). A texture alone brings its own
+/// starting color; a color given without a texture makes a textured pen that has a look of
+/// its own plain again.
 pub(super) fn draw_pen(
     session: &mut Session,
     args: &Map<String, Value>,
 ) -> Result<CommandOutput, CommandError> {
     let color = color_arg(ids::DRAW_PEN, args)?;
     let width = width_arg(ids::DRAW_PEN, args)?;
+    let texture = texture_arg(ids::DRAW_PEN, args)?;
     let before = (
         session.ink().tool,
         session.ink().pen,
@@ -332,13 +377,24 @@ pub(super) fn draw_pen(
     );
     let ink = session.ink_mut();
     ink.tool = DrawTool::Pen;
+    if let Some(texture) = texture {
+        ink.pen.texture = texture;
+        if texture != InkTexture::Plain {
+            ink.pen.color = texture.swatch();
+        }
+    }
     if let Some(color) = color {
-        ink.pen.color = color;
+        let keep = ink.pen.texture;
+        ink.pen = ink.pen.with_color(color);
+        if texture.is_some() {
+            ink.pen.texture = keep;
+        }
     }
     if let Some(width) = width {
         ink.pen.width_pt = width;
     }
-    ink.selected = keep_selection(ink, ToolKind::Pen, color.is_some() || width.is_some());
+    let restyled = color.is_some() || width.is_some() || texture.is_some();
+    ink.selected = keep_selection(ink, ToolKind::Pen, restyled);
     if (ink.tool, ink.pen, ink.selected) != before {
         session.mark_changed();
     }
@@ -442,7 +498,8 @@ pub(super) fn draw_color(
     let color = color_arg(ids::DRAW_COLOR, args)?;
     if let Some(color) = color.filter(|c| *c != session.ink().brush().color) {
         let ink = session.ink_mut();
-        ink.brush_mut().color = color;
+        let style = ink.brush();
+        *ink.brush_mut() = style.with_color(color);
         ink.sync_selected();
         session.mark_changed();
     }
@@ -527,6 +584,11 @@ pub(super) fn add_stroke(
         tool,
         color: style.color,
         width: style.width_units(),
+        texture: if tool == InkTool::Pen {
+            style.texture
+        } else {
+            InkTexture::Plain
+        },
         points,
     };
     let stroke_id = stroke.id.clone();
@@ -687,11 +749,12 @@ pub(super) fn erase(
 
 #[cfg(test)]
 mod tests {
+    use notecraft_core::{InkTexture, InkTool};
     use notecraft_model::{Notebook, PageRef, Section, SectionNode};
     use serde_json::{json, Value};
 
     use crate::cmd::Registry;
-    use crate::ink::{DrawTool, EraserMode, EraserSize};
+    use crate::ink::{DrawTool, EraserMode, EraserSize, ToolKind};
     use crate::session::Session;
 
     fn run(session: &mut Session, id: &str, args: Value) -> Result<Value, &'static str> {
@@ -1034,6 +1097,123 @@ mod tests {
         run(&mut session, "edit.undo", json!(null)).unwrap();
         assert_eq!(ids_on_page(&session), ["s1", "s2", "s3"]);
         assert_eq!(session.current_ink().unwrap().get("s2"), Some(&original));
+    }
+
+    // Textured pens and the pencil
+
+    #[test]
+    fn a_textured_pen_records_its_texture_on_the_strokes_it_makes() {
+        let mut session = with_page();
+        let out = run(&mut session, "draw.pen", json!({ "texture": "galaxy" })).unwrap();
+        assert_eq!(out["texture"], "galaxy");
+        assert_eq!(out["color"], InkTexture::Galaxy.swatch().to_hex());
+        run(
+            &mut session,
+            "ink.add_stroke",
+            json!({ "points": [[0, 0], [50, 0], [90, 20]] }),
+        )
+        .unwrap();
+        let stroke = session.current_ink().unwrap().get("s1").unwrap().clone();
+        assert_eq!(stroke.tool, InkTool::Pen);
+        assert_eq!(stroke.texture, InkTexture::Galaxy);
+        // The stroke can be undone and redone with its texture.
+        run(&mut session, "edit.undo", json!(null)).unwrap();
+        assert!(session.current_ink().is_none_or(|l| l.is_empty()));
+        run(&mut session, "edit.redo", json!(null)).unwrap();
+        let again = session.current_ink().unwrap().get("s1").unwrap();
+        assert_eq!(again.texture, InkTexture::Galaxy);
+        // A highlighter never carries a texture.
+        run(&mut session, "draw.highlighter", json!(null)).unwrap();
+        run(
+            &mut session,
+            "ink.add_stroke",
+            json!({ "points": [[0, 40], [50, 40]] }),
+        )
+        .unwrap();
+        let marker = session.current_ink().unwrap().get("s2").unwrap();
+        assert_eq!(marker.texture, InkTexture::Plain);
+    }
+
+    #[test]
+    fn picking_a_color_makes_a_textured_pen_plain_except_the_pencil() {
+        let mut session = with_page();
+        run(&mut session, "draw.pen", json!({ "texture": "gold" })).unwrap();
+        let out = run(&mut session, "draw.color", json!({ "color": "#C62828" })).unwrap();
+        assert_eq!(out.get("texture"), None);
+        assert_eq!(session.ink().pen().texture, InkTexture::Plain);
+        // The pencil keeps its texture and takes the color.
+        run(&mut session, "draw.pen", json!({ "texture": "pencil" })).unwrap();
+        let out = run(&mut session, "draw.color", json!({ "color": "#1565C0" })).unwrap();
+        assert_eq!(out["texture"], "pencil");
+        assert_eq!(out["color"], "#1565C0");
+        // A texture can be cleared, and an unknown one is refused.
+        let out = run(&mut session, "draw.pen", json!({ "texture": "plain" })).unwrap();
+        assert_eq!(out.get("texture"), None);
+        assert!(run(&mut session, "draw.pen", json!({ "texture": "sparkle" })).is_err());
+    }
+
+    #[test]
+    fn textured_pens_are_added_to_the_gallery_and_picked_up() {
+        let mut session = with_page();
+        for (i, texture) in InkTexture::ALL.into_iter().enumerate() {
+            let out = run(
+                &mut session,
+                "draw.tool_add",
+                json!({ "texture": texture.id() }),
+            )
+            .unwrap();
+            assert_eq!(out["selected"], 5 + i);
+            assert_eq!(out["texture"], texture.id());
+            let tool = session.ink().tools()[5 + i];
+            assert_eq!(tool.style.texture, texture);
+            assert_eq!(tool.kind, ToolKind::Pen);
+            assert_eq!(session.ink().pen().texture, texture);
+        }
+        // Picking up a plain pen again clears the texture.
+        run(&mut session, "draw.tool_select", json!({ "index": 0 })).unwrap();
+        assert_eq!(session.ink().pen().texture, InkTexture::Plain);
+        // A highlighter takes no texture; an unknown one is refused.
+        let bad = json!({ "kind": "highlighter", "texture": "gold" });
+        assert!(run(&mut session, "draw.tool_add", bad).is_err());
+        let bad = json!({ "texture": "sparkle" });
+        assert!(run(&mut session, "draw.tool_add", bad).is_err());
+        // The Eyedropper on a textured pen's stroke makes the pen plain in that color.
+        run(&mut session, "draw.pen", json!({ "texture": "lava" })).unwrap();
+        run(
+            &mut session,
+            "ink.add_stroke",
+            json!({ "points": [[0, 0], [50, 0]] }),
+        )
+        .unwrap();
+        run(&mut session, "draw.pen", json!({ "texture": "rainbow" })).unwrap();
+        run(&mut session, "draw.eyedropper", json!({ "x": 25, "y": 0 })).unwrap();
+        assert_eq!(session.ink().pen().texture, InkTexture::Plain);
+        assert_eq!(session.ink().pen().color, InkTexture::Lava.swatch());
+    }
+
+    #[test]
+    fn the_point_eraser_keeps_the_texture_of_the_runs() {
+        let mut session = with_page();
+        run(&mut session, "draw.pen", json!({ "texture": "pencil" })).unwrap();
+        run(
+            &mut session,
+            "ink.add_stroke",
+            json!({ "points": [[0, 0], [20, 0], [40, 0], [60, 0], [80, 0], [100, 0]] }),
+        )
+        .unwrap();
+        run(&mut session, "draw.eraser", json!({ "mode": "point" })).unwrap();
+        run(
+            &mut session,
+            "ink.erase",
+            json!({ "points": [[50, 0]], "radius": 5 }),
+        )
+        .unwrap();
+        let layer = session.current_ink().unwrap();
+        assert_eq!(layer.len(), 2);
+        assert!(layer
+            .strokes()
+            .iter()
+            .all(|s| s.texture == InkTexture::Pencil));
     }
 
     #[test]

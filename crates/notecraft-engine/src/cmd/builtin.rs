@@ -255,6 +255,15 @@ const PEN_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
 ];
+const PEN_TEXTURE_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
+    ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
+    ArgSpec::optional(
+        "texture",
+        ArgKind::String,
+        "plain, pencil, rainbow, galaxy, lava, ocean, gold, silver, bronze, or rose_gold.",
+    ),
+];
 const TOOL_INDEX_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "index",
     ArgKind::Integer,
@@ -273,6 +282,11 @@ const TOOL_ADD_ARGS: &[ArgSpec] = &[
     ),
     ArgSpec::optional("color", ArgKind::String, "Color as #RRGGBB or #RRGGBBAA."),
     ArgSpec::optional("width", ArgKind::Number, "Stroke width in points."),
+    ArgSpec::optional(
+        "texture",
+        ArgKind::String,
+        "For a pen: pencil, rainbow, galaxy, lava, ocean, gold, silver, bronze, or rose_gold.",
+    ),
 ];
 const EYEDROPPER_ARGS: &[ArgSpec] = &[
     ArgSpec::required("x", ArgKind::Number, "Page x in page units."),
@@ -870,7 +884,7 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Move around the page by dragging.",
     ),
     CommandSpec::new(ids::DRAW_PEN, "Pen", "Draw with a pen.")
-        .args(PEN_ARGS)
+        .args(PEN_TEXTURE_ARGS)
         .ready(),
     CommandSpec::new(
         ids::DRAW_HIGHLIGHTER,

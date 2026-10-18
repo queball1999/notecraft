@@ -185,6 +185,7 @@ mod tests {
 
     fn stroke(id: &str, from: (f32, f32), to: (f32, f32), width: f32) -> Stroke {
         Stroke {
+            texture: Default::default(),
             id: id.into(),
             tool: InkTool::Pen,
             color: InkColor::BLACK,

@@ -60,6 +60,124 @@ pub enum InkTool {
     Highlighter,
 }
 
+/// How a pen stroke looks beyond its color: the textured pens and the pencil of the Draw tab.
+/// The ids are the `texture` values in the canvas block (docs/markdown.md section 3.4). A
+/// stroke with no texture, or one this version does not know, is a plain color stroke.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum InkTexture {
+    /// A plain stroke in the stroke's color.
+    #[default]
+    Plain,
+    /// Graphite: a grainy, semi-opaque stroke in the stroke's color.
+    Pencil,
+    /// Hues that cycle along the stroke.
+    Rainbow,
+    /// A deep nebula of violet and teal with scattered stars.
+    Galaxy,
+    /// A dark crust cut by glowing orange and yellow veins.
+    Lava,
+    /// Blue-green water with pale wavy bands.
+    Ocean,
+    /// Polished metals: a sheen across the stroke, a slow shimmer along it.
+    Gold,
+    Silver,
+    Bronze,
+    RoseGold,
+}
+
+impl InkTexture {
+    /// Every texture the Draw tab offers (not [`InkTexture::Plain`]), in gallery order.
+    pub const ALL: [Self; 9] = [
+        Self::Pencil,
+        Self::Rainbow,
+        Self::Galaxy,
+        Self::Lava,
+        Self::Ocean,
+        Self::Gold,
+        Self::Silver,
+        Self::Bronze,
+        Self::RoseGold,
+    ];
+
+    /// The id stored in the file; empty for a plain stroke.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Plain => "",
+            Self::Pencil => "pencil",
+            Self::Rainbow => "rainbow",
+            Self::Galaxy => "galaxy",
+            Self::Lava => "lava",
+            Self::Ocean => "ocean",
+            Self::Gold => "gold",
+            Self::Silver => "silver",
+            Self::Bronze => "bronze",
+            Self::RoseGold => "rose_gold",
+        }
+    }
+
+    /// The texture with this id (any case). An unknown id gives `None`.
+    pub fn parse(text: &str) -> Option<Self> {
+        let text = text.trim();
+        Self::ALL
+            .into_iter()
+            .find(|texture| texture.id().eq_ignore_ascii_case(text))
+    }
+
+    /// The name shown in the UI.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Plain => "Pen",
+            Self::Pencil => "Pencil",
+            Self::Rainbow => "Rainbow",
+            Self::Galaxy => "Galaxy",
+            Self::Lava => "Lava",
+            Self::Ocean => "Ocean",
+            Self::Gold => "Gold",
+            Self::Silver => "Silver",
+            Self::Bronze => "Bronze",
+            Self::RoseGold => "Rose Gold",
+        }
+    }
+
+    /// Whether the stroke's own color shapes the look. Only the pencil does; the others have
+    /// a look of their own and keep a color only as the plain stroke older readers draw.
+    pub fn uses_color(self) -> bool {
+        matches!(self, Self::Plain | Self::Pencil)
+    }
+
+    /// The color a new pen of this texture starts with: the pencil's graphite, or a color that
+    /// stands for the texture where it falls back to a plain stroke.
+    pub fn swatch(self) -> InkColor {
+        let rgb = match self {
+            Self::Plain => return InkColor::BLACK,
+            Self::Pencil => [0x3A, 0x3A, 0x3A],
+            Self::Rainbow => [0xB1, 0x46, 0xC2],
+            Self::Galaxy => [0x4B, 0x2E, 0x83],
+            Self::Lava => [0xE8, 0x59, 0x0C],
+            Self::Ocean => [0x0A, 0x7E, 0xA4],
+            Self::Gold => [0xD4, 0xAF, 0x37],
+            Self::Silver => [0xA8, 0xAE, 0xB6],
+            Self::Bronze => [0xA6, 0x6A, 0x2E],
+            Self::RoseGold => [0xD8, 0x93, 0x8A],
+        };
+        InkColor([rgb[0], rgb[1], rgb[2], 0xFF])
+    }
+}
+
+impl Serialize for InkTexture {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.id())
+    }
+}
+
+impl<'de> Deserialize<'de> for InkTexture {
+    /// Lenient: text that is not a known texture is a plain stroke.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        Ok(Self::parse(&text).unwrap_or_default())
+    }
+}
+
 /// A stroke color as RGBA. Serialized as `#RRGGBB`, or `#RRGGBBAA` when not opaque.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct InkColor(pub [u8; 4]);
@@ -122,13 +240,24 @@ pub struct Stroke {
     #[serde(default)]
     pub color: InkColor,
     pub width: f32,
+    /// A texture for a pen stroke; [`InkTexture::Plain`] (and not written) for the rest.
+    #[serde(default, skip_serializing_if = "is_plain")]
+    pub texture: InkTexture,
     pub points: Vec<InkPoint>,
+}
+
+fn is_plain(texture: &InkTexture) -> bool {
+    *texture == InkTexture::Plain
 }
 
 impl Stroke {
     /// This stroke with its width and point count forced into range (a width that is not
     /// finite becomes 1). Use it on anything read from a file or a command.
     pub fn bounded(mut self) -> Self {
+        // Only a pen has a texture.
+        if self.tool == InkTool::Highlighter {
+            self.texture = InkTexture::Plain;
+        }
         self.width = if self.width.is_finite() {
             self.width.clamp(MIN_STROKE_WIDTH, MAX_STROKE_WIDTH)
         } else {
@@ -279,11 +408,47 @@ mod tests {
             tool: InkTool::Pen,
             color: InkColor::parse("#1F3A93").unwrap_or_default(),
             width: 2.0,
+            texture: InkTexture::Plain,
             points: vec![
                 InkPoint::new(600.0, 300.0, 0.5),
                 InkPoint::new(604.0, 302.0, 0.25),
             ],
         }
+    }
+
+    #[test]
+    fn a_texture_round_trips_and_a_plain_stroke_writes_none() {
+        let plain = serde_json::to_value(stroke()).unwrap();
+        assert!(plain.get("texture").is_none());
+        let mut gold = stroke();
+        gold.texture = InkTexture::RoseGold;
+        let json = serde_json::to_value(&gold).unwrap();
+        assert_eq!(json["texture"], "rose_gold");
+        let back: Stroke = serde_json::from_value(json).unwrap();
+        assert_eq!(back, gold);
+    }
+
+    #[test]
+    fn an_unknown_texture_reads_as_plain() {
+        let text = r##"{ "id": "s1", "texture": "sparkle-9000", "width": 1, "points": [[1, 2, 1]] }"##;
+        let s: Stroke = serde_json::from_str(text).unwrap();
+        assert_eq!(s.texture, InkTexture::Plain);
+        for texture in InkTexture::ALL {
+            assert_eq!(InkTexture::parse(texture.id()), Some(texture));
+            assert_eq!(
+                InkTexture::parse(&texture.id().to_uppercase()),
+                Some(texture)
+            );
+        }
+        assert_eq!(InkTexture::parse(""), None);
+    }
+
+    #[test]
+    fn a_highlighter_has_no_texture() {
+        let mut s = stroke();
+        s.tool = InkTool::Highlighter;
+        s.texture = InkTexture::Gold;
+        assert_eq!(s.bounded().texture, InkTexture::Plain);
     }
 
     #[test]

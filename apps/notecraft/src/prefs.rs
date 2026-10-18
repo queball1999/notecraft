@@ -64,6 +64,9 @@ pub struct ToolPref {
     pub color: String,
     /// Width in points.
     pub width: f32,
+    /// A texture id (`pencil`, `rainbow`, ...); empty for a plain pen. One this version does
+    /// not know is read as a plain pen in the saved color.
+    pub texture: String,
 }
 
 impl Default for ToolPref {
@@ -72,6 +75,7 @@ impl Default for ToolPref {
             kind: "pen".to_owned(),
             color: "#000000".to_owned(),
             width: 1.0,
+            texture: String::new(),
         }
     }
 }
@@ -100,7 +104,7 @@ impl DrawPrefs {
             None => default_pen_tools(),
             Some(saved) => saved
                 .iter()
-                .filter_map(|t| PenTool::from_saved(&t.kind, &t.color, t.width))
+                .filter_map(|t| PenTool::from_saved(&t.kind, &t.color, t.width, &t.texture))
                 .take(MAX_PEN_TOOLS)
                 .collect(),
         }
@@ -119,11 +123,12 @@ impl DrawPrefs {
                 tools
                     .iter()
                     .map(|tool| {
-                        let (kind, color, width) = tool.to_saved();
+                        let (kind, color, width, texture) = tool.to_saved();
                         ToolPref {
                             kind: kind.to_owned(),
                             color,
                             width,
+                            texture: texture.to_owned(),
                         }
                     })
                     .collect(),
@@ -338,7 +343,7 @@ mod tests {
         assert_eq!(prefs.tools, None);
         let mut edited = default_pen_tools();
         edited.pop();
-        edited.push(PenTool::from_saved("pen", "#E36C09", 3.5).unwrap());
+        edited.push(PenTool::from_saved("pen", "#E36C09", 3.5, "").unwrap());
         prefs.observe(&edited);
         assert!(prefs.tools.is_some());
         assert_eq!(prefs.tools(), edited);
@@ -356,6 +361,38 @@ mod tests {
         // An emptied list is kept as empty, not replaced by the defaults.
         prefs.observe(&[]);
         assert_eq!(prefs.tools(), Vec::new());
+    }
+
+    #[test]
+    fn textured_pens_are_saved_and_an_unknown_texture_falls_back_to_a_plain_pen() {
+        let mut prefs = DrawPrefs::default();
+        let mut tools = default_pen_tools();
+        tools.push(PenTool::textured(notecraft_engine::InkTexture::Galaxy, 3.0));
+        tools.push(PenTool::textured(notecraft_engine::InkTexture::Pencil, 1.0));
+        prefs.observe(&tools);
+        let text = toml::to_string(&Prefs {
+            draw: prefs,
+            ..Prefs::default()
+        })
+        .unwrap();
+        assert!(text.contains("galaxy") && text.contains("pencil"));
+        let back: Prefs = toml::from_str(&text).unwrap();
+        assert_eq!(back.draw.tools(), tools);
+        // An older file has no texture key; a newer file may name one this version lacks.
+        let text = r##"
+            [draw]
+            tools = [
+                { kind = "pen", color = "#112233", width = 2.0 },
+                { kind = "pen", color = "#445566", width = 2.0, texture = "sparkle" },
+                { kind = "highlighter", color = "#FFF176", width = 8.0, texture = "gold" },
+            ]
+        "##;
+        let tools = toml::from_str::<Prefs>(text).unwrap().draw.tools();
+        assert_eq!(tools.len(), 3);
+        for tool in &tools {
+            assert_eq!(tool.style.texture, notecraft_engine::InkTexture::Plain);
+        }
+        assert_eq!(tools[1].style.color.to_hex(), "#445566");
     }
 
     #[test]
