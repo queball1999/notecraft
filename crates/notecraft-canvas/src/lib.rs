@@ -12,6 +12,7 @@
 pub mod ink;
 pub mod paper;
 pub mod picture;
+mod svg;
 pub mod text;
 pub mod viewport;
 

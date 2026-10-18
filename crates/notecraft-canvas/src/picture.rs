@@ -1,4 +1,4 @@
-//! Picture decoding for the canvas: PNG, JPEG, and WebP files become RGBA pixels, bounded so
+//! Picture decoding for the canvas: PNG, JPEG, WebP, and SVG files become RGBA pixels, bounded so
 //! a hostile or huge file never exhausts memory or the GPU (docs/markdown.md section 9).
 //!
 //! A picture is checked before it is decoded: the file may not be over [`MAX_FILE_BYTES`], and
@@ -30,7 +30,7 @@ pub enum PictureError {
     Missing,
     /// The file or the picture in it is over a limit.
     TooLarge,
-    /// The file is not a PNG, JPEG, or WebP picture.
+    /// The file is not a PNG, JPEG, WebP, or SVG picture.
     Unsupported,
     /// The picture is damaged.
     Damaged,
@@ -41,7 +41,7 @@ impl fmt::Display for PictureError {
         f.write_str(match self {
             Self::Missing => "the file is missing",
             Self::TooLarge => "the picture is too large",
-            Self::Unsupported => "not a PNG, JPEG, or WebP picture",
+            Self::Unsupported => "not a PNG, JPEG, WebP, or SVG picture",
             Self::Damaged => "the picture is damaged",
         })
     }
@@ -86,12 +86,16 @@ pub fn load_picture(path: &Path) -> Result<Picture, PictureError> {
     decode_picture(&bytes)
 }
 
-/// Decode `bytes` as a PNG, JPEG, or WebP picture within the limits.
+/// Decode `bytes` as a PNG, JPEG, WebP, or SVG picture within the limits.
 pub fn decode_picture(bytes: &[u8]) -> Result<Picture, PictureError> {
     decode_with(bytes, MAX_SIDE, MAX_PIXELS)
 }
 
 fn decode_with(bytes: &[u8], max_side: u32, max_pixels: u64) -> Result<Picture, PictureError> {
+    // An SVG is drawn, not decoded: see the svg module for its own limits.
+    if crate::svg::looks_like_svg(bytes) {
+        return crate::svg::decode_svg(bytes);
+    }
     let reader = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
         .map_err(|_| PictureError::Unsupported)?;

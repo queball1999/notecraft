@@ -9,11 +9,12 @@
 use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
-use notecraft_markdown::Editor;
+use notecraft_markdown::{image, Editor};
 use notecraft_storage::attachments::{
     decode_link_path, is_picture_name, store_attachment_with, AttachError, StoredAttachment,
     LINK_THRESHOLD_BYTES,
 };
+use notecraft_storage::find_canvas_block;
 
 use super::Session;
 use crate::undo::{Op, Scope, Transaction};
@@ -105,7 +106,7 @@ impl Session {
     }
 
     /// Copy `source` into the attachments folder next to the page shown now and add a link to
-    /// it at the end of the page, as one undo step. A picture must be a PNG, JPEG, or WebP
+    /// it at the end of the page, as one undo step. A picture must be a PNG, JPEG, WebP, or SVG
     /// file. Nothing changes on failure.
     ///
     /// The engine call `insert.picture` and `insert.file_attachment` make; it is not a command
@@ -150,7 +151,7 @@ impl Session {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if kind == AttachKind::Picture && !is_picture_name(&name) {
-            return Err(fail("pictures must be PNG, JPEG, or WebP files."));
+            return Err(fail("pictures must be PNG, JPEG, WebP, or SVG files."));
         }
         let stored = store_attachment_with(&folder, source, link_over)?;
         let (at, inserted) = append_paragraph(text, &paragraph(kind, &stored));
@@ -173,6 +174,60 @@ impl Session {
             name: stored.display_name,
             linked: stored.linked,
         })
+    }
+
+    /// Record the display width of a picture on the page shown now, as one undo step: the
+    /// `nth` image (from 0, in page order) whose link is `src` gets `<!-- notecraft:width=N -->`
+    /// right after it, or loses it when `width` is `None` (back to its natural size). Only
+    /// that comment changes, so the page diff is a few bytes. A width outside the allowed
+    /// range is clamped. Nothing happens, and no undo step is made, if the width is already
+    /// that.
+    ///
+    /// The engine call `picture.resize` makes; it is not a command itself.
+    pub fn resize_picture(
+        &mut self,
+        src: &str,
+        nth: usize,
+        width: Option<u16>,
+    ) -> Result<(), InsertError> {
+        let page = self
+            .selection
+            .page
+            .clone()
+            .ok_or_else(|| fail("open a page first."))?;
+        if self
+            .page_notices
+            .get(&page)
+            .is_some_and(|notice| notice.read_only)
+        {
+            return Err(fail("this page is read-only."));
+        }
+        let Some(text) = self.page_text(&page) else {
+            return Err(fail("this page cannot be changed yet."));
+        };
+        let width = width.map(|w| w.clamp(image::MIN_WIDTH, image::MAX_WIDTH));
+        let shown_end = find_canvas_block(text).map_or(text.len(), |b| b.block.start);
+        let shown = text.get(..shown_end).unwrap_or(text);
+        let Some(edit) = image::set_image_width(shown, src, nth, width) else {
+            return Err(fail("that picture is not on the page."));
+        };
+        let removed = shown
+            .get(edit.span.start..edit.span.end)
+            .unwrap_or_default()
+            .to_owned();
+        if removed == edit.text {
+            return Ok(());
+        }
+        let op = Op::ReplaceText {
+            page: page.clone(),
+            at: edit.span.start,
+            removed,
+            inserted: edit.text,
+        };
+        if !self.commit(Transaction::new(Scope::Page(page), "Resize picture").with(op)) {
+            return Err(fail("the page could not be changed."));
+        }
+        Ok(())
     }
 
     /// Where the link `src` of the page shown now points on disk: a path under the page's
@@ -382,7 +437,7 @@ mod tests {
         let err = session
             .insert_attachment(&dir.path().join("notes.txt"), AttachKind::Picture)
             .expect_err("not a picture");
-        assert!(err.0.contains("PNG, JPEG, or WebP"), "{err}");
+        assert!(err.0.contains("PNG, JPEG, WebP, or SVG"), "{err}");
         // A missing file.
         let err = session
             .insert_attachment(&dir.path().join("gone.png"), AttachKind::Picture)

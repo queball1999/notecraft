@@ -34,5 +34,6 @@ Rust dependencies are tracked in `Cargo.lock`; only crates under MIT, Apache-2.0
 | `rusqlite` (with bundled SQLite) | MIT (rusqlite); SQLite is public domain | The rebuildable notebook index in `notecraft-storage` (PR 1.2). SQLite compiles from C source, so it is native only and is not built for `wasm32`. |
 | `criterion` | MIT OR Apache-2.0 | Benchmarks only (dev-dependency of `notecraft-storage`); not shipped. |
 | `image` (png, jpeg, webp features) | MIT OR Apache-2.0 | Picture decoding in `notecraft-canvas` (PR 1.12); the desktop app also uses it for its icon. Pure Rust. |
+| `resvg` (default features off) | Apache-2.0 OR MIT | SVG pictures in `notecraft-canvas`. Pure Rust. Its parser `usvg` is Apache-2.0 OR MIT; its rasterizer `tiny-skia` is BSD-3-Clause (permissive; its notice must travel with binary releases). Text, system fonts, and raster images are off, so an SVG cannot read other files. |
 | `open` | MIT | The desktop app opens an attachment in the default app (PR 1.12). Native only. |
 | `arboard` | MIT OR Apache-2.0 | The desktop app reads a picture from the clipboard for Paste as Picture (PR 1.12). Native only. |
