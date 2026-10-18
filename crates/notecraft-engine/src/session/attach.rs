@@ -33,6 +33,9 @@ pub enum AttachKind {
     File,
 }
 
+/// Works out the text edit that puts the markdown of a new object (and its kind) at the caret.
+pub type InlineEdit<'a> = &'a dyn Fn(&str, AttachKind) -> Option<notecraft_canvas::text::TextEdit>;
+
 /// What an insert did.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Attached {
@@ -148,6 +151,21 @@ impl Session {
         link_over: u64,
         at: Option<Vec2>,
     ) -> Result<Attached, InsertError> {
+        self.insert_attachment_full(source, kind, link_over, at, None)
+    }
+
+    /// [`Session::insert_attachment_at`], or with `inline` the markdown goes where the text
+    /// edit it returns says (the caret, replacing a selection) and the caret ends where the edit
+    /// puts it. `inline` gets the markdown of the object and its kind; when it returns `None`
+    /// the object is appended to the page instead. Still one undo step.
+    pub fn insert_attachment_full(
+        &mut self,
+        source: &Path,
+        kind: AttachKind,
+        link_over: u64,
+        at: Option<Vec2>,
+        inline: Option<InlineEdit<'_>>,
+    ) -> Result<Attached, InsertError> {
         let page = self
             .selection
             .page
@@ -177,15 +195,28 @@ impl Session {
         // The paragraph goes before the canvas block, which stays the last thing in the file.
         let shown_end = find_canvas_block(text).map_or(text.len(), |b| b.block.start);
         let shown = text.get(..shown_end).unwrap_or(text);
-        let (offset, mut inserted) = append_paragraph(shown, &paragraph(kind, &stored));
-        if shown_end < text.len() {
-            // Keep a blank line between the paragraph and the block.
-            inserted.push_str(if inserted.contains("\r\n") {
-                "\r\n"
-            } else {
-                "\n"
-            });
-        }
+        let markdown = paragraph(kind, &stored);
+        let mut caret_after = None;
+        let (offset, removed, inserted) = match inline.and_then(|f| f(&markdown, kind)) {
+            Some(edit) => {
+                caret_after = Some((edit.anchor, edit.head));
+                let end = edit.at.saturating_add(edit.remove);
+                let removed = text.get(edit.at..end).unwrap_or_default().to_owned();
+                (edit.at, removed, edit.insert)
+            }
+            None => {
+                let (offset, mut inserted) = append_paragraph(shown, &markdown);
+                if shown_end < text.len() {
+                    // Keep a blank line between the paragraph and the block.
+                    inserted.push_str(if inserted.contains("\r\n") {
+                        "\r\n"
+                    } else {
+                        "\n"
+                    });
+                }
+                (offset, String::new(), inserted)
+            }
+        };
         let label = match kind {
             AttachKind::Picture => "Insert picture",
             AttachKind::File => "Insert file",
@@ -194,7 +225,7 @@ impl Session {
         let mut tx = Transaction::new(Scope::Page(page.clone()), label).with(Op::ReplaceText {
             page: page.clone(),
             at: offset,
-            removed: String::new(),
+            removed,
             inserted,
         });
         if let Some(pos) = at {
@@ -219,6 +250,9 @@ impl Session {
         }
         if !self.commit(tx) {
             return Err(fail("the page could not be changed."));
+        }
+        if let Some((anchor, head)) = caret_after {
+            self.set_text_cursor(&page, super::TextCursor { anchor, head });
         }
         Ok(Attached {
             kind,

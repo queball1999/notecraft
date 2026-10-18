@@ -364,6 +364,11 @@ fn with_the_caret_in_a_note_pictures_and_files_go_inline() {
     let text = page_text(&s);
     assert!(text.contains("![photo](attachments/"), "{text}");
     assert!(text.contains("[budget.xlsx](attachments/"), "{text}");
+    // Inline at the caret (in the heading), not appended after "Hello.".
+    let hello = text.find("Hello.").unwrap();
+    assert!(text.find("![photo](").unwrap() < hello, "{text}");
+    assert!(text.find("[budget.xlsx](").unwrap() < hello, "{text}");
+    assert!(text.contains("\n\n[budget.xlsx](attachments/"), "{text}");
     // Clicking empty canvas ends editing, and the next insert is free at that point.
     click_page(&mut s, 700.0, 500.0);
     assert!(s.harness.state().session().text_cursor().is_none());

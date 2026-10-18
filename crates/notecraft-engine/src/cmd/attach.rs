@@ -19,8 +19,9 @@ use notecraft_model::ObjectKind;
 use notecraft_storage::attachments::{is_runnable_name, LINK_THRESHOLD_BYTES};
 use serde_json::json;
 
+use super::text::Ctx;
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
-use crate::session::{AttachKind, Session};
+use crate::session::{AttachKind, InlineEdit, Session};
 
 fn invalid(id: CommandId, reason: impl Into<String>) -> CommandError {
     CommandError::InvalidArgs {
@@ -80,7 +81,19 @@ fn insert(
         LINK_THRESHOLD_BYTES
     };
     let at = optional_point(id, args)?;
-    match session.insert_attachment_at(Path::new(path), kind, link_over, at) {
+    // With the caret in a note and no point named, the object goes into the text at the caret,
+    // replacing a selection, as typed text would (PR 1.5 insertion path).
+    let ctx = if at.is_none() && session.text_cursor().is_some() {
+        Ctx::new(session)
+    } else {
+        None
+    };
+    let edit_for = |markdown: &str, kind: AttachKind| {
+        ctx.as_ref()
+            .and_then(|c| c.inline_edit(markdown, kind == AttachKind::File))
+    };
+    let inline: Option<InlineEdit<'_>> = ctx.as_ref().map(|_| &edit_for as InlineEdit<'_>);
+    match session.insert_attachment_full(Path::new(path), kind, link_over, at, inline) {
         // The commit marked the session changed.
         Ok(done) => Ok(CommandOutput {
             value: json!({ "link": done.link, "name": done.name, "linked": done.linked }),

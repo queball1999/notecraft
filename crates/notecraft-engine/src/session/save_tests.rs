@@ -716,3 +716,135 @@ fn placed_objects_load_from_the_canvas_block_and_save_back_unchanged() {
     let saved = session.file_text(&id).unwrap().unwrap();
     assert_eq!(saved, text);
 }
+
+fn cursor_of(session: &Session) -> (usize, usize) {
+    let c = session.text_cursor().unwrap();
+    (c.anchor, c.head)
+}
+
+#[test]
+fn a_picture_goes_into_the_text_at_the_caret_in_one_undo_step() {
+    let dir = picture_notebook("Sec/A.md", "hello world\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 5 }));
+    let out = run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png") }),
+    );
+    let link = out["link"].as_str().unwrap();
+    let md = format!("![pic]({link})");
+    assert_eq!(
+        session.page_text(&id).unwrap(),
+        format!("hello{md} world\n")
+    );
+    assert!(session.page_objects(&id).is_empty());
+    // The caret sits right after the picture.
+    assert_eq!(cursor_of(&session), (5 + md.len(), 5 + md.len()));
+    assert_eq!(session.undo().as_deref(), Some("Insert picture"));
+    assert_eq!(session.page_text(&id).unwrap(), "hello world\n");
+    assert_eq!(cursor_of(&session), (5, 5));
+    assert!(session.redo().is_some());
+    assert!(session.page_text(&id).unwrap().starts_with("hello!["));
+}
+
+#[test]
+fn an_inserted_picture_replaces_the_selection() {
+    let dir = picture_notebook("Sec/A.md", "hello world\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 6 }));
+    run(
+        &mut session,
+        "text.set_caret",
+        json!({ "at": 11, "extend": true }),
+    );
+    let out = run(
+        &mut session,
+        "edit.paste_picture",
+        json!({ "path": source(&dir, "pic.png") }),
+    );
+    let link = out["link"].as_str().unwrap();
+    assert_eq!(
+        session.page_text(&id).unwrap(),
+        format!("hello ![pic]({link})\n")
+    );
+    assert_eq!(session.undo().as_deref(), Some("Insert picture"));
+    assert_eq!(session.page_text(&id).unwrap(), "hello world\n");
+}
+
+#[test]
+fn a_file_at_the_caret_becomes_a_paragraph_of_its_own() {
+    let dir = picture_notebook("Sec/A.md", "one two\n\nnext\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 3 }));
+    run(
+        &mut session,
+        "insert.file_attachment",
+        json!({ "path": source(&dir, "doc.pdf") }),
+    );
+    let text = session.page_text(&id).unwrap().to_owned();
+    assert!(
+        text.starts_with("one\n\n[doc.pdf](attachments/") && text.contains(")\n\n two\n\nnext\n"),
+        "{text:?}"
+    );
+    // The link alone on its line is a file object for the canvas.
+    let slots = notecraft_markdown::objects::object_slots(&notecraft_markdown::parse(&text));
+    assert!(slots
+        .iter()
+        .any(|(k, _)| *k == notecraft_model::ObjectKind::File));
+    assert_eq!(session.undo().as_deref(), Some("Insert file"));
+    assert_eq!(session.page_text(&id).unwrap(), "one two\n\nnext\n");
+}
+
+#[test]
+fn an_inline_insert_keeps_the_canvas_block_last_and_the_markers_intact() {
+    let text = include_str!("../../../../testdata/notecraft/placed-objects.notecraft");
+    let dir = picture_notebook("Sec/A.notecraft", text);
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    let at = text.find("sit where").unwrap() + 3;
+    run(&mut session, "text.set_caret", json!({ "at": at }));
+    run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png") }),
+    );
+    let after = session.page_text(&id).unwrap().to_owned();
+    assert!(after.starts_with("<!-- notecraft:container id=c1 -->\n"));
+    let picture = after.find("sit![pic](attachments/").unwrap();
+    let block = after.find("```notecraft-canvas").unwrap();
+    assert!(picture < block);
+    assert!(after.trim_end().ends_with("```"));
+    assert_eq!(read_canvas(&after).problem, None);
+    assert_eq!(session.page_objects(&id).len(), 3);
+    assert_eq!(session.undo().as_deref(), Some("Insert picture"));
+    assert_eq!(session.page_text(&id).unwrap(), text);
+}
+
+#[test]
+fn a_point_or_no_caret_keeps_the_other_placements() {
+    let dir = picture_notebook("Sec/A.md", "hello\n");
+    let mut session = open(&dir);
+    let id = current_id(&session);
+    run(&mut session, "text.set_caret", json!({ "at": 2 }));
+    // An explicit point wins over the caret: free place, text appended.
+    run(
+        &mut session,
+        "insert.picture",
+        json!({ "path": source(&dir, "pic.png"), "x": 10, "y": 20 }),
+    );
+    assert_eq!(session.page_objects(&id).len(), 1);
+    assert!(session.page_text(&id).unwrap().starts_with("hello\n\n!["));
+    // No caret and no point: appended, flowing.
+    session.clear_text_cursor();
+    run(
+        &mut session,
+        "insert.file_attachment",
+        json!({ "path": source(&dir, "doc.pdf") }),
+    );
+    assert_eq!(session.page_objects(&id).len(), 1);
+    assert!(session.page_text(&id).unwrap().ends_with(")\n"));
+}

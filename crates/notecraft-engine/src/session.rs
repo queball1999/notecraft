@@ -17,7 +17,7 @@ pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState}
 mod attach;
 mod objects;
 
-pub use attach::{AttachKind, Attached, InsertError};
+pub use attach::{AttachKind, Attached, InlineEdit, InsertError};
 
 use crate::ink::InkState;
 
