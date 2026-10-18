@@ -1,6 +1,6 @@
 # Phase 1: core engine
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; PR 1.14 done; notes under PR 1.14. PR 1.6 notes added; PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P).
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-16. Change: PR 1.16 done (command line on notebooks); PR 1.5 sits on top of PR 1.9 and PR 1.13: container runs are a view over the single marker reader (docs/markdown.md section 3.3); PR 1.1 landed; deviations noted under PR 1.1; PR 1.10 landed on feat/ink-pen; deviations and the per-OS pressure notes added; PR 1.3 done; deviations noted under PR 1.3; page text read from disk when a page is shown (FM-01 scored D); also: PR 1.4 done; deviations noted under PR 1.4; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11 done; deviations noted under PR 1.11; PR 1.13 done: deviations and open questions noted under PR 1.13; Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; PR 1.14 done; notes under PR 1.14. PR 1.6 notes added; PR 1.12 landed (pictures and attachments, AT-01 to AT-05 scored P).
 
 Goal: real notebooks on disk. Open a folder, read and write `.md` and `.notecraft` pages with minimal diffs, type in note containers, draw ink, embed images and files, undo and redo, auto-save, and survive crashes and outside edits. Ends with the v0.1.0 alpha.
 
@@ -536,6 +536,14 @@ PR title: `feat(cli): add info, text, check, and run on notebooks`.
 
 This PR is part of the command line decision of 2026-10-15 (docs/cli.md). It can land at any point after PR 1.7 and before PR 1.15.
 
+Done (branch `feat/cli-notebook-commands`). Deviations and notes:
+
+- Global options are taken out of the arguments wherever they stand (`--cmd` and `--page` values are skipped), so `commands --json` still works. `--log-level` is validated but nothing logs yet. `--quiet` drops summaries and successful command lines but keeps problems and the `text` output.
+- `<page>` resolution is local to the CLI (`notebook.rs`): page id, notebook-relative path (with or without extension), path relative to the linking page's section (check only), file name, then the same ignoring case. Frontmatter aliases and Unicode normalization (docs/markdown.md section 5.3 steps 4 and 5) are not applied; Phase 2 should move resolution into a shared crate. Several matches are exit 2 for `text` and `run`, and a warning for a link in `check`.
+- `text` uses a new `Document::plain_text_up_to` (the 16 KiB cap of `plain_text` is kept for the UI), with container markers removed through the markdown crate's own marker edits.
+- `check` problem kinds: `unreadable_page`, `bad_text`, `page_too_large`, `bad_canvas`, `broken_link`, `missing_attachment`, `bad_settings`. Attachment paths come from `Session::attachment_path`. Page links in code are ignored. Exit 1 on any problem.
+- `run --page` opens the notebook through `notebook_from_tree`, selects the page with `nav.page.select`, runs the commands, then `Session::save_dirty`. A failing command stops the run and nothing is saved. A conflict (file changed on disk since it was read) exits 5 and writes nothing. Without `--page`, `--notebook` is an error (exit 2) and `--page` with `--sample` is exit 2.
+
 ## PR 1.15: close Phase 1 and ship the alpha
 
 Follow 00-conventions.md section 6, then release v0.1.0 (docs/releasing.md). Fill every Evidence cell in the docs/roadmap.md alpha gate table first; do not release with an empty cell.
@@ -594,3 +602,4 @@ Re-estimated at the Phase 0 close (2026-10-15). No actual Phase 0 hours were rec
 | 2026-10-15 | 1 | PR 1.4 done: deviations (Editor API, canonical serializer scope, minimal save path in storage, corpus location) noted under PR 1.4. |
 | 2026-10-15 | 1 | PR 1.2 done: deviations (native only, mtime and size then hash, titles from file names, worker not yet wired) noted under PR 1.2. |
 | 2026-10-16 | 1 | PR 1.12 done: deviations (markdown image runs, picture bounds, link-in-place threshold, open command safety, clipboard path) noted under PR 1.12. |
+| 2026-10-17 | 1 | PR 1.16 done: CLI info, text, check, and run --page; notes under PR 1.16. |

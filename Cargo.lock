@@ -2367,7 +2367,10 @@ name = "notecraft-cli"
 version = "0.0.0"
 dependencies = [
  "notecraft-engine",
+ "notecraft-markdown",
+ "notecraft-storage",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
