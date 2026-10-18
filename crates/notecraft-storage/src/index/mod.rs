@@ -46,6 +46,8 @@ pub struct PageRow {
     pub kind: PageKind,
     /// 0 for a page, 1 for a subpage, 2 for a sub-subpage.
     pub level: u8,
+    /// Whether the page folds its subpages away in the page list.
+    pub collapsed: bool,
     /// File modified time, milliseconds since the Unix epoch.
     pub modified: i64,
 }
@@ -170,7 +172,7 @@ impl Index {
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let mut stmt = self.conn.prepare_cached(
-            "SELECT id, path, section, title, kind, level, modified, fm_title FROM pages ORDER BY ord",
+            "SELECT id, path, section, title, kind, level, modified, fm_title, collapsed FROM pages ORDER BY ord",
         )?;
         let pages = stmt
             .query_map([], |row| {
@@ -194,6 +196,7 @@ impl Index {
                     },
                     level: u8::try_from(level).unwrap_or(0),
                     modified: row.get(6)?,
+                    collapsed: row.get::<_, i64>(8)? != 0,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;

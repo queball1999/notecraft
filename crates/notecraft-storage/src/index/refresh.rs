@@ -268,6 +268,7 @@ impl Walk<'_> {
         let ord = self.page_ord;
         self.page_ord += 1;
         let level = i64::from(page.level);
+        let collapsed = i64::from(page.collapsed);
         let full = self.root.join(&page.rel_path);
         let meta = fs::metadata(&full).ok();
         let (modified, created, size) = match &meta {
@@ -285,9 +286,9 @@ impl Walk<'_> {
         if let Some(old) = &old {
             if old.modified == modified && old.size == size && old.id == id {
                 self.tx.execute(
-                    "UPDATE pages SET section = ?1, title = ?2, kind = ?3, level = ?4, ord = ?5
+                    "UPDATE pages SET section = ?1, title = ?2, kind = ?3, level = ?4, ord = ?5, collapsed = ?7
                      WHERE path = ?6",
-                    params![section, page.title, kind, level, ord, page.rel_path],
+                    params![section, page.title, kind, level, ord, page.rel_path, collapsed],
                 )?;
                 self.stats.unchanged += 1;
                 return Ok(());
@@ -303,10 +304,10 @@ impl Walk<'_> {
             .as_ref()
             .is_some_and(|o| o.hash == hash && o.size == size && o.id == id);
         self.tx.execute(
-            "INSERT INTO pages (id, path, section, title, kind, level, ord, created, modified, size, hash)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            "INSERT INTO pages (id, path, section, title, kind, level, ord, created, modified, size, hash, collapsed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?13)
              ON CONFLICT(path) DO UPDATE SET id = ?1, section = ?3, title = ?4, kind = ?5,
-                level = ?6, ord = ?7, modified = ?9, size = ?10, hash = ?11,
+                level = ?6, ord = ?7, modified = ?9, size = ?10, hash = ?11, collapsed = ?13,
                 fm_title = CASE WHEN ?12 THEN fm_title ELSE NULL END",
             params![
                 id,
@@ -320,7 +321,8 @@ impl Walk<'_> {
                 modified,
                 size,
                 hash,
-                same_content
+                same_content,
+                collapsed
             ],
         )?;
         match old {

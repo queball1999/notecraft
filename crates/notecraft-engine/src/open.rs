@@ -168,7 +168,10 @@ pub fn notebook_from_sidebar(
                         .get(row.path.as_str())
                         .map(|rows| {
                             rows.iter()
-                                .map(|p| PageRef::new(p.id.clone(), p.title.clone(), p.level))
+                                .map(|p| {
+                                    PageRef::new(p.id.clone(), p.title.clone(), p.level)
+                                        .with_collapsed(p.collapsed)
+                                })
                                 .collect()
                         })
                         .unwrap_or_default();
@@ -327,6 +330,42 @@ mod tests {
         assert_eq!(from_index.opened.notebook, before.opened.notebook);
     }
 
+    #[test]
+    fn a_collapsed_page_stays_collapsed_in_the_index_tree() {
+        let dir = tempfile::TempDir::new().unwrap();
+        copy_dir(&sample_path(), dir.path());
+        let toml = dir.path().join("Journal/.section.toml");
+        let text = std::fs::read_to_string(&toml).unwrap();
+        let text = text.replace(
+            "{ file = \"Daily log.md\", level = 0 }",
+            "{ file = \"Daily log.md\", level = 0, collapsed = true }",
+        );
+        std::fs::write(&toml, text).unwrap();
+        let db = notecraft_storage::index_path(dir.path());
+        notecraft_storage::index::refresh_or_rebuild(dir.path(), &db).unwrap();
+        let folder = open_folder(dir.path()).unwrap().notebook;
+        let from_index = open_folder_for_navigation(dir.path())
+            .unwrap()
+            .opened
+            .notebook;
+        let flags = |nb: &Notebook| -> Vec<bool> {
+            nb.all_sections()
+                .into_iter()
+                .flat_map(|s| s.pages.iter().map(|p| p.collapsed))
+                .collect()
+        };
+        assert!(flags(&folder).contains(&true));
+        assert_eq!(flags(&from_index), flags(&folder));
+        // Expanding it again reaches the index on the next refresh.
+        let text = std::fs::read_to_string(&toml).unwrap();
+        std::fs::write(&toml, text.replace(", collapsed = true", "")).unwrap();
+        notecraft_storage::index::refresh_or_rebuild(dir.path(), &db).unwrap();
+        let again = open_folder_for_navigation(dir.path())
+            .unwrap()
+            .opened
+            .notebook;
+        assert!(!flags(&again).contains(&true));
+    }
     #[test]
     fn a_corrupt_index_falls_back_to_the_folder() {
         let dir = tempfile::TempDir::new().unwrap();

@@ -66,8 +66,13 @@ CREATE VIRTUAL TABLE fts_pages USING fts5(page UNINDEXED, title, body);
 /// file name is the title.
 const V2: &str = "ALTER TABLE pages ADD COLUMN fm_title TEXT;";
 
+/// Version 3: whether a page folds its subpages away in the page list (the `collapsed`
+/// key of a page entry in `.section.toml`), so a tree built from the index matches the
+/// folder reader.
+const V3: &str = "ALTER TABLE pages ADD COLUMN collapsed INTEGER NOT NULL DEFAULT 0;";
+
 /// Migrations in order. Index `n` upgrades version `n` to `n + 1`.
-pub(super) const MIGRATIONS: &[&str] = &[V1, V2];
+pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3];
 
 /// The schema version this build writes.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
