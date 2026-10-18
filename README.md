@@ -14,7 +14,7 @@ NoteCraft is a related but independent project. It follows the patterns of the A
 - Plain `.md` files on disk, plus a richer `.notecraft` file that stores canvas layout and ink next to the markdown.
 - Page links (`[[Page Name]]`), search across notebooks, and OneNote's note tags with Find Tags.
 - Four theme presets (2016, 2019, 2021, Microsoft 365), each in light and dark.
-- Print, PDF, and HTML export; recycle bin and page versions; and, later, handwriting recognition, recording, and `.one` import.
+- Print, PDF, and HTML export; import of OneNote files (`.one`, `.onex`, `.onetoc2`, `.onepkg`); recycle bin and page versions; and, later, handwriting recognition and recording.
 
 Features that are not wired up yet show a "Coming Soon" badge in the app. The goal is OneNote parity first; extras OneNote does not have are listed in [docs/post-parity.md](docs/post-parity.md) for later.
 

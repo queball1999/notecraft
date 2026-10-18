@@ -213,7 +213,7 @@ Each theme defines ribbon, navigation, and canvas colors; button style; corner r
 | Auto-save (every 30 s and on focus loss) | 1 | |
 | Crash recovery, outside edit detection | 1 | |
 | Export to PDF, HTML, notebook zip | 3 | |
-| Import OneNote `.one` | 4 | best effort, from Microsoft's published spec |
+| Import OneNote sections (`.one`, `.onex`) and notebooks (`.onetoc2`, `.onepkg`) | 3 | full fidelity, from Microsoft's published specs; password-protected sections, recordings, and recognized text in Phase 4 |
 
 Full spec: [docs/markdown.md](docs/markdown.md).
 
@@ -252,11 +252,11 @@ Hours are summed bottom-up from every PR in [build_plan/](build_plan/README.md);
 | 0 | UI shell | 284-474 | 9-16 weeks | internal 0.0.1 |
 | 1 | Core engine | 456-776 | 15-26 weeks | v0.1.0 alpha |
 | 2 | Page links, search, note tags | 134-230 | 4-8 weeks | v0.2.0 |
-| 3 | Polish and parity | 392-666 | 13-23 weeks | v0.9.0 beta |
+| 3 | Polish and parity | 664-1,126 | 22-38 weeks | v0.9.0 beta |
 | Hardening | Beta to 1.0 | 80-160 | 3-6 weeks | v1.0.0 |
-| 4 | Remaining parity | 644-1,228 | 22-41 weeks | full OneNote parity |
-| Total to 1.0 | | 1,401-2,404 | 47-80 weeks | |
-| Total to full parity | | 2,045-3,632 | 68-121 weeks | |
+| 4 | Remaining parity | 508-952 | 17-32 weeks | full OneNote parity |
+| Total to 1.0 | | 1,673-2,864 | 56-95 weeks | |
+| Total to full parity | | 2,181-3,816 | 73-127 weeks | |
 
 ### Phase -1: scaffolding and CI/CD
 
@@ -276,11 +276,11 @@ Notebook folder reader and index; markdown read and minimal-diff write; live tex
 
 ### Phase 3: polish and parity
 
-Shapes and ruler; ink to shape; selection, arrange, snap, Insert Space; table tools and spell check; recycle bin, page versions, templates; PDF export; printing through craft-print; HTML and zip export, file printouts; copy link to page, new window, Quick Access Toolbar; touch; string table; performance. Ends with the beta, then hardening to 1.0.
+Shapes and ruler; ink to shape; selection, arrange, snap, Insert Space; table tools and spell check; recycle bin, page versions, templates; PDF export; printing through craft-print; HTML and zip export, file printouts; copy link to page, new window, Quick Access Toolbar; touch; string table; performance; import of OneNote files (`.one`, `.onex`, `.onetoc2`, `.onepkg`). Ends with the beta, then hardening to 1.0.
 
 ### Phase 4: remaining parity (post-1.0)
 
-Handwriting recognition and ink search; `.one` import; sync research; browser build; docked window; right-to-left and translations; OCR; audio and video recording; password-protected sections.
+Handwriting recognition and ink search; OneNote import of content that needs Phase 4 features; sync research; browser build; docked window; right-to-left and translations; OCR; audio and video recording; password-protected sections.
 
 ---
 
@@ -399,7 +399,7 @@ Phase 4 takes each area to full parity.
 | HTML export, file printouts | P2 | 3 |
 | Quick Access Toolbar, new window, copy link to page | P2 | 3 |
 | Handwriting recognition, ink search | P3 | 4 |
-| OneNote `.one` import | P3 | 4 |
+| OneNote file import (`.one`, `.onex`, `.onetoc2`, `.onepkg`) | P2 | 3 |
 | Audio and video recording | P3 | 4 |
 | Password-protected sections | P3 | 4 |
 | OCR, docked window, translations, RTL, browser build | P3 | 4 |

@@ -1,14 +1,15 @@
 # Phase 4: advanced (post-1.0)
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 4.1 note from the WordCraft ink survey; PR 4.5 finishes the `make server` placeholder in the new root Makefile.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 4.1 note from the WordCraft ink survey; PR 4.5 finishes the `make server` placeholder in the new root Makefile.
 
-Goal: the remaining OneNote features, which are large and independent of each other: handwriting recognition and ink search, OneNote `.one` import, a browser build (OneNote has a web version), sync research, docked window, right-to-left layout, translations, OCR (copy text from picture), audio and video recording, and password-protected sections. Together with v1.0.0 these complete full OneNote parity. Order by user demand.
+
+Goal: the remaining OneNote features, which are large and independent of each other: handwriting recognition and ink search, the OneNote import of content that needs these features (the reader and full import are in Phase 3), a browser build (OneNote has a web version), sync research, docked window, right-to-left layout, translations, OCR (copy text from picture), audio and video recording, and password-protected sections. Together with v1.0.0 these complete full OneNote parity. Order by user demand.
 
 | | |
 |---|---|
 | Phase branch | `phase/4-advanced` |
 | Hours | see "Estimate" |
-| Checklist rows | IN-11, IN-12, FM-09, AT-08, AT-09, ST-12, SH-17 to SH-20 |
+| Checklist rows | IN-11, IN-12, FM-11, AT-08, AT-09, ST-12, SH-17 to SH-20 |
 
 ## Entry criteria
 
@@ -47,26 +48,25 @@ Commits:
 1. `feat(storage): index recognized ink text in fts`
 2. `feat(ui): highlight matching ink in search results`
 
-## PR 4.3: OneNote `.one` import (best effort)
+## PR 4.3: OneNote import of Phase 4 content
 
 | | |
 |---|---|
-| Branch | `feat/one-import` |
-| Hours | 160-320 |
-| Rows | FM-09 |
+| Branch | `feat/onenote-import-advanced` |
+| Hours | 24-44 |
+| Depends on | 3.17, 4.1, 4.9, 4.10, 4.11 |
+| Rows | FM-11 |
 
-Clean-room rule: implement only from Microsoft's published open specifications for the OneNote file formats ([MS-ONESTORE] and [MS-ONE]), never from decompiled code or other implementations' source. Cite the spec sections in comments.
+The OneNote reader and full-fidelity import land in Phase 3 (PR 3.16, 3.17). This PR adds the content that needs Phase 4 features, under the same clean-room rule (published specs only, cited in comments).
 
-Steps: new crate `notecraft-import-one` (L2, no UI); parse sections (`.one`) leniently and bounded; map outlines to containers, ink to strokes, images and files to attachments, tags to inline tags, page hierarchy to levels; write a NoteCraft notebook folder; import report listing anything skipped. Fuzz the parser.
+Steps: add corpus files made in OneNote for each item; import password-protected sections (ask for the password, then decrypt as the spec describes; a wrong password leaves the section out and says so in the report); import audio and video recordings, keeping the links between notes and recording times; import recognized handwriting text and text OneNote found in pictures, so search works on them at once. Each part can land with its feature PR instead of all at once.
 
 Commits:
 
-1. `docs: add one import design with spec references`
-2. `feat(import): parse onestore file structure`
-3. `feat(import): map pages, outlines, and text`
-4. `feat(import): map ink, images, and attachments`
-5. `feat(ui): add file import wizard with report`
-6. `test(import): fuzz the onestore parser`
+1. `test(onenote): add corpus sections with Phase 4 content`
+2. `feat(onenote): import password-protected sections`
+3. `feat(onenote): import audio and video recordings`
+4. `feat(onenote): import recognized ink and picture text`
 
 ## PR 4.4: sync research
 
@@ -196,7 +196,7 @@ Follow 00-conventions.md section 6 whenever the chosen subset is done; release a
 |---|---|
 | 4.1 handwriting | 120-220 |
 | 4.2 ink search | 20-36 |
-| 4.3 `.one` import | 160-320 |
+| 4.3 OneNote import of Phase 4 content | 24-44 |
 | 4.4 sync research | 40-80 |
 | 4.5 browser build | 60-110 |
 | 4.6 docked window | 16-28 |
@@ -206,7 +206,7 @@ Follow 00-conventions.md section 6 whenever the chosen subset is done; release a
 | 4.10 audio and video recording | 60-110 |
 | 4.11 password-protected sections | 40-80 |
 | 4.12 close | 8-14 |
-| Total | 644-1,228 |
+| Total | 508-952 |
 
 ## Exit criteria
 
@@ -222,3 +222,4 @@ Follow 00-conventions.md section 6 whenever the chosen subset is done; release a
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |
 | 2026-10-15 | 0 | PR 4.5 also finishes the `make server` placeholder in the root Makefile (added at the Phase 0 close); no change to hours. |
 | 2026-10-15 | 1 | PR 4.1 note: stroke grouping can reuse the grid index; the WordCraft ink survey found nothing to adopt for recognition. Hours unchanged. |
+| 2026-10-16 | 1 | OneNote reader and full import moved to Phase 3 (PR 3.16, 3.17) by maintainer decision; PR 4.3 now imports only content that needs Phase 4 features (24-44 hours); Phase 4 estimate 508-952 hours. |

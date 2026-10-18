@@ -1,8 +1,9 @@
 # Phase 3: polish and parity
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: Phase 3 estimate 664-1,126 hours with OneNote import; OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
 
-Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, and performance. Ends with the v0.9.0 beta.
+
+Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, performance, and import of OneNote's own files (`.one`, `.onex`, `.onetoc2`, `.onepkg`). Ends with the v0.9.0 beta.
 
 The full control channel, MCP server, full CLI, and plugins are not OneNote features and are not in this plan (docs/post-parity.md).
 
@@ -10,13 +11,13 @@ The full control channel, MCP server, full CLI, and plugins are not OneNote feat
 |---|---|
 | Phase branch | `phase/3-polish-parity` |
 | Hours | see "Estimate" |
-| Checklist rows | IN-07 to IN-10, CV-07 to CV-12, TX-07, TX-12, ST-09 to ST-11, AT-06, LK-04, EX-01 to EX-04, SH-16, SH-21 |
+| Checklist rows | IN-07 to IN-10, CV-07 to CV-12, TX-07, TX-12, ST-09 to ST-11, AT-06, LK-04, EX-01 to EX-04, FM-09, FM-10, SH-16, SH-21 |
 
 ## Entry criteria
 
 - Phase 2 closed; v0.2.0 published.
 
-Parallel tracks: PRs 3.1 to 3.5 (canvas and structure) and 3.6 to 3.8 (export) touch different crates and can run at the same time on separate branches.
+Parallel tracks: PRs 3.1 to 3.5 (canvas and structure) and 3.6 to 3.8 (export) touch different crates and can run at the same time on separate branches. PR 3.16 (OneNote reader) is a new crate and can run beside both.
 
 ## PR 3.1: shapes and ruler
 
@@ -282,6 +283,74 @@ PR title: `feat(cli): add an MCP server over stdio`.
 
 This PR is part of the command line decision of 2026-10-15 (docs/cli.md). It can land at any point after PR 3.14 and before PR 3.13.
 
+## PR 3.16: OneNote file reader
+
+| | |
+|---|---|
+| Branch | `feat/onenote-reader` off `phase/3-polish-parity` |
+| Hours | 140-240 |
+| Rows | FM-09, FM-10 (reading; PR 3.17 finishes them) |
+
+Clean-room rule: implement only from Microsoft's published open specifications for the OneNote file formats ([MS-ONESTORE], [MS-ONE], and [MS-FSSHTTPB] for the packaged layout), never from decompiled code or other implementations' source. Cite the spec sections in comments.
+
+Scope: every file type OneNote opens or exports for notes: sections (`.one`, `.onex`), notebook folders (`.onetoc2` plus their sections), and notebook packages (`.onepkg`).
+
+Steps:
+
+- Design doc first (`docs/onenote-import.md`), reviewed by the maintainer before code: spec sections used, each file type, the mapping table PR 3.17 implements, and the test corpus.
+- Test corpus: the maintainer builds notebooks in OneNote that cover every content type and exports each as `.one`, `.onex`, and `.onepkg`, keeps the notebook folder (`.onetoc2` and its sections), and adds a copy downloaded from OneDrive (the packaged layout). Commit them under `crates/notecraft-onenote/tests/corpus/` with a README saying who made them and how. Identify `.onex` from these files (header and file format ids) and record the result in the design doc; if it uses a layout the published specs do not cover, stop and ask the maintainer.
+- New crate `notecraft-onenote` (L2, depends on `notecraft-core` and `notecraft-model`; no file I/O, so it builds for wasm): reads both layouts of the revision store (the desktop file and the packaged file), then the object model into an in-memory OneNote tree. `.onetoc2` gives section order, section groups, and section colors. `.onepkg` is a CAB archive, unpacked in memory with a pure-Rust crate (license checked by `cargo deny`), bounded in entry count and total size, with entry paths checked against traversal.
+- Lenient and bounded: caps on input size, object count, reference depth, and string length; every failure is an error value with a byte offset, never a panic. Unknown properties become warnings for the import report.
+- Detect and report what this PR cannot read: OneNote 2007 sections (OneNote itself asks to upgrade those) and password-protected sections (PR 4.3).
+- Fuzz every entry point with the targets set up in PR 1.14.
+
+Commits (after design approval):
+
+1. `docs: add onenote import design with spec references`
+2. `test(onenote): add a sample corpus made in OneNote`
+3. `feat(onenote): parse the revision store file layout`
+4. `feat(onenote): parse the packaged file layout`
+5. `feat(onenote): read the object model into a notebook tree`
+6. `feat(onenote): read onetoc2 notebooks and onepkg packages`
+7. `test(onenote): fuzz every entry point`
+
+PR title: `feat(onenote): read OneNote section, notebook, and package files`.
+
+## PR 3.17: OneNote import with full fidelity
+
+| | |
+|---|---|
+| Branch | `feat/onenote-import` off `phase/3-polish-parity` |
+| Hours | 120-200 |
+| Depends on | 3.16, and the PRs whose features it maps into (2.5 note tags, 2.7 equations, 3.1 shapes, 3.4 tables, 3.5 versions, 3.8 printouts) |
+| Rows | FM-09, FM-10 |
+
+Steps: map the OneNote tree to `notecraft-model` so that everything NoteCraft can show survives the import:
+
+- Structure: section groups; sections with names, colors, and order; pages with subpage levels, titles, and created and modified dates; page color, rule lines, and paper size.
+- Containers: position and width; paragraphs with all character and paragraph formatting; styles (Heading 1 and the rest); bullet and number lists with their styles and levels; hyperlinks; tables with column widths, shading, and hidden borders; equations.
+- Ink and media: strokes with color, width, pressure, pen tip, and highlighter; ink on the canvas and inside containers; shapes; pictures with position, size, and alt text; background pictures; file attachments; file printouts.
+- Note tags, custom tags included (name, icon, colors), with their checked state.
+- Links between OneNote pages (`onenote:` links) rewritten as `[[Page]]` links (docs/markdown.md section 5); links that point outside the imported notebook stay as plain URLs and are listed in the report.
+- Page versions and authors, where PR 3.5 stores them.
+
+Entry points, as in OneNote: File > Open accepts `.one`, `.onex`, `.onetoc2`, and `.onepkg`, and asks where to put the converted notebook (OneNote asks where to unpack a `.onepkg` the same way); drag and drop of the same files; a new command `file.import_onenote`, which the command line runs headless through the registry. The engine writes the notebook folder through the normal save path. A report page at the top of the new notebook lists anything skipped and why; nothing is dropped silently.
+
+Tests: each corpus notebook imports to checked-in expected output (golden files); the design doc's mapping table links each OneNote content type to its test.
+
+Commits:
+
+1. `feat(onenote): map notebook structure, page metadata, and paper`
+2. `feat(onenote): map outlines, formatting, lists, and tables`
+3. `feat(onenote): map ink, shapes, pictures, attachments, and printouts`
+4. `feat(onenote): map note tags, equations, and page links`
+5. `feat(ui): open and import OneNote files with an import report`
+6. `test(onenote): golden imports of the sample corpus`
+
+PR title: `feat(onenote): import OneNote files with full fidelity`.
+
+PR 3.16 can start as soon as Phase 3 opens; PR 3.17 lands after the PRs it maps into and before PR 3.13.
+
 ## PR 3.13: close Phase 3 and ship the beta
 
 Follow 00-conventions.md section 6; release v0.9.0.
@@ -314,7 +383,9 @@ Not new features. Between v0.9.0 and v1.0.0, work only from docs/gaps.md: beta b
 | 3.13 close and beta | 8-14 |
 | 3.14 command line render, export, print | 12-20 |
 | 3.15 MCP server | 24-40 |
-| Total | 404-686 |
+| 3.16 OneNote file reader | 140-240 |
+| 3.17 OneNote import | 120-200 |
+| Total | 664-1,126 |
 
 Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 
@@ -335,3 +406,4 @@ Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |
 | 2026-10-15 | 1 | Notes from the WordCraft ink survey: Add Pen in PR 3.1, the recognizer approach in PR 3.2, the lasso pick rule in PR 3.3. Hours unchanged. |
 | 2026-10-15 | 1 | Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15), adding 12-20 hours and row IN-13; Phase 3 estimate 404-686 hours. Add Pen confirmed inside PR 3.1's estimate. |
+| 2026-10-16 | 1 | Added PR 3.16 (OneNote file reader) and PR 3.17 (OneNote import with full fidelity) for `.one`, `.onex`, `.onetoc2`, and `.onepkg`, moved up from Phase 4 by maintainer decision; Phase 3 estimate 664-1,126 hours (on top of Ink Replay). |
