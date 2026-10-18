@@ -258,6 +258,20 @@ impl Session {
         }
     }
 
+    /// True when `page.convert_to_markdown` would offer to convert the page shown.
+    pub fn can_convert_to_markdown(&self) -> bool {
+        let Some(page_id) = self.selection.page.as_deref() else {
+            return false;
+        };
+        self.kind_of_page(page_id) == Some(PageKind::Canvas)
+            && self.page_text(page_id).is_some()
+            && !self
+                .page_notices
+                .get(page_id)
+                .is_some_and(|notice| notice.read_only)
+            && !self.saving.conflicts.contains_key(page_id)
+    }
+
     /// `page.convert_to_markdown`: turn the page shown into a plain `.md` page. Without
     /// `confirm`, only the warning to show first is reported.
     pub fn convert_current_page_to_markdown(&mut self, confirm: bool) -> ConvertOutcome {

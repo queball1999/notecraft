@@ -21,9 +21,9 @@ egui.workspace = true
 craft-ui.workspace = true
 skrifa.workspace = true
 tracing.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
 egui_kittest.workspace = true
 tempfile.workspace = true
 image.workspace = true

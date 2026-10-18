@@ -552,6 +552,7 @@ impl AppShell {
             selected_tool: self.session.ink().selected_tool(),
             can_undo: self.session.can_undo(),
             can_redo: self.session.can_redo(),
+            can_convert: self.session.can_convert_to_markdown(),
         };
         if self.ribbon.backstage_open() {
             let clicked = self

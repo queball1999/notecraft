@@ -88,6 +88,9 @@ pub struct Look<'a> {
     /// Whether Undo and Redo have a step; the quick access buttons are disabled when not.
     pub can_undo: bool,
     pub can_redo: bool,
+    /// The page shown is a `.notecraft` page that can be converted to markdown; the File Info
+    /// page then offers the Convert to Markdown button.
+    pub can_convert: bool,
 }
 
 /// One pen or highlighter of the Draw tab's list, as the ribbon draws it.
