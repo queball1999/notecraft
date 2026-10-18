@@ -755,6 +755,7 @@ const UNDO_TESTED_ELSEWHERE: &[&str] = &[
     "insert.picture",
     "insert.file_attachment",
     "edit.paste_picture",
+    "picture.resize",
 ];
 
 /// How to run each Ready undoable command in a test. A PR that makes another command

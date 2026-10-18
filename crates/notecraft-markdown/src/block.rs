@@ -53,6 +53,9 @@ pub struct Run {
     pub link: Option<String>,
     /// The run is an image (`![alt](target)`): `text` is the alt text and `link` the target.
     pub image: bool,
+    /// For an image: the display width the user chose, in page units (docs/markdown.md
+    /// section 2.4). `None` shows the picture at its natural size.
+    pub image_width: Option<u16>,
 }
 
 impl Run {

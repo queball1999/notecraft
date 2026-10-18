@@ -154,6 +154,8 @@ command_ids! {
     INSERT_FILE_PRINTOUT = "insert.file_printout";
     /// Insert a picture from a file.
     INSERT_PICTURE = "insert.picture";
+    /// Set the display width of a picture by dragging its corner handles.
+    PICTURE_RESIZE = "picture.resize";
     /// Open an attached file in its default app.
     ATTACHMENT_OPEN = "attachment.open";
     /// Capture part of the screen and insert it as a picture.

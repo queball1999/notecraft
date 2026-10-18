@@ -37,6 +37,12 @@ pub(super) enum Shown {
 /// Where flow layout gets its pictures.
 pub(super) trait PictureSource {
     fn picture(&mut self, link: &str) -> Shown;
+
+    /// A width in page units to show the `nth` picture with `link` at instead of its saved
+    /// one: the width it is being dragged to.
+    fn preview_width(&self, _link: &str, _nth: usize) -> Option<f32> {
+        None
+    }
 }
 
 /// A source with no pictures, for layout tests: every picture is a placeholder.
@@ -59,12 +65,29 @@ enum Entry {
     Failed(PictureError),
 }
 
+/// A resize drag in progress: the picture and the width it is being dragged to.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ResizeDrag {
+    pub link: String,
+    pub nth: usize,
+    /// The width when the drag started, in page units.
+    pub start: f32,
+    /// How far the pointer moved since, in page units.
+    pub dx: f32,
+    pub dy: f32,
+    /// The width shown now.
+    pub width: f32,
+}
+
 /// The pictures of the page shown now.
 #[derive(Default)]
 pub(crate) struct PictureCache {
     page: Option<String>,
     entries: HashMap<String, Entry>,
     decoded_this_frame: usize,
+    /// The picture with resize handles: its link and which one with that link.
+    pub(super) selected: Option<(String, usize)>,
+    pub(super) drag: Option<ResizeDrag>,
 }
 
 impl std::fmt::Debug for PictureCache {
@@ -82,6 +105,8 @@ impl PictureCache {
         if self.page.as_deref() != page {
             self.page = page.map(str::to_owned);
             self.entries.clear();
+            self.selected = None;
+            self.drag = None;
         }
         self.decoded_this_frame = 0;
     }
@@ -113,6 +138,11 @@ fn reason(err: &PictureError) -> String {
 }
 
 impl PictureSource for PictureLoader<'_> {
+    fn preview_width(&self, link: &str, nth: usize) -> Option<f32> {
+        let drag = self.cache.drag.as_ref()?;
+        (drag.link == link && drag.nth == nth).then_some(drag.width)
+    }
+
     fn picture(&mut self, link: &str) -> Shown {
         if let Some(entry) = self.cache.entries.get(link) {
             return match entry {

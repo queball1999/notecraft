@@ -276,6 +276,7 @@ fn push(runs: &mut Vec<Run>, text: &str, style: &Style, code: bool) {
         family: style.family.clone(),
         link: style.link.clone(),
         image: false,
+        image_width: None,
     });
 }
 
@@ -298,6 +299,18 @@ fn alt_text<'a>(node: &'a AstNode<'a>) -> String {
     alt
 }
 
+/// If `h` is a width comment and the run before it is an image, record the width on the image
+/// and return true (the comment is then not shown as text).
+fn image_width_for(last: Option<&mut Run>, h: &str) -> bool {
+    match (last, crate::image::parse_width_comment(h)) {
+        (Some(run), Some(width)) if run.image && run.image_width.is_none() => {
+            run.image_width = Some(width);
+            true
+        }
+        _ => false,
+    }
+}
+
 /// Alt text kept per image.
 const MAX_ALT_BYTES: usize = 1024;
 
@@ -318,6 +331,11 @@ fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs:
             continue;
         }
         let value = child.data.borrow().value.clone();
+        if let NodeValue::HtmlInline(h) = &value {
+            if image_width_for(runs.last_mut(), h) {
+                continue;
+            }
+        }
         let mut nested = |style: Style| inline_children(child, &style, depth + 1, runs);
         match value {
             NodeValue::Text(t) => push(runs, &t, style, false),
@@ -362,6 +380,7 @@ fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs:
                 family: style.family.clone(),
                 link: Some(link.url),
                 image: true,
+                image_width: None,
             }),
             _ => nested(style.clone()),
         }

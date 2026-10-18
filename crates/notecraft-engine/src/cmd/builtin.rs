@@ -90,6 +90,23 @@ const ATTACHMENT_SRC_ARGS: &[ArgSpec] = &[ArgSpec::required(
     ArgKind::String,
     "The link of the attachment as written in the page, such as attachments/a1b2c3-budget.xlsx.",
 )];
+const PICTURE_RESIZE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "src",
+        ArgKind::String,
+        "The link of the picture as written in the page, such as attachments/a1b2c3-photo.png.",
+    ),
+    ArgSpec::required(
+        "width",
+        ArgKind::Integer,
+        "The display width in page units, 16 to 4096; 0 puts the picture back to its natural size.",
+    ),
+    ArgSpec::optional(
+        "nth",
+        ArgKind::Integer,
+        "Which picture with this link, counting from 0 in page order (default 0).",
+    ),
+];
 const NAV_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "id",
     ArgKind::String,
@@ -750,6 +767,14 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Insert a picture from a file.",
     )
     .args(INSERT_PATH_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::PICTURE_RESIZE,
+        "Resize Picture",
+        "Set the display width of a picture; the height follows its proportions.",
+    )
+    .args(PICTURE_RESIZE_ARGS)
     .undoable()
     .ready(),
     CommandSpec::new(
@@ -1471,6 +1496,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::INSERT_PICTURE, attach::insert_picture),
     (ids::INSERT_FILE_ATTACHMENT, attach::insert_file),
     (ids::EDIT_PASTE_PICTURE, attach::paste_picture),
+    (ids::PICTURE_RESIZE, attach::resize_picture),
     (ids::ATTACHMENT_OPEN, attach::open_attachment),
     (ids::TEXT_SET_CARET, text::set_caret),
     (ids::TEXT_CLEAR_CARET, text::clear_caret),

@@ -7,7 +7,7 @@ use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::{mock, DrawTool, Session};
 
-use super::{editing, flow, ink, paper, pictures, title, CanvasUi, PageToScreen};
+use super::{editing, flow, ink, paper, picture_ui, pictures, title, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -151,6 +151,20 @@ pub fn show(
                 if let Some((page_id, text, parsed, flow)) = &page {
                     flow::paint(ui.painter(), map, flow, tokens);
                     file_clicks(ui, map, flow, clicked);
+                    let type_tool = session.ink().tool() == DrawTool::Type;
+                    let on_picture = type_tool
+                        && picture_ui::show(
+                            ui,
+                            map,
+                            flow,
+                            &mut state.pictures,
+                            session.page_is_editable(page_id),
+                            tokens,
+                            clicked,
+                        );
+                    if response.clicked() && !on_picture {
+                        state.pictures.selected = None;
+                    }
                     let frame = editing::Frame {
                         session,
                         parsed,
