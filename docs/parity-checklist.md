@@ -24,12 +24,12 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Canvas | 5 | 1 | 6 | 12 | 41% |
 | Ink | 1 | 5 | 7 | 13 | 7% |
 | Text | 5 | 1 | 6 | 12 | 41% |
-| Structure | 6 | 2 | 4 | 12 | 50% |
+| Structure | 7 | 1 | 4 | 12 | 58% |
 | Attachments | 1 | 4 | 3 | 8 | 12% |
 | Format | 6 | 2 | 1 | 9 | 66% |
 | Links | 0 | 0 | 8 | 8 | 0% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 54 | 15 | 45 | 114 | 47% |
+| Total | 55 | 14 | 45 | 114 | 48% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -140,7 +140,7 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | ID | Area | Feature | Phase | Score | Evidence |
 |---|---|---|---|---|---|
 | ST-01 | Structure | Open a folder as a notebook | 1 | D | PR 1.1: notecraft-storage scans a folder into groups, sections, and pages (notebook.toml and .section.toml read leniently, ordering, depth 8, warning at 50,000 files); file.open_notebook shows the real tree in the navigation. Tests: storage unit tests, basic_notebook (testdata/notebooks/basic), engine file command tests, opening_a_real_folder_shows_its_real_sections_and_pages |
-| ST-02 | Structure | Create, rename, delete notebooks | 1 | P | PR 1.13: file.new_notebook creates the folder and `.notecraft/notebook.toml` and opens it; notebook.rename and notebook.set_color write the name and color (undoable); file.close_notebook is the notebook delete (the folder is kept; undoable). Notebook context menu in the navigation. Tests: engine session::structure::tests (notebook rename, color, close, create), cmd::structure::tests, file command tests. Missing: moving a whole notebook folder to the OS trash (not built; closing a notebook keeps the folder) |
+| ST-02 | Structure | Create, rename, delete notebooks | 1 | D | PR 1.13: file.new_notebook creates the folder and `.notecraft/notebook.toml` and opens it; notebook.rename and notebook.set_color write the name and color (undoable); file.close_notebook is the notebook delete (the folder is kept; undoable). Notebook context menu in the navigation. Tests: engine session::structure::tests (notebook rename, color, close, create), cmd::structure::tests, file command tests. OneNote has no command that deletes a notebook (you close it and delete the files outside the app), so close is the delete, as recorded under build_plan/03 PR 1.13 (2026-10-18 re-score) |
 | ST-03 | Structure | Create, rename, delete, color sections | 1 | D | PR 1.13: section.new (with its first Untitled Page), section.rename, section.delete, section.set_color (folder renamed, `.section.toml` color, delete to `.notecraft/trash`), all undoable and refusing to overwrite; New Section tab button and tab and pane context menus with a Color submenu. Tests: engine session::structure::tests, every_structure_command_undoes_and_redoes_exactly, section_context_menu_colors_and_deletes, add_page_and_new_section_edit_the_folder |
 | ST-04 | Structure | Section groups | 1 | D | PR 1.13: section.group_new, and the section.* commands accept groups; groups nest to 8 levels, move into and out of groups, and keep their order in `.section.toml`; undoable. Tests: engine sections_and_groups_are_created_renamed_colored_and_deleted, sections_move_between_groups_and_reorder, the_nesting_limit_is_kept |
 | ST-05 | Structure | Create, rename, delete pages; subpages | 1 | D | PR 1.13: page.new (Ctrl+N), page.rename, page.delete (to the trash folder), page.set_level, page.make_subpage, page.promote_subpage; file names made safe on every system and numbered, never overwriting; levels kept in `.section.toml`; page.collapse_subpages and page.expand_subpages fold a parent's subpages away (chevron on the parent and a menu item; state saved as `collapsed = true` in `.section.toml`); deleting a collapsed parent trashes its subpages with it; undoable. Tests: engine session::structure::tests (collapsing_subpages_is_saved_in_the_section_file_and_undoable, deleting_a_collapsed_parent_trashes_its_subpages_too), page_menu_moves_and_indents_pages, a_page_is_renamed_in_place_from_its_context_menu, deleting_a_page_from_the_context_menu_can_be_undone |

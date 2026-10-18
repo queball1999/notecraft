@@ -84,12 +84,12 @@ One pass, about 6 to 10 hours with the three systems (the first 11 steps on Wind
 | 19 | Run the 30-minute fuzz runs for each target (`cargo +nightly fuzz run <target> -- -max_total_time=1800` from `fuzz/` after `bash fuzz/seed.sh`, see CONTRIBUTING.md; targets: markdown, frontmatter, containers, canvas_block, notebook_toml, section_toml, recovery_journal). | FM-08 |
 | 20 | Record the results, re-score the rows, run `cargo xtask parity`, and decide the version question below. | all |
 
-Rows that stay P after this pass for a reason that is not a hands-on check: IN-01 (textured pens and a pencil, gaps rank 21), FM-03 (images, files, and shapes in the canvas block, Phase 2 to 3), ST-02 (moving a closed notebook folder to the OS trash).
+Rows that stay P after this pass for a reason that is not a hands-on check: IN-01 (textured pens and a pencil, gaps rank 21; being built on feat/textured-pens) and FM-03 (pictures and attachments placed freely in the canvas block, being built on feat/canvas-pictures; shapes belong to their own row). ST-02 is D: OneNote has no delete-notebook command, so close is the delete.
 
 ## Open questions
 
 - Version: decided 2026-10-18. Phase 1 ships as v0.0.2 (maintainer decision), not v0.1.0 as the plan first said. v0.0.1 was promoted from pre-release to a full release on GitHub the same day.
-- Whether ST-02 (notebook delete moves the folder to the OS trash) and IN-01 (textured pens, pencil) must be D before the alpha, or may ship as P. They are not hands-on checks, so the pass above cannot clear them.
+- ST-02 and IN-01: decided 2026-10-18. ST-02 is D (OneNote has no delete-notebook command). IN-01 textured pens and FM-03 free-placed pictures are built before v0.0.2.
 
 ## Milestones
 
