@@ -384,6 +384,8 @@ command_ids! {
     NOTEBOOK_SET_COLOR = "notebook.set_color";
     /// Turn the page shown into a plain markdown page, dropping its ink and positions.
     PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
+    /// Replace a canvas block that did not parse with a fresh one that keeps what could be read.
+    PAGE_REPAIR_CANVAS = "page.repair_canvas";
 
     // Search (Phase 2)
     /// Search every open notebook.

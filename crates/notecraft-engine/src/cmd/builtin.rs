@@ -1418,6 +1418,12 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .args(CONVERT_ARGS)
     .destructive()
     .ready(),
+    CommandSpec::new(
+        ids::PAGE_REPAIR_CANVAS,
+        "Repair Page Layout",
+        "Replace the unreadable ink and layout data of the page with a fresh block that keeps what could be read. The old file is kept in the notebook history folder.",
+    )
+    .ready(),
     CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
@@ -1524,6 +1530,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NOTEBOOK_RENAME, structure::notebook_rename),
     (ids::NOTEBOOK_SET_COLOR, structure::notebook_set_color),
     (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
+    (ids::PAGE_REPAIR_CANVAS, page::repair_canvas),
 ];
 
 /// The handler for `id`, if it has one.

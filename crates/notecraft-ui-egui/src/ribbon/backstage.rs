@@ -8,6 +8,7 @@ use craft_ui::tabs::Tab;
 use egui::{Color32, CornerRadius, FontId, Frame, Key, Margin, RichText, Sense, Stroke, Ui};
 use notecraft_engine::cmd::{ids, CommandId, Status};
 use notecraft_engine::recent::Recents;
+use notecraft_engine::session::CONVERT_WARNING;
 
 use super::spec::{Item, TabKind, TABS};
 use super::{Clicked, Look, Ribbon};
@@ -159,6 +160,23 @@ pub(super) fn show(
             let spec = look.registry.get(item.command.as_str());
             if let Some(spec) = spec {
                 ui.label(RichText::new(spec.description).color(t.text));
+            }
+            if item.command == ids::FILE_INFO && look.can_convert {
+                // The warning stays above the button, so the click is an informed one.
+                ui.add_space(24.0);
+                ui.label(RichText::new("Page format").size(18.0).color(t.text));
+                ui.add_space(6.0);
+                ui.label(RichText::new(CONVERT_WARNING).color(t.text));
+                ui.add_space(8.0);
+                if ui
+                    .add(start::framed("Convert to Markdown", 14.0, t))
+                    .clicked()
+                {
+                    out.push(Clicked {
+                        command: ids::PAGE_CONVERT_TO_MARKDOWN,
+                        args: serde_json::json!({ "confirm": true }),
+                    });
+                }
             }
             if spec.is_none_or(|spec| spec.status == Status::ComingSoon) {
                 ui.add_space(8.0);

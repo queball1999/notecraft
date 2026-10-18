@@ -265,11 +265,13 @@ impl Op {
     pub(crate) fn apply(&self, session: &mut Session) -> bool {
         let applied = self.apply_to_document(session);
         if applied {
-            // Page text and strokes are saved with the page, so a change to either is an
-            // unsaved edit (PR 1.7). Style and structure changes are not page text yet.
+            // Page text, strokes, and container positions are saved with the page, so a change
+            // to any is an unsaved edit (PR 1.7). Style and structure changes are not page
+            // text yet.
             if let Op::InsertStroke { page, .. }
             | Op::DeleteStroke { page, .. }
-            | Op::ReplaceText { page, .. } = self
+            | Op::ReplaceText { page, .. }
+            | Op::SetContainer { page, .. } = self
             {
                 session.mark_page_dirty(page);
             }

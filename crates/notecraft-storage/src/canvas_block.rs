@@ -1,10 +1,11 @@
 //! The `notecraft-canvas` block of a `.notecraft` page (docs/markdown.md sections 3.4 and 9).
 //!
 //! The block is the last fenced code block with the info string `notecraft-canvas`. This module
-//! finds it, reads its ink strokes, and writes strokes back with a minimal diff: only the value
-//! of the `"ink"` key changes, so every other key (containers, shapes, images, files, z, and
-//! keys this version does not know) and all spacing stay byte for byte. A block is created
-//! only when there are strokes to store.
+//! finds it, reads its ink strokes and container positions, and writes them back with a
+//! minimal diff: only the values of the `"ink"` and `"containers"` keys change, so every other
+//! key (shapes, images, files, z, and keys this version does not know) and all spacing stay
+//! byte for byte. A block is created only when there are strokes or container positions to
+//! store.
 //!
 //! Reading is lenient and bounded. Unknown fields are skipped, a stroke or point that is not
 //! usable is dropped, bad numbers fall back (pressure to 1, width to 1, color to the default
@@ -12,7 +13,7 @@
 //! and a page keeps at most 100,000 strokes. Anything worse gives a [`CanvasProblem`], never a
 //! panic. The block is never rewritten when it is not understood, so nothing is lost.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops::Range;
 
@@ -32,6 +33,21 @@ pub const MAX_STROKES: usize = 100_000;
 pub const MAX_COORD: f32 = 1_000_000.0;
 /// Longest stroke id kept.
 const MAX_ID_CHARS: usize = 64;
+/// Most container positions a page keeps (matches the marker reader's cap).
+pub const MAX_CONTAINERS: usize = 10_000;
+/// Longest container id kept.
+const MAX_CONTAINER_ID: usize = 64;
+
+/// A container's place on the page as the canvas block stores it (docs/markdown.md section
+/// 3.4). Plain numbers in page units: the model types sit above this crate.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CanvasContainer {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    /// Width; `None` when the file gave none (the default width applies).
+    pub w: Option<f32>,
+}
 
 /// Where the canvas block sits in a page's text.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -82,6 +98,9 @@ pub struct CanvasRead {
     pub block: Option<CanvasBlock>,
     /// The strokes read, in paint order, each forced into range.
     pub strokes: Vec<Stroke>,
+    /// The container positions read, in file order. An entry without a usable `x` and `y` is
+    /// left out (that container stays in the flow layout); a later entry with the same id wins.
+    pub containers: Vec<CanvasContainer>,
     pub problem: Option<CanvasProblem>,
     /// Strokes dropped because they had no usable points.
     pub skipped: usize,
@@ -448,10 +467,91 @@ impl<'de> Deserialize<'de> for StrokeList {
     }
 }
 
+/// One entry of the `containers` object: `{ "x": .., "y": .., "w": .. }`.
+#[derive(Default)]
+struct RawContainer {
+    x: Option<Scalar>,
+    y: Option<Scalar>,
+    w: Option<Scalar>,
+}
+
+struct ContainerVisitor;
+
+impl<'de> Visitor<'de> for ContainerVisitor {
+    type Value = RawContainer;
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a container")
+    }
+    accept_scalars!(RawContainer::default());
+    fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<RawContainer, A::Error> {
+        drain_seq(seq).map(|()| RawContainer::default())
+    }
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<RawContainer, A::Error> {
+        let mut c = RawContainer::default();
+        while let Some(key) = map.next_key::<String>()? {
+            match key.as_str() {
+                "x" => c.x = Some(map.next_value()?),
+                "y" => c.y = Some(map.next_value()?),
+                "w" => c.w = Some(map.next_value()?),
+                _ => {
+                    map.next_value::<IgnoredAny>()?;
+                }
+            }
+        }
+        Ok(c)
+    }
+}
+
+impl<'de> Deserialize<'de> for RawContainer {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(ContainerVisitor)
+    }
+}
+
+/// The `containers` object: the first [`MAX_CONTAINERS`] entries are kept, the rest skipped.
+#[derive(Default)]
+struct ContainerMapRead(Vec<(String, RawContainer)>);
+
+struct ContainerMapVisitor;
+
+impl<'de> Visitor<'de> for ContainerMapVisitor {
+    type Value = ContainerMapRead;
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("a map of containers")
+    }
+    accept_scalars!(ContainerMapRead::default());
+    fn visit_seq<A: SeqAccess<'de>>(self, seq: A) -> Result<ContainerMapRead, A::Error> {
+        drain_seq(seq).map(|()| ContainerMapRead::default())
+    }
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<ContainerMapRead, A::Error> {
+        let mut out = Vec::new();
+        loop {
+            if out.len() >= MAX_CONTAINERS {
+                if map.next_entry::<IgnoredAny, IgnoredAny>()?.is_none() {
+                    break;
+                }
+            } else {
+                match map.next_entry::<String, RawContainer>()? {
+                    Some(entry) => out.push(entry),
+                    None => break,
+                }
+            }
+        }
+        Ok(ContainerMapRead(out))
+    }
+}
+
+impl<'de> Deserialize<'de> for ContainerMapRead {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(ContainerMapVisitor)
+    }
+}
+
 #[derive(Default)]
 struct RawCanvas {
     format: Option<Scalar>,
     ink: Option<StrokeList>,
+    containers: Option<ContainerMapRead>,
 }
 
 struct CanvasVisitor;
@@ -467,6 +567,7 @@ impl<'de> Visitor<'de> for CanvasVisitor {
             match key.as_str() {
                 "format" => c.format = Some(map.next_value()?),
                 "ink" => c.ink = Some(map.next_value()?),
+                "containers" => c.containers = Some(map.next_value()?),
                 _ => {
                     map.next_value::<IgnoredAny>()?;
                 }
@@ -532,6 +633,40 @@ fn finish_stroke(
     )
 }
 
+/// Turn the raw `containers` entries into usable ones: ids cut to 64 characters, an entry
+/// without a finite `x` and `y` dropped, coordinates clamped, a later duplicate id wins.
+fn finish_containers(raw: Vec<(String, RawContainer)>) -> Vec<CanvasContainer> {
+    let mut out: Vec<CanvasContainer> = Vec::new();
+    let mut at: HashMap<String, usize> = HashMap::new();
+    for (id, c) in raw {
+        let id: String = id.chars().take(MAX_CONTAINER_ID).collect();
+        if id.trim().is_empty() {
+            continue;
+        }
+        let (Some(x), Some(y)) = (
+            c.x.as_ref().and_then(Scalar::num),
+            c.y.as_ref().and_then(Scalar::num),
+        ) else {
+            continue;
+        };
+        let coord = |n: f64| (n as f32).clamp(-MAX_COORD, MAX_COORD);
+        let entry = CanvasContainer {
+            id: id.clone(),
+            x: coord(x),
+            y: coord(y),
+            w: c.w.as_ref().and_then(Scalar::num).map(|w| w as f32),
+        };
+        match at.get(&id).and_then(|i| out.get_mut(*i)) {
+            Some(slot) => *slot = entry,
+            None => {
+                at.insert(id, out.len());
+                out.push(entry);
+            }
+        }
+    }
+    out
+}
+
 /// Deepest JSON nesting read. serde_json may be built without its own depth limit (another
 /// crate can turn it off through feature unification), so the reader checks first.
 const MAX_JSON_DEPTH: usize = 32;
@@ -591,6 +726,9 @@ pub fn read_canvas(text: &str) -> CanvasRead {
             read.problem = Some(CanvasProblem::NewerFormat(n as i64));
             return read;
         }
+    }
+    if let Some(map) = raw.containers {
+        read.containers = finish_containers(map.0);
     }
     let Some(list) = raw.ink else {
         return read;
@@ -810,26 +948,113 @@ fn usable(strokes: &[Stroke]) -> Vec<Stroke> {
         .collect()
 }
 
+/// A container position as the file stores it: ids cut to 64 characters, every number
+/// rounded to 2 decimal places and kept in range, the width always present.
+pub fn normalized_container(c: &CanvasContainer, default_width: f32) -> CanvasContainer {
+    let coord = |v: f32| round2(if v.is_finite() { v } else { 0.0 }).clamp(-MAX_COORD, MAX_COORD);
+    CanvasContainer {
+        id: c.id.chars().take(MAX_CONTAINER_ID).collect(),
+        x: coord(c.x),
+        y: coord(c.y),
+        w: Some(coord(c.w.unwrap_or(default_width))),
+    }
+}
+
+/// Container positions as they would be written: normalized, unusable ids dropped, sorted by
+/// id, at most [`MAX_CONTAINERS`]. Entries from the file without a width get `default_width`.
+fn usable_containers(containers: &[CanvasContainer], default_width: f32) -> Vec<CanvasContainer> {
+    let mut out: Vec<CanvasContainer> = containers
+        .iter()
+        .filter(|c| !c.id.trim().is_empty())
+        .map(|c| normalized_container(c, default_width))
+        .collect();
+    out.sort_by(|a, b| a.id.cmp(&b.id));
+    out.dedup_by(|later, earlier| later.id == earlier.id);
+    out.truncate(MAX_CONTAINERS);
+    out
+}
+
+/// The width a container gets when the file stores none (matches the model's default).
+const DEFAULT_CONTAINER_WIDTH: f32 = 720.0;
+
+/// The `{ ... }` text of the containers object, one container per line, with `indent` spaces
+/// before each entry and `indent - 2` before the closing brace.
+fn containers_object(containers: &[CanvasContainer], eol: &str, indent: usize) -> String {
+    if containers.is_empty() {
+        return "{}".to_owned();
+    }
+    let pad = " ".repeat(indent);
+    let mut out = String::from("{");
+    out.push_str(eol);
+    for (i, c) in containers.iter().enumerate() {
+        out.push_str(&pad);
+        out.push_str(&json_string(&c.id));
+        out.push_str(": { \"x\": ");
+        out.push_str(&num(c.x));
+        out.push_str(", \"y\": ");
+        out.push_str(&num(c.y));
+        out.push_str(", \"w\": ");
+        out.push_str(&num(c.w.unwrap_or(DEFAULT_CONTAINER_WIDTH)));
+        out.push_str(" }");
+        if i + 1 < containers.len() {
+            out.push(',');
+        }
+        out.push_str(eol);
+    }
+    out.push_str(&" ".repeat(indent.saturating_sub(2)));
+    out.push('}');
+    out
+}
+
 /// The page `text` with its canvas block holding `strokes`, changing only the `"ink"` value.
-///
-/// - If the block already holds exactly these strokes (after rounding), the text comes back
-///   unchanged, byte for byte.
-/// - If there is no block and no strokes, the text comes back unchanged.
-/// - If there is no block, one is appended at the end.
-/// - If the block is not understood (see [`CanvasProblem`]) the write is refused.
+/// Container positions already in the block are left as they are. See [`write_canvas`].
 pub fn write_ink(text: &str, strokes: &[Stroke]) -> Result<String, WriteInkError> {
     let current = read_canvas(text);
+    write_canvas_from(text, strokes, &current.containers.clone(), current)
+}
+
+/// The page `text` with its canvas block holding `strokes` and `containers`, changing only
+/// the `"ink"` and `"containers"` values.
+///
+/// - If the block already holds exactly these (after rounding), the text comes back
+///   unchanged, byte for byte.
+/// - If there is no block and nothing to store, the text comes back unchanged.
+/// - If there is no block, one is appended at the end.
+/// - A key is added to an existing block only when its value changed.
+/// - Other keys inside a changed `"containers"` value (which this version does not know) are
+///   not kept; every key outside `"ink"` and `"containers"` is.
+/// - If the block is not understood (see [`CanvasProblem`]) the write is refused.
+pub fn write_canvas(
+    text: &str,
+    strokes: &[Stroke],
+    containers: &[CanvasContainer],
+) -> Result<String, WriteInkError> {
+    let current = read_canvas(text);
+    write_canvas_from(text, strokes, containers, current)
+}
+
+fn write_canvas_from(
+    text: &str,
+    strokes: &[Stroke],
+    containers: &[CanvasContainer],
+    current: CanvasRead,
+) -> Result<String, WriteInkError> {
     if let Some(problem) = current.problem {
         return Err(WriteInkError::Blocked(problem));
     }
     let new = usable(strokes);
     let old: Vec<Stroke> = current.strokes.iter().map(normalized).collect();
-    if new == old && (current.block.is_some() || new.is_empty()) {
+    let new_containers = usable_containers(containers, DEFAULT_CONTAINER_WIDTH);
+    let old_containers = usable_containers(&current.containers, DEFAULT_CONTAINER_WIDTH);
+    let ink_changed = new != old;
+    let containers_changed = new_containers != old_containers;
+    let nothing = new.is_empty() && new_containers.is_empty();
+    if !ink_changed && !containers_changed && (current.block.is_some() || nothing) {
         return Ok(text.to_owned());
     }
     let eol = eol_of(text);
     let Some(block) = current.block else {
-        let out = append_block(text, &new, eol);
+        let out = append_block(text, &new, &new_containers, eol);
         // The page may end inside an unclosed code fence, which would swallow the new block.
         // Check that the block really is found; if not, refuse rather than lose the ink.
         return match find_canvas_block(&out) {
@@ -842,38 +1067,59 @@ pub fn write_ink(text: &str, strokes: &[Stroke]) -> Result<String, WriteInkError
     let Some(scan) = scan_object(json) else {
         return Err(WriteInkError::Blocked(CanvasProblem::Unparseable));
     };
-    let array = ink_array(&new, eol, 4);
-    let ink = scan
-        .members
-        .iter()
-        .rev()
-        .find(|(key, _)| json.get(key.clone()) == Some("ink"));
-    let (range, replacement) = if let Some((_, value)) = ink {
-        (base + value.start..base + value.end, array)
-    } else if let Some((_, last)) = scan.members.last() {
-        let at = base + last.end;
-        (at..at, format!(",{eol}  \"ink\": {array}"))
-    } else {
-        (
-            base + scan.open..base + scan.close + 1,
-            format!("{{{eol}  \"ink\": {array}{eol}}}"),
-        )
+    let member = |name: &str| {
+        scan.members
+            .iter()
+            .rev()
+            .find(|(key, _)| json.get(key.clone()) == Some(name))
     };
-    let mut out = String::with_capacity(text.len() + replacement.len());
-    out.push_str(text.get(..range.start).unwrap_or(""));
-    out.push_str(&replacement);
-    out.push_str(text.get(range.end..).unwrap_or(""));
+    // (range in the text, replacement) for values that exist; (key, value text) for new keys.
+    let mut replaced: Vec<(Range<usize>, String)> = Vec::new();
+    let mut added: Vec<(&str, String)> = Vec::new();
+    if ink_changed {
+        let array = ink_array(&new, eol, 4);
+        match member("ink") {
+            Some((_, value)) => replaced.push((base + value.start..base + value.end, array)),
+            None => added.push(("ink", array)),
+        }
+    }
+    if containers_changed {
+        let object = containers_object(&new_containers, eol, 4);
+        match member("containers") {
+            Some((_, value)) => replaced.push((base + value.start..base + value.end, object)),
+            None => added.push(("containers", object)),
+        }
+    }
+    if !added.is_empty() {
+        let list: Vec<String> = added
+            .iter()
+            .map(|(key, value)| format!("  \"{key}\": {value}"))
+            .collect();
+        if let Some((_, last)) = scan.members.last() {
+            let at = base + last.end;
+            replaced.push((at..at, format!(",{eol}{}", list.join(&format!(",{eol}")))));
+        } else {
+            replaced.push((
+                base + scan.open..base + scan.close + 1,
+                format!("{{{eol}{}{eol}}}", list.join(&format!(",{eol}"))),
+            ));
+        }
+    }
+    replaced.sort_by_key(|(range, _)| range.start);
+    let mut out = String::with_capacity(text.len() + 256);
+    let mut at = 0usize;
+    for (range, replacement) in &replaced {
+        out.push_str(text.get(at..range.start).unwrap_or(""));
+        out.push_str(replacement);
+        at = range.end;
+    }
+    out.push_str(text.get(at..).unwrap_or(""));
     Ok(out)
 }
 
-fn append_block(text: &str, strokes: &[Stroke], eol: &str) -> String {
-    let mut out = text.to_owned();
-    if !out.is_empty() {
-        if !out.ends_with('\n') {
-            out.push_str(eol);
-        }
-        out.push_str(eol);
-    }
+/// A whole fresh block (fences included, no trailing line ending).
+fn fresh_block(strokes: &[Stroke], containers: &[CanvasContainer], eol: &str) -> String {
+    let mut out = String::new();
     out.push_str("```");
     out.push_str(CANVAS_INFO);
     out.push_str(eol);
@@ -881,14 +1127,71 @@ fn append_block(text: &str, strokes: &[Stroke], eol: &str) -> String {
     out.push_str(eol);
     out.push_str(&format!("  \"format\": {FORMAT_VERSION},{eol}"));
     out.push_str(&format!("  \"units\": \"px96\",{eol}"));
+    if !containers.is_empty() {
+        out.push_str("  \"containers\": ");
+        out.push_str(&containers_object(containers, eol, 4));
+        out.push(',');
+        out.push_str(eol);
+    }
     out.push_str("  \"ink\": ");
     out.push_str(&ink_array(strokes, eol, 4));
     out.push_str(eol);
     out.push('}');
     out.push_str(eol);
     out.push_str("```");
+    out
+}
+
+fn append_block(
+    text: &str,
+    strokes: &[Stroke],
+    containers: &[CanvasContainer],
+    eol: &str,
+) -> String {
+    let mut out = text.to_owned();
+    if !out.is_empty() {
+        if !out.ends_with('\n') {
+            out.push_str(eol);
+        }
+        out.push_str(eol);
+    }
+    out.push_str(&fresh_block(strokes, containers, eol));
     out.push_str(eol);
     out
+}
+
+/// Whether [`repair_canvas`] can help: the block exists and does not parse (or is over the
+/// size limit). A block that is merely newer or has too many strokes is not repairable,
+/// because a fresh block would drop data the file still holds.
+pub fn can_repair(problem: CanvasProblem) -> bool {
+    matches!(
+        problem,
+        CanvasProblem::Unparseable | CanvasProblem::TooLarge
+    )
+}
+
+/// `text` with a block that did not parse replaced by a fresh one that holds whatever was read
+/// from it (the strokes and container positions that survived; nothing at all when the whole
+/// block was unreadable). `None` when the page has no block or its block is fine. The caller
+/// keeps a copy of the old file first (`keep_unreadable_copy`).
+pub fn repair_canvas(text: &str) -> Option<String> {
+    let read = read_canvas(text);
+    if !read.problem.is_some_and(can_repair) {
+        return None;
+    }
+    let block = read.block?;
+    let eol = eol_of(text);
+    let strokes = usable(&read.strokes);
+    let containers = usable_containers(&read.containers, DEFAULT_CONTAINER_WIDTH);
+    let fresh = fresh_block(&strokes, &containers, eol);
+    let head = text.get(..block.block.start)?;
+    let tail = text.get(block.block.end..)?;
+    let out = format!("{head}{fresh}{tail}");
+    // The head may end inside an open fence, which would swallow the new block.
+    match read_canvas(&out) {
+        r if r.problem.is_none() && r.block.is_some() => Some(out),
+        _ => None,
+    }
 }
 
 /// `text` without its canvas block (and the blank line before it), for converting a page back
