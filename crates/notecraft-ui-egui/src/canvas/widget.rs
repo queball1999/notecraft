@@ -67,11 +67,10 @@ pub fn show(
     });
     state.pictures = cache;
     let flow = page.as_ref().map(|(_, _, _, laid)| laid);
-    let mut extent = content_extent(origin, view_size, style.paper_size.size());
-    if let Some(flow) = flow {
-        extent.x = extent.x.max(flow.width);
-        extent.y = extent.y.max(flow.height);
-    }
+    let extent = page_extent(
+        content_extent(origin, view_size, style.paper_size.size()),
+        flow.map(|flow| Vec2::new(flow.width, flow.height)),
+    );
     let extent = extent * zoom;
     let notice = session.current_page_notice().map(|n| n.text.clone());
     let reader_text = match (&notice, &flow) {
@@ -497,9 +496,31 @@ fn content_extent(origin: Vec2, view: Vec2, paper: Option<Vec2>) -> Vec2 {
     )
 }
 
+/// The scroll extent once the content is known: it grows to the right and bottom edge of
+/// the content, even past the paper (CV-06).
+fn page_extent(base: Vec2, content: Option<Vec2>) -> Vec2 {
+    match content {
+        Some(c) => Vec2::new(base.x.max(c.x), base.y.max(c.y)),
+        None => base,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_page_grows_past_the_paper_with_a_container_placed_beyond_it() {
+        let view = Vec2::new(800.0, 600.0);
+        let paper = Some(Vec2::new(816.0, 1344.0));
+        let base = content_extent(Vec2::ZERO, view, paper);
+        assert_eq!(base, Vec2::new(1600.0, 1344.0));
+        let grown = page_extent(base, Some(Vec2::new(2100.0, 3000.0)));
+        assert_eq!(grown, Vec2::new(2100.0, 3000.0));
+        // Content inside the paper changes nothing.
+        assert_eq!(page_extent(base, Some(Vec2::new(300.0, 400.0))), base);
+        assert_eq!(page_extent(base, None), base);
+    }
 
     #[test]
     fn content_reaches_one_screen_past_the_view_or_the_paper() {

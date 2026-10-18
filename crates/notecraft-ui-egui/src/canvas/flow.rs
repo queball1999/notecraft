@@ -1559,6 +1559,28 @@ mod tests {
     }
 
     #[test]
+    fn the_flow_reaches_a_container_placed_far_right_and_down() {
+        let tokens = tokens();
+        let text = "<!-- notecraft:container id=c1 -->\nfar away\n";
+        with_painter(|painter| {
+            let doc = notecraft_markdown::parse(text);
+            let runs = notecraft_markdown::split_containers(text, &doc);
+            let geometry = vec![Container::at("c1", Vec2::new(3000.0, 4000.0), 240.0)];
+            let input = Input {
+                text,
+                doc: &doc,
+                runs: &runs,
+                geometry: &geometry,
+                cursor: None,
+                preedit: "",
+            };
+            let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
+            assert!(flow.width >= 3240.0, "width {}", flow.width);
+            assert!(flow.height >= 4000.0, "height {}", flow.height);
+        });
+    }
+
+    #[test]
     fn an_empty_container_still_has_room_for_the_caret() {
         let tokens = tokens();
         let text = "a\n\n<!-- notecraft:container id=c1 -->\n";
