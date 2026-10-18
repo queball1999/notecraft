@@ -28,6 +28,10 @@ const CANVAS_TOKENS: &[&str] = &[
     "{\"a\":",
     "\\u00",
     "\"id\":\"",
+    "\"images\":[{\"id\":\"i1\",\"src\":\"attachments/a.png\",\"x\":1,\"y\":2}]",
+    "\"files\":[{\"src\":\"f.pdf\",\"nth\":3,\"x\":1e999,\"y\":5}]",
+    "{\"id\":\"i1\",\"src\":\"\",\"x\":-1,\"y\":1}",
+    "\"nth\":-1",
     "9999999999999999999",
     "\n",
 ];
@@ -185,6 +189,18 @@ fn hostile_shapes_stay_bounded() {
     ));
     canvas.push("```notecraft-canvas\n{\"format\":1,\"ink\":{\"strokes\":[{\"id\":\"s\",\"width\":1e40,\"points\":[[1e30,-1e30,9]]}]}}\n```\n".into());
     canvas.push("```notecraft-canvas\n".repeat(20_000));
+    // Placed pictures and files: far more than the cap, a huge link, odd numbers.
+    let objects = (0..12_000)
+        .map(|i| format!("{{\"id\":\"i{i}\",\"src\":\"a{i}.png\",\"nth\":{i},\"x\":1,\"y\":2}}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    canvas.push(format!(
+        "```notecraft-canvas\n{{\"format\":1,\"images\":[{objects}],\"files\":[{objects}]}}\n```\n"
+    ));
+    canvas.push(format!(
+        "```notecraft-canvas\n{{\"format\":1,\"images\":[{{\"src\":\"{}\",\"x\":1e40,\"y\":-1e40,\"nth\":1e30}}],\"files\":{{\"a\":1}}}}\n```\n",
+        "s".repeat(500_000)
+    ));
     for (i, case) in canvas.iter().enumerate() {
         let result = std::panic::catch_unwind(|| checks::check_canvas(case.as_bytes()));
         assert!(result.is_ok(), "hostile canvas case {i} failed");

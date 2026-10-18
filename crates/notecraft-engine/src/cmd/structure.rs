@@ -210,6 +210,35 @@ pub(super) fn page_promote_subpage(
     shift_level(session, args, ids::PAGE_PROMOTE_SUBPAGE, false)
 }
 
+fn fold_subpages(
+    session: &mut Session,
+    args: &Map<String, Value>,
+    command: CommandId,
+    collapsed: bool,
+) -> Result<CommandOutput, CommandError> {
+    let id = page_id(session, args).ok_or_else(|| missing(command, "page"))?;
+    session
+        .set_subpages_collapsed(&id, collapsed)
+        .map_err(|e| edit(command, e))?;
+    done(Some(id))
+}
+
+/// `page.collapse_subpages { id? }`: fold the subpages of a page away in the page list.
+pub(super) fn page_collapse_subpages(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    fold_subpages(session, args, ids::PAGE_COLLAPSE_SUBPAGES, true)
+}
+
+/// `page.expand_subpages { id? }`: show the subpages of a page again.
+pub(super) fn page_expand_subpages(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    fold_subpages(session, args, ids::PAGE_EXPAND_SUBPAGES, false)
+}
+
 fn new_node(
     session: &mut Session,
     args: &Map<String, Value>,
@@ -341,6 +370,8 @@ pub(crate) const UNDO_CASES: &[(&str, &str)] = &[
     ),
     ("page.make_subpage", r#"{ "id": "{nb}/Work/C.md" }"#),
     ("page.promote_subpage", r#"{ "id": "{nb}/Work/B.md" }"#),
+    ("page.collapse_subpages", r#"{ "id": "{nb}/Work/A.md" }"#),
+    ("page.expand_subpages", r#"{ "id": "{nb}/Work/C.md" }"#),
     ("section.new", r#"{ "name": "Extra" }"#),
     ("section.group_new", r#"{ "name": "Folder" }"#),
     ("section.rename", r#"{ "name": "Zed" }"#),
@@ -454,10 +485,11 @@ mod tests {
             ("Work/A.md", "a"),
             ("Work/B.md", "b"),
             ("Work/C.md", "c"),
+            ("Work/F.md", "f"),
             (
                 "Work/.section.toml",
                 "kind = \"section\"
-pages = [\"A.md\", { file = \"B.md\", level = 1 }, \"C.md\"]
+pages = [\"A.md\", { file = \"B.md\", level = 1 }, { file = \"C.md\", collapsed = true }, { file = \"F.md\", level = 1 }]
 ",
             ),
             ("Home/D.md", "d"),

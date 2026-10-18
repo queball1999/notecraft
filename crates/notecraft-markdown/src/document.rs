@@ -33,10 +33,16 @@ impl Document {
     /// The page text without markdown syntax, one block per line, capped at 16 KiB. For screen
     /// readers and tests.
     pub fn plain_text(&self) -> String {
+        self.plain_text_up_to(MAX_PLAIN_TEXT)
+    }
+
+    /// Like [`Self::plain_text`], but capped at `max` bytes (for the command line, which
+    /// prints a whole page).
+    pub fn plain_text_up_to(&self, max: usize) -> String {
         let mut out = String::new();
-        append_blocks(&self.blocks, &mut out);
-        if out.len() > MAX_PLAIN_TEXT {
-            let mut cut = MAX_PLAIN_TEXT;
+        append_blocks(&self.blocks, &mut out, max);
+        if out.len() > max {
+            let mut cut = max;
             while !out.is_char_boundary(cut) {
                 cut -= 1;
             }
@@ -52,9 +58,9 @@ fn append_runs(runs: &[Run], out: &mut String) {
     }
 }
 
-fn append_blocks(blocks: &[Block], out: &mut String) {
+fn append_blocks(blocks: &[Block], out: &mut String, max: usize) {
     for block in blocks {
-        if out.len() > MAX_PLAIN_TEXT {
+        if out.len() > max {
             return;
         }
         let before = out.len();
@@ -64,7 +70,7 @@ fn append_blocks(blocks: &[Block], out: &mut String) {
             }
             BlockKind::List { items, .. } => {
                 for item in items {
-                    append_blocks(&item.blocks, out);
+                    append_blocks(&item.blocks, out, max);
                 }
             }
             BlockKind::Table(table) => {
@@ -77,7 +83,7 @@ fn append_blocks(blocks: &[Block], out: &mut String) {
                 }
             }
             BlockKind::Code { literal, .. } | BlockKind::Html { literal } => out.push_str(literal),
-            BlockKind::Quote { blocks } => append_blocks(blocks, out),
+            BlockKind::Quote { blocks } => append_blocks(blocks, out, max),
             BlockKind::Rule => {}
         }
         if out.len() > before && !out.ends_with('\n') {
@@ -95,6 +101,13 @@ mod tests {
         let doc =
             parse("---\ntitle: T\n---\n# Head\n\nSome **bold** [link](http://x.y).\n\n- a\n- b\n");
         assert_eq!(doc.plain_text(), "Head\nSome bold link.\na\nb\n");
+    }
+
+    #[test]
+    fn plain_text_up_to_takes_a_larger_cap() {
+        let doc = parse(&"word ".repeat(10_000));
+        assert!(doc.plain_text_up_to(1 << 20).len() > MAX_PLAIN_TEXT);
+        assert!(doc.plain_text_up_to(10).len() <= 10);
     }
 
     #[test]

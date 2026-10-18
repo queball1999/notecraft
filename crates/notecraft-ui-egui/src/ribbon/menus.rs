@@ -234,6 +234,21 @@ fn is_current_pen(item: &Item, pen: Option<ActivePen>) -> bool {
     if matches!(pen.tool, ActiveTool::Eraser(..)) {
         return false;
     }
+    if item.command == ids::DRAW_TOOL_ADD {
+        // An Add Pen entry is marked when it names the kind (and texture) of the pen in use.
+        let text = |name: &str| {
+            arg(name).and_then(|arg| match arg.value {
+                ArgValue::Str(text) => Some(text),
+                _ => None,
+            })
+        };
+        let kind = text("kind").unwrap_or("pen");
+        return match pen.tool {
+            ActiveTool::Highlighter => kind == "highlighter",
+            ActiveTool::Pen => kind == "pen" && text("texture").unwrap_or("") == pen.texture,
+            ActiveTool::Eraser(..) => false,
+        };
+    }
     let color = arg("color").and_then(|arg| match arg.value {
         ArgValue::Str(text) => crate::color::parse(text)
             .map(|[r, g, b, _]| u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b)),
@@ -364,7 +379,7 @@ pub(super) fn papers(
 }
 
 /// The Format Background menu: the Rule Lines and Grid Lines cards, a Rule Line Color
-/// submenu, Always Create Pages with Rule Lines (not built yet, so it is disabled), and a Page
+/// submenu, Always Create Pages with Rule Lines (checked while on), and a Page
 /// Color submenu.
 pub(super) fn background(
     ui: &mut Ui,
@@ -377,15 +392,21 @@ pub(super) fn background(
     ui.menu_button("Rule Line Color", |ui| {
         colors(ui, ids::VIEW_RULE_LINE_COLOR, &menu.rule_color, look, out);
     });
-    ui.add_enabled_ui(false, |ui| {
-        let _ = row(
-            ui,
-            "Always Create Pages with Rule Lines",
-            Preview::None,
-            look,
-        )
-        .on_disabled_hover_text("Coming Soon");
-    });
+    if marked_row(
+        ui,
+        "Always Create Pages with Rule Lines",
+        Preview::None,
+        look.always_rule_lines,
+        look,
+    )
+    .clicked()
+    {
+        out.push(Clicked {
+            command: ids::DRAW_ALWAYS_RULE_LINES,
+            args: Value::Null,
+        });
+        ui.close();
+    }
     ui.menu_button("Page Color", |ui| {
         colors(ui, ids::VIEW_PAGE_COLOR, &menu.page_color, look, out);
     });
@@ -945,6 +966,7 @@ mod tests {
             tool: ActiveTool::Pen,
             color: 0x1565C0,
             width_pt: 1.0,
+            texture: "",
         });
         assert!(is_current_pen(&BLUE, pen));
         assert!(!is_current_pen(&THICK_BLUE, pen));
@@ -955,6 +977,7 @@ mod tests {
             tool: ActiveTool::Pen,
             color: 0x1565C0,
             width_pt: 3.5,
+            texture: "",
         });
         assert!(is_current_pen(&THICK_BLUE, thick) && is_current_pen(&WIDTH, thick));
         // Nothing is marked when the pen is not the tool, or the color differs.
@@ -963,8 +986,47 @@ mod tests {
             tool: ActiveTool::Pen,
             color: 0x000000,
             width_pt: 1.0,
+            texture: "",
         });
         assert!(!is_current_pen(&BLUE, other));
+    }
+
+    #[test]
+    fn the_add_pen_menu_marks_the_kind_and_texture_in_use() {
+        let item = |kind, texture| {
+            let args: &'static [crate::ribbon::spec::Arg] = Box::leak(Box::new([
+                str_arg("kind", kind),
+                str_arg("texture", texture),
+            ]));
+            Item::new("Add", ids::DRAW_TOOL_ADD).args(args)
+        };
+        let gold = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0xD4AF37,
+            width_pt: 1.0,
+            texture: "gold",
+        });
+        assert!(is_current_pen(&item("pen", "gold"), gold));
+        assert!(!is_current_pen(&item("pen", "silver"), gold));
+        assert!(!is_current_pen(&item("pen", ""), gold));
+        assert!(!is_current_pen(&item("highlighter", ""), gold));
+        let plain = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0,
+            width_pt: 1.0,
+            texture: "",
+        });
+        assert!(is_current_pen(&item("pen", ""), plain));
+        assert!(!is_current_pen(&item("pen", "pencil"), plain));
+        let marker = Some(ActivePen {
+            tool: ActiveTool::Highlighter,
+            color: 0,
+            width_pt: 8.0,
+            texture: "",
+        });
+        assert!(is_current_pen(&item("highlighter", ""), marker));
+        assert!(!is_current_pen(&item("pen", ""), marker));
+        assert!(!is_current_pen(&item("pen", ""), None));
     }
 
     #[test]
@@ -973,6 +1035,7 @@ mod tests {
             tool: ActiveTool::Highlighter,
             color: 0x1565C0,
             width_pt: 1.0,
+            texture: "",
         });
         assert!(is_current_pen(&HIGHLIGHTER, highlighter));
         assert!(!is_current_pen(&BLUE, highlighter));
@@ -981,6 +1044,7 @@ mod tests {
             tool: ActiveTool::Eraser("point", "large"),
             color: 0,
             width_pt: 0.0,
+            texture: "",
         });
         assert!(is_current_pen(&LARGE_ERASER, point));
         assert!(!is_current_pen(&SMALL_ERASER, point));
@@ -993,6 +1057,7 @@ mod tests {
             tool: ActiveTool::Pen,
             color: 0x1565C0,
             width_pt: 1.0,
+            texture: "",
         });
         assert!(!is_current_pen(&POINT_ERASER, pen));
     }

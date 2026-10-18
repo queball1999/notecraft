@@ -260,6 +260,21 @@ pub(crate) fn page_menu(
         out.push(command(ids::PAGE_PROMOTE_SUBPAGE, &[("id", id.clone())]));
         ui.close();
     }
+    let has_subpages = section
+        .pages
+        .get(index + 1)
+        .is_some_and(|next| next.level > page.level);
+    if has_subpages {
+        let (label, command_id) = if page.collapsed {
+            ("Expand Subpages", ids::PAGE_EXPAND_SUBPAGES)
+        } else {
+            ("Collapse Subpages", ids::PAGE_COLLAPSE_SUBPAGES)
+        };
+        if ui.button(label).clicked() {
+            out.push(command(command_id, &[("id", id.clone())]));
+            ui.close();
+        }
+    }
     if ui.button("Delete Page").clicked() {
         out.push(command(ids::PAGE_DELETE, &[("id", id)]));
         ui.close();

@@ -154,6 +154,12 @@ command_ids! {
     INSERT_FILE_PRINTOUT = "insert.file_printout";
     /// Insert a picture from a file.
     INSERT_PICTURE = "insert.picture";
+    /// Set the display width of a picture by dragging its corner handles.
+    PICTURE_RESIZE = "picture.resize";
+    /// Put a picture at a place of its own on the page by dragging it.
+    PICTURE_MOVE = "picture.move";
+    /// Put a file attachment at a place of its own on the page by dragging it.
+    ATTACHMENT_MOVE = "attachment.move";
     /// Open an attached file in its default app.
     ATTACHMENT_OPEN = "attachment.open";
     /// Capture part of the screen and insert it as a picture.
@@ -198,6 +204,8 @@ command_ids! {
     DRAW_TOOL_DELETE = "draw.tool_delete";
     /// Pick the color of a stroke on the page for the current pen.
     DRAW_EYEDROPPER = "draw.eyedropper";
+    /// Turn on or off Always Create Pages with Rule Lines.
+    DRAW_ALWAYS_RULE_LINES = "draw.always_rule_lines";
     /// Play back how the ink on the page was drawn.
     DRAW_INK_REPLAY = "draw.ink_replay";
     /// Set the color of the current pen.
@@ -344,6 +352,8 @@ command_ids! {
     HELP_FEEDBACK = "help.feedback";
     /// Show the training for NoteCraft.
     HELP_TRAINING = "help.training";
+    /// Show what changed in this version of NoteCraft.
+    HELP_WHATS_NEW = "help.whats_new";
 
     // Navigation: the notebook list, the section tabs, and the page list
     /// Show a notebook, at its first section's first page.
@@ -368,6 +378,10 @@ command_ids! {
     PAGE_MAKE_SUBPAGE = "page.make_subpage";
     /// Move a subpage up one level.
     PAGE_PROMOTE_SUBPAGE = "page.promote_subpage";
+    /// Fold the subpages of a page away in the page list.
+    PAGE_COLLAPSE_SUBPAGES = "page.collapse_subpages";
+    /// Show the subpages of a page again.
+    PAGE_EXPAND_SUBPAGES = "page.expand_subpages";
     /// Add a section group to the current notebook.
     SECTION_GROUP_NEW = "section.group_new";
     /// Rename a section or section group.
@@ -384,6 +398,8 @@ command_ids! {
     NOTEBOOK_SET_COLOR = "notebook.set_color";
     /// Turn the page shown into a plain markdown page, dropping its ink and positions.
     PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
+    /// Replace a canvas block that did not parse with a fresh one that keeps what could be read.
+    PAGE_REPAIR_CANVAS = "page.repair_canvas";
 
     // Search (Phase 2)
     /// Search every open notebook.

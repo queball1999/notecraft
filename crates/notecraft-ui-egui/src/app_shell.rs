@@ -65,11 +65,17 @@ const FILE_OPENS: [CommandId; 3] = [
 
 /// Most files taken from one drop.
 const MAX_DROPPED_FILES: usize = 50;
+/// How far the insert point moves down and right after each insert or dropped file, in page
+/// units, so the objects do not cover each other.
+const INSERT_STEP: f32 = 24.0;
 
 /// Whether a file name has a picture extension the canvas draws.
 fn is_picture_name(name: &str) -> bool {
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
-    matches!(ext.as_deref(), Some("png" | "jpg" | "jpeg" | "webp"))
+    matches!(
+        ext.as_deref(),
+        Some("png" | "jpg" | "jpeg" | "webp" | "svg")
+    )
 }
 
 /// Everything inside the main window.
@@ -100,10 +106,15 @@ pub struct AppShell {
     recent_colors: Vec<String>,
     /// Build and system details for the About page, from the app.
     about: AppInfo,
+    /// The What's New dialog.
+    whats_new: crate::whats_new::WhatsNew,
     /// Text for the clipboard, put there on the next frame.
     pending_copy: Option<String>,
     /// The temporary file holding a clipboard picture while Paste as Picture runs.
     paste_temp: Option<String>,
+    /// A text paste (`Event::Paste`) came in since the last Ctrl+V key release, so that Ctrl+V
+    /// was a text paste.
+    paste_seen: bool,
     /// Ids of the commands that ran through [`AppShell::dispatch`], for tests.
     #[cfg(test)]
     ran: Vec<String>,
@@ -144,6 +155,7 @@ impl AppShell {
             canvas: CanvasUi::default(),
             picker: Box::new(NoPicker),
             paste_temp: None,
+            paste_seen: false,
             shortcuts: Shortcuts::new(),
             installed: None,
             fonts: OsFonts::default(),
@@ -153,6 +165,7 @@ impl AppShell {
             restore_colors: None,
             recent_colors: Vec::new(),
             about: AppInfo::default(),
+            whats_new: crate::whats_new::WhatsNew::new(),
             pending_copy: None,
             #[cfg(test)]
             ran: Vec::new(),
@@ -180,6 +193,17 @@ impl AppShell {
         self
     }
 
+    /// Open the What's New dialog now (the app calls this at the first launch of a version).
+    /// The same dialog opens from `help.whats_new`.
+    pub fn open_whats_new(&mut self) {
+        self.whats_new.open();
+    }
+
+    /// Whether the What's New dialog is open.
+    pub fn whats_new_open(&self) -> bool {
+        self.whats_new.is_open()
+    }
+
     /// The text `file.copy_about_info` copies, for tests.
     pub fn pending_copy(&self) -> Option<&str> {
         self.pending_copy.as_deref()
@@ -195,6 +219,19 @@ impl AppShell {
     /// Replace the Draw tab's pens and highlighters (restoring saved settings).
     pub fn set_pen_tools(&mut self, tools: Vec<notecraft_engine::PenTool>) {
         self.session.set_pen_tools(tools);
+    }
+
+    /// Set the rule style new pages start with, by its `view.rule_lines` id (restoring saved
+    /// settings). An unknown id means none.
+    pub fn set_default_rule_lines(&mut self, id: &str) {
+        let style = notecraft_canvas::RuleLines::from_id(id).unwrap_or_default();
+        self.session.set_default_rule_lines(style);
+    }
+
+    /// The rule style new pages start with, for saving in the settings (`none` when Always
+    /// Create Pages with Rule Lines is off).
+    pub fn default_rule_lines(&self) -> &'static str {
+        self.session.default_rule_lines().id()
     }
 
     /// The Draw tab's pens and highlighters, for saving in the settings.
@@ -281,6 +318,11 @@ impl AppShell {
 
     pub fn session(&self) -> &Session {
         &self.session
+    }
+
+    #[cfg(test)]
+    pub(crate) fn screen_point_of(&self, page: notecraft_core::Vec2) -> Option<egui::Pos2> {
+        self.canvas.screen_point_of(page)
     }
 
     #[cfg(test)]
@@ -386,12 +428,49 @@ impl AppShell {
                 self.toast_open_warnings(output);
             } else if id == ids::FILE_ABOUT.as_str() {
                 self.ribbon.open_backstage_on(ids::FILE_ABOUT);
+            } else if id == ids::HELP_WHATS_NEW.as_str() {
+                self.whats_new.open();
             } else if id == ids::FILE_COPY_ABOUT_INFO.as_str() {
                 self.pending_copy = Some(self.about.plain_text());
                 self.toasts.push("Copied the version and build details.");
             }
         }
         Some(result)
+    }
+
+    /// Ctrl+V with a picture (and no text) on the clipboard inserts the picture. The window
+    /// system layer turns Ctrl+V into a text paste event only when the clipboard holds text and
+    /// swallows the key press otherwise, but it still reports the key release. So a release of
+    /// V with the command key down, with no text paste since the last one, means the clipboard
+    /// had no text: look for a picture and insert it (`edit.paste_picture`). Nothing is said
+    /// when there is none, because Ctrl+V on an empty clipboard is not an error.
+    fn paste_clipboard_picture(&mut self, ctx: &egui::Context) {
+        let events = ctx.input(|input| input.events.clone());
+        let mut wanted = false;
+        for event in &events {
+            match event {
+                egui::Event::Paste(_) => self.paste_seen = true,
+                egui::Event::Key {
+                    key: egui::Key::V,
+                    pressed: false,
+                    modifiers,
+                    ..
+                } if modifiers.command => {
+                    wanted |= !self.paste_seen;
+                    self.paste_seen = false;
+                }
+                _ => {}
+            }
+        }
+        if !wanted {
+            return;
+        }
+        if let Some(path) = self.picker.clipboard_picture() {
+            self.paste_temp = Some(path.clone());
+            let mut args = Map::new();
+            args.insert("path".to_owned(), Value::from(path));
+            self.dispatch(ids::EDIT_PASTE_PICTURE.as_str(), Value::Object(args));
+        }
     }
 
     /// Tell the user when opening a notebook folder skipped something (a folder nested too
@@ -410,6 +489,33 @@ impl AppShell {
         self.toasts.push(text);
     }
 
+    /// A picture or file inserted without a point goes where the user last clicked on empty
+    /// canvas (docs/markdown.md section 3.4). With the caret in a note, or on a page not
+    /// clicked yet, it flows with the text instead.
+    fn add_insert_point(&mut self, id: &str, args: &mut Map<String, Value>) {
+        let places = [
+            ids::INSERT_PICTURE,
+            ids::INSERT_FILE_ATTACHMENT,
+            ids::EDIT_PASTE_PICTURE,
+        ];
+        if !places.iter().any(|p| p.as_str() == id) || args.contains_key("x") {
+            return;
+        }
+        // With the caret in a note the object goes inline at the caret, as OneNote does.
+        if self.session.text_cursor().is_some() {
+            return;
+        }
+        let Some(page) = self.session.selection().page.clone() else {
+            return;
+        };
+        let Some(at) = self.canvas.insert_point(&page) else {
+            return;
+        };
+        args.insert("x".to_owned(), Value::from(f64::from(at.x)));
+        args.insert("y".to_owned(), Value::from(f64::from(at.y)));
+        self.canvas.step_insert_point(INSERT_STEP);
+    }
+
     /// `args` with a `path` from the picker if `id` is a file command sent without one.
     /// `None` when the user canceled the picker.
     fn fill_path(&mut self, id: &str, args: Value) -> Option<Value> {
@@ -418,6 +524,7 @@ impl AppShell {
             Value::Object(map) => map,
             other => return Some(other),
         };
+        self.add_insert_point(id, &mut map);
         if map.contains_key("path") {
             return Some(Value::Object(map));
         }
@@ -489,7 +596,12 @@ impl AppShell {
         {
             return;
         }
-        for file in dropped.into_iter().take(MAX_DROPPED_FILES) {
+        // A file dropped on the page lands where it was dropped, each further file a step lower
+        // and to the right.
+        let drop_at = ctx
+            .input(|input| input.pointer.hover_pos().or(input.pointer.latest_pos()))
+            .and_then(|pos| self.canvas.page_point_at(pos));
+        for (index, file) in dropped.into_iter().take(MAX_DROPPED_FILES).enumerate() {
             let path = file.path().to_path_buf();
             let text = path.to_string_lossy().into_owned();
             let name = path
@@ -503,6 +615,11 @@ impl AppShell {
             };
             let mut args = Map::new();
             args.insert("path".to_owned(), Value::from(text));
+            if let Some(at) = drop_at {
+                let step = INSERT_STEP * index as f32;
+                args.insert("x".to_owned(), Value::from(f64::from(at.x + step)));
+                args.insert("y".to_owned(), Value::from(f64::from(at.y + step)));
+            }
             self.dispatch(id.as_str(), Value::Object(args));
         }
     }
@@ -517,9 +634,12 @@ impl AppShell {
     /// Draw the window contents (eframe `ui`).
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let tokens = self.tokens(ui.ctx());
+        // First, so Esc closes the dialog before any shortcut sees it.
+        self.whats_new.show(ui.ctx(), &tokens, &self.about.version);
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
         self.insert_dropped_files(ui.ctx());
+        self.paste_clipboard_picture(ui.ctx());
         self.flush_copy(ui.ctx());
         self.font_list.load_previews(ui.ctx());
         if let Some(colors) = self.restore_colors.take() {
@@ -540,6 +660,7 @@ impl AppShell {
                 highlighter: tool.kind == notecraft_engine::ToolKind::Highlighter,
                 color: tool.style.color.0,
                 width_pt: tool.style.width_pt,
+                texture: tool.style.texture,
             })
             .collect();
         let look = ribbon::Look {
@@ -547,11 +668,14 @@ impl AppShell {
             registry: &self.registry,
             fonts: &self.families,
             rule_lines: self.session.page_style().rule_lines.id(),
+            always_rule_lines: self.session.default_rule_lines()
+                != notecraft_canvas::RuleLines::None,
             pen: active_pen(self.session.ink()),
             tools: &tool_views,
             selected_tool: self.session.ink().selected_tool(),
             can_undo: self.session.can_undo(),
             can_redo: self.session.can_redo(),
+            can_convert: self.session.can_convert_to_markdown(),
         };
         if self.ribbon.backstage_open() {
             let clicked = self
@@ -722,6 +846,7 @@ fn active_pen(ink: &notecraft_engine::InkState) -> Option<ribbon::ActivePen> {
         tool,
         color: u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
         width_pt: style.width_pt,
+        texture: style.texture.id(),
     })
 }
 
@@ -1208,13 +1333,14 @@ mod tests {
     }
 
     #[test]
-    fn help_tab_has_its_four_buttons() {
+    fn help_tab_has_its_buttons() {
         use egui::accesskit::Role;
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         harness.get_by_label("Help").click();
         harness.run();
         assert_eq!(harness.state().ribbon().selected(), "Help");
+        let _ = harness.get_by_role_and_label(Role::Button, "What's New");
         for label in ["Help", "Support", "Feedback", "Show Training"] {
             harness.get_by_role_and_label(Role::Button, label).click();
             harness.run();
@@ -2278,6 +2404,51 @@ mod tests {
             harness.state().session().selection().page.as_deref(),
             Some("nb_basic_sample/Reference/Recipes.md")
         );
+    }
+
+    #[test]
+    fn collapsing_a_parent_hides_its_subpages_in_the_page_list() {
+        // A temporary notebook: collapsing writes the section file.
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Journal");
+        std::fs::create_dir_all(&section).unwrap();
+        for name in ["Welcome", "Daily log", "Monday", "Morning run", "Tuesday"] {
+            std::fs::write(section.join(format!("{name}.md")), "text").unwrap();
+        }
+        std::fs::write(
+            section.join(".section.toml"),
+            "kind = \"section\"
+pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, { file = \"Morning run.md\", level = 2 }, { file = \"Tuesday.md\", level = 1 }]
+",
+        )
+        .unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        let notebook = harness.state().session().notebooks()[0].id.clone();
+        let parent = format!("{notebook}/Journal/Daily log.md");
+        let subpages = ["Monday", "Morning run", "Tuesday"];
+        for label in subpages {
+            let _ = harness.get_by_label(label);
+        }
+        let run = |h: &mut egui_kittest::Harness<'_, AppShell>, id: &str| {
+            let args = serde_json::json!({ "id": &parent });
+            let done = h.state_mut().run_command(id, args);
+            assert!(matches!(done, Some(Ok(_))), "{id}");
+            h.run();
+        };
+        run(&mut harness, "page.collapse_subpages");
+        for label in subpages {
+            assert!(harness.query_by_label(label).is_none(), "{label}");
+        }
+        let _ = harness.get_by_label("Daily log");
+        let _ = harness.get_by_label("Welcome");
+        run(&mut harness, "page.expand_subpages");
+        for label in subpages {
+            let _ = harness.get_by_label(label);
+        }
     }
 
     #[test]

@@ -79,6 +79,9 @@ pub struct Look<'a> {
     /// The rule lines style of the current page (its `view.rule_lines` id), marked in the Rule
     /// Lines menu.
     pub rule_lines: &'static str,
+    /// Whether new pages start with rule lines (`draw.always_rule_lines`), checked in the Format
+    /// Background menu.
+    pub always_rule_lines: bool,
     /// The pen in use (the Draw tab's Pen is the tool): its color as 0xRRGGBB and its width in
     /// points. The pen, color, and thickness menus mark the entry that matches.
     pub pen: Option<ActivePen>,
@@ -88,6 +91,9 @@ pub struct Look<'a> {
     /// Whether Undo and Redo have a step; the quick access buttons are disabled when not.
     pub can_undo: bool,
     pub can_redo: bool,
+    /// The page shown is a `.notecraft` page that can be converted to markdown; the File Info
+    /// page then offers the Convert to Markdown button.
+    pub can_convert: bool,
 }
 
 /// One pen or highlighter of the Draw tab's list, as the ribbon draws it.
@@ -97,6 +103,8 @@ pub struct ToolView {
     /// RGBA.
     pub color: [u8; 4],
     pub width_pt: f32,
+    /// The pencil or a textured pen; plain for the rest.
+    pub texture: notecraft_core::InkTexture,
 }
 
 /// The pen the Draw tab has selected, for marking it in the menus.
@@ -106,6 +114,8 @@ pub struct ActivePen {
     /// The color as 0xRRGGBB and the width in points; unused by the eraser.
     pub color: u32,
     pub width_pt: f32,
+    /// The id of the texture of the pen (empty for a plain pen, a highlighter, and the eraser).
+    pub texture: &'static str,
 }
 
 /// Which Draw tab tool is in use, for marking its menu entry.

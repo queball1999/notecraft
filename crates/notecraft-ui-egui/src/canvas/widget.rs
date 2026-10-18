@@ -7,7 +7,7 @@ use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::{mock, DrawTool, Session};
 
-use super::{editing, flow, ink, paper, pictures, title, CanvasUi, PageToScreen};
+use super::{editing, flow, ink, paper, picture_ui, pictures, title, CanvasUi, PageToScreen};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -56,6 +56,7 @@ pub fn show(
             geometry: &geometry,
             cursor,
             preedit: &preedit,
+            objects: session.page_objects(source.page_id),
         };
         let mut loader = pictures::PictureLoader {
             cache: &mut cache,
@@ -67,11 +68,10 @@ pub fn show(
     });
     state.pictures = cache;
     let flow = page.as_ref().map(|(_, _, _, laid)| laid);
-    let mut extent = content_extent(origin, view_size, style.paper_size.size());
-    if let Some(flow) = flow {
-        extent.x = extent.x.max(flow.width);
-        extent.y = extent.y.max(flow.height);
-    }
+    let extent = page_extent(
+        content_extent(origin, view_size, style.paper_size.size()),
+        flow.map(|flow| Vec2::new(flow.width, flow.height)),
+    );
     let extent = extent * zoom;
     let notice = session.current_page_notice().map(|n| n.text.clone());
     let reader_text = match (&notice, &flow) {
@@ -107,6 +107,7 @@ pub fn show(
                     origin: content.min,
                     zoom,
                 };
+                state.last_map = Some((map, rect));
                 let screen = visible.translate(content.min.to_vec2());
                 // Screen readers get the visible part of the page, not the whole scrollable
                 // content, so their highlight and their click land on screen.
@@ -122,18 +123,33 @@ pub fn show(
                         node.set_value(text.clone());
                     }
                 });
-                let frame = capture_ink(ui, &response, session, state, map, shown, clicked);
-                paper::draw(ui.painter(), screen, map, style, tokens);
-                // Highlighter ink goes above the paper and under the text.
-                paint_highlights(
+                let paper_color = paper::paper_color(style, tokens);
+                let frame = capture_ink(
                     ui,
+                    &response,
                     session,
                     state,
                     map,
                     shown,
-                    &frame,
-                    paper::paper_color(style, tokens),
+                    clicked,
+                    PageColors {
+                        flow,
+                        text: tokens.text,
+                        paper: paper_color,
+                    },
                 );
+                paper::draw(ui.painter(), screen, map, style, tokens);
+                // Highlighter ink multiplies over the page content when the app installed the
+                // paint callback (drawn after the text, below). Without it, the ink is an
+                // opaque pre-blend above the paper and under the text.
+                let multiply = ink::InkUi::can_multiply(
+                    ui.ctx(),
+                    session.current_ink(),
+                    ink::visible_box(map, shown),
+                );
+                if !multiply {
+                    paint_highlights(ui, session, state, map, shown, &frame, Some(paper_color));
+                }
                 if let Some(page) = session.current_page() {
                     let editable = session.page_is_editable(&page.id)
                         && session.ink().tool() == DrawTool::Type;
@@ -150,7 +166,34 @@ pub fn show(
                 }
                 if let Some((page_id, text, parsed, flow)) = &page {
                     flow::paint(ui.painter(), map, flow, tokens);
-                    file_clicks(ui, map, flow, clicked);
+                    let type_tool = session.ink().tool() == DrawTool::Type;
+                    picture_ui::files(
+                        ui,
+                        map,
+                        flow,
+                        &mut state.pictures,
+                        type_tool && session.page_is_editable(page_id),
+                        clicked,
+                    );
+                    let on_picture = type_tool
+                        && picture_ui::show(
+                            ui,
+                            map,
+                            flow,
+                            &mut state.pictures,
+                            session.page_is_editable(page_id),
+                            tokens,
+                            clicked,
+                        );
+                    if response.clicked() && !on_picture {
+                        state.pictures.selected = None;
+                    }
+                    if type_tool && !on_picture && (response.clicked() || response.double_clicked())
+                    {
+                        if let Some(pos) = response.interact_pointer_pos() {
+                            state.remember_click(page_id, map.page(pos), flow);
+                        }
+                    }
                     let frame = editing::Frame {
                         session,
                         parsed,
@@ -176,6 +219,9 @@ pub fn show(
                         egui::FontId::proportional(flow::BODY_SIZE * zoom),
                         tokens.accent,
                     );
+                }
+                if multiply {
+                    paint_highlights(ui, session, state, map, shown, &frame, None);
                 }
                 paint_pens(ui, &response, session, state, map, shown, &frame, tokens);
                 if response.has_focus() {
@@ -214,37 +260,6 @@ pub fn show(
     output.inner_rect.width()
 }
 
-/// A click on a file attachment opens it (the `attachment.open` command). Keyboard users
-/// reach each attachment as a button and press Enter.
-fn file_clicks(ui: &egui::Ui, map: PageToScreen, flow: &flow::Flow, clicked: &mut Vec<Clicked>) {
-    for (index, hit) in flow.files.iter().enumerate() {
-        let rect = Rect::from_min_max(
-            map.pos(Vec2::new(hit.rect.min.x, hit.rect.min.y)),
-            map.pos(Vec2::new(hit.rect.max.x, hit.rect.max.y)),
-        );
-        if !rect.intersects(ui.clip_rect()) {
-            continue;
-        }
-        let id = ui.id().with(("attachment", index));
-        let response = ui.interact(rect, id, Sense::click());
-        let name = hit.name.clone();
-        response.widget_info(|| {
-            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("Open {name}"))
-        });
-        if response.hovered() {
-            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
-        }
-        if response.clicked() || response.double_clicked() {
-            let mut args = Map::new();
-            args.insert("src".to_owned(), Value::from(hit.link.clone()));
-            clicked.push(Clicked {
-                command: ids::ATTACHMENT_OPEN,
-                args: Value::Object(args),
-            });
-        }
-    }
-}
-
 /// What one frame of ink capture found, for the two paint passes.
 struct InkFrame {
     tool: DrawTool,
@@ -264,6 +279,7 @@ fn capture_ink(
     map: PageToScreen,
     shown: Rect,
     clicked: &mut Vec<Clicked>,
+    colors: PageColors<'_>,
 ) -> InkFrame {
     let tool = session.ink().tool();
     let style = match tool {
@@ -292,7 +308,7 @@ fn capture_ink(
         } else if response.clicked() {
             if let Some(at) = response.interact_pointer_pos() {
                 let page = map.page(at);
-                clicked.push(eyedropper_click(page, map.zoom));
+                clicked.push(eyedropper_click(page, map.zoom, &colors));
                 crate::ribbon::set_eyedropper(&ctx, false);
             }
         }
@@ -314,14 +330,29 @@ fn capture_ink(
     }
 }
 
+/// What the Eyedropper can read besides ink: the laid out page text and the paper color.
+struct PageColors<'a> {
+    flow: Option<&'a flow::Flow>,
+    /// The color of text with no color of its own.
+    text: egui::Color32,
+    paper: egui::Color32,
+}
+
 /// The `draw.eyedropper` command for a click at page position `page`. The reach is a few
 /// screen pixels, so thin ink is easy to hit at any zoom.
-fn eyedropper_click(page: Vec2, zoom: f32) -> Clicked {
+fn eyedropper_click(page: Vec2, zoom: f32, colors: &PageColors<'_>) -> Clicked {
     let round = |v: f32| (f64::from(v) * 100.0).round() / 100.0;
     let mut args = notecraft_engine::cmd::Map::new();
     args.insert("x".to_owned(), round(page.x).into());
     args.insert("y".to_owned(), round(page.y).into());
     args.insert("radius".to_owned(), round(4.0 / zoom.max(0.01)).into());
+    // With no ink there, the page gives its color: the text under the point, else the paper.
+    let under = colors
+        .flow
+        .and_then(|flow| flow.text_color_at(page, colors.text))
+        .unwrap_or(colors.paper);
+    let text = format!("#{:02X}{:02X}{:02X}", under.r(), under.g(), under.b());
+    args.insert("page_color".to_owned(), text.into());
     Clicked {
         command: notecraft_engine::cmd::ids::DRAW_EYEDROPPER,
         args: notecraft_engine::cmd::Value::Object(args),
@@ -336,22 +367,34 @@ fn paint_highlights(
     map: PageToScreen,
     shown: Rect,
     frame: &InkFrame,
-    paper: egui::Color32,
+    paper: Option<egui::Color32>,
 ) {
     let preview = frame
         .preview
         .as_deref()
         .zip(frame.style)
         .filter(|_| frame.tool == DrawTool::Highlighter);
-    state.ink.paint_highlights(
-        ui.painter(),
-        map,
-        ink::visible_box(map, shown),
-        session.selection().page.as_deref(),
-        session.current_ink(),
-        preview,
-        paper,
-    );
+    let visible = ink::visible_box(map, shown);
+    let page = session.selection().page.as_deref();
+    match paper {
+        Some(paper) => state.ink.paint_highlights(
+            ui.painter(),
+            map,
+            visible,
+            page,
+            session.current_ink(),
+            preview,
+            paper,
+        ),
+        None => state.ink.paint_highlights_multiply(
+            ui.painter(),
+            map,
+            visible,
+            page,
+            session.current_ink(),
+            preview,
+        ),
+    }
 }
 
 /// The pen pass: over the page text, and the eraser's circle at the pointer.
@@ -437,9 +480,31 @@ fn content_extent(origin: Vec2, view: Vec2, paper: Option<Vec2>) -> Vec2 {
     )
 }
 
+/// The scroll extent once the content is known: it grows to the right and bottom edge of
+/// the content, even past the paper (CV-06).
+fn page_extent(base: Vec2, content: Option<Vec2>) -> Vec2 {
+    match content {
+        Some(c) => Vec2::new(base.x.max(c.x), base.y.max(c.y)),
+        None => base,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_page_grows_past_the_paper_with_a_container_placed_beyond_it() {
+        let view = Vec2::new(800.0, 600.0);
+        let paper = Some(Vec2::new(816.0, 1344.0));
+        let base = content_extent(Vec2::ZERO, view, paper);
+        assert_eq!(base, Vec2::new(1600.0, 1344.0));
+        let grown = page_extent(base, Some(Vec2::new(2100.0, 3000.0)));
+        assert_eq!(grown, Vec2::new(2100.0, 3000.0));
+        // Content inside the paper changes nothing.
+        assert_eq!(page_extent(base, Some(Vec2::new(300.0, 400.0))), base);
+        assert_eq!(page_extent(base, None), base);
+    }
 
     #[test]
     fn content_reaches_one_screen_past_the_view_or_the_paper() {

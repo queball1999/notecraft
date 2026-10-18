@@ -71,6 +71,8 @@ pub struct PageEntry {
     pub title: String,
     /// 0 for a page, 1 for a subpage, 2 for a sub-subpage.
     pub level: u8,
+    /// True when the page's subpages are folded away in the page list.
+    pub collapsed: bool,
     pub kind: PageKind,
 }
 
@@ -277,6 +279,30 @@ pub fn scan_notebook_with(root: &Path, limits: ScanLimits) -> Result<NotebookTre
     })
 }
 
+/// The notebook-level facts a tree built from the index still needs from `notebook.toml`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NotebookHeader {
+    pub id: String,
+    pub name: String,
+    pub color: Option<u32>,
+}
+
+/// Read just the notebook id, name, and color, without listing the folder. A missing or bad
+/// `notebook.toml` gives the same defaults [`scan_notebook`] uses.
+pub fn read_notebook_header(root: &Path) -> NotebookHeader {
+    let (config, _) = read_notebook_config(&root.join(NOTEBOOK_DIR_NAME).join(NOTEBOOK_FILE_NAME));
+    NotebookHeader {
+        id: config.id.clone().unwrap_or_else(|| derived_id(root)),
+        name: config.name.clone().unwrap_or_else(|| folder_name(root)),
+        color: config.color,
+    }
+}
+
+/// The notebook index database inside a notebook folder.
+pub fn index_path(root: &Path) -> PathBuf {
+    root.join(NOTEBOOK_DIR_NAME).join("index.sqlite")
+}
+
 /// The notebook id used when `notebook.toml` has none: `dir-` and 16 hex digits of an
 /// FNV-1a hash of the folder path, so it is the same on every open of the same path.
 pub fn derived_id(root: &Path) -> String {
@@ -432,14 +458,12 @@ impl Scanner {
         let mut entries = Vec::new();
         for file in ordered {
             // The first listing of a file decides its level.
-            let level = config
-                .pages
-                .iter()
-                .find(|listing| listing.file == file)
-                .map_or(0, |listing| listing.level);
-            let Some(entry) = page_entry(rel, &file, level) else {
+            let listing = config.pages.iter().find(|listing| listing.file == file);
+            let level = listing.map_or(0, |listing| listing.level);
+            let Some(mut entry) = page_entry(rel, &file, level) else {
                 continue;
             };
+            entry.collapsed = listing.is_some_and(|listing| listing.collapsed);
             if !seen.insert(entry.title.to_lowercase()) {
                 self.warn(&entry.rel_path, WarningKind::DuplicatePage);
             }
@@ -499,6 +523,7 @@ fn page_entry(section_rel: &str, file: &str, level: u8) -> Option<PageEntry> {
         file_name: file.to_owned(),
         title: stem.to_owned(),
         level: level.min(MAX_PAGE_LEVEL),
+        collapsed: false,
         kind,
     })
 }

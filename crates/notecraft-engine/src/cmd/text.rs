@@ -125,7 +125,7 @@ impl Ctx {
     /// Check `edit` against the markers and the frontmatter, fixing the one case that can be
     /// fixed: text typed at the very end of a container would land on the next marker's line,
     /// so a line break goes after it.
-    fn guard(&self, mut edit: TextEdit) -> Option<TextEdit> {
+    pub(super) fn guard(&self, mut edit: TextEdit) -> Option<TextEdit> {
         let end = edit.at.checked_add(edit.remove)?;
         if end > self.visible || edit.at < self.doc.body_start {
             return None;
@@ -163,6 +163,49 @@ impl Ctx {
             }
         }
         Some(edit)
+    }
+
+    /// The edit that puts `markdown` at the caret, replacing the selection, as typed text would
+    /// go. A `block` object (a file attachment) must be a paragraph of its own, so blank lines
+    /// are added around it where the text next to it needs them. `None` where typing there is
+    /// refused (a marker line, the frontmatter).
+    pub(super) fn inline_edit(&self, markdown: &str, block: bool) -> Option<TextEdit> {
+        let (lo, hi) = (
+            self.cursor.anchor.min(self.cursor.head),
+            self.cursor.anchor.max(self.cursor.head),
+        );
+        let before = self.text.get(..lo)?;
+        let after = self.text.get(hi..self.visible.max(hi))?;
+        let mut body = for_page(self, markdown);
+        if block {
+            let blank_before =
+                before.is_empty() || before.ends_with("\n\n") || before.ends_with("\r\n\r\n");
+            let lead = if blank_before {
+                ""
+            } else if before.ends_with('\n') {
+                self.eol
+            } else {
+                match self.eol {
+                    "\r\n" => "\r\n\r\n",
+                    _ => "\n\n",
+                }
+            };
+            let blank_after =
+                after.is_empty() || after.starts_with("\n\n") || after.starts_with("\r\n\r\n");
+            let trail = if blank_after {
+                ""
+            } else if after.starts_with('\n') || after.starts_with("\r\n") {
+                self.eol
+            } else {
+                match self.eol {
+                    "\r\n" => "\r\n\r\n",
+                    _ => "\n\n",
+                }
+            };
+            body = format!("{lead}{body}{trail}");
+        }
+        let edit = text::insert(self.cursor.anchor, self.cursor.head, &body)?;
+        self.guard(edit)
     }
 
     /// Apply `edit` as one undo step and put the selection where it says.
@@ -399,7 +442,7 @@ pub(super) fn select_all(
 }
 
 /// Normalize the line endings of text to insert to the page's own.
-fn for_page(ctx: &Ctx, text: &str) -> String {
+pub(super) fn for_page(ctx: &Ctx, text: &str) -> String {
     let eol = if ctx.eol == "\r\n" {
         LineEnding::Crlf
     } else {

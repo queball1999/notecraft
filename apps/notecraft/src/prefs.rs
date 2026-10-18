@@ -23,6 +23,49 @@ pub struct Prefs {
     pub recent: RecentPrefs,
     pub colors: ColorPrefs,
     pub draw: DrawPrefs,
+    pub whats_new: WhatsNewPrefs,
+}
+
+/// Which version's What's New dialog the user has already been shown. Stored as text; a value
+/// of the wrong type is read as "never shown" instead of failing the file.
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct WhatsNewPrefs {
+    #[serde(deserialize_with = "lenient_string")]
+    pub seen_version: String,
+}
+
+fn lenient_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Any {
+        Text(String),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Any::deserialize(deserializer)? {
+        Any::Text(text) => text,
+        Any::Other(_) => String::new(),
+    })
+}
+
+impl WhatsNewPrefs {
+    /// Decide whether What's New opens at this launch, and if so record that `version` was
+    /// shown (so a crash right after does not show it again). `allowed` is false for runs
+    /// that must never show it: the control channel, and runs with no settings folder
+    /// (agent and test runs) where nothing could be remembered. Not allowed leaves the
+    /// record alone.
+    pub fn take_launch_slot(&mut self, version: &str, allowed: bool) -> bool {
+        if !allowed
+            || !notecraft_engine::whats_new::should_show_at_launch(&self.seen_version, version)
+        {
+            return false;
+        }
+        version.trim().clone_into(&mut self.seen_version);
+        true
+    }
 }
 
 /// The color menus' Recent Colors, newest first, as `#RRGGBB` or `#RRGGBBAA`. The front end
@@ -50,6 +93,9 @@ impl ColorPrefs {
 #[serde(default)]
 pub struct DrawPrefs {
     pub tools: Option<Vec<ToolPref>>,
+    /// The rule style new pages start with (Always Create Pages with Rule Lines): a
+    /// `view.rule_lines` id, or `none`. An id this version does not know is read as `none`.
+    pub new_page_rules: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -61,6 +107,9 @@ pub struct ToolPref {
     pub color: String,
     /// Width in points.
     pub width: f32,
+    /// A texture id (`pencil`, `rainbow`, ...); empty for a plain pen. One this version does
+    /// not know is read as a plain pen in the saved color.
+    pub texture: String,
 }
 
 impl Default for ToolPref {
@@ -69,11 +118,28 @@ impl Default for ToolPref {
             kind: "pen".to_owned(),
             color: "#000000".to_owned(),
             width: 1.0,
+            texture: String::new(),
         }
     }
 }
 
 impl DrawPrefs {
+    /// The saved rule style for new pages; `none` when never set.
+    pub fn default_rules(&self) -> &str {
+        if self.new_page_rules.is_empty() {
+            "none"
+        } else {
+            &self.new_page_rules
+        }
+    }
+
+    /// Record the session's rule style for new pages; leaves it alone when nothing changed.
+    pub fn observe_rules(&mut self, id: &str) {
+        if self.default_rules() != id {
+            self.new_page_rules = id.to_owned();
+        }
+    }
+
     /// The saved tools, with bad entries dropped and the count capped; the built-in set when
     /// the list was never changed.
     pub fn tools(&self) -> Vec<PenTool> {
@@ -81,7 +147,7 @@ impl DrawPrefs {
             None => default_pen_tools(),
             Some(saved) => saved
                 .iter()
-                .filter_map(|t| PenTool::from_saved(&t.kind, &t.color, t.width))
+                .filter_map(|t| PenTool::from_saved(&t.kind, &t.color, t.width, &t.texture))
                 .take(MAX_PEN_TOOLS)
                 .collect(),
         }
@@ -100,11 +166,12 @@ impl DrawPrefs {
                 tools
                     .iter()
                     .map(|tool| {
-                        let (kind, color, width) = tool.to_saved();
+                        let (kind, color, width, texture) = tool.to_saved();
                         ToolPref {
                             kind: kind.to_owned(),
                             color,
                             width,
+                            texture: texture.to_owned(),
                         }
                     })
                     .collect(),
@@ -312,6 +379,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn whats_new_opens_on_the_first_launch_and_records_the_version() {
+        let mut prefs = Prefs::default();
+        assert!(prefs.whats_new.take_launch_slot("0.0.2", true));
+        assert_eq!(prefs.whats_new.seen_version, "0.0.2");
+        // It survives the settings file, so the next launch of the same version is quiet.
+        let text = toml::to_string(&prefs).unwrap();
+        let mut back: Prefs = toml::from_str(&text).unwrap();
+        assert!(!back.whats_new.take_launch_slot("0.0.2", true));
+        // A newer version shows it once more; a downgrade does too.
+        assert!(back.whats_new.take_launch_slot("0.0.3", true));
+        assert!(!back.whats_new.take_launch_slot("0.0.3", true));
+        assert!(back.whats_new.take_launch_slot("0.0.2", true));
+        assert_eq!(back.whats_new.seen_version, "0.0.2");
+    }
+
+    #[test]
+    fn whats_new_survives_a_damaged_stored_value() {
+        for text in [
+            "[whats_new]\nseen_version = 7\n",
+            "[whats_new]\nseen_version = [1, 2]\n",
+            "[whats_new]\nseen_version = \"\"\n",
+            "[whats_new]\nseen_version = \"not a version at all\"\n",
+            "[whats_new]\n",
+        ] {
+            let mut prefs: Prefs = toml::from_str(text).unwrap();
+            assert!(prefs.whats_new.take_launch_slot("0.0.2", true), "{text}");
+            assert_eq!(prefs.whats_new.seen_version, "0.0.2");
+        }
+        // Other settings in the same file are not lost to the damaged key.
+        let prefs: Prefs =
+            toml::from_str("[whats_new]\nseen_version = 7\n[theme]\nmode = \"dark\"\n").unwrap();
+        assert_eq!(prefs.theme.mode, "dark");
+    }
+
+    #[test]
+    fn whats_new_never_opens_when_not_allowed() {
+        let mut prefs = Prefs::default();
+        assert!(!prefs.whats_new.take_launch_slot("0.0.2", false));
+        assert_eq!(prefs.whats_new.seen_version, "");
+    }
+
+    #[test]
     fn the_pen_list_is_saved_only_when_changed_and_restores_bounded() {
         let mut prefs = DrawPrefs::default();
         assert_eq!(prefs.tools(), default_pen_tools());
@@ -319,7 +428,7 @@ mod tests {
         assert_eq!(prefs.tools, None);
         let mut edited = default_pen_tools();
         edited.pop();
-        edited.push(PenTool::from_saved("pen", "#E36C09", 3.5).unwrap());
+        edited.push(PenTool::from_saved("pen", "#E36C09", 3.5, "").unwrap());
         prefs.observe(&edited);
         assert!(prefs.tools.is_some());
         assert_eq!(prefs.tools(), edited);
@@ -337,6 +446,38 @@ mod tests {
         // An emptied list is kept as empty, not replaced by the defaults.
         prefs.observe(&[]);
         assert_eq!(prefs.tools(), Vec::new());
+    }
+
+    #[test]
+    fn textured_pens_are_saved_and_an_unknown_texture_falls_back_to_a_plain_pen() {
+        let mut prefs = DrawPrefs::default();
+        let mut tools = default_pen_tools();
+        tools.push(PenTool::textured(notecraft_engine::InkTexture::Galaxy, 3.0));
+        tools.push(PenTool::textured(notecraft_engine::InkTexture::Pencil, 1.0));
+        prefs.observe(&tools);
+        let text = toml::to_string(&Prefs {
+            draw: prefs,
+            ..Prefs::default()
+        })
+        .unwrap();
+        assert!(text.contains("galaxy") && text.contains("pencil"));
+        let back: Prefs = toml::from_str(&text).unwrap();
+        assert_eq!(back.draw.tools(), tools);
+        // An older file has no texture key; a newer file may name one this version lacks.
+        let text = r##"
+            [draw]
+            tools = [
+                { kind = "pen", color = "#112233", width = 2.0 },
+                { kind = "pen", color = "#445566", width = 2.0, texture = "sparkle" },
+                { kind = "highlighter", color = "#FFF176", width = 8.0, texture = "gold" },
+            ]
+        "##;
+        let tools = toml::from_str::<Prefs>(text).unwrap().draw.tools();
+        assert_eq!(tools.len(), 3);
+        for tool in &tools {
+            assert_eq!(tool.style.texture, notecraft_engine::InkTexture::Plain);
+        }
+        assert_eq!(tools[1].style.color.to_hex(), "#445566");
     }
 
     #[test]

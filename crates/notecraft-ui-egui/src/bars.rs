@@ -21,6 +21,9 @@ pub enum Bar {
     Recovery(usize),
     /// The page shown changed outside NoteCraft.
     Conflict,
+    /// The ink and layout data of the page shown did not parse; the page is read-only until a
+    /// fresh block replaces it (`page.repair_canvas`).
+    CanvasUnreadable,
 }
 
 /// The bar to show now, if any. Recovery comes first.
@@ -30,6 +33,8 @@ pub fn current(session: &Session) -> Option<Bar> {
         Some(Bar::Recovery(pending))
     } else if session.current_conflict().is_some() {
         Some(Bar::Conflict)
+    } else if session.can_repair_canvas() {
+        Some(Bar::CanvasUnreadable)
     } else {
         None
     }
@@ -56,16 +61,20 @@ pub fn message(bar: Bar) -> String {
         Bar::Conflict => {
             "This page was changed outside NoteCraft. Your version is still open.".to_owned()
         }
+        Bar::CanvasUnreadable => {
+            "The ink and layout of this page could not be read, so it is read-only.".to_owned()
+        }
     }
 }
 
-fn buttons(bar: Bar) -> [(&'static str, CommandId); 2] {
+fn buttons(bar: Bar) -> Vec<(&'static str, CommandId)> {
     match bar {
-        Bar::Recovery(_) => [
+        Bar::CanvasUnreadable => vec![("Repair", ids::PAGE_REPAIR_CANVAS)],
+        Bar::Recovery(_) => vec![
             ("Restore", ids::FILE_RESTORE_UNSAVED),
             ("Discard", ids::FILE_DISCARD_UNSAVED),
         ],
-        Bar::Conflict => [
+        Bar::Conflict => vec![
             ("Keep my version", ids::FILE_KEEP_MY_VERSION),
             ("Use outside version", ids::FILE_USE_OUTSIDE_VERSION),
         ],
@@ -121,8 +130,36 @@ mod tests {
 
     #[test]
     fn messages_are_plain_ascii() {
-        for bar in [Bar::Recovery(1), Bar::Recovery(3), Bar::Conflict] {
+        for bar in [
+            Bar::Recovery(1),
+            Bar::Recovery(3),
+            Bar::Conflict,
+            Bar::CanvasUnreadable,
+        ] {
             assert!(message(bar).is_ascii());
         }
+    }
+
+    #[test]
+    fn an_unreadable_canvas_block_shows_the_repair_bar() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("Sec")).unwrap();
+        let text = "Words
+
+```notecraft-canvas
+{ \"ink\": [ 
+```
+";
+        std::fs::write(dir.path().join("Sec/A.notecraft"), text).unwrap();
+        let mut session = Session::new();
+        let opened = notecraft_engine::open::open_folder(dir.path()).unwrap();
+        let id = opened.notebook.id.clone();
+        session.open_notebook(opened.notebook);
+        session.set_notebook_root(&id, dir.path());
+        session.load_current_page();
+        assert_eq!(current(&session), Some(Bar::CanvasUnreadable));
+        assert!(height(&session) > 0.0);
+        let labels = buttons(Bar::CanvasUnreadable);
+        assert_eq!(labels, vec![("Repair", ids::PAGE_REPAIR_CANVAS)]);
     }
 }

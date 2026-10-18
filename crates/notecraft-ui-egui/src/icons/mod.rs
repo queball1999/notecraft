@@ -154,6 +154,7 @@ icons! {
     Support => |p, _| help::support(p);
     Feedback => |p, _| help::feedback(p);
     Training => |p, _| help::training(p);
+    WhatsNew => |p, _| help::whats_new(p);
 }
 
 /// Colors an icon may use besides its main color.
@@ -187,6 +188,8 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, colors: IconColors) {
 pub enum ToolShape {
     /// A slim pen with a pointed tip.
     Pen,
+    /// A pencil: a body with an eraser cap, a sharpened wooden cone, and a point.
+    Pencil,
     /// A broad marker with a chisel tip.
     Highlighter,
 }

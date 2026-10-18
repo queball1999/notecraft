@@ -239,6 +239,9 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
                 escape(&run.text, in_cell),
                 escape_url(url)
             ));
+            if let Some(width) = run.image_width {
+                out.push_str(&crate::image::width_comment(width));
+            }
             continue;
         }
         let mut text = if run.code {

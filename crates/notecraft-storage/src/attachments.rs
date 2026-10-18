@@ -294,10 +294,13 @@ pub fn decode_link_path(link: &str) -> String {
 }
 
 /// Whether the file name has a picture extension NoteCraft draws on the canvas (PNG, JPEG,
-/// WebP).
+/// WebP, SVG).
 pub fn is_picture_name(name: &str) -> bool {
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
-    matches!(ext.as_deref(), Some("png" | "jpg" | "jpeg" | "webp"))
+    matches!(
+        ext.as_deref(),
+        Some("png" | "jpg" | "jpeg" | "webp" | "svg")
+    )
 }
 
 /// File extensions that run code when opened. Opening an attachment with one of these is
@@ -560,8 +563,13 @@ mod tests {
 
     #[test]
     fn picture_and_runnable_names() {
-        assert!(is_picture_name("A.PNG") && is_picture_name("x.jpeg") && is_picture_name("y.webp"));
-        assert!(!is_picture_name("x.svg") && !is_picture_name("x") && !is_picture_name("x.txt"));
+        assert!(
+            is_picture_name("A.PNG")
+                && is_picture_name("x.jpeg")
+                && is_picture_name("y.webp")
+                && is_picture_name("z.SVG")
+        );
+        assert!(!is_picture_name("x") && !is_picture_name("x.txt"));
         assert!(is_runnable_name("setup.EXE") && is_runnable_name("a.sh"));
         assert!(!is_runnable_name("a.xlsx") && !is_runnable_name("exe"));
         for sneaky in [
