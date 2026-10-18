@@ -1321,6 +1321,12 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Show Training",
         "Show the training for NoteCraft.",
     ),
+    CommandSpec::new(
+        ids::HELP_WHATS_NEW,
+        "What's New",
+        "Show what changed in this version of NoteCraft.",
+    )
+    .ready(),
     // Navigation: the notebook list, the section tabs, and the page list
     CommandSpec::new(
         ids::NAV_NOTEBOOK_SELECT,
@@ -1499,6 +1505,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_OPEN, file::open_file),
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
     (ids::FILE_ABOUT, file::about),
+    (ids::HELP_WHATS_NEW, file::whats_new),
     (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),
     (ids::FILE_RESTORE_UNSAVED, file::restore_unsaved),
     (ids::FILE_DISCARD_UNSAVED, file::discard_unsaved),

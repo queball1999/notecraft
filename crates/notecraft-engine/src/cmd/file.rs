@@ -179,6 +179,15 @@ pub(super) fn about(
     Ok(CommandOutput::default())
 }
 
+/// `help.whats_new`: show the What's New dialog. The front end owns the dialog, so this
+/// succeeds and does no more.
+pub(super) fn whats_new(
+    _session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    Ok(CommandOutput::default())
+}
+
 /// `file.copy_about_info`: copy the About details. The front end builds the text and owns the
 /// clipboard, so this succeeds and does no more.
 pub(super) fn copy_about_info(
