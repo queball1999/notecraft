@@ -1405,11 +1405,19 @@ mod tests {
         // A picture past the column is not squeezed into it.
         assert_eq!(hit.max_width, PLACED_MAX_WIDTH);
         // Another file link with the same name is not placed.
-        let other = lay_placed(text, &[placed(ObjectKind::File, "z.pdf", 0, 1.0, 1.0)], false);
+        let other = lay_placed(
+            text,
+            &[placed(ObjectKind::File, "z.pdf", 0, 1.0, 1.0)],
+            false,
+        );
         assert!(!other.files[0].placed);
         // The second copy of a link is placed only when its own number says so.
         let two = "![a](x.png)\n\n![a](x.png)\n";
-        let second = lay_placed(two, &[placed(ObjectKind::Picture, "x.png", 1, 500.0, 600.0)], false);
+        let second = lay_placed(
+            two,
+            &[placed(ObjectKind::Picture, "x.png", 1, 500.0, 600.0)],
+            false,
+        );
         assert!(!second.picture_hits[0].placed && second.picture_hits[1].placed);
     }
 

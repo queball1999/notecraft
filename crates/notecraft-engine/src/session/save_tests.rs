@@ -614,7 +614,10 @@ fn the_second_copy_of_a_picture_gets_its_own_place() {
     assert_eq!(objects.len(), 2);
     assert_eq!(objects[0].src, objects[1].src);
     assert_eq!((objects[0].nth, objects[1].nth), (0, 1));
-    assert_eq!((objects[0].id.as_str(), objects[1].id.as_str()), ("i1", "i2"));
+    assert_eq!(
+        (objects[0].id.as_str(), objects[1].id.as_str()),
+        ("i1", "i2")
+    );
 }
 
 #[test]
@@ -693,7 +696,10 @@ fn convert_to_markdown_keeps_the_picture_links_and_forgets_the_places() {
         .page_text(&page)
         .unwrap()
         .contains("[doc.pdf](attachments/"));
-    assert!(!session.page_text(&page).unwrap().contains("notecraft-canvas"));
+    assert!(!session
+        .page_text(&page)
+        .unwrap()
+        .contains("notecraft-canvas"));
 }
 
 #[test]

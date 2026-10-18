@@ -115,9 +115,10 @@ impl CanvasUi {
 
     /// Remember a click on `page` at the page point `at`.
     fn remember_click(&mut self, page: &str, at: Vec2, flow: &flow::Flow) {
-        let inside = flow.containers.iter().find(|b| {
-            b.rect.contains(egui::pos2(at.x, at.y)) && b.rect.height() > 0.0
-        });
+        let inside = flow
+            .containers
+            .iter()
+            .find(|b| b.rect.contains(egui::pos2(at.x, at.y)) && b.rect.height() > 0.0);
         let point = match inside {
             Some(b) => Vec2::new(b.rect.min.x, b.rect.max.y + INSERT_GAP),
             None => at,

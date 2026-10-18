@@ -389,7 +389,11 @@ fn dragging_a_picture_moves_it_in_one_undo_step() {
     // The whole drag is one step.
     let page = current_page(&s);
     assert_eq!(
-        s.harness.state().session().history().undo_label(Some(&page)),
+        s.harness
+            .state()
+            .session()
+            .history()
+            .undo_label(Some(&page)),
         Some("Move picture")
     );
     dispatch(&mut s, "edit.undo", Value::Null);
@@ -438,7 +442,13 @@ fn a_file_can_be_dragged_and_a_click_still_opens_it() {
     s.harness.step();
     s.harness.drop_at(center);
     s.harness.run_steps(4);
-    let toasts: Vec<String> = s.harness.state().toasts().texts().map(str::to_owned).collect();
+    let toasts: Vec<String> = s
+        .harness
+        .state()
+        .toasts()
+        .texts()
+        .map(str::to_owned)
+        .collect();
     assert_eq!(s.opened.lock().unwrap().len(), 1, "{center:?} {toasts:?}");
     assert_eq!(objects(&s).len(), 1);
     assert!(near(objects(&s)[0].pos, 340.0, 450.0));

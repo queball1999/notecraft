@@ -55,7 +55,10 @@ pub fn check_canvas(data: &[u8]) {
     let _ = strip_canvas_block(&text);
     if let Ok(out) = write_canvas_all(&text, &read.strokes, &read.containers, &read.objects) {
         let again = read_canvas(&out);
-        assert!(again.problem.is_none(), "written objects read back as a problem");
+        assert!(
+            again.problem.is_none(),
+            "written objects read back as a problem"
+        );
         assert_eq!(again.objects.len(), read.objects.len());
     }
     if let Ok(out) = write_ink(&text, &read.strokes) {

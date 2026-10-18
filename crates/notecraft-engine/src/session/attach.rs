@@ -180,7 +180,11 @@ impl Session {
         let (offset, mut inserted) = append_paragraph(shown, &paragraph(kind, &stored));
         if shown_end < text.len() {
             // Keep a blank line between the paragraph and the block.
-            inserted.push_str(if inserted.contains("\r\n") { "\r\n" } else { "\n" });
+            inserted.push_str(if inserted.contains("\r\n") {
+                "\r\n"
+            } else {
+                "\n"
+            });
         }
         let label = match kind {
             AttachKind::Picture => "Insert picture",

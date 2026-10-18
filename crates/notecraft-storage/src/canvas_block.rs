@@ -813,9 +813,7 @@ fn finish_objects(
             continue;
         }
         let mut id: String = match &o.id {
-            Some(Scalar::Str(s)) if !s.trim().is_empty() => {
-                s.chars().take(MAX_OBJECT_ID).collect()
-            }
+            Some(Scalar::Str(s)) if !s.trim().is_empty() => s.chars().take(MAX_OBJECT_ID).collect(),
             _ => format!("{prefix}{}", index + 1),
         };
         let mut n = index + 1;
@@ -1316,8 +1314,10 @@ fn write_canvas_from(
     let containers_changed = new_containers != old_containers;
     let images_changed = new_images != old_images;
     let files_changed = new_files != old_files;
-    let nothing =
-        new.is_empty() && new_containers.is_empty() && new_images.is_empty() && new_files.is_empty();
+    let nothing = new.is_empty()
+        && new_containers.is_empty()
+        && new_images.is_empty()
+        && new_files.is_empty();
     if !ink_changed
         && !containers_changed
         && !images_changed

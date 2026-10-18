@@ -33,9 +33,9 @@ pub mod image;
 #[cfg(test)]
 mod image_tests;
 pub mod markup;
-pub mod objects;
 #[cfg(test)]
 mod markup_tests;
+pub mod objects;
 mod parse;
 #[cfg(test)]
 mod parse_tests;

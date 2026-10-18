@@ -9,7 +9,7 @@
 
 use notecraft_core::Vec2;
 use notecraft_markdown::objects::{count_of, object_slots};
-use notecraft_model::object::{MAX_OBJECTS, MAX_COORD};
+use notecraft_model::object::{MAX_COORD, MAX_OBJECTS};
 use notecraft_model::{ObjectKind, PlacedObject};
 use notecraft_storage::{find_canvas_block, CanvasObject};
 

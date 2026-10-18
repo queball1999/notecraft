@@ -15,8 +15,8 @@ use std::sync::Arc;
 
 use notecraft_canvas::ink::InkLayer;
 use notecraft_markdown::{apply_edits, remove_container_markers};
-use notecraft_model::{Container, ObjectKind, PlacedObject};
 use notecraft_model::SectionNode;
+use notecraft_model::{Container, ObjectKind, PlacedObject};
 use notecraft_storage::{
     change_page_kind, keep_unreadable_copy, read_canvas, repair_canvas, strip_canvas_block,
     write_canvas_all, CanvasContainer, PageKind,
