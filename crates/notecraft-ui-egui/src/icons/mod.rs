@@ -187,6 +187,8 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, colors: IconColors) {
 pub enum ToolShape {
     /// A slim pen with a pointed tip.
     Pen,
+    /// A pencil: a body with an eraser cap, a sharpened wooden cone, and a point.
+    Pencil,
     /// A broad marker with a chisel tip.
     Highlighter,
 }

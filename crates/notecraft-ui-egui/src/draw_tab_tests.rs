@@ -262,3 +262,136 @@ fn the_rule_line_color_submenu_sets_the_color() {
         Some([0x7B, 0xA7, 0xD6, 0xFF])
     );
 }
+
+#[test]
+fn add_offers_the_pencil_and_the_textured_pens() {
+    let mut harness = harness();
+    let before = ink(&harness).tools().len();
+    for (i, (label, texture, tool)) in [
+        ("Pencil", "pencil", "Black Pencil"),
+        ("Rainbow Pen", "rainbow", "Rainbow Pen"),
+        ("Galaxy Pen", "galaxy", "Galaxy Pen"),
+        ("Lava Pen", "lava", "Lava Pen"),
+        ("Ocean Pen", "ocean", "Ocean Pen"),
+        ("Gold Pen", "gold", "Gold Pen"),
+        ("Silver Pen", "silver", "Silver Pen"),
+        ("Bronze Pen", "bronze", "Bronze Pen"),
+        ("Rose Gold Pen", "rose_gold", "Rose Gold Pen"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        click(&mut harness, "Add");
+        click(&mut harness, label);
+        assert_eq!(ink(&harness).tools().len(), before + i + 1, "{label}");
+        assert_eq!(ink(&harness).selected_tool(), Some(before + i), "{label}");
+        assert_eq!(ink(&harness).pen().texture.id(), texture, "{label}");
+        assert_eq!(ink(&harness).tool().id(), "pen");
+        // The new pen is in the gallery under its own name.
+        assert!(harness.query_by_label(tool).is_some(), "{tool}");
+    }
+}
+
+#[test]
+fn a_textured_pens_menu_has_a_preview_and_thickness_but_no_colors() {
+    let mut harness = harness();
+    click(&mut harness, "Add");
+    click(&mut harness, "Gold Pen");
+    click(&mut harness, "Gold Pen");
+    for label in ["Stroke preview", "Thickness", "Delete Tool"] {
+        assert!(harness.query_by_label(label).is_some(), "{label}");
+    }
+    for label in ["Colors", "More Colors...", "Eyedropper"] {
+        assert!(harness.query_by_label(label).is_none(), "{label}");
+    }
+    // The pencil takes colors, as it draws in them.
+    click(&mut harness, "Delete Tool");
+    click(&mut harness, "Add");
+    click(&mut harness, "Pencil");
+    click(&mut harness, "Black Pencil");
+    assert!(harness.query_by_label("Colors").is_some());
+    click(&mut harness, "Burnt Orange");
+    assert_eq!(ink(&harness).pen().color.to_hex(), "#E36C09");
+    assert_eq!(ink(&harness).pen().texture.id(), "pencil");
+    assert!(harness.query_by_label("Burnt Orange Pencil").is_some());
+}
+
+/// The meshes of the last frame that use an image of their own (not egui's font atlas).
+fn textured_meshes(harness: &Harness) -> Vec<egui::epaint::Mesh> {
+    harness
+        .output()
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default() => {
+                Some((**mesh).clone())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn draw_stroke(harness: &mut Harness, args: serde_json::Value) {
+    assert!(harness.state_mut().dispatch("draw.pen", args));
+    let points: Vec<_> = (0..=60).map(|i| json!([120 + i * 6, 160, 1.0])).collect();
+    assert!(harness
+        .state_mut()
+        .dispatch("ink.add_stroke", json!({ "points": points })));
+    harness.run();
+}
+
+#[test]
+fn a_textured_stroke_is_painted_with_its_image() {
+    let mut harness = harness();
+    // A plain stroke uses no image of its own.
+    draw_stroke(&mut harness, json!({ "color": "#0A7EA4", "width": 4 }));
+    assert!(textured_meshes(&harness).is_empty());
+    // A rainbow stroke is a mesh pointing at an uploaded image, with coordinates that run
+    // along the stroke and stay inside the image across it, in white so the image shows true.
+    draw_stroke(&mut harness, json!({ "texture": "rainbow", "width": 6 }));
+    let meshes = textured_meshes(&harness);
+    assert_eq!(meshes.len(), 1);
+    let mesh = &meshes[0];
+    assert!(mesh.vertices.len() > 40);
+    assert!(mesh
+        .indices
+        .iter()
+        .all(|i| (*i as usize) < mesh.vertices.len()));
+    let (lo, hi) = mesh
+        .vertices
+        .iter()
+        .fold((f32::MAX, f32::MIN), |(lo, hi), v| {
+            (lo.min(v.uv.x), hi.max(v.uv.x))
+        });
+    // 360 page units of stroke over a repeat of at least 260: more than one cycle.
+    assert!(hi - lo > 1.0, "u runs {lo} to {hi}");
+    assert!(mesh.vertices.iter().all(|v| (0.0..=1.0).contains(&v.uv.y)));
+    assert!(mesh
+        .vertices
+        .iter()
+        .all(|v| v.color == egui::Color32::WHITE || v.color == egui::Color32::TRANSPARENT));
+    // The same image serves the next rainbow stroke; a gold one gets another.
+    draw_stroke(&mut harness, json!({ "texture": "gold", "width": 6 }));
+    let ids: std::collections::BTreeSet<_> = textured_meshes(&harness)
+        .iter()
+        .map(|m| format!("{:?}", m.texture_id))
+        .collect();
+    assert_eq!(ids.len(), 2);
+}
+
+#[test]
+fn a_pencil_stroke_is_grain_tinted_by_its_color() {
+    let mut harness = harness();
+    draw_stroke(
+        &mut harness,
+        json!({ "texture": "pencil", "color": "#1565C0", "width": 3 }),
+    );
+    let meshes = textured_meshes(&harness);
+    assert_eq!(meshes.len(), 1);
+    let blue = egui::Color32::from_rgb(0x15, 0x65, 0xC0);
+    assert!(meshes[0]
+        .vertices
+        .iter()
+        .all(|v| v.color == blue || v.color == egui::Color32::TRANSPARENT));
+    assert!(meshes[0].vertices.iter().any(|v| v.color == blue));
+}

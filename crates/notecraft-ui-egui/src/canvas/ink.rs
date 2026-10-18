@@ -12,16 +12,72 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use egui::epaint::{Mesh, Vertex, WHITE_UV};
-use egui::{Color32, Painter, Shape};
-use notecraft_canvas::ink::{tessellate, Edge, InkLayer, StrokeBuilder, StrokeMesh, TessParams};
+use egui::{Color32, Painter, Shape, TextureId};
+use notecraft_canvas::ink::{
+    tessellate, texture, Edge, InkLayer, StrokeBuilder, StrokeMesh, TessParams,
+};
 use notecraft_core::{
-    Aabb, InkColor, InkPoint, InkTool, PointerEvent, PointerKind, PointerPhase, PointerSample,
-    Stroke, Vec2,
+    Aabb, InkColor, InkPoint, InkTexture, InkTool, PointerEvent, PointerKind, PointerPhase,
+    PointerSample, Stroke, Vec2,
 };
 use notecraft_engine::cmd::{ids, Value};
 use notecraft_engine::PenStyle;
 
-use super::{multiply, PageToScreen};
+use super::{multiply, textures, PageToScreen};
+
+/// How one stroke is filled: a plain color, or a procedural texture (see
+/// `notecraft_canvas::ink::texture`) whose image is already uploaded as `id`. A pencil
+/// draws its texture tinted by `color`; the other textures have a look of their own.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Fill {
+    color: InkColor,
+    texture: Option<(InkTexture, TextureId)>,
+    /// Page units added to the arc length, for a chunk that starts partway along a stroke.
+    along_offset: f32,
+    /// The stroke's width in page units, which sets how a texture is stretched along it.
+    width: f32,
+}
+
+impl Fill {
+    pub(crate) fn solid(color: InkColor) -> Self {
+        Self {
+            color,
+            texture: None,
+            along_offset: 0.0,
+            width: 0.0,
+        }
+    }
+
+    /// The fill for a pen stroke of `texture`, `color`, and `width`: textured when the image
+    /// is available, otherwise the plain color (the fallback every reader has).
+    pub(crate) fn pen(
+        ctx: &egui::Context,
+        texture: InkTexture,
+        color: InkColor,
+        width: f32,
+    ) -> Self {
+        match textures::texture_id(ctx, texture) {
+            Some(id) => Self {
+                color: InkColor([color.0[0], color.0[1], color.0[2], u8::MAX]),
+                texture: Some((texture, id)),
+                along_offset: 0.0,
+                width,
+            },
+            None => Self::solid(color),
+        }
+    }
+
+    /// The egui texture this fill needs, if it has one.
+    fn texture_id(self) -> Option<TextureId> {
+        self.texture.map(|(_, id)| id)
+    }
+}
+
+impl From<InkColor> for Fill {
+    fn from(color: InkColor) -> Self {
+        Self::solid(color)
+    }
+}
 use crate::ribbon::Clicked;
 
 /// Pointer events read from one frame, at most.
@@ -476,30 +532,35 @@ impl InkUi {
         preview: Option<(&[InkPoint], PenStyle)>,
     ) {
         self.cache.set_page(page);
-        let half_pixel = 0.5 / painter.ctx().pixels_per_point();
-        let mut mesh = Mesh::default();
+        let ctx = painter.ctx();
+        let half_pixel = 0.5 / ctx.pixels_per_point();
+        // Strokes with the same image share a mesh; a change of image starts a new one, so
+        // the paint order of the page is kept.
+        let mut run = Mesh::default();
         if let Some(layer) = layer {
             for stroke in layer.strokes_in(visible) {
                 if stroke.tool == InkTool::Highlighter {
                     continue;
                 }
                 let tessellated = self.cache.mesh_for(stroke, map.zoom);
-                append(&mut mesh, &tessellated, map, stroke.color, half_pixel);
+                let fill = Fill::pen(ctx, stroke.texture, stroke.color, stroke.width);
+                let id = fill.texture_id().unwrap_or_default();
+                if run.texture_id != id {
+                    flush(painter, &mut run);
+                    run.texture_id = id;
+                }
+                append(&mut run, &tessellated, map, fill, half_pixel);
             }
         }
-        if !mesh.is_empty() {
-            painter.add(Shape::mesh(mesh));
-        }
+        flush(painter, &mut run);
         if let Some((points, pen)) = preview {
-            let fringe = pen.color.0[3] == u8::MAX;
-            let shapes = self.preview.shapes(
-                points,
-                pen.width_units(),
-                pen.color,
-                fringe,
-                map,
-                half_pixel,
-            );
+            let width = pen.width_units();
+            let fill = Fill::pen(ctx, pen.texture, pen.color, width);
+            // A translucent plain stroke has no fringe; a textured one is opaque.
+            let fringe = pen.color.0[3] == u8::MAX || fill.texture.is_some();
+            let shapes = self
+                .preview
+                .shapes(points, width, fill, fringe, map, half_pixel);
             painter.extend(shapes);
         } else {
             self.preview.clear();
@@ -581,22 +642,46 @@ pub(crate) fn erase_args(path: &[Vec2], radius: f32, mode: &str, join: bool) -> 
 /// centerline, and an outer vertex moves `half_pixel` outward with no coverage. The edge then
 /// fades over one device pixel, like egui's own feathered shapes. The page-to-screen map only
 /// scales and shifts, so the directions are the same on screen.
+///
+/// A textured fill gives each vertex image coordinates from where it lies along and across
+/// the stroke (or on the page, for the pencil's grain), and the vertex color is white (the
+/// pencil's color tints the grain). The fringe works the same: its alpha fades the texture.
 fn append(
     mesh: &mut Mesh,
     tessellated: &StrokeMesh,
     map: PageToScreen,
-    color: InkColor,
+    fill: impl Into<Fill>,
     half_pixel: f32,
 ) {
-    let [r, g, b, a] = color.0;
+    let fill = fill.into();
+    let tint = match fill.texture {
+        Some((kind, _)) if !texture::spec(kind).is_some_and(|spec| spec.tinted) => {
+            InkColor([255, 255, 255, 255])
+        }
+        _ => fill.color,
+    };
+    let [r, g, b, a] = tint.0;
     let color = Color32::from_rgba_unmultiplied(r, g, b, a);
+    if mesh.vertices.is_empty() {
+        mesh.texture_id = fill.texture_id().unwrap_or_default();
+    }
     let base = mesh.vertices.len() as u32;
+    let uv = |i: usize, p: Vec2| match fill.texture {
+        Some((kind, _)) => {
+            let along = fill.along_offset + tessellated.along.get(i).copied().unwrap_or(0.0);
+            let across = tessellated.across.get(i).copied().unwrap_or(0.0);
+            let [u, v] = texture::uv(kind, fill.width, along, across, p);
+            egui::pos2(u, v)
+        }
+        None => WHITE_UV,
+    };
     mesh.vertices.extend(
         tessellated
             .positions
             .iter()
             .zip(&tessellated.edges)
-            .map(|(p, edge)| {
+            .enumerate()
+            .map(|(i, (p, edge))| {
                 let at = map.pos(*p);
                 let (shift, color) = match *edge {
                     Edge::Inside => (egui::Vec2::ZERO, color),
@@ -610,13 +695,62 @@ fn append(
                 };
                 Vertex {
                     pos: at + shift,
-                    uv: WHITE_UV,
+                    uv: uv(i, *p),
                     color,
                 }
             }),
     );
     mesh.indices
         .extend(tessellated.indices.iter().map(|i| base + i));
+}
+
+/// Hand the finished part of a run of strokes to the painter. The mesh keeps its image, so
+/// the next strokes of the same image join a fresh mesh.
+fn flush(painter: &Painter, mesh: &mut Mesh) {
+    if mesh.is_empty() {
+        return;
+    }
+    let id = mesh.texture_id;
+    let done = std::mem::replace(mesh, Mesh::with_texture(id));
+    painter.add(Shape::mesh(done));
+}
+
+/// Paint a short sample curve of a pen across `rect`: the look of a stroke of `texture`,
+/// `color`, and `width` page units, for the pen menu. Plain strokes get the plain color.
+pub(crate) fn paint_pen_sample(
+    painter: &Painter,
+    rect: egui::Rect,
+    texture: InkTexture,
+    color: InkColor,
+    width: f32,
+) {
+    let (left, right) = (rect.min.x + 18.0, rect.max.x - 18.0);
+    let points: Vec<InkPoint> = (0..=32)
+        .map(|i| {
+            let t = i as f32 / 32.0;
+            let x = left + (right - left) * t;
+            let y = rect.center().y + (t * std::f32::consts::TAU).sin() * 7.0;
+            InkPoint::new(x, y, 1.0)
+        })
+        .collect();
+    let width = width.clamp(1.0, 24.0);
+    let fill = Fill::pen(painter.ctx(), texture, color, width);
+    let params = TessParams::for_screen_radius(width / 2.0);
+    let mut mesh = Mesh::default();
+    // The sample is drawn in screen space already.
+    let map = PageToScreen {
+        origin: egui::Pos2::ZERO,
+        zoom: 1.0,
+    };
+    let half_pixel = 0.5 / painter.ctx().pixels_per_point();
+    append(
+        &mut mesh,
+        &tessellate(&points, width, params),
+        map,
+        fill,
+        half_pixel,
+    );
+    painter.add(Shape::mesh(mesh));
 }
 
 /// Points in one finished chunk of the stroke being drawn.
@@ -632,7 +766,7 @@ struct PreviewKey {
     origin: egui::Pos2,
     zoom: f32,
     half_pixel: f32,
-    color: InkColor,
+    fill: Fill,
     width: f32,
     fringe: bool,
     first: Option<InkPoint>,
@@ -660,16 +794,17 @@ impl PreviewCache {
         &mut self,
         points: &[InkPoint],
         width: f32,
-        color: InkColor,
+        fill: impl Into<Fill>,
         fringe: bool,
         map: PageToScreen,
         half_pixel: f32,
     ) -> Vec<Shape> {
+        let fill = fill.into();
         let key = PreviewKey {
             origin: map.origin,
             zoom: map.zoom,
             half_pixel,
-            color,
+            fill,
             width,
             fringe,
             first: points.first().copied(),
@@ -684,14 +819,31 @@ impl PreviewCache {
             ..TessParams::for_screen_radius(width / 2.0 * map.zoom)
         };
         let chunked = fringe;
+        // A texture that follows the stroke needs each chunk to start where the one before
+        // it ended: the length of the points before it stands in for the arc length.
+        let mut before = vec![0.0_f32];
+        if fill.texture.is_some() {
+            let mut run = 0.0_f32;
+            for pair in points.windows(2) {
+                if let [a, b] = pair {
+                    run += a.pos().distance(b.pos());
+                }
+                before.push(run);
+            }
+        }
         let build = |range: std::ops::Range<usize>| {
+            let start = range.start;
             let slice = points.get(range).unwrap_or_default();
             let mut mesh = Mesh::default();
+            let fill = Fill {
+                along_offset: before.get(start).copied().unwrap_or(0.0),
+                ..fill
+            };
             append(
                 &mut mesh,
                 &tessellate(slice, width, params),
                 map,
-                color,
+                fill,
                 half_pixel,
             );
             mesh
@@ -749,7 +901,10 @@ impl MeshCache {
         let cap_segments = TessParams::for_screen_radius(stroke.width / 2.0 * zoom).cap_segments;
         // A translucent pen stroke overlaps itself, so a fringe would show through: it gets
         // none. A highlighter stroke is painted opaque (pre-blended), so it always has one.
-        let fringe = stroke.color.0[3] == u8::MAX || stroke.tool == InkTool::Highlighter;
+        // A textured stroke is drawn opaque (the image holds any transparency).
+        let textured = stroke.tool == InkTool::Pen && stroke.texture != InkTexture::Plain;
+        let fringe =
+            stroke.color.0[3] == u8::MAX || stroke.tool == InkTool::Highlighter || textured;
         let fresh = |cached: &CachedMesh| {
             cached.points == stroke.points.len()
                 && cached.last == stroke.points.last().copied()
@@ -1102,5 +1257,65 @@ mod tests {
         assert!(cache.chunks.len() * PREVIEW_CHUNK + PREVIEW_OVERLAP <= all.len() - 10);
         let _ = cache.shapes(&all, 4.0, InkColor([0, 0, 0, 128]), false, map, 0.25);
         assert!(cache.chunks.is_empty());
+    }
+
+    #[test]
+    fn a_plain_texture_is_a_plain_color_fill() {
+        let ctx = egui::Context::default();
+        let color = InkColor([10, 20, 30, 255]);
+        assert_eq!(
+            Fill::pen(&ctx, InkTexture::Plain, color, 3.0),
+            Fill::solid(color)
+        );
+        let gold = Fill::pen(&ctx, InkTexture::Gold, color, 3.0);
+        assert!(gold.texture_id().is_some() && gold != Fill::solid(color));
+    }
+
+    #[test]
+    fn a_long_textured_preview_is_chunked_and_the_image_runs_on_across_chunks() {
+        let ctx = egui::Context::default();
+        let map = PageToScreen {
+            origin: egui::pos2(0.0, 0.0),
+            zoom: 1.0,
+        };
+        // A straight line 2,000 units long, a point every 5 units.
+        let points: Vec<InkPoint> = (0..=400)
+            .map(|i| InkPoint::new(i as f32 * 5.0, 50.0, 1.0))
+            .collect();
+        let fill = Fill::pen(&ctx, InkTexture::Rainbow, InkColor::BLACK, 4.0);
+        let mut cache = PreviewCache::default();
+        let shapes = cache.shapes(&points, 4.0, fill, true, map, 0.25);
+        // Finished chunks are cached, so a frame only builds the tail.
+        assert!(cache.chunks.len() > 5, "{} chunks", cache.chunks.len());
+        assert!(shapes.len() > cache.chunks.len());
+        // Along the stroke the image coordinate grows like the distance: a repeat of 260
+        // units for a thin stroke, so about 2000 / 260 at the far end, with no restart.
+        let far = shapes
+            .iter()
+            .filter_map(|shape| match shape {
+                Shape::Mesh(mesh) => Some(mesh.vertices.iter().map(|v| v.uv.x)),
+                _ => None,
+            })
+            .flatten()
+            .fold(0.0_f32, f32::max);
+        assert!((far - 2000.0 / 260.0).abs() < 0.2, "far end at {far}");
+        for shape in &shapes {
+            if let Shape::Mesh(mesh) = shape {
+                assert_eq!(mesh.texture_id, fill.texture_id().unwrap_or_default());
+            }
+        }
+        // Each chunk's start matches where the one before it was.
+        let starts: Vec<f32> = cache
+            .chunks
+            .iter()
+            .map(|chunk| {
+                chunk
+                    .vertices
+                    .iter()
+                    .map(|v| v.uv.x)
+                    .fold(f32::MAX, f32::min)
+            })
+            .collect();
+        assert!(starts.windows(2).all(|w| w[1] > w[0]));
     }
 }

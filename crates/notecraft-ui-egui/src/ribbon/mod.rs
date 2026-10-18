@@ -103,6 +103,8 @@ pub struct ToolView {
     /// RGBA.
     pub color: [u8; 4],
     pub width_pt: f32,
+    /// The pencil or a textured pen; plain for the rest.
+    pub texture: notecraft_core::InkTexture,
 }
 
 /// The pen the Draw tab has selected, for marking it in the menus.
@@ -112,6 +114,8 @@ pub struct ActivePen {
     /// The color as 0xRRGGBB and the width in points; unused by the eraser.
     pub color: u32,
     pub width_pt: f32,
+    /// The id of the texture of the pen (empty for a plain pen, a highlighter, and the eraser).
+    pub texture: &'static str,
 }
 
 /// Which Draw tab tool is in use, for marking its menu entry.

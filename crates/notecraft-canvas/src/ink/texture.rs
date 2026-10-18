@@ -198,7 +198,13 @@ fn noise(u: f32, v: f32, cx: i32, cy: i32, seed: u32) -> f32 {
     let (x, y) = (u * cx as f32, v * cy as f32);
     let (x0, y0) = (x.floor(), y.floor());
     let (fx, fy) = (smooth(x - x0), smooth(y - y0));
-    let at = |i: f32, j: f32| unit(hash((i as i32).rem_euclid(cx), (j as i32).rem_euclid(cy), seed));
+    let at = |i: f32, j: f32| {
+        unit(hash(
+            (i as i32).rem_euclid(cx),
+            (j as i32).rem_euclid(cy),
+            seed,
+        ))
+    };
     let top = mix(at(x0, y0), at(x0 + 1.0, y0), fx);
     let bottom = mix(at(x0, y0 + 1.0), at(x0 + 1.0, y0 + 1.0), fx);
     mix(top, bottom, fy)
@@ -266,8 +272,16 @@ fn galaxy(u: f32, v: f32, x: usize, y: usize, (w, h): (usize, usize)) -> [f32; 3
     let teal = [0.10, 0.62, 0.74];
     let cloud = fbm(u, v, 4, 2, 4, 21);
     let haze = fbm(u, v, 3, 2, 3, 22);
-    let mut c = mix3(night, violet, smooth(((cloud - 0.35) / 0.4).clamp(0.0, 1.0)));
-    c = mix3(c, teal, 0.75 * smooth(((haze - 0.5) / 0.35).clamp(0.0, 1.0)));
+    let mut c = mix3(
+        night,
+        violet,
+        smooth(((cloud - 0.35) / 0.4).clamp(0.0, 1.0)),
+    );
+    c = mix3(
+        c,
+        teal,
+        0.75 * smooth(((haze - 0.5) / 0.35).clamp(0.0, 1.0)),
+    );
     let star_at = |i: i32, j: i32| {
         let (i, j) = (i.rem_euclid(w as i32), j.clamp(0, h as i32 - 1));
         let r = hash(i, j, 23);
@@ -314,7 +328,11 @@ fn ocean(u: f32, v: f32, across: f32) -> [f32; 3] {
     let body = mix3(shallow, deep, smooth(across.abs()));
     let wobble = 0.35 * fbm(u, v, 3, 3, 3, 41);
     let wave = ((u * 3.0 + across * 0.25 + wobble) * TAU).sin() * 0.5 + 0.5;
-    mix3(body, foam, 0.75 * smooth(((wave - 0.82) / 0.18).clamp(0.0, 1.0)))
+    mix3(
+        body,
+        foam,
+        0.75 * smooth(((wave - 0.82) / 0.18).clamp(0.0, 1.0)),
+    )
 }
 
 /// Three tones of a metal, from shadow through body to highlight.
@@ -369,7 +387,10 @@ mod tests {
             assert_eq!(texel(texture, 7, 5), texel(texture, 7, 5));
         }
         // Sampling at coordinates reads the pixel that covers them.
-        assert_eq!(sample(InkTexture::Gold, 0.25, 0.5), texel(InkTexture::Gold, 64, 24));
+        assert_eq!(
+            sample(InkTexture::Gold, 0.25, 0.5),
+            texel(InkTexture::Gold, 64, 24)
+        );
     }
 
     #[test]
@@ -437,7 +458,10 @@ mod tests {
                 lum(sample(texture, 0.1, v(0.1))),
                 lum(sample(texture, 0.1, v(-0.42))),
             );
-            assert!(shine > body && body > rim, "{texture:?} {shine} {body} {rim}");
+            assert!(
+                shine > body && body > rim,
+                "{texture:?} {shine} {body} {rim}"
+            );
         }
     }
 
@@ -476,7 +500,13 @@ mod tests {
             assert!(got.iter().all(|c| c.is_finite()));
         }
         // A page texture is pinned to the page.
-        let p = uv(InkTexture::Pencil, 3.0, 99.0, 0.3, Vec2::new(PENCIL_TILE, 48.0));
+        let p = uv(
+            InkTexture::Pencil,
+            3.0,
+            99.0,
+            0.3,
+            Vec2::new(PENCIL_TILE, 48.0),
+        );
         assert!((p[0] - 1.0).abs() < 1.0e-5 && (p[1] - 0.5).abs() < 1.0e-5);
     }
 

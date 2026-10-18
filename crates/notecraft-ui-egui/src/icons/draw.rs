@@ -217,6 +217,22 @@ pub(super) fn tool(p: &Pen, shape: ToolShape, color: Color32, body: Color32) {
             p.polygon(&tip, Color32::TRANSPARENT);
             p.dot(8.0, 36.0, 1.0);
         }
+        ToolShape::Pencil => {
+            // A square-topped body with an eraser cap, a ferrule, a sharpened cone of bare
+            // wood, and a point in the pencil's color.
+            let body_shape = [(5.0, 6.0), (11.0, 6.0), (11.0, 25.0), (5.0, 25.0)];
+            p.solid(&body_shape, body);
+            p.fill(5.0, 8.0, 11.0, 14.0, color);
+            p.polygon(&body_shape, Color32::TRANSPARENT);
+            p.fill(5.0, 2.0, 11.0, 6.0, color);
+            p.outline(5.0, 2.0, 11.0, 6.0);
+            let wood = Color32::from_rgb(0xE2, 0xBF, 0x8E);
+            let cone = [(5.0, 25.0), (11.0, 25.0), (8.9, 34.0), (7.1, 34.0)];
+            p.solid(&cone, wood);
+            p.polygon(&cone, Color32::TRANSPARENT);
+            let point = [(7.6, 31.0), (8.4, 31.0), (8.9, 34.0), (7.1, 34.0)];
+            p.solid(&point, color);
+        }
         ToolShape::Highlighter => {
             // A wide barrel, a neck, and a chisel tip in the marker's color.
             let barrel = [

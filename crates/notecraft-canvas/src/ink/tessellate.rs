@@ -178,7 +178,11 @@ pub fn tessellate(points: &[InkPoint], width: f32, params: TessParams) -> Stroke
     if nodes.len() == 1 {
         let from = mesh.positions.len();
         chains.push(disc(&mut mesh, first.pos, first.radius, cap * 2));
-        tag(&mut mesh, from, (0.0, first.pos, Vec2::new(1.0, 0.0), first.radius));
+        tag(
+            &mut mesh,
+            from,
+            (0.0, first.pos, Vec2::new(1.0, 0.0), first.radius),
+        );
         add_fringe(&mut mesh, &chains, params.fringe);
         return mesh;
     }

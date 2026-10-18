@@ -430,7 +430,8 @@ mod tests {
 
     #[test]
     fn an_unknown_texture_reads_as_plain() {
-        let text = r##"{ "id": "s1", "texture": "sparkle-9000", "width": 1, "points": [[1, 2, 1]] }"##;
+        let text =
+            r##"{ "id": "s1", "texture": "sparkle-9000", "width": 1, "points": [[1, 2, 1]] }"##;
         let s: Stroke = serde_json::from_str(text).unwrap();
         assert_eq!(s.texture, InkTexture::Plain);
         for texture in InkTexture::ALL {
