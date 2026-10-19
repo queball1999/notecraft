@@ -89,14 +89,8 @@ mod linux {
     /// Runs a future that needs no reactor (adapter enumeration on native); `None` if it does
     /// not finish promptly.
     fn block_on<F: std::future::Future>(fut: F) -> Option<F::Output> {
-        use std::sync::Arc;
-        use std::task::{Context, Poll, Wake, Waker};
-        struct Noop;
-        impl Wake for Noop {
-            fn wake(self: Arc<Self>) {}
-        }
-        let waker = Waker::from(Arc::new(Noop));
-        let mut cx = Context::from_waker(&waker);
+        use std::task::{Context, Poll, Waker};
+        let mut cx = Context::from_waker(Waker::noop());
         let mut fut = std::pin::pin!(fut);
         for _ in 0..1000 {
             if let Poll::Ready(v) = fut.as_mut().poll(&mut cx) {
