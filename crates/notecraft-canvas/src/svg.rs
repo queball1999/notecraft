@@ -18,7 +18,15 @@ use crate::picture::{Picture, PictureError, MAX_SIDE, TEXTURE_SIDE};
 /// Largest SVG file read, in bytes (4 MiB). Real drawings are far smaller.
 pub const MAX_SVG_BYTES: usize = 4 * 1024 * 1024;
 /// How long parsing and drawing may take before the picture is given up on.
-pub const RENDER_TIMEOUT: Duration = Duration::from_secs(3);
+///
+/// Debug builds (tests included) get far longer: unoptimized code in an emulated VM, such as
+/// the FreeBSD aarch64 CI job, needs more than three seconds to draw even a plain rectangle
+/// at texture size. The limit is still there, so a runaway SVG still ends.
+pub const RENDER_TIMEOUT: Duration = if cfg!(debug_assertions) {
+    Duration::from_secs(60)
+} else {
+    Duration::from_secs(3)
+};
 
 /// Whether `bytes` look like an XML document (after an optional byte order mark and blanks),
 /// which is how a SVG file starts. PNG, JPEG, and WebP never start with `<`.
