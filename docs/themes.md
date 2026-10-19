@@ -1,6 +1,6 @@
 # Themes
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: new token canvas_margin_rule for the ruled-paper margin line.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: new token canvas_margin_rule for the ruled-paper margin line.
 
 NoteCraft ships four theme presets that evoke each era of OneNote, each in a light and a dark mode, for eight variants. Themes change colors, spacing, corner radius, and control style. They never change layout or behavior.
 
@@ -176,3 +176,4 @@ Every preset must pass WCAG AA (4.5:1) for `text` on `canvas_bg`, `ribbon_text` 
 | 2026-10-14 | 0 | Ribbon buttons have no fill at rest in every preset; `raised` keeps its border (fix after PR 0.5). |
 | 2026-10-15 | 0 | New token `canvas_margin_rule` (red margin line on ruled paper), a soft red in light and a dim red in dark for each preset; not contrast checked because it is decorative. |
 | 2026-10-15 | 0 | `canvas_margin_rule` made stronger in every preset (light and dark) so the margin line reads clearly, after maintainer review. |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |

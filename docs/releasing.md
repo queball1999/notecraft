@@ -1,6 +1,6 @@
 # Releasing
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: release step for WHATS_NEW.md; earlier: linked docs/install.md for per-artifact install steps.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: release step for WHATS_NEW.md; earlier: linked docs/install.md for per-artifact install steps.
 
 Pushing to the `release` branch runs `.github/workflows/release.yml`, which builds, signs (when secrets exist), notarizes, packages, and drafts a GitHub Release. The release flow and packaging scripts follow the related craft apps, but the workflow itself is NoteCraft's own: the shared release workflow in craft-common-actions builds macOS on a paid `macos-15-xlarge` runner, and it has no license, so NoteCraft cannot copy it. NoteCraft's workflow uses only GitHub's standard hosted runners, which are free for public repositories.
 
@@ -115,3 +115,4 @@ Set in the repo's `release` environment, same names as the related craft apps:
 | 2026-10-14 | -1 | Releases run NoteCraft's own workflow on free standard runners. |
 | 2026-10-15 | 1 | Linked install.md from section 3; the Flatpak smoke test also runs the desktop binary. |
 | 2026-10-18 | 1 | Section 2 gains a release step: write the version section in `WHATS_NEW.md`. |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |

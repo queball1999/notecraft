@@ -1,6 +1,6 @@
 # Conventions: branches, commits, PRs, reviews
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: reviewed at the Phase 0 close; no change.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: reviewed at the Phase 0 close; no change.
 
 These conventions match the related craft apps, plus NoteCraft's plain-text rule. AGENTS.md section 9 is the short version.
 
@@ -176,3 +176,4 @@ PR bodies written for each phase file still apply; save them under `.git/PR_BODY
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-14 | -1 | Approval rule and gh workflow match the applied GitHub settings. |
 | 2026-10-15 | 0 | Reviewed at the Phase 0 close; no content change. |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |

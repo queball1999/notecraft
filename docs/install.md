@@ -1,6 +1,6 @@
 # Installing NoteCraft
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: created; Linux install steps and a Flatpak troubleshooting entry.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: created; Linux install steps and a Flatpak troubleshooting entry.
 
 Release builds are attached to each GitHub Release at https://github.com/queball1999/notecraft/releases, with a `SHA256SUMS.txt` file. In the names below, `<version>` is the release version and `<arch>` is `x86_64` or `aarch64`. The full artifact list is in [releasing.md](releasing.md) section 3.
 
@@ -38,3 +38,4 @@ Windows: run the `.msi`, or unzip the portable zip. macOS: open the `.dmg` and d
 | Date | Phase | Change |
 |---|---|---|
 | 2026-10-15 | 1 | Created. Linux install steps per artifact and a Flatpak "ldconfig failed, exit status 256" troubleshooting entry. |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |

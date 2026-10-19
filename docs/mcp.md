@@ -1,6 +1,6 @@
 # MCP server
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the headless server joins the build plan (PR 3.15).
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: the headless server joins the build plan (PR 3.15).
 
 NoteCraft includes a Model Context Protocol (MCP) server so AI agents can read and edit notebooks. It is a thin layer over the command registry: every tool either reads the model or runs commands by id, so anything a user can do from the ribbon, an agent can do too.
 
@@ -69,3 +69,4 @@ Errors use MCP's standard error shape with a stable `code` string in `data`: `no
 | 2026-10-14 | -1 | Created. Transports, tools, resources, safety rules, errors. Same day: marked post-parity optional; graph tool replaced by a links tool. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | The headless stdio server moved into the build plan (PR 3.15); the `--connect` bridge stays post-parity. |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |

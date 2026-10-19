@@ -1,6 +1,6 @@
 # Control channel protocol
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: the minimal subset (`auth`, `command.run`, `screenshot`, `wait.idle`) is implemented (PR 0.11); earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: the minimal subset (`auth`, `command.run`, `screenshot`, `wait.idle`) is implemented (PR 0.11); earlier changes are in the revision history.
 
 The control channel lets tests and scripts drive a running NoteCraft window: run commands, simulate input, read state, and take screenshots. It follows the same pattern as the other craft apps.
 
@@ -74,3 +74,4 @@ JSON-RPC error codes, with NoteCraft's string code in `data.code` (same set as d
 | 2026-10-14 | -1 | Created. Transport, token auth, framing, methods, events, errors. Same day: full protocol marked post-parity; minimal Phase 0 subset kept. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-15 | 0 | PR 0.11: minimal subset implemented (`auth`, `command.run`, `screenshot` without `region`, `wait.idle`); documented the token file protections, limits, and error codes. |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |

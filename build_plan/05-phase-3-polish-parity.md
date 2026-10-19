@@ -1,6 +1,6 @@
 # Phase 3: polish and parity
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: Phase 3 estimate 664-1,126 hours with OneNote import; OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: Phase 3 estimate 664-1,126 hours with OneNote import; OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
 
 
 Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, performance, and import of OneNote's own files (`.one`, `.onex`, `.onetoc2`, `.onepkg`). Ends with the v0.9.0 beta.
@@ -407,3 +407,4 @@ Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 | 2026-10-15 | 1 | Notes from the WordCraft ink survey: Add Pen in PR 3.1, the recognizer approach in PR 3.2, the lasso pick rule in PR 3.3. Hours unchanged. |
 | 2026-10-15 | 1 | Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15), adding 12-20 hours and row IN-13; Phase 3 estimate 404-686 hours. Add Pen confirmed inside PR 3.1's estimate. |
 | 2026-10-16 | 1 | Added PR 3.16 (OneNote file reader) and PR 3.17 (OneNote import with full fidelity) for `.one`, `.onex`, `.onetoc2`, and `.onepkg`, moved up from Phase 4 by maintainer decision; Phase 3 estimate 664-1,126 hours (on top of Ink Replay). |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
