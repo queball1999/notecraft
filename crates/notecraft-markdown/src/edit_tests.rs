@@ -171,3 +171,68 @@ fn bad_spans_are_errors_not_panics() {
         Ok("axybc")
     );
 }
+
+#[test]
+fn map_keys_change_only_their_lines() {
+    let page =
+        "---\ntitle: T\nnotecraft:\n  id: pg_1    # stable\n  paper: lined\ntags: [a]\n---\nBody\n";
+    let mut ed = Editor::new(page);
+    ed.set_frontmatter_map(
+        "notecraft",
+        &[("paper", Some("grid")), ("color", Some("#FFF8E1"))],
+    )
+    .unwrap();
+    assert_eq!(
+        ed.finish().unwrap(),
+        "---\ntitle: T\nnotecraft:\n  id: pg_1    # stable\n  paper: grid\n  color: \"#FFF8E1\"\ntags: [a]\n---\nBody\n"
+    );
+    // Setting the value it already has changes nothing.
+    let mut ed = Editor::new(page);
+    ed.set_frontmatter_map("notecraft", &[("paper", Some("lined"))])
+        .unwrap();
+    assert_eq!(ed.finish().unwrap(), page);
+    // Removing one key keeps the rest; removing the last drops the map.
+    let mut ed = Editor::new(page);
+    ed.set_frontmatter_map("notecraft", &[("paper", None)])
+        .unwrap();
+    assert_eq!(
+        ed.finish().unwrap(),
+        "---\ntitle: T\nnotecraft:\n  id: pg_1    # stable\ntags: [a]\n---\nBody\n"
+    );
+    let only = "---\nnotecraft:\n  paper: lined\n---\nBody\n";
+    let mut ed = Editor::new(only);
+    ed.set_frontmatter_map("notecraft", &[("paper", None), ("nope", None)])
+        .unwrap();
+    assert_eq!(ed.finish().unwrap(), "---\n---\nBody\n");
+}
+
+#[test]
+fn map_is_added_or_created_when_needed() {
+    let mut ed = Editor::new("---\ntitle: T\n---\nBody\r\n");
+    ed.set_frontmatter_map(
+        "notecraft",
+        &[("paper", Some("lined")), ("size", Some("a4"))],
+    )
+    .unwrap();
+    assert_eq!(
+        ed.finish().unwrap(),
+        "---\ntitle: T\nnotecraft:\n  paper: lined\n  size: a4\n---\nBody\r\n"
+    );
+    let mut ed = Editor::new("Body\r\n");
+    ed.set_frontmatter_map("notecraft", &[("paper", Some("lined"))])
+        .unwrap();
+    assert_eq!(
+        ed.finish().unwrap(),
+        "---\r\nnotecraft:\r\n  paper: lined\r\n---\r\nBody\r\n"
+    );
+    // Only removals: no block appears.
+    let mut ed = Editor::new("Body\n");
+    ed.set_frontmatter_map("notecraft", &[("paper", None)])
+        .unwrap();
+    assert_eq!(ed.finish().unwrap(), "Body\n");
+    // A flow map is refused, not rewritten.
+    let mut ed = Editor::new("---\nnotecraft: {paper: lined}\n---\n");
+    assert!(ed
+        .set_frontmatter_map("notecraft", &[("paper", Some("grid"))])
+        .is_err());
+}

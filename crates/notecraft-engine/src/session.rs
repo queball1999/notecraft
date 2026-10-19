@@ -9,6 +9,7 @@ use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
 mod nav;
+mod page_style;
 mod save;
 mod saving;
 pub use save::{ConvertOutcome, CONVERT_WARNING};

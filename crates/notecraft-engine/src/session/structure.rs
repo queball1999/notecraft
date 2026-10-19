@@ -588,7 +588,14 @@ impl Session {
         let taken: Vec<&str> = taken.iter().map(String::as_str).collect();
         let file = unique_file_name(stem, "md", &taken);
         let rel = join(&dir, &file);
-        plan.create(&rel, Content::Text(String::new()));
+        // Always Create Pages with Rule Lines: the page starts with the default rule style,
+        // written to its frontmatter.
+        let start_style = crate::view::PageStyle {
+            rule_lines: self.default_rule_lines(),
+            ..crate::view::PageStyle::default()
+        };
+        let start_text = super::page_style::text_with_style("", &start_style);
+        plan.create(&rel, Content::Text(start_text));
         let mut pages = listings(&target);
         pages.push(PageListing {
             file,

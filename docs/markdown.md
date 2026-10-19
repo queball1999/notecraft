@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: pictures and file attachments get positions in the canvas block (`images`, `files`, section 3.4); ink stroke `texture` key (textured pens and the pencil); earlier: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups).
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: page style is saved in the `notecraft:` frontmatter map (new section 2.5: `paper`, `paper_spacing`, `paper_size`, `rule_color`, `color`); earlier: stage line: Phase 1 merged into main (#55); earlier: pictures and file attachments get positions in the canvas block (`images`, `files`, section 3.4); ink stroke `texture` key (textured pens and the pencil); earlier: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -103,6 +103,29 @@ Other markdown readers ignore the comment and show the picture at its natural si
 
 Large files (over 100 MiB by default, configurable) are linked in place instead of copied, using a relative or absolute path, and marked `notecraft: linked` in the canvas block so the UI can warn if the target moves.
 
+### 2.5 Page style
+
+Rule lines, the rule line color, the page color, and the paper size are kept per page in the `notecraft:` map of the page frontmatter (section 3.1), as OneNote keeps them per page. All keys are optional, and a key that holds the default is not written.
+
+| Key | Values | Default (key absent) |
+|---|---|---|
+| `paper` | `blank`, `lined`, `grid`, `dotted` (dotted is a kept extra beyond OneNote, see post-parity.md) | `blank` |
+| `paper_spacing` | for `lined`: `narrow`, `college`, `standard`, `wide`; for `grid`: `small`, `medium`, `large`, `xlarge`; ignored for `blank` and `dotted` | `college` for `lined`, `medium` for `grid` |
+| `paper_size` | `letter`, `legal`, `a4`, `a5` | auto (the page grows with its content) |
+| `rule_color` | `#RRGGBB` or `#RRGGBBAA`: the color of the rule lines and grid | the theme's own |
+| `color` | `#RRGGBB` or `#RRGGBBAA`: the page background | the theme's canvas color |
+
+```yaml
+notecraft:
+  paper: lined
+  paper_spacing: wide
+  paper_size: a4
+  rule_color: "#336699"
+  color: "#FFF8E1"
+```
+
+Reading is lenient: a missing key, an unknown value, a malformed color, or a `notecraft:` that is not a one-level map leaves the default, and the file is never rejected. Writing changes only the keys whose value changed, through the minimal-diff frontmatter rewrite: other keys in the map (such as `id`), their comments, and every other frontmatter entry keep their bytes. A key goes away when its value returns to the default, and the `notecraft:` map goes away when it has no keys left. A frontmatter block is added only when a style key has to be written, so a page that never had a style stays as it was. Both `.md` and `.notecraft` pages carry the keys. If `notecraft:` is written as a flow map (`notecraft: {paper: lined}`) NoteCraft neither reads nor rewrites it, so a style change on such a page is not saved. A new page created while Always Create Pages with Rule Lines is on starts with the `paper` key (and `paper_spacing` when it is not the default).
+
 ## 3. Page file contents
 
 ### 3.1 Frontmatter
@@ -120,6 +143,7 @@ notecraft:
   id: pg_01J9Z4B2M7XR    # stable page id (for notecraft:// links and history)
   paper: lined          # blank | lined | grid | dotted (dotted is a kept extra; lined draws the red margin line)
   color: "#FFF8E1"      # page background color
+                        # more page style keys: paper_spacing, paper_size, rule_color (section 2.5)
 ---
 ```
 
@@ -336,3 +360,4 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-18 | 1 | Section 3.4: an ink stroke may carry a `texture` (pencil, rainbow, galaxy, lava, ocean, gold, silver, bronze, rose_gold); unknown or missing means a plain color stroke. |
 | 2026-10-18 | 1 | Section 3.4: pictures and file attachments placed on the page are listed in the canvas block `images` and `files` lists (`src`, `nth`, `x`, `y`); the markdown stays in the page text; the width stays the section 2.4 comment; a `.md` page with one promotes to `.notecraft`. Shapes are not stored yet. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
+| 2026-10-18 | 1 | Section 2.5 (new): page style keys in the `notecraft:` frontmatter map: `paper` (blank, lined, grid, dotted), `paper_spacing`, `paper_size`, `rule_color`, and `color`; lenient reading, minimal-diff writing, a key is removed at its default. |
