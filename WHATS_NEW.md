@@ -23,20 +23,29 @@ NoteCraft now opens and saves real notebooks.
 - Create, rename, move, color, and delete pages, sections, section groups, and notebooks.
   Deleted items go to a trash folder inside the notebook, and every step can be undone.
 - The page list reads from a fast index, shows page titles, and can fold away subpages.
+- Rule lines, page color, and paper size are saved with each page.
 
 ### Writing
 - Click anywhere on the page and type. Text lives in containers that you can move and
   resize.
 - Bold, italic, lists, and the rest of the formatting commands work on selected text.
+  Bold text uses your system's bold font.
 - Cut, copy, and paste text, including pictures from the clipboard.
 
 ### Ink
 - Draw with the pen and the highlighter, and choose their colors and thickness.
+- Try the pencil and the textured pens: rainbow, galaxy, lava, ocean, and four metals.
+- The highlighter blends with the page, so text and rule lines show through.
 - Erase a whole stroke or just part of one. One drag of an eraser is one undo step.
-- Ink is saved with the page.
+- Ink is saved with the page. Pen pressure works on Windows.
 
 ### Pictures and files
 - Insert pictures and attach files to a page, and open attachments from the page.
+- Drag pictures and files anywhere on the page, and resize pictures by their corners.
+
+### Fixes
+- On Linux computers without a working graphics driver, NoteCraft now starts with a
+  slower fallback renderer instead of closing.
 
 ### Safety
 - Undo and redo for typing, ink, and notebook changes.
