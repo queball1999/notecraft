@@ -2,17 +2,28 @@
 //! docs/architecture.md section 4). The ribbon, shortcuts, and the UI test control channel
 //! all dispatch by id through [`Registry::run`].
 
+mod attach;
 mod builtin;
 mod canvas;
+mod draw;
+mod edit;
 mod file;
+mod format;
+#[cfg(test)]
+mod format_tests;
 mod guard;
 pub mod ids;
 mod layout;
 mod nav;
+mod page;
 mod registry;
 pub mod shortcuts;
+pub(crate) mod structure;
 #[cfg(test)]
 mod tests;
+mod text;
+#[cfg(test)]
+mod text_tests;
 mod theme;
 
 use std::fmt;
@@ -59,6 +70,8 @@ pub enum ArgKind {
     Integer,
     Number,
     String,
+    /// A JSON array; the handler checks the elements.
+    Array,
 }
 
 impl ArgKind {
@@ -68,6 +81,7 @@ impl ArgKind {
             Self::Integer => value.is_i64() || value.is_u64(),
             Self::Number => value.is_number(),
             Self::String => value.is_string(),
+            Self::Array => value.is_array(),
         }
     }
 }

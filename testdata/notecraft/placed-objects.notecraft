@@ -1,0 +1,24 @@
+<!-- notecraft:container id=c1 -->
+A picture and a file sit where they were put.
+
+![Whiteboard](attachments/a81b07-whiteboard.jpg)<!-- notecraft:width=320 -->
+
+[Q3 budget](attachments/3f9a2c-budget.xlsx)
+
+![Whiteboard](attachments/a81b07-whiteboard.jpg)
+
+```notecraft-canvas
+{
+  "format": 1,
+  "units": "px96",
+  "containers": { "c1": { "x": 48, "y": 96, "w": 420 } },
+  "images": [
+    { "id": "i1", "src": "attachments/a81b07-whiteboard.jpg", "x": 480, "y": 96 },
+    { "id": "i2", "src": "attachments/a81b07-whiteboard.jpg", "nth": 1, "x": 480, "y": 420.5 }
+  ],
+  "files": [
+    { "id": "f1", "src": "attachments/3f9a2c-budget.xlsx", "x": 48, "y": 400 }
+  ],
+  "ink": []
+}
+```

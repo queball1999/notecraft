@@ -1,6 +1,6 @@
 # Post-parity optional features
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: Full CLI and MCP server moved into the build plan; dotted paper recorded as a kept extra.
+> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); review markup (comments, tracked changes) recorded from the WordCraft survey.
 
 
 The build plan covers OneNote parity only. Everything in this doc is something OneNote does not do. None of it is scheduled. Each item is optional and is considered only after full parity (v1.0.0 and the parity items in Phase 4) is reached, and only if users ask for it.
@@ -24,9 +24,11 @@ The architecture keeps these possible without rework: every action is already a 
 | Dotted paper | Dot grid in Rule Lines (`view.rule_lines` style `dotted`, `paper: dotted`); OneNote has rule lines and grids only. Kept by maintainer decision (2026-10-15) | none | 0 (built) |
 | Full control channel | Input simulation, state queries, events (docs/control-protocol.md) | minimal channel (Phase 0) | 16-28 |
 | MCP bridge | MCP tools driving the running window | full control channel | 10-18 |
+| Review markup | Comments anchored to text ranges, balloons, and tracked changes with accept and reject, as a word processor has; OneNote has none (the related WordCraft app does: `crates/engine/src/cmd/review.rs`, `crates/formats/src/comments.rs`) | none | 60-100 |
 | Plugins | Manifest, lifecycle, macro commands, Plugins ribbon tab | command registry | 50-90 |
 | WASM plugins | Sandboxed plugins with a host API | plugins | 50-90 |
-| Total | | | 252-440 |
+| OneNote file export | Write `.one` and `.onex` sections and `.onepkg` packages that OneNote opens without repair. Optional (maintainer decision, 2026-10-16). Writing is much harder than reading: OneNote checks ids, file node lists, the transaction log, and checksums, and there is no published writer to compare against | OneNote reader (PR 3.16) | 200-360 |
+| Total | | | 452-800 |
 
 The full CLI and the MCP server moved into the build plan on 2026-10-15 (maintainer decision; PR 0.13, 1.16, 2.11, 3.14, and 3.15), so they are no longer candidates here. The MCP bridge and the full control channel stay.
 
@@ -47,3 +49,5 @@ Hour ranges come from the PRs these features had in the build plan before it was
 | 2026-10-15 | 0 | Color alpha in the custom color editor recorded as a kept extra (PR 0.5e). |
 | 2026-10-15 | 0 | Full CLI and MCP server rows removed: both are in the build plan now (maintainer decision, 2026-10-15). MCP bridge and full control channel kept. |
 | 2026-10-15 | 0 | Dotted paper recorded as a kept extra (maintainer decision, 2026-10-15). |
+| 2026-10-15 | 1 | Review markup row added (comments and tracked changes, a WordCraft feature OneNote lacks); total 312-540. |
+| 2026-10-16 | 1 | OneNote file export (`.one`, `.onex`, `.onepkg`) added as an optional item; import is in the build plan (PR 3.16, 3.17). |

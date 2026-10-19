@@ -1,0 +1,27 @@
+frontmatter 0..129 oversize=false
+  "title" 4..18 scalar "Basics"
+  "created" 18..53 scalar "2026-10-14T09:30:00-05:00"
+  "tags" 53..76 list ["sample", "basics"]
+  "notecraft" 76..125 map [("id", "pg_sample_basics"), ("paper", "lined")]
+body 129
+129..143 heading(1) "A first page"
+  source "# A first page"
+145..333 paragraph "A paragraph with " + "bold"[b] + ", " + "italic"[i] + ", " + "both"[bi] + ", " + "inline code"[c] + ", and a " + "link"[@https://example.org/page] + ". A second line in the same paragraph, then a hard break\non the next line."
+  source "A paragraph with **bold**, *italic*, ***both***, `inline code`, and a\n[link](https://example.org/page \"Example\"). A second line in the same\nparagraph, then a hard break  \non the next line."
+335..364 heading(2) "Setext heading"
+  source "Setext heading\n--------------"
+366..378 heading(2) "Level two"
+  source "## Level two"
+380..396 heading(6) "Level six"
+  source "###### Level six"
+398..401 rule
+  source "---"
+403..459 quote
+  source "> A quote that spans\n> two lines.\n>\n> - and holds a list"
+  405..436 paragraph "A quote that spans two lines."
+    source "A quote that spans\n> two lines."
+  441..459 list Bullet tight=true items=1
+    source "- and holds a list"
+    item 441..459 "- and holds a list"
+      443..459 paragraph "and holds a list"
+        source "and holds a list"

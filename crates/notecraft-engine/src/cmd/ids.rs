@@ -44,6 +44,14 @@ command_ids! {
     FILE_ABOUT = "file.about";
     /// Copy the version, build, and system details to the clipboard for a bug report.
     FILE_COPY_ABOUT_INFO = "file.copy_about_info";
+    /// Put back the unsaved text found from the last session.
+    FILE_RESTORE_UNSAVED = "file.restore_unsaved";
+    /// Throw away the unsaved text found from the last session.
+    FILE_DISCARD_UNSAVED = "file.discard_unsaved";
+    /// Keep the text on the page when the file also changed outside NoteCraft.
+    FILE_KEEP_MY_VERSION = "file.keep_my_version";
+    /// Replace the text on the page with the version changed outside NoteCraft.
+    FILE_USE_OUTSIDE_VERSION = "file.use_outside_version";
 
     // Home tab: Clipboard group
     /// Move the selection to the clipboard.
@@ -146,6 +154,14 @@ command_ids! {
     INSERT_FILE_PRINTOUT = "insert.file_printout";
     /// Insert a picture from a file.
     INSERT_PICTURE = "insert.picture";
+    /// Set the display width of a picture by dragging its corner handles.
+    PICTURE_RESIZE = "picture.resize";
+    /// Put a picture at a place of its own on the page by dragging it.
+    PICTURE_MOVE = "picture.move";
+    /// Put a file attachment at a place of its own on the page by dragging it.
+    ATTACHMENT_MOVE = "attachment.move";
+    /// Open an attached file in its default app.
+    ATTACHMENT_OPEN = "attachment.open";
     /// Capture part of the screen and insert it as a picture.
     INSERT_SCREEN_CLIPPING = "insert.screen_clipping";
     /// Insert a link to a web page, file, or another page.
@@ -180,10 +196,48 @@ command_ids! {
     DRAW_HIGHLIGHTER = "draw.highlighter";
     /// Erase ink strokes or parts of strokes.
     DRAW_ERASER = "draw.eraser";
+    /// Pick up a pen or highlighter from the Draw tab's list.
+    DRAW_TOOL_SELECT = "draw.tool_select";
+    /// Add a pen or highlighter to the Draw tab's list.
+    DRAW_TOOL_ADD = "draw.tool_add";
+    /// Remove a pen or highlighter from the Draw tab's list.
+    DRAW_TOOL_DELETE = "draw.tool_delete";
+    /// Pick the color of a stroke on the page for the current pen.
+    DRAW_EYEDROPPER = "draw.eyedropper";
+    /// Turn on or off Always Create Pages with Rule Lines.
+    DRAW_ALWAYS_RULE_LINES = "draw.always_rule_lines";
+    /// Play back how the ink on the page was drawn.
+    DRAW_INK_REPLAY = "draw.ink_replay";
     /// Set the color of the current pen.
     DRAW_COLOR = "draw.color";
     /// Set the width of the current pen.
     DRAW_THICKNESS = "draw.thickness";
+    /// Add a stroke drawn with the current pen to the page.
+    INK_ADD_STROKE = "ink.add_stroke";
+
+    // Text editing in containers (not on the ribbon; keys and clicks send them)
+    /// Put the text caret at a position, or extend the selection to it.
+    TEXT_SET_CARET = "text.set_caret";
+    /// Drop the text caret and selection, as a click on empty page space does.
+    TEXT_CLEAR_CARET = "text.clear_caret";
+    /// Move the text caret by a character, word, or line, or extend the selection.
+    TEXT_MOVE = "text.move";
+    /// Type text at the caret, replacing the selection.
+    TEXT_INSERT = "text.insert";
+    /// Delete backward (Backspace) or forward (Delete) by a character or a word.
+    TEXT_DELETE = "text.delete";
+    /// Start a new paragraph or list item, or a line break.
+    TEXT_ENTER = "text.enter";
+    /// Move list items in or out a level.
+    TEXT_TAB = "text.tab";
+    /// Start a new note container at a point on the page.
+    CONTAINER_NEW = "container.new";
+    /// Move a note container to a point on the page.
+    CONTAINER_MOVE = "container.move";
+    /// Change the width of a note container.
+    CONTAINER_RESIZE = "container.resize";
+    /// Erase ink along a path.
+    INK_ERASE = "ink.erase";
     /// Show or hide the ruler for drawing straight lines.
     DRAW_RULER = "draw.ruler";
     /// Draw a shape.
@@ -262,6 +316,8 @@ command_ids! {
     VIEW_PAGE_COLOR = "view.page_color";
     /// Show rule lines or a grid on the page.
     VIEW_RULE_LINES = "view.rule_lines";
+    /// Set the color of the rule lines and grid on the current page.
+    VIEW_RULE_LINE_COLOR = "view.rule_line_color";
     /// Hide the title, date, and time of the page.
     VIEW_HIDE_TITLE = "view.hide_title";
     /// Set the paper size of the page.
@@ -296,6 +352,8 @@ command_ids! {
     HELP_FEEDBACK = "help.feedback";
     /// Show the training for NoteCraft.
     HELP_TRAINING = "help.training";
+    /// Show what changed in this version of NoteCraft.
+    HELP_WHATS_NEW = "help.whats_new";
 
     // Navigation: the notebook list, the section tabs, and the page list
     /// Show a notebook, at its first section's first page.
@@ -308,6 +366,40 @@ command_ids! {
     SECTION_NEW = "section.new";
     /// Add a page to the current section.
     PAGE_NEW = "page.new";
+    /// Rename a page.
+    PAGE_RENAME = "page.rename";
+    /// Delete a page (it goes to the trash folder of its notebook).
+    PAGE_DELETE = "page.delete";
+    /// Move a page to another place in its section or to another section.
+    PAGE_MOVE = "page.move";
+    /// Set how far a page is indented as a subpage.
+    PAGE_SET_LEVEL = "page.set_level";
+    /// Make a page a subpage of the page above it.
+    PAGE_MAKE_SUBPAGE = "page.make_subpage";
+    /// Move a subpage up one level.
+    PAGE_PROMOTE_SUBPAGE = "page.promote_subpage";
+    /// Fold the subpages of a page away in the page list.
+    PAGE_COLLAPSE_SUBPAGES = "page.collapse_subpages";
+    /// Show the subpages of a page again.
+    PAGE_EXPAND_SUBPAGES = "page.expand_subpages";
+    /// Add a section group to the current notebook.
+    SECTION_GROUP_NEW = "section.group_new";
+    /// Rename a section or section group.
+    SECTION_RENAME = "section.rename";
+    /// Delete a section or section group (it goes to the trash folder of its notebook).
+    SECTION_DELETE = "section.delete";
+    /// Move a section or section group into a group or to the top level.
+    SECTION_MOVE = "section.move";
+    /// Set the color of a section or section group.
+    SECTION_SET_COLOR = "section.set_color";
+    /// Rename a notebook.
+    NOTEBOOK_RENAME = "notebook.rename";
+    /// Set the color of a notebook.
+    NOTEBOOK_SET_COLOR = "notebook.set_color";
+    /// Turn the page shown into a plain markdown page, dropping its ink and positions.
+    PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
+    /// Replace a canvas block that did not parse with a fresh one that keeps what could be read.
+    PAGE_REPAIR_CANVAS = "page.repair_canvas";
 
     // Search (Phase 2)
     /// Search every open notebook.

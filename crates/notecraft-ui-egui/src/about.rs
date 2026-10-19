@@ -177,12 +177,20 @@ pub(crate) fn show(ui: &mut Ui, t: &ThemeTokens, info: &AppInfo, out: &mut Vec<C
                     row(ui, "Copyright", COPYRIGHT, t);
                 });
             ui.add_space(8.0);
-            if ui.add(start::framed("Copy", 14.0, t)).clicked() {
-                out.push(Clicked {
-                    command: ids::FILE_COPY_ABOUT_INFO,
-                    args: Value::Null,
-                });
-            }
+            ui.horizontal(|ui| {
+                if ui.add(start::framed("Copy", 14.0, t)).clicked() {
+                    out.push(Clicked {
+                        command: ids::FILE_COPY_ABOUT_INFO,
+                        args: Value::Null,
+                    });
+                }
+                if ui.add(start::framed("What's New", 14.0, t)).clicked() {
+                    out.push(Clicked {
+                        command: ids::HELP_WHATS_NEW,
+                        args: Value::Null,
+                    });
+                }
+            });
 
             heading(ui, "Folders", t);
             Grid::new("about_paths")

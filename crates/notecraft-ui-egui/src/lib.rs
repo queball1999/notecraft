@@ -12,8 +12,13 @@
 mod a11y;
 pub mod about;
 mod app_shell;
+#[cfg(test)]
+mod attach_tests;
+pub mod bars;
 pub mod canvas;
 pub mod color;
+#[cfg(test)]
+mod draw_tab_tests;
 pub mod font_list;
 pub mod icons;
 pub mod nav;
@@ -24,6 +29,7 @@ pub mod start;
 pub mod status;
 pub mod themes;
 pub mod toast;
+mod whats_new;
 
 pub use about::AppInfo;
 pub use app_shell::{AppShell, REGIONS};

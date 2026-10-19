@@ -9,7 +9,11 @@
 )]
 #![forbid(unsafe_code)]
 
+pub mod ink;
 pub mod paper;
+pub mod picture;
+mod svg;
+pub mod text;
 pub mod viewport;
 
 pub use paper::{PaperSize, RuleKind, RuleLines};

@@ -11,3 +11,39 @@
 
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 1;
+
+pub mod attachments;
+pub mod canvas_block;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod index;
+pub mod notebook_dir;
+pub mod notebook_toml;
+pub mod page_file;
+pub mod page_kind;
+pub mod paths;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod reader;
+pub mod recovery;
+pub mod section_toml;
+pub mod structure;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod watch;
+
+pub use canvas_block::{
+    can_repair, find_canvas_block, normalized, normalized_container, normalized_object,
+    read_canvas, repair_canvas, strip_canvas_block, write_canvas, write_canvas_all, write_ink,
+    CanvasBlock, CanvasContainer, CanvasObject, CanvasProblem, CanvasRead, WriteInkError,
+};
+pub use notebook_dir::{
+    index_path, read_notebook_header, scan_notebook, scan_notebook_with, GroupEntry,
+    NotebookHeader, NotebookTree, PageEntry, PageKind, ScanError, ScanLimits, ScanWarning,
+    SectionEntry, TreeNode, WarningKind,
+};
+pub use notebook_toml::{NotebookConfig, ReadOutcome};
+pub use page_file::{
+    read_page_file, read_page_file_with, write_page_text, PageReadError, PageText, WriteOutcome,
+    MAX_PAGE_BYTES,
+};
+pub use page_kind::{change_page_kind, keep_unreadable_copy};
+pub use recovery::{Journal, RecoveryEntry};
+pub use section_toml::{PageListing, SectionConfig, SectionKind};

@@ -1,0 +1,13 @@
+frontmatter none
+body 0
+0..136 table align=[Left, Center, Right] header=3 rows=3
+  source "| Name | Qty | Note |\n|:-----|:---:|-----:|\n| Pens | 12 | **blue** |\n| Paper | 3 | `A4` |\n| Tape | 1 | see [shop](https://example.org) |"
+  head | "Name" | "Qty" | "Note"
+  row | "Pens" | "12" | "blue"[b]
+  row | "Paper" | "3" | "A4"[c]
+  row | "Tape" | "1" | "see " + "shop"[@https://example.org]
+138..158 paragraph "Text between tables."
+  source "Text between tables."
+160..195 table align=[None, None] header=2 rows=0
+  source "| Only | Header |\n|------|--------|"
+  head | "Only" | "Header"

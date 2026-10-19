@@ -40,6 +40,9 @@ macro_rules! icons {
 icons! {
     // Backstage
     Back => |p, _| home::back(p);
+    // Quick access
+    Undo => |p, _| home::history_arrow(p, false);
+    Redo => |p, _| home::history_arrow(p, true);
     // Home: Clipboard
     Paste => |p, _| home::paste(p);
     Cut => |p, _| home::cut(p);
@@ -93,6 +96,10 @@ icons! {
     Symbol => |p, _| insert::symbol(p);
     // Draw
     TypeTool => |p, _| draw::type_tool(p);
+    Select => |p, _| draw::select(p);
+    AddTool => |p, c| draw::add_tool(p, c.accent);
+    FormatBackground => |p, c| draw::format_background(p, c.accent);
+    InkReplay => |p, _| draw::ink_replay(p);
     Lasso => |p, _| draw::lasso(p);
     PanHand => |p, _| draw::pan_hand(p);
     Pen => |p, c| draw::pen(p, c.accent);
@@ -147,6 +154,7 @@ icons! {
     Support => |p, _| help::support(p);
     Feedback => |p, _| help::feedback(p);
     Training => |p, _| help::training(p);
+    WhatsNew => |p, _| help::whats_new(p);
 }
 
 /// Colors an icon may use besides its main color.
@@ -173,6 +181,44 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, colors: IconColors) {
         fg: colors.fg,
     };
     draw(icon, &pen, colors);
+}
+
+/// Which pen shape a Draw tab tool is drawn as.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToolShape {
+    /// A slim pen with a pointed tip.
+    Pen,
+    /// A pencil: a body with an eraser cap, a sharpened wooden cone, and a point.
+    Pencil,
+    /// A broad marker with a chisel tip.
+    Highlighter,
+}
+
+/// Paint a Draw tab tool as a tall pen, tip down, in `rect`. The barrel shows `color` in a
+/// band and at the tip, so each tool can be told apart by its color. `body` fills the barrel
+/// and `outline` draws the edges. The shape is designed on a 16 by 40 grid and fills the
+/// largest such box that fits in `rect`, centered. Empty or non-finite rectangles paint
+/// nothing.
+pub fn paint_tool(
+    painter: &Painter,
+    rect: Rect,
+    shape: ToolShape,
+    color: Color32,
+    body: Color32,
+    outline: Color32,
+) {
+    let unit = (rect.width() / 16.0).min(rect.height() / 40.0);
+    if !unit.is_finite() || unit <= 0.0 {
+        return;
+    }
+    let size = egui::vec2(16.0, 40.0) * unit;
+    let pen = Pen {
+        painter,
+        rect: Rect::from_center_size(rect.center(), size),
+        unit,
+        fg: outline,
+    };
+    draw::tool(&pen, shape, color, body);
 }
 
 /// Drawing helpers in 16-unit grid coordinates.

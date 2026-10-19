@@ -10,12 +10,27 @@
 #![forbid(unsafe_code)]
 
 pub mod cmd;
+pub mod ink;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod io;
 pub mod mock;
+pub mod open;
 pub mod recent;
 pub mod session;
+pub mod undo;
 pub mod view;
+pub mod whats_new;
 
-pub use session::{Selection, Session};
+pub use ink::{
+    default_pen_tools, DrawTool, EraserMode, EraserSize, InkState, PenStyle, PenTool, ToolKind,
+    MAX_PEN_POINTS, MAX_PEN_TOOLS, MIN_PEN_POINTS,
+};
+pub use notecraft_core::InkTexture;
+pub use notecraft_storage::RecoveryEntry;
+pub use session::{
+    AttachKind, Attached, ConvertOutcome, InsertError, PageNotice, PageSource, ReadPurpose,
+    ReadRequest, RecoveryItem, SaveOutcome, SaveState, Selection, Session, TextCursor,
+};
 pub use view::PageStyle;
 
 /// Layer number, read by `cargo xtask layers`.

@@ -14,3 +14,9 @@ workspace = true
 [dependencies]
 notecraft-core.workspace = true
 notecraft-model.workspace = true
+image.workspace = true
+resvg.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

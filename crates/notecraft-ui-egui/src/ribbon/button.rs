@@ -6,11 +6,11 @@ use egui::{
     Color32, CornerRadius, FontId, Galley, Popup, PopupCloseBehavior, Rect, SetOpenCommand, Stroke,
     Ui, Vec2,
 };
-use notecraft_engine::cmd::{Map, Status, Value};
+use notecraft_engine::cmd::{ids, Map, Status, Value};
 use std::sync::Arc;
 
 use super::spec::{Button, Combo, Menu, Size};
-use super::{combo, keytips, menus, Clicked, KeyFrame, Look};
+use super::{combo, keytips, menus, ActivePen, ActiveTool, Clicked, KeyFrame, Look};
 use crate::icons::{self, IconColors};
 use crate::themes::{mix, ButtonStyle, ThemeTokens};
 
@@ -20,7 +20,7 @@ pub(super) const SMALL_HEIGHT: f32 = 22.0;
 const ARROW: f32 = 12.0;
 const LABEL_SIZE: f32 = 12.0;
 /// Large labels wrap onto a second line beyond this width.
-const LARGE_WRAP: f32 = 72.0;
+const LARGE_WRAP: f32 = 56.0;
 
 /// Button colors for the ribbon, from the theme tokens. At rest a button has no fill of its
 /// own, so it sits on the ribbon background; hover and press fill it. Raised buttons keep a
@@ -86,6 +86,45 @@ pub(super) fn show_sized(
         show_combo(ui, button, &combo, look, out);
         return;
     }
+    // Undo and Redo on the Draw tab follow the history, as the quick access buttons do.
+    let enabled = match button.command {
+        ids::EDIT_UNDO => look.can_undo,
+        ids::EDIT_REDO => look.can_redo,
+        _ => true,
+    };
+    if !enabled {
+        ui.add_enabled_ui(false, |ui| {
+            show_enabled(ui, button, size, look, keys, large_height, out);
+        });
+        return;
+    }
+    show_enabled(ui, button, size, look, keys, large_height, out);
+}
+
+/// Whether `button` stands for the tool in use, so it shows raised.
+fn is_in_use(button: &Button, look: Look<'_>) -> bool {
+    match button.command {
+        ids::DRAW_TYPE => look.pen.is_none(),
+        ids::DRAW_ERASER => matches!(
+            look.pen,
+            Some(ActivePen {
+                tool: ActiveTool::Eraser(..),
+                ..
+            })
+        ),
+        _ => false,
+    }
+}
+
+fn show_enabled(
+    ui: &mut Ui,
+    button: &'static Button,
+    size: Size,
+    look: Look<'_>,
+    keys: &KeyFrame,
+    large_height: f32,
+    out: &mut Vec<Clicked>,
+) {
     let tokens = look.tokens;
     let spec = look.registry.get(button.command.as_str());
     let coming_soon = spec.is_none_or(|spec| spec.status == Status::ComingSoon);
@@ -121,10 +160,12 @@ pub(super) fn show_sized(
         Menu::Colors(colors) => menus::last_color(ui.ctx(), button.command, &colors),
         _ => tokens.accent,
     };
-    let response = IconButton::new(button.label, size, &style).show(ui, |ui, rect, color| {
-        let colors = IconColors { fg: color, accent };
-        paint_contents(ui, rect, button, drawn, galley, colors, has_menu);
-    });
+    let response = IconButton::new(button.label, size, &style)
+        .selected(is_in_use(button, look))
+        .show(ui, |ui, rect, color| {
+            let colors = IconColors { fg: color, accent };
+            paint_contents(ui, rect, button, drawn, galley, colors, has_menu);
+        });
     let response = crate::a11y::plain_button(response);
 
     let arrow = arrow_rect(response.rect, drawn);
@@ -159,7 +200,12 @@ pub(super) fn show_sized(
         Menu::Papers(items) => {
             Popup::menu(&response)
                 .open_memory(toggle)
-                .show(|ui| menus::papers(ui, items, look, out));
+                .show(|ui| menus::papers(ui, items, false, look, out));
+        }
+        Menu::Background(menu) => {
+            Popup::menu(&response)
+                .open_memory(toggle)
+                .show(|ui| menus::background(ui, menu, look, out));
         }
         Menu::Colors(colors) => {
             picker.show(|ui| menus::colors(ui, button.command, &colors, look, out));

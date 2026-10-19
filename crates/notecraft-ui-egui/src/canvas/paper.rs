@@ -14,6 +14,65 @@ use crate::themes::{mix, ThemeTokens};
 /// only gray the page.
 pub const MIN_SCREEN_SPACING: f32 = 4.0;
 
+/// The color the paper shows: the theme's page color with the page's own color over it.
+/// The highlighter blends against this.
+pub(super) fn paper_color(style: PageStyle, tokens: &ThemeTokens) -> Color32 {
+    let base = tokens.canvas_bg;
+    let Some([r, g, b, a]) = style.color else {
+        return base;
+    };
+    let alpha = f32::from(a) / 255.0;
+    let mix = |over: u8, under: u8| {
+        (f32::from(over) * alpha + f32::from(under) * (1.0 - alpha)).round() as u8
+    };
+    Color32::from_rgb(mix(r, base.r()), mix(g, base.g()), mix(b, base.b()))
+}
+
+/// Relative luminance of a color, 0 (black) to 1 (white).
+fn luminance(c: Color32) -> f32 {
+    let channel = |v: u8| {
+        let v = f32::from(v) / 255.0;
+        if v <= 0.040_45 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * channel(c.r()) + 0.7152 * channel(c.g()) + 0.0722 * channel(c.b())
+}
+
+/// WCAG contrast ratio of two colors (1 to 21).
+fn contrast(a: Color32, b: Color32) -> f32 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// The theme with Automatic text colors for this page: text with no color of its own is dark
+/// on a light page and light on a dark one, as OneNote's Automatic font color is. The theme's
+/// own text colors stay when they already read well on the page color.
+pub(super) fn page_tokens(style: PageStyle, tokens: &ThemeTokens) -> ThemeTokens {
+    let paper = paper_color(style, tokens);
+    if contrast(tokens.text, paper) >= 4.5 {
+        return *tokens;
+    }
+    let (text, muted) = if luminance(paper) > 0.18 {
+        (
+            Color32::from_rgb(0x1F, 0x1F, 0x1F),
+            Color32::from_rgb(0x5F, 0x5F, 0x5F),
+        )
+    } else {
+        (
+            Color32::from_rgb(0xF2, 0xF2, 0xF2),
+            Color32::from_rgb(0xB8, 0xB8, 0xB8),
+        )
+    };
+    ThemeTokens {
+        text,
+        text_muted: muted,
+        ..*tokens
+    }
+}
+
 /// Draw the paper inside `screen`, the visible part of the canvas.
 pub(super) fn draw(
     painter: &Painter,
@@ -36,7 +95,11 @@ pub(super) fn draw(
         if let Some(color) = page_color {
             painter.rect_filled(page, 0.0, color);
         }
-        paint_rules(painter, page, map, style.rule_lines, tokens);
+        let margin = margin_x(page, map, style.rule_lines);
+        let color = style.rule_color.map_or(tokens.canvas_rule, |[r, g, b, a]| {
+            Color32::from_rgba_unmultiplied(r, g, b, a)
+        });
+        paint_rules(painter, page, map, style.rule_lines, margin, color, tokens);
     }
     if let Some(edge) = edge {
         let stroke = Stroke::new(1.0, tokens.border);
@@ -45,15 +108,19 @@ pub(super) fn draw(
 }
 
 /// Draw the rule lines, grid, margin line, or dots of `rules` inside `page`, a part of the
-/// paper on screen. Shared by the canvas and the Rule Lines menu thumbnails.
+/// paper on screen. Shared by the canvas and the Rule Lines menu thumbnails. `margin` is the
+/// screen x of the red margin line, if it shows (the canvas computes it from the page; a
+/// thumbnail places it by [`thumbnail_margin_x`]). `color` is the color of the lines and dots.
 fn paint_rules(
     painter: &Painter,
     page: Rect,
     map: PageToScreen,
     rules: RuleLines,
+    margin: Option<f32>,
+    color: Color32,
     tokens: &ThemeTokens,
 ) {
-    let stroke = Stroke::new(1.0, tokens.canvas_rule);
+    let stroke = Stroke::new(1.0, color);
     let (rows, columns) = rule_lines(page, map, rules);
     for y in rows {
         painter.hline(page.x_range(), painter.round_to_pixel_center(y), stroke);
@@ -62,19 +129,32 @@ fn paint_rules(
         painter.vline(painter.round_to_pixel_center(x), page.y_range(), stroke);
     }
     // The margin goes after the horizontal rules so it sits on top of them.
-    if let Some(x) = margin_x(page, map, rules) {
+    if let Some(x) = margin {
         let stroke = Stroke::new(1.0, tokens.canvas_margin_rule);
         painter.vline(painter.round_to_pixel_center(x), page.y_range(), stroke);
     }
     let radius = dot_radius(map.zoom);
     for dot in dot_positions(page, map, rules) {
-        painter.circle_filled(dot, radius, tokens.canvas_rule);
+        painter.circle_filled(dot, radius, color);
     }
 }
 
 /// Zoom of a Rule Lines menu thumbnail: a thumbnail shows the top left corner of the page at
 /// this scale, so ruled and grid spacings keep their real ratios.
 pub(crate) const THUMBNAIL_ZOOM: f32 = 0.45;
+
+/// Where a thumbnail's margin line sits, as a fraction of the card width from its left edge.
+/// A real page is 816 units wide and the margin is 96 from the left (about 12%), so the line
+/// stays near the left edge whatever the card size.
+pub(crate) const THUMBNAIL_MARGIN_FRACTION: f32 = 0.18;
+
+/// Screen x of the margin line in a thumbnail card `rect`: near the left edge, only for ruled
+/// styles. The thumbnail shows the top left corner of a page at [`THUMBNAIL_ZOOM`], which is
+/// too small to hold the real 1 inch margin, so the line is placed by fraction instead.
+pub(crate) fn thumbnail_margin_x(rect: Rect, rules: RuleLines) -> Option<f32> {
+    rules.margin()?;
+    Some(rect.min.x + rect.width() * THUMBNAIL_MARGIN_FRACTION)
+}
 
 /// Paint a miniature page in `rect` with `rules`, using the same drawing as the canvas.
 pub(crate) fn paint_thumbnail(
@@ -89,7 +169,15 @@ pub(crate) fn paint_thumbnail(
         origin: rect.min,
         zoom: THUMBNAIL_ZOOM,
     };
-    paint_rules(&painter, rect, map, rules, tokens);
+    paint_rules(
+        &painter,
+        rect,
+        map,
+        rules,
+        thumbnail_margin_x(rect, rules),
+        tokens.canvas_rule,
+        tokens,
+    );
 }
 
 /// The paper on screen, or `None` for an auto-sized page, which fills the canvas.
@@ -203,6 +291,30 @@ mod tests {
         PageToScreen {
             origin: egui::pos2(100.0, 50.0),
             zoom,
+        }
+    }
+
+    #[test]
+    fn automatic_text_reads_on_any_page_color() {
+        use crate::themes::Preset;
+        for preset in Preset::ALL {
+            for dark in [false, true] {
+                let theme = ThemeTokens::for_variant(preset, dark);
+                for color in [None, Some([255, 255, 255, 255]), Some([20, 20, 30, 255])] {
+                    let style = PageStyle {
+                        color,
+                        ..PageStyle::default()
+                    };
+                    let page = page_tokens(style, &theme);
+                    let paper = paper_color(style, &theme);
+                    assert!(
+                        contrast(page.text, paper) >= 4.5,
+                        "{preset:?} dark={dark} page {color:?}"
+                    );
+                }
+                // A page with the theme's own color keeps the theme's text.
+                assert_eq!(page_tokens(PageStyle::default(), &theme).text, theme.text);
+            }
         }
     }
 
@@ -325,11 +437,14 @@ mod tests {
                     RuleKind::Dots => assert!(dots.len() >= 4, "{style:?} dots"),
                     RuleKind::Lines => {
                         assert!(rows.len() >= 4, "{style:?} rows");
-                        assert!(margin_x(area, thumb, style).is_some(), "{style:?} margin");
+                        assert!(
+                            thumbnail_margin_x(area, style).is_some(),
+                            "{style:?} margin"
+                        );
                     }
                     RuleKind::Grid => {
                         assert!(!rows.is_empty(), "{style:?} rows");
-                        assert!(margin_x(area, thumb, style).is_none());
+                        assert!(thumbnail_margin_x(area, style).is_none());
                     }
                 }
                 rows.len()
@@ -338,6 +453,36 @@ mod tests {
         // Narrow ruled paper is denser than wide, and small grids denser than extra large.
         assert!(counts[1] >= counts[4]);
         assert!(counts[5] > counts[8]);
+    }
+
+    #[test]
+    fn thumbnail_margin_is_in_the_left_quarter_of_the_card() {
+        // The Rule Lines menu cards are 68 x 48 points with a 1 point border.
+        let card = Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(66.0, 46.0));
+        for style in RuleLines::ALL {
+            match thumbnail_margin_x(card, style) {
+                Some(x) => {
+                    assert!(style.margin().is_some(), "{style:?}");
+                    assert!(
+                        x > card.min.x && x <= card.min.x + card.width() / 4.0,
+                        "{style:?} margin at {x}"
+                    );
+                }
+                None => assert!(style.margin().is_none(), "{style:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn the_canvas_margin_is_one_inch_from_the_left_page_edge() {
+        // A fixed size page and an auto-sized one both start at the map origin.
+        let area = Rect::from_min_size(egui::pos2(100.0, 50.0), egui::vec2(600.0, 100.0));
+        for size in [PaperSize::Letter, PaperSize::Auto] {
+            let left = page_rect(map(1.0), size).map_or(area.min.x, |edge| edge.min.x);
+            assert_eq!(left, 100.0);
+            let x = margin_x(area, map(1.0), RuleLines::College);
+            assert_eq!(x, Some(left + 96.0));
+        }
     }
 
     #[test]

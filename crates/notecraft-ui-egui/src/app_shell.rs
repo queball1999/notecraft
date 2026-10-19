@@ -19,7 +19,7 @@ use crate::ribbon::{self, Clicked, Ribbon};
 use crate::shortcuts::Shortcuts;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
-use crate::{start, status};
+use crate::{bars, start, status};
 /// Height of the status bar, in points.
 pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
@@ -63,6 +63,21 @@ const FILE_OPENS: [CommandId; 3] = [
     ids::FILE_OPEN,
 ];
 
+/// Most files taken from one drop.
+const MAX_DROPPED_FILES: usize = 50;
+/// How far the insert point moves down and right after each insert or dropped file, in page
+/// units, so the objects do not cover each other.
+const INSERT_STEP: f32 = 24.0;
+
+/// Whether a file name has a picture extension the canvas draws.
+fn is_picture_name(name: &str) -> bool {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase());
+    matches!(
+        ext.as_deref(),
+        Some("png" | "jpg" | "jpeg" | "webp" | "svg")
+    )
+}
+
 /// Everything inside the main window.
 #[derive(Debug)]
 pub struct AppShell {
@@ -91,8 +106,20 @@ pub struct AppShell {
     recent_colors: Vec<String>,
     /// Build and system details for the About page, from the app.
     about: AppInfo,
+    /// The What's New dialog.
+    whats_new: crate::whats_new::WhatsNew,
     /// Text for the clipboard, put there on the next frame.
     pending_copy: Option<String>,
+    /// The temporary file holding a clipboard picture while Paste as Picture runs.
+    paste_temp: Option<String>,
+    /// A text paste (`Event::Paste`) came in since the last Ctrl+V key release, so that Ctrl+V
+    /// was a text paste.
+    paste_seen: bool,
+    /// Ids of the commands that ran through [`AppShell::dispatch`], for tests.
+    #[cfg(test)]
+    ran: Vec<String>,
+    /// Auto-save, the recovery journal, and the folder watcher (the desktop app turns them on).
+    io: Option<notecraft_engine::io::SessionIo>,
 }
 
 impl Default for AppShell {
@@ -106,6 +133,10 @@ impl AppShell {
     pub fn new() -> Self {
         let mut session = Session::new();
         session.set_notebooks(notecraft_engine::mock::notebooks());
+        session.set_page_source(
+            notecraft_engine::mock::WELCOME_ID,
+            notecraft_engine::mock::WELCOME_SOURCE,
+        );
         Self::with_session(session)
     }
 
@@ -123,6 +154,8 @@ impl AppShell {
             nav: NavUi::default(),
             canvas: CanvasUi::default(),
             picker: Box::new(NoPicker),
+            paste_temp: None,
+            paste_seen: false,
             shortcuts: Shortcuts::new(),
             installed: None,
             fonts: OsFonts::default(),
@@ -132,7 +165,25 @@ impl AppShell {
             restore_colors: None,
             recent_colors: Vec::new(),
             about: AppInfo::default(),
+            whats_new: crate::whats_new::WhatsNew::new(),
             pending_copy: None,
+            #[cfg(test)]
+            ran: Vec::new(),
+            io: None,
+        }
+    }
+
+    /// Turn on auto-save, crash recovery, and outside edit watching. Without this (tests)
+    /// pages are read inline and never written.
+    pub fn with_io(mut self, io: notecraft_engine::io::SessionIo) -> Self {
+        self.io = Some(io);
+        self
+    }
+
+    /// Save every unsaved page now and journal what could not be saved. Call on quit.
+    pub fn flush_unsaved(&mut self) {
+        if let Some(io) = &mut self.io {
+            io.flush(&mut self.session);
         }
     }
 
@@ -140,6 +191,17 @@ impl AppShell {
     pub fn with_about(mut self, info: AppInfo) -> Self {
         self.about = info;
         self
+    }
+
+    /// Open the What's New dialog now (the app calls this at the first launch of a version).
+    /// The same dialog opens from `help.whats_new`.
+    pub fn open_whats_new(&mut self) {
+        self.whats_new.open();
+    }
+
+    /// Whether the What's New dialog is open.
+    pub fn whats_new_open(&self) -> bool {
+        self.whats_new.is_open()
     }
 
     /// The text `file.copy_about_info` copies, for tests.
@@ -154,6 +216,29 @@ impl AppShell {
     }
 
     /// The Recent Colors of the color menus, newest first.
+    /// Replace the Draw tab's pens and highlighters (restoring saved settings).
+    pub fn set_pen_tools(&mut self, tools: Vec<notecraft_engine::PenTool>) {
+        self.session.set_pen_tools(tools);
+    }
+
+    /// Set the rule style new pages start with, by its `view.rule_lines` id (restoring saved
+    /// settings). An unknown id means none.
+    pub fn set_default_rule_lines(&mut self, id: &str) {
+        let style = notecraft_canvas::RuleLines::from_id(id).unwrap_or_default();
+        self.session.set_default_rule_lines(style);
+    }
+
+    /// The rule style new pages start with, for saving in the settings (`none` when Always
+    /// Create Pages with Rule Lines is off).
+    pub fn default_rule_lines(&self) -> &'static str {
+        self.session.default_rule_lines().id()
+    }
+
+    /// The Draw tab's pens and highlighters, for saving in the settings.
+    pub fn pen_tools(&self) -> &[notecraft_engine::PenTool] {
+        self.session.ink().tools()
+    }
+
     pub fn recent_colors(&self) -> &[String] {
         &self.recent_colors
     }
@@ -235,6 +320,27 @@ impl AppShell {
         &self.session
     }
 
+    #[cfg(test)]
+    pub(crate) fn screen_point_of(&self, page: notecraft_core::Vec2) -> Option<egui::Pos2> {
+        self.canvas.screen_point_of(page)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn picture_counts(&self) -> (usize, usize) {
+        self.canvas.picture_counts()
+    }
+
+    /// Show a notice line on page `id`; a read-only notice also stops text editing there.
+    pub fn set_page_notice(&mut self, id: &str, text: &str, read_only: bool) {
+        self.session.set_page_notice(id, text, read_only);
+    }
+
+    /// Give page `id` its markdown source text (the whole file). The canvas shows it in flow
+    /// layout when that page is open. The folder reader (PR 1.1) calls this when it loads a page.
+    pub fn set_page_source(&mut self, id: &str, text: impl Into<String>) {
+        self.session.set_page_source(id, text);
+    }
+
     pub fn ribbon(&self) -> &Ribbon {
         &self.ribbon
     }
@@ -275,7 +381,11 @@ impl AppShell {
     /// whether the command ran.
     pub fn dispatch(&mut self, id: &str, args: Value) -> bool {
         match self.run_command(id, args) {
-            Some(Ok(_)) => true,
+            Some(Ok(_)) => {
+                #[cfg(test)]
+                self.ran.push(id.to_owned());
+                true
+            }
             None => false,
             Some(Err(err)) => {
                 match err {
@@ -299,18 +409,111 @@ impl AppShell {
     ) -> Option<Result<CommandOutput, CommandError>> {
         let args = self.fill_path(id, args)?;
         let result = self.registry.run(&mut self.session, id, args);
+        if let Some(temp) = self.paste_temp.take() {
+            // The clipboard picture was copied into the notebook; the temporary file goes.
+            let _ = std::fs::remove_file(temp);
+        }
+        if id == ids::ATTACHMENT_OPEN.as_str() {
+            if let Ok(output) = &result {
+                let path = output.value.get("path").and_then(Value::as_str);
+                if !path.is_some_and(|p| self.picker.open_in_default_app(p)) {
+                    self.toasts.push("The file could not be opened.");
+                }
+            }
+        }
         // Opening something from the File backstage returns to the notes.
-        if result.is_ok() {
+        if let Ok(output) = &result {
             if FILE_OPENS.iter().any(|open| open.as_str() == id) {
                 self.ribbon.close_backstage();
+                self.toast_open_warnings(output);
             } else if id == ids::FILE_ABOUT.as_str() {
                 self.ribbon.open_backstage_on(ids::FILE_ABOUT);
+            } else if id == ids::HELP_WHATS_NEW.as_str() {
+                self.whats_new.open();
             } else if id == ids::FILE_COPY_ABOUT_INFO.as_str() {
                 self.pending_copy = Some(self.about.plain_text());
                 self.toasts.push("Copied the version and build details.");
             }
         }
         Some(result)
+    }
+
+    /// Ctrl+V with a picture (and no text) on the clipboard inserts the picture. The window
+    /// system layer turns Ctrl+V into a text paste event only when the clipboard holds text and
+    /// swallows the key press otherwise, but it still reports the key release. So a release of
+    /// V with the command key down, with no text paste since the last one, means the clipboard
+    /// had no text: look for a picture and insert it (`edit.paste_picture`). Nothing is said
+    /// when there is none, because Ctrl+V on an empty clipboard is not an error.
+    fn paste_clipboard_picture(&mut self, ctx: &egui::Context) {
+        let events = ctx.input(|input| input.events.clone());
+        let mut wanted = false;
+        for event in &events {
+            match event {
+                egui::Event::Paste(_) => self.paste_seen = true,
+                egui::Event::Key {
+                    key: egui::Key::V,
+                    pressed: false,
+                    modifiers,
+                    ..
+                } if modifiers.command => {
+                    wanted |= !self.paste_seen;
+                    self.paste_seen = false;
+                }
+                _ => {}
+            }
+        }
+        if !wanted {
+            return;
+        }
+        if let Some(path) = self.picker.clipboard_picture() {
+            self.paste_temp = Some(path.clone());
+            let mut args = Map::new();
+            args.insert("path".to_owned(), Value::from(path));
+            self.dispatch(ids::EDIT_PASTE_PICTURE.as_str(), Value::Object(args));
+        }
+    }
+
+    /// Tell the user when opening a notebook folder skipped something (a folder nested too
+    /// deep, a settings file that could not be read). The notebook is open either way.
+    fn toast_open_warnings(&mut self, output: &CommandOutput) {
+        let Some(warnings) = output.value.get("warnings").and_then(Value::as_array) else {
+            return;
+        };
+        let first = warnings.first().and_then(Value::as_str).unwrap_or_default();
+        let more = warnings.len().saturating_sub(1);
+        let text = if more == 0 {
+            format!("Opened with a warning: {first}")
+        } else {
+            format!("Opened with {} warnings. First: {first}", warnings.len())
+        };
+        self.toasts.push(text);
+    }
+
+    /// A picture or file inserted without a point goes where the user last clicked on empty
+    /// canvas (docs/markdown.md section 3.4). With the caret in a note, or on a page not
+    /// clicked yet, it flows with the text instead.
+    fn add_insert_point(&mut self, id: &str, args: &mut Map<String, Value>) {
+        let places = [
+            ids::INSERT_PICTURE,
+            ids::INSERT_FILE_ATTACHMENT,
+            ids::EDIT_PASTE_PICTURE,
+        ];
+        if !places.iter().any(|p| p.as_str() == id) || args.contains_key("x") {
+            return;
+        }
+        // With the caret in a note the object goes inline at the caret, as OneNote does.
+        if self.session.text_cursor().is_some() {
+            return;
+        }
+        let Some(page) = self.session.selection().page.clone() else {
+            return;
+        };
+        let Some(at) = self.canvas.insert_point(&page) else {
+            return;
+        };
+        args.insert("x".to_owned(), Value::from(f64::from(at.x)));
+        args.insert("y".to_owned(), Value::from(f64::from(at.y)));
+        self.canvas.step_insert_point(INSERT_STEP);
     }
 
     /// `args` with a `path` from the picker if `id` is a file command sent without one.
@@ -321,6 +524,7 @@ impl AppShell {
             Value::Object(map) => map,
             other => return Some(other),
         };
+        self.add_insert_point(id, &mut map);
         if map.contains_key("path") {
             return Some(Value::Object(map));
         }
@@ -331,6 +535,17 @@ impl AppShell {
             self.picker.pick_folder("Open Notebook")
         } else if id == ids::FILE_OPEN.as_str() {
             self.picker.pick_file("Open File")
+        } else if id == ids::INSERT_PICTURE.as_str() {
+            self.picker.pick_picture("Insert Picture")
+        } else if id == ids::INSERT_FILE_ATTACHMENT.as_str() {
+            self.picker.pick_attachment("Attach File")
+        } else if id == ids::EDIT_PASTE_PICTURE.as_str() {
+            let path = self.picker.clipboard_picture();
+            if path.is_none() {
+                self.toasts.push("There is no picture on the clipboard.");
+            }
+            self.paste_temp = path.clone();
+            path
         } else {
             return Some(Value::Object(map));
         };
@@ -340,6 +555,16 @@ impl AppShell {
 
     /// Per-frame work that must run even when the window is hidden (eframe `logic`).
     pub fn logic(&mut self, ctx: &egui::Context) {
+        if let Some(io) = &mut self.io {
+            let focused = ctx.input(|i| i.viewport().focused.unwrap_or(true));
+            if ctx.input(|i| i.viewport().close_requested()) {
+                io.flush(&mut self.session);
+            }
+            let now = std::time::Instant::now();
+            if let Some(wait) = io.pump(&mut self.session, now, focused) {
+                ctx.request_repaint_after(wait);
+            }
+        }
         // Ctrl+=, Ctrl+-, and Ctrl+0 belong to OneNote's shortcuts, not to egui's UI scaling.
         if ctx.options(|options| options.zoom_with_keyboard) {
             ctx.options_mut(|options| options.zoom_with_keyboard = false);
@@ -363,6 +588,42 @@ impl AppShell {
         }
     }
 
+    /// Files dropped on the window become pictures (PNG, JPEG, WebP) or file attachments, one
+    /// command each, so each drop is its own undo step. Only a page that is shown takes them.
+    fn insert_dropped_files(&mut self, ctx: &egui::Context) {
+        let dropped = ctx.input_mut(|input| std::mem::take(&mut input.raw.dropped_files));
+        if dropped.is_empty() || self.session.notebooks().is_empty() || self.ribbon.backstage_open()
+        {
+            return;
+        }
+        // A file dropped on the page lands where it was dropped, each further file a step lower
+        // and to the right.
+        let drop_at = ctx
+            .input(|input| input.pointer.hover_pos().or(input.pointer.latest_pos()))
+            .and_then(|pos| self.canvas.page_point_at(pos));
+        for (index, file) in dropped.into_iter().take(MAX_DROPPED_FILES).enumerate() {
+            let path = file.path().to_path_buf();
+            let text = path.to_string_lossy().into_owned();
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let id = if is_picture_name(&name) {
+                ids::INSERT_PICTURE
+            } else {
+                ids::INSERT_FILE_ATTACHMENT
+            };
+            let mut args = Map::new();
+            args.insert("path".to_owned(), Value::from(text));
+            if let Some(at) = drop_at {
+                let step = INSERT_STEP * index as f32;
+                args.insert("x".to_owned(), Value::from(f64::from(at.x + step)));
+                args.insert("y".to_owned(), Value::from(f64::from(at.y + step)));
+            }
+            self.dispatch(id.as_str(), Value::Object(args));
+        }
+    }
+
     /// Put text a command asked to copy on the clipboard.
     fn flush_copy(&mut self, ctx: &egui::Context) {
         if let Some(text) = self.pending_copy.take() {
@@ -373,8 +634,12 @@ impl AppShell {
     /// Draw the window contents (eframe `ui`).
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let tokens = self.tokens(ui.ctx());
+        // First, so Esc closes the dialog before any shortcut sees it.
+        self.whats_new.show(ui.ctx(), &tokens, &self.about.version);
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
+        self.insert_dropped_files(ui.ctx());
+        self.paste_clipboard_picture(ui.ctx());
         self.flush_copy(ui.ctx());
         self.font_list.load_previews(ui.ctx());
         if let Some(colors) = self.restore_colors.take() {
@@ -386,11 +651,31 @@ impl AppShell {
                 self.families = families;
             }
         }
+        let tool_views: Vec<ribbon::ToolView> = self
+            .session
+            .ink()
+            .tools()
+            .iter()
+            .map(|tool| ribbon::ToolView {
+                highlighter: tool.kind == notecraft_engine::ToolKind::Highlighter,
+                color: tool.style.color.0,
+                width_pt: tool.style.width_pt,
+                texture: tool.style.texture,
+            })
+            .collect();
         let look = ribbon::Look {
             tokens: &tokens,
             registry: &self.registry,
             fonts: &self.families,
             rule_lines: self.session.page_style().rule_lines.id(),
+            always_rule_lines: self.session.default_rule_lines()
+                != notecraft_canvas::RuleLines::None,
+            pen: active_pen(self.session.ink()),
+            tools: &tool_views,
+            selected_tool: self.session.ink().selected_tool(),
+            can_undo: self.session.can_undo(),
+            can_redo: self.session.can_redo(),
+            can_convert: self.session.can_convert_to_markdown(),
         };
         if self.ribbon.backstage_open() {
             let clicked = self
@@ -460,7 +745,9 @@ impl AppShell {
             .default_size(SIDE_WIDTH)
             .resizable(true)
             .frame(panel.fill(tokens.sidebar_bg))
-            .show(ui, |ui| nav::page_list(ui, session, &tokens, &mut clicked));
+            .show(ui, |ui| {
+                nav::page_list(ui, session, nav_ui, &tokens, &mut clicked)
+            });
         let canvas_width = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
             .show(ui, |ui| {
@@ -469,8 +756,13 @@ impl AppShell {
                     full.min,
                     egui::vec2(full.width(), nav::SECTION_STRIP_HEIGHT),
                 );
-                nav::section_tabs(ui, strip, session, &tokens, &mut clicked);
-                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, strip.max.y), full.max);
+                nav::section_tabs(ui, strip, session, nav_ui, &tokens, &mut clicked);
+                let bar = egui::Rect::from_min_size(
+                    egui::pos2(full.min.x, strip.max.y),
+                    egui::vec2(full.width(), bars::height(session)),
+                );
+                bars::show(ui, bar, session, &tokens, &mut clicked);
+                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, bar.max.y), full.max);
                 canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
             })
             .inner;
@@ -538,6 +830,26 @@ impl AppShell {
     }
 }
 
+/// The tool to mark in the Draw tab menus: the pen, highlighter, or eraser while it is the
+/// tool in use, and nothing while typing.
+fn active_pen(ink: &notecraft_engine::InkState) -> Option<ribbon::ActivePen> {
+    use notecraft_engine::DrawTool;
+    let tool = match ink.tool() {
+        DrawTool::Type => return None,
+        DrawTool::Pen => ribbon::ActiveTool::Pen,
+        DrawTool::Highlighter => ribbon::ActiveTool::Highlighter,
+        DrawTool::Eraser => ribbon::ActiveTool::Eraser(ink.eraser().id(), ink.eraser_size().id()),
+    };
+    let style = ink.brush();
+    let [r, g, b, _] = style.color.0;
+    Some(ribbon::ActivePen {
+        tool,
+        color: u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
+        width_pt: style.width_pt,
+        texture: style.texture.id(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -582,7 +894,8 @@ mod tests {
             .texts()
             .map(str::to_owned)
             .collect();
-        assert_eq!(texts, ["Coming Soon: Bold"]);
+        assert!(texts.is_empty(), "Bold runs and shows nothing: {texts:?}");
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.bold"));
     }
 
     #[test]
@@ -646,11 +959,7 @@ mod tests {
         harness.get_by_label("Bold").click();
         harness.run();
         assert!(!harness.state().ribbon().peeking());
-        assert!(harness
-            .state()
-            .toasts()
-            .texts()
-            .any(|t| t == "Coming Soon: Bold"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.bold"));
 
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F1);
         harness.run();
@@ -683,12 +992,49 @@ mod tests {
         assert_eq!(harness.state().canvas().viewport().origin(), before);
     }
 
+    /// What a screen reader gets for the canvas: the page text, once a page has markdown.
+    fn canvas_text(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
+        use egui_kittest::kittest::NodeT;
+        harness.get_by_label("Canvas").accesskit_node().value()
+    }
+
+    #[test]
+    fn a_page_with_markdown_shows_its_text_on_the_canvas() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let text = canvas_text(&harness).expect("the welcome page has text");
+        assert!(text.contains("Welcome to NoteCraft"), "{text}");
+        assert!(text.contains("plain markdown"), "{text}");
+        assert!(!text.contains("**"), "{text}");
+
+        // Another page has no text yet; replacing the source of the shown page redraws it.
+        harness.state_mut().set_page_source(
+            notecraft_engine::mock::WELCOME_ID,
+            "---\ntitle: Welcome\n---\nOnly this line.\n",
+        );
+        harness.run();
+        assert_eq!(canvas_text(&harness).as_deref(), Some("Only this line.\n"));
+    }
+
+    #[test]
+    fn a_page_without_text_has_no_canvas_text() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        harness.get_by_label("Grocery list").click();
+        harness.run();
+        assert_eq!(canvas_text(&harness), None);
+    }
+
     fn type_into(harness: &mut egui_kittest::Harness<'_, AppShell>, label: &str, text: &str) {
         harness.get_by_label(label).focus();
         harness.run();
         harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
         harness.event(egui::Event::Text(text.to_owned()));
         harness.run();
+    }
+
+    fn last_ran(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
+        harness.state().ran.last().cloned()
     }
 
     fn last_toast(harness: &egui_kittest::Harness<'_, AppShell>) -> Option<String> {
@@ -717,7 +1063,7 @@ mod tests {
         assert!(harness.query_by_label("Consolas").is_none(), "filtered");
         harness.key_press(egui::Key::Enter);
         harness.run();
-        assert_eq!(last_toast(&harness).as_deref(), Some("Coming Soon: Font"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_family"));
         assert!(
             harness.query_by_label("Arial Black").is_none(),
             "list closed"
@@ -771,10 +1117,7 @@ mod tests {
         type_into(&mut harness, "Font Size", "13.5");
         harness.key_press(egui::Key::Enter);
         harness.run();
-        assert_eq!(
-            last_toast(&harness).as_deref(),
-            Some("Coming Soon: Font Size")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_size"));
     }
 
     #[test]
@@ -790,7 +1133,7 @@ mod tests {
         assert!(harness.query_by_label("Segoe UI").is_some());
         harness.get_by_label("Consolas").click();
         harness.run();
-        assert_eq!(last_toast(&harness).as_deref(), Some("Coming Soon: Font"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_family"));
         assert!(harness.query_by_label("Segoe UI").is_none(), "list closed");
 
         let mut harness = harness_for(AppShell::new());
@@ -799,10 +1142,7 @@ mod tests {
         harness.run();
         harness.get_by_label("24").click();
         harness.run();
-        assert_eq!(
-            last_toast(&harness).as_deref(),
-            Some("Coming Soon: Font Size")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_size"));
     }
 
     #[test]
@@ -848,11 +1188,7 @@ mod tests {
         );
         harness.get_by_label("Bold").click();
         harness.run();
-        assert!(harness
-            .state()
-            .toasts()
-            .texts()
-            .any(|t| t == "Coming Soon: Bold"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.bold"));
         display_option(&mut harness, "Classic Ribbon");
         assert_eq!(
             harness.state().session().view().ribbon_layout,
@@ -888,10 +1224,7 @@ mod tests {
         harness.run();
         harness.get_by_label("Heading 2").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Styles")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("style.apply"));
         harness.get_by_label("Important").click();
         harness.run();
         assert_eq!(
@@ -943,10 +1276,7 @@ mod tests {
         let _ = harness.get_by_label("Heading 6");
         harness.get_by_label("Page Title").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Styles")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("style.apply"));
         assert!(harness.query_by_label("Heading 6").is_none(), "menu closes");
 
         harness.get_by_label("More Tags").click();
@@ -971,10 +1301,7 @@ mod tests {
         harness.run();
         harness.get_by_label("Quote").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Styles")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("style.apply"));
         harness.get_by_label("Tags").click();
         harness.run();
         harness.get_by_label("Idea").click();
@@ -1006,13 +1333,14 @@ mod tests {
     }
 
     #[test]
-    fn help_tab_has_its_four_buttons() {
+    fn help_tab_has_its_buttons() {
         use egui::accesskit::Role;
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         harness.get_by_label("Help").click();
         harness.run();
         assert_eq!(harness.state().ribbon().selected(), "Help");
+        let _ = harness.get_by_role_and_label(Role::Button, "What's New");
         for label in ["Help", "Support", "Feedback", "Show Training"] {
             harness.get_by_role_and_label(Role::Button, label).click();
             harness.run();
@@ -1059,7 +1387,7 @@ mod tests {
         harness.run();
         assert!(harness.state().ribbon().key_tips_showing());
 
-        // N opens Insert; then the code for Pictures presses it.
+        // N opens Insert; then the code for Screen Clipping presses it.
         harness.key_press(egui::Key::N);
         harness.run();
         assert_eq!(harness.state().ribbon().selected(), "Insert");
@@ -1070,7 +1398,7 @@ mod tests {
         let tips = crate::ribbon::keytips::tips_for_tab(insert);
         let code = tips
             .iter()
-            .find(|(button, _)| button.label == "Pictures")
+            .find(|(button, _)| button.label == "Screen Clipping")
             .map(|(_, code)| code.clone())
             .unwrap();
         for c in code.chars() {
@@ -1082,7 +1410,7 @@ mod tests {
             .state()
             .toasts()
             .texts()
-            .any(|t| t == "Coming Soon: Pictures"));
+            .any(|t| t == "Coming Soon: Screen Clipping"));
 
         // F10, then F, opens the backstage; Esc closes it.
         harness.key_press(egui::Key::F10);
@@ -1135,15 +1463,174 @@ mod tests {
     }
 
     #[test]
-    fn add_page_and_new_section_are_coming_soon() {
+    fn editing_a_sample_notebook_says_to_open_a_folder_first() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         harness.get_by_label("Add Page").click();
         harness.run();
+        let texts: Vec<&str> = harness.state().toasts().texts().collect();
+        assert_eq!(texts.len(), 1);
+        assert!(texts[0].contains("sample notebook"), "{texts:?}");
+    }
+
+    /// A shell with a real notebook folder open: sections Work (Alpha, Beta) and Home (Gamma).
+    fn disk_shell() -> (tempfile::TempDir, egui_kittest::Harness<'static, AppShell>) {
+        let dir = tempfile::TempDir::new().unwrap();
+        for (rel, text) in [
+            ("Work/Alpha.md", "a"),
+            ("Work/Beta.md", "b"),
+            ("Home/Gamma.md", "g"),
+        ] {
+            let path = dir.path().join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        let mut shell = AppShell::empty();
+        assert!(shell.open_path(dir.path()));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        (dir, harness)
+    }
+
+    fn page_titles(shell: &AppShell) -> Vec<String> {
+        shell
+            .session()
+            .current_section()
+            .map(|s| s.pages.iter().map(|p| p.title.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn add_page_and_new_section_edit_the_folder() {
+        let (dir, mut harness) = disk_shell();
+        harness.get_by_label("Add Page").click();
+        harness.run();
+        assert!(dir.path().join("Home/Untitled Page.md").is_file());
+        assert_eq!(page_titles(harness.state()), ["Gamma", "Untitled Page"]);
         harness.get_by_label("New Section").click();
         harness.run();
-        let texts: Vec<&str> = harness.state().toasts().texts().collect();
-        assert_eq!(texts, ["Coming Soon: Add Page", "Coming Soon: New Section"]);
+        assert!(dir.path().join("New Section/.section.toml").is_file());
+        assert_eq!(
+            harness.state().session().current_section().unwrap().name,
+            "New Section"
+        );
+        assert!(toasts(&harness).is_empty());
+        // Undo takes the new section away again.
+        harness.state_mut().dispatch("edit.undo", Value::Null);
+        harness.run();
+        assert!(!dir.path().join("New Section").exists());
+    }
+
+    #[test]
+    fn a_page_is_renamed_in_place_from_its_context_menu() {
+        let (dir, mut harness) = disk_shell();
+        harness.get_by_label("Gamma").click_secondary();
+        harness.run();
+        harness.get_by_label("Rename").click();
+        harness.run();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness.event(egui::Event::Text("Delta".to_owned()));
+        harness.run();
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+        harness.run();
+        assert!(dir.path().join("Home/Delta.md").is_file());
+        assert!(!dir.path().join("Home/Gamma.md").exists());
+        assert_eq!(page_titles(harness.state()), ["Delta"]);
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn escape_cancels_a_rename() {
+        let (dir, mut harness) = disk_shell();
+        harness.get_by_label("Gamma").click_secondary();
+        harness.run();
+        harness.get_by_label("Rename").click();
+        harness.run();
+        harness.run();
+        harness.event(egui::Event::Text("Nope".to_owned()));
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        harness.run();
+        assert!(dir.path().join("Home/Gamma.md").is_file());
+        assert_eq!(page_titles(harness.state()), ["Gamma"]);
+    }
+
+    #[test]
+    fn deleting_a_page_from_the_context_menu_can_be_undone() {
+        let (dir, mut harness) = disk_shell();
+        harness.get_by_label("Gamma").click_secondary();
+        harness.run();
+        harness.get_by_label("Delete Page").click();
+        harness.run();
+        assert!(!dir.path().join("Home/Gamma.md").exists());
+        assert!(dir.path().join(".notecraft/trash").is_dir());
+        assert!(page_titles(harness.state()).is_empty());
+        harness.state_mut().dispatch("edit.undo", Value::Null);
+        harness.run();
+        assert!(dir.path().join("Home/Gamma.md").is_file());
+        assert_eq!(page_titles(harness.state()), ["Gamma"]);
+    }
+
+    #[test]
+    fn page_menu_moves_and_indents_pages() {
+        let (dir, mut harness) = disk_shell();
+        let work = harness.state().session().notebooks()[0].all_sections()[1]
+            .id
+            .clone();
+        harness
+            .state_mut()
+            .dispatch("nav.section.select", serde_json::json!({ "id": work }));
+        harness.run();
+        assert_eq!(page_titles(harness.state()), ["Alpha", "Beta"]);
+        harness.get_by_label("Alpha").click_secondary();
+        harness.run();
+        harness.get_by_label("Move Down").click();
+        harness.run();
+        assert_eq!(page_titles(harness.state()), ["Beta", "Alpha"]);
+        harness.get_by_label("Alpha").click_secondary();
+        harness.run();
+        harness.get_by_label("Make Subpage").click();
+        harness.run();
+        let levels: Vec<u8> = harness
+            .state()
+            .session()
+            .current_section()
+            .unwrap()
+            .pages
+            .iter()
+            .map(|p| p.level)
+            .collect();
+        assert_eq!(levels, [0, 1]);
+        assert!(dir.path().join("Work/.section.toml").is_file());
+    }
+
+    #[test]
+    fn section_context_menu_colors_and_deletes() {
+        let (dir, mut harness) = disk_shell();
+        harness
+            .get_all_by_label("Home")
+            .nth(1)
+            .unwrap()
+            .click_secondary();
+        harness.run();
+        harness.get_by_label_contains("Section Color").click();
+        harness.run();
+        harness.get_by_label("Blue").click();
+        harness.run();
+        let toml = std::fs::read_to_string(dir.path().join("Home/.section.toml")).unwrap();
+        assert!(toml.contains("#9FD3E8"), "{toml}");
+        harness
+            .get_all_by_label("Home")
+            .nth(1)
+            .unwrap()
+            .click_secondary();
+        harness.run();
+        harness.get_by_label("Delete Section").click();
+        harness.run();
+        assert!(!dir.path().join("Home").exists());
+        assert!(toasts(&harness).is_empty());
     }
 
     #[test]
@@ -1192,22 +1679,27 @@ mod tests {
     fn color_picker_swatches_and_custom_color_run_the_command() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.get_by_label("Draw").click();
+        harness.get_by_label("View").click();
         harness.run();
 
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
-        harness.get_by_label("#C62828").click();
+        harness.get_by_label("#DCEBF7").click();
         harness.run();
-        assert_eq!(toasts(&harness), ["Coming Soon: Color"]);
-        assert!(harness.query_by_label("#C62828").is_none(), "picker closes");
+        // view.page_color is Ready: it sets the page color, with no toast.
+        assert!(toasts(&harness).is_empty());
+        assert_eq!(
+            harness.state().session().page_style().color,
+            Some([0xDC, 0xEB, 0xF7, 0xFF])
+        );
+        assert!(harness.query_by_label("#DCEBF7").is_none(), "picker closes");
 
         // The pick joins Recent Colors.
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
         let _ = harness.get_by_label("Recent Colors");
         assert!(
-            harness.get_all_by_label("#C62828").count() >= 2,
+            harness.get_all_by_label("#DCEBF7").count() >= 2,
             "grid and recent"
         );
 
@@ -1224,7 +1716,7 @@ mod tests {
         assert!(harness.query_by_label("OK").is_none(), "dialog closes");
         assert_eq!(
             harness.state().recent_colors().first().map(String::as_str),
-            Some("#C62828"),
+            Some("#DCEBF7"),
             "the dialog starts from the last color"
         );
     }
@@ -1236,7 +1728,8 @@ mod tests {
         harness.get_by_label("Font Color").click();
         harness.run();
         // The main part applies the default color; the menu opens from the arrow.
-        assert_eq!(toasts(&harness), ["Coming Soon: Font Color"]);
+        assert!(toasts(&harness).is_empty());
+        assert_eq!(last_ran(&harness).as_deref(), Some("format.font_color"));
         assert_eq!(harness.state().recent_colors(), ["#E53935"]);
         let arrow = harness.get_by_label("Font Color").rect().right_center() - egui::vec2(3.0, 0.0);
         harness.event(egui::Event::PointerMoved(arrow));
@@ -1298,19 +1791,19 @@ mod tests {
     fn colors_dialog_picker_square_and_sliders_change_the_color() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.get_by_label("Draw").click();
+        harness.get_by_label("View").click();
         harness.run();
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
         harness.get_by_label("More Colors...").click();
         harness.run();
         harness.get_by_label("Custom").click();
         harness.run();
-        let _ = harness.get_by_label("New #1F1F1F");
+        let _ = harness.get_by_label("New #DCEBF7");
         harness.get_by_label("Saturation and brightness").click();
         harness.run();
         assert!(
-            harness.query_by_label("New #1F1F1F").is_none(),
+            harness.query_by_label("New #DCEBF7").is_none(),
             "the square sets it"
         );
         let _ = harness.get_by_label("Hue");
@@ -1341,9 +1834,9 @@ mod tests {
     fn custom_color_takes_rgba_text_and_number_fields() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.get_by_label("Draw").click();
+        harness.get_by_label("View").click();
         harness.run();
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
         harness.get_by_label("More Colors...").click();
         harness.run();
@@ -1518,7 +2011,7 @@ mod tests {
     }
 
     #[test]
-    fn table_grid_and_width_previews_open() {
+    fn table_grid_opens() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         harness.get_by_label("Insert").click();
@@ -1529,16 +2022,6 @@ mod tests {
         harness.get_by_label("Insert Table").click();
         harness.run();
         assert_eq!(toasts(&harness), ["Coming Soon: Table"]);
-
-        harness.get_by_label("Draw").click();
-        harness.run();
-        harness.get_by_label("Thickness").click();
-        harness.run();
-        harness.get_by_label("2 pt").click();
-        harness.run();
-        assert!(toasts(&harness)
-            .iter()
-            .any(|t| t == "Coming Soon: Thickness"));
     }
 
     #[test]
@@ -1578,15 +2061,17 @@ mod tests {
     #[test]
     fn coming_soon_command_shows_a_toast_for_three_seconds() {
         let mut shell = AppShell::new();
-        shell.dispatch(ids::EDIT_PASTE.as_str(), Value::Null);
+        shell.dispatch(ids::MEETING_DETAILS.as_str(), Value::Null);
         let mut harness = harness(shell, WINDOW);
 
         harness.run();
-        let _ = harness.get_by_label("Coming Soon: Paste");
+        let _ = harness.get_by_label("Coming Soon: Meeting Details");
 
         // egui's clock advances one predicted frame (1/60 s) per step without real input.
         harness.run_steps(200);
-        assert!(harness.query_by_label("Coming Soon: Paste").is_none());
+        assert!(harness
+            .query_by_label("Coming Soon: Meeting Details")
+            .is_none());
         assert!(harness.state().toasts().is_empty());
     }
 
@@ -1855,6 +2340,198 @@ mod tests {
         assert!(toasts(&harness).is_empty());
     }
 
+    fn sample_notebook_path() -> String {
+        let path: std::path::PathBuf = [
+            env!("CARGO_MANIFEST_DIR"),
+            "..",
+            "..",
+            "testdata",
+            "notebooks",
+            "basic",
+        ]
+        .iter()
+        .collect();
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn opening_a_real_folder_shows_its_real_sections_and_pages() {
+        let path = sample_notebook_path();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        assert_eq!(recent_paths(harness.state()), [path.as_str()]);
+        assert!(toasts(&harness).is_empty());
+        // The notebook pane lists the notebook, its group, and every section.
+        for label in [
+            "Basic Sample",
+            "Projects",
+            "Journal",
+            "Beta",
+            "Alpha",
+            "Reference",
+        ] {
+            assert!(
+                harness.query_all_by_label(label).next().is_some(),
+                "{label}"
+            );
+        }
+        // The first section's pages show in their saved order, subpages included.
+        for label in [
+            "Welcome",
+            "Daily log",
+            "Monday",
+            "Morning run",
+            "Tuesday",
+            "Sketch ideas",
+        ] {
+            let _ = harness.get_by_label(label);
+        }
+        assert!(harness.query_by_label("Grocery list").is_none());
+
+        let reference = harness.get_all_by_label("Reference").next().unwrap();
+        reference.click();
+        harness.run();
+        for label in ["Archive", "Reading list", "Recipes"] {
+            let _ = harness.get_by_label(label);
+        }
+        assert!(harness.query_by_label("Welcome").is_none());
+        harness.get_by_label("Recipes").click();
+        harness.run();
+        assert_eq!(
+            harness.state().session().selection().page.as_deref(),
+            Some("nb_basic_sample/Reference/Recipes.md")
+        );
+    }
+
+    #[test]
+    fn collapsing_a_parent_hides_its_subpages_in_the_page_list() {
+        // A temporary notebook: collapsing writes the section file.
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Journal");
+        std::fs::create_dir_all(&section).unwrap();
+        for name in ["Welcome", "Daily log", "Monday", "Morning run", "Tuesday"] {
+            std::fs::write(section.join(format!("{name}.md")), "text").unwrap();
+        }
+        std::fs::write(
+            section.join(".section.toml"),
+            "kind = \"section\"
+pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, { file = \"Morning run.md\", level = 2 }, { file = \"Tuesday.md\", level = 1 }]
+",
+        )
+        .unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        let notebook = harness.state().session().notebooks()[0].id.clone();
+        let parent = format!("{notebook}/Journal/Daily log.md");
+        let subpages = ["Monday", "Morning run", "Tuesday"];
+        for label in subpages {
+            let _ = harness.get_by_label(label);
+        }
+        let run = |h: &mut egui_kittest::Harness<'_, AppShell>, id: &str| {
+            let args = serde_json::json!({ "id": &parent });
+            let done = h.state_mut().run_command(id, args);
+            assert!(matches!(done, Some(Ok(_))), "{id}");
+            h.run();
+        };
+        run(&mut harness, "page.collapse_subpages");
+        for label in subpages {
+            assert!(harness.query_by_label(label).is_none(), "{label}");
+        }
+        let _ = harness.get_by_label("Daily log");
+        let _ = harness.get_by_label("Welcome");
+        run(&mut harness, "page.expand_subpages");
+        for label in subpages {
+            let _ = harness.get_by_label(label);
+        }
+    }
+
+    #[test]
+    fn opened_pages_show_their_text_from_disk() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Notes");
+        std::fs::create_dir_all(&section).unwrap();
+        std::fs::write(section.join("First.md"), "# First\n\nHello from disk.\n").unwrap();
+        std::fs::write(section.join("Second.md"), "Second page text.\n").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the first page has text");
+        assert!(text.contains("Hello from disk."), "{text}");
+        // Picking another page reads that file.
+        harness.get_by_label("Second").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the second page has text");
+        assert!(text.contains("Second page text."), "{text}");
+        assert!(!text.contains("Hello from disk."), "{text}");
+        // Going back keeps the page that was read.
+        harness.get_by_label("First").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("text");
+        assert!(text.contains("Hello from disk."), "{text}");
+    }
+
+    #[test]
+    fn an_unreadable_page_shows_a_short_error_on_the_canvas() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Notes");
+        std::fs::create_dir_all(&section).unwrap();
+        std::fs::write(section.join("Here.md"), "Here.\n").unwrap();
+        std::fs::write(section.join("Vanishing.md"), "Soon gone.\n").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        std::fs::remove_file(section.join("Vanishing.md")).unwrap();
+        harness.get_by_label("Vanishing").click();
+        harness.run();
+        let text = canvas_text(&harness).expect("the error is on the canvas");
+        assert!(text.contains("could not be opened"), "{text}");
+        assert!(harness.state().session().current_page_notice().is_some());
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn an_empty_folder_opens_as_an_empty_notebook() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        assert!(harness.state().session().current_page().is_none());
+        let _ = harness.get_by_label("Canvas");
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn a_folder_with_a_bad_settings_file_opens_with_a_toast() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("S")).unwrap();
+        std::fs::write(dir.path().join("S").join("Page.md"), "x").unwrap();
+        std::fs::write(dir.path().join("S").join(".section.toml"), "= broken").unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        let _ = harness.get_by_label("Page");
+        let shown = toasts(&harness);
+        assert_eq!(shown.len(), 1);
+        assert!(shown[0].starts_with("Opened with a warning"), "{shown:?}");
+    }
+
     #[test]
     fn canceling_the_picker_does_nothing() {
         let mut harness = harness(AppShell::empty(), WINDOW);
@@ -1989,7 +2666,8 @@ mod tests {
 
         let mut shell = AppShell::empty();
         assert!(shell.open_path(&dir));
-        assert_eq!(shell.session().notebooks().len(), 2);
+        // The folder is a real (here empty) notebook, so it replaces nothing and shows no sample.
+        assert_eq!(shell.session().notebooks().len(), 1);
         let first = shell.session().recents().items().first().map(|i| i.kind);
         assert_eq!(first, Some(notecraft_engine::recent::RecentKind::Notebook));
 
@@ -2015,10 +2693,11 @@ mod tests {
         harness.run();
         harness.key_press_modifiers(command, egui::Key::Num3);
         harness.run();
-        assert_eq!(
-            toasts(&harness),
-            ["Coming Soon: Add Page", "Coming Soon: Tags"]
-        );
+        // Ctrl+N runs page.new, which a sample notebook refuses with a reason.
+        let texts = toasts(&harness);
+        assert_eq!(texts.len(), 2, "{texts:?}");
+        assert!(texts[0].starts_with("Add Page: "), "{texts:?}");
+        assert_eq!(texts[1], "Coming Soon: Tags");
 
         // Ctrl+Alt+= zooms in; the more specific chord wins over Ctrl+=.
         harness.key_press_modifiers(command | egui::Modifiers::ALT, egui::Key::Equals);
@@ -2027,13 +2706,91 @@ mod tests {
         assert!(!toasts(&harness).iter().any(|t| t.contains("Zoom")));
     }
 
+    fn strokes_on_page(harness: &egui_kittest::Harness<'_, AppShell>) -> usize {
+        harness
+            .state()
+            .session()
+            .current_ink()
+            .map_or(0, |layer| layer.len())
+    }
+
+    fn add_stroke(harness: &mut egui_kittest::Harness<'_, AppShell>) {
+        let args = serde_json::json!({ "points": [[10, 10], [40, 40]] });
+        assert!(harness.state_mut().dispatch("ink.add_stroke", args));
+        harness.run();
+    }
+
+    fn button_disabled(harness: &egui_kittest::Harness<'_, AppShell>, label: &str) -> bool {
+        use egui_kittest::kittest::NodeT;
+        harness
+            .get_by_label(label)
+            .accesskit_node()
+            .data()
+            .is_disabled()
+    }
+
+    #[test]
+    fn undo_and_redo_buttons_follow_the_history() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        // Nothing to undo or redo yet: both buttons are disabled.
+        assert!(button_disabled(&harness, "Undo"));
+        assert!(button_disabled(&harness, "Redo"));
+
+        add_stroke(&mut harness);
+        assert_eq!(strokes_on_page(&harness), 1);
+        assert!(!button_disabled(&harness, "Undo"));
+        assert!(button_disabled(&harness, "Redo"));
+
+        harness.get_by_label("Undo").click();
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 0);
+        assert!(button_disabled(&harness, "Undo"));
+        assert!(!button_disabled(&harness, "Redo"));
+
+        harness.get_by_label("Redo").click();
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 1);
+        assert!(!button_disabled(&harness, "Undo"));
+        assert!(button_disabled(&harness, "Redo"));
+    }
+
+    #[test]
+    fn undo_and_redo_shortcuts_run_the_commands() {
+        let mut harness = harness(AppShell::new(), WINDOW);
+        harness.run();
+        let command = egui::Modifiers::COMMAND;
+        // With nothing to undo the shortcut does nothing and says nothing.
+        harness.key_press_modifiers(command, egui::Key::Z);
+        harness.run();
+        assert!(toasts(&harness).is_empty());
+
+        add_stroke(&mut harness);
+        add_stroke(&mut harness);
+        harness.key_press_modifiers(command, egui::Key::Z);
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 1);
+        harness.key_press_modifiers(command, egui::Key::Y);
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 2);
+        harness.key_press_modifiers(command, egui::Key::Z);
+        harness.key_press_modifiers(command, egui::Key::Z);
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 0);
+        // Ctrl+Shift+Z redoes too, and wins over Ctrl+Z.
+        harness.key_press_modifiers(command | egui::Modifiers::SHIFT, egui::Key::Z);
+        harness.run();
+        assert_eq!(strokes_on_page(&harness), 1);
+        assert!(toasts(&harness).is_empty());
+    }
+
     #[test]
     fn shortcuts_wait_while_a_text_field_has_focus() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
-        harness.get_by_label("Draw").click();
+        harness.get_by_label("View").click();
         harness.run();
-        harness.get_by_label("Color").click();
+        harness.get_by_label("Page Color").click();
         harness.run();
         harness.get_by_label("More Colors...").click();
         harness.run();
@@ -2335,5 +3092,66 @@ mod tests {
         let mut harness = harness(AppShell::new(), egui::vec2(1.0, 1.0));
 
         harness.run();
+    }
+
+    /// A notebook with one page, opened in a harness; returns the folder to edit files in.
+    fn open_one_page(text: &str) -> (tempfile::TempDir, egui_kittest::Harness<'static, AppShell>) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let section = dir.path().join("Notes");
+        std::fs::create_dir_all(&section).unwrap();
+        std::fs::write(section.join("Only.md"), text).unwrap();
+        let path = dir.path().to_string_lossy().into_owned();
+        let mut harness = harness(picking(Some(&path), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        (dir, harness)
+    }
+
+    #[test]
+    fn the_conflict_bar_offers_both_versions_and_runs_commands() {
+        let (dir, mut harness) = open_one_page("one\n");
+        let page = harness.state().session().selection().page.clone().unwrap();
+        harness
+            .state_mut()
+            .session
+            .edit_page_text(&page, 0, 0, "mine ", false);
+        std::fs::write(dir.path().join("Notes/Only.md"), "theirs\n").unwrap();
+        harness
+            .state_mut()
+            .session
+            .note_outside_change(&dir.path().join("Notes/Only.md"));
+        harness.run();
+        let _ = harness.get_by_label_contains("changed outside NoteCraft");
+        let _ = harness.get_by_label("Unsaved changes");
+        harness.get_by_label("Use outside version").click();
+        harness.run();
+        assert_eq!(harness.state().session().page_text(&page), Some("theirs\n"));
+        assert!(harness
+            .query_by_label_contains("changed outside NoteCraft")
+            .is_none());
+        let _ = harness.get_by_label("Saved");
+    }
+
+    #[test]
+    fn the_recovery_bar_restores_the_unsaved_text() {
+        let (dir, mut harness) = open_one_page("on disk\n");
+        let path = dir.path().join("Notes/Only.md");
+        let page = harness.state().session().selection().page.clone().unwrap();
+        let entry = notecraft_engine::RecoveryEntry {
+            path,
+            text: "unsaved\n".to_owned(),
+        };
+        harness.state_mut().session.offer_recovery(vec![entry]);
+        harness.run();
+        let _ = harness.get_by_label_contains("unsaved changes to 1 page");
+        harness.get_by_label("Restore").click();
+        harness.run();
+        assert_eq!(
+            harness.state().session().page_text(&page),
+            Some("unsaved\n")
+        );
+        assert!(harness.state().session().is_page_dirty(&page));
+        assert!(harness.query_by_label("Restore").is_none());
     }
 }

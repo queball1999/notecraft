@@ -10,10 +10,12 @@ use egui::{
 };
 use notecraft_canvas::paper::RuleKind;
 use notecraft_canvas::RuleLines;
-use notecraft_engine::cmd::{CommandId, Map, Value};
+use notecraft_engine::cmd::{ids, CommandId, Map, Value};
 
-use super::spec::{ArgValue, Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS};
-use super::{Clicked, Look};
+use super::spec::{
+    ArgValue, BackgroundMenu, Button, ColorMenu, Item, Menu, Palette, Preview, STANDARD_COLORS,
+};
+use super::{ActivePen, ActiveTool, Clicked, Look};
 use crate::color::{self, Rgba8};
 use crate::themes::{hex, mix};
 
@@ -39,16 +41,41 @@ fn object(pairs: &[(&str, Value)]) -> Value {
 }
 
 /// A clickable row with an optional preview, as wide as a menu.
-fn row(ui: &mut Ui, label: &str, preview: Preview, look: Look<'_>) -> Response {
+pub(super) fn row(ui: &mut Ui, label: &str, preview: Preview, look: Look<'_>) -> Response {
+    marked_row(ui, label, preview, false, look)
+}
+
+/// A [`row`] that shows a check mark at its right end when `current` is true. Screen readers
+/// hear a radio button, checked or not.
+fn marked_row(
+    ui: &mut Ui,
+    label: &str,
+    preview: Preview,
+    current: bool,
+    look: Look<'_>,
+) -> Response {
     let t = look.tokens;
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(ROW_WIDTH, ROW_HEIGHT), Sense::click());
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, label));
+    if current {
+        response.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, true, label));
+    } else {
+        response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, label));
+    }
     let painter = ui.painter_at(rect);
     if response.hovered() || response.has_focus() {
         painter.rect_filled(rect, CornerRadius::same(t.radius), t.hover);
     }
     let text = ui.visuals().text_color();
+    if current {
+        let c = egui::pos2(rect.max.x - 14.0, rect.center().y);
+        let points = vec![
+            c + egui::vec2(-4.5, 0.0),
+            c + egui::vec2(-1.5, 3.0),
+            c + egui::vec2(4.5, -3.5),
+        ];
+        painter.add(egui::Shape::line(points, Stroke::new(1.5, text)));
+    }
     let mut x = rect.min.x + 8.0;
     match preview {
         Preview::None => {}
@@ -148,7 +175,10 @@ pub(super) fn button_item(ui: &mut Ui, button: &Button, look: Look<'_>, out: &mu
             });
         }
         Menu::Papers(list) => {
-            ui.menu_button(button.label, |ui| papers(ui, list, look, out));
+            ui.menu_button(button.label, |ui| papers(ui, list, false, look, out));
+        }
+        Menu::Background(menu) => {
+            ui.menu_button(button.label, |ui| background(ui, menu, look, out));
         }
         Menu::Colors(menu) => {
             ui.menu_button(button.label, |ui| {
@@ -168,10 +198,77 @@ pub(super) fn button_item(ui: &mut Ui, button: &Button, look: Look<'_>, out: &mu
 pub(super) fn items(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<Clicked>) {
     ui.spacing_mut().item_spacing.y = 1.0;
     for item in items {
-        if row(ui, item.label, item.preview, look).clicked() {
+        let current = is_current_pen(item, look.pen);
+        if marked_row(ui, item.label, item.preview, current, look).clicked() {
             out.push(Clicked::new(item.command, item.args));
             ui.close();
         }
+    }
+}
+
+/// Whether `item` selects the pen in use: a pen item with its color and width, or a
+/// thickness item with its width.
+fn is_current_pen(item: &Item, pen: Option<ActivePen>) -> bool {
+    let Some(pen) = pen else {
+        return false;
+    };
+    let same_width = |width: f64| (width as f32 - pen.width_pt).abs() < 1.0e-3;
+    let arg = |name: &str| item.args.iter().find(|arg| arg.name == name);
+    if item.command == ids::DRAW_ERASER {
+        let mode = arg("mode").and_then(|arg| match arg.value {
+            ArgValue::Str(text) => Some(text),
+            _ => None,
+        });
+        let size = arg("size").and_then(|arg| match arg.value {
+            ArgValue::Str(text) => Some(text),
+            _ => None,
+        });
+        return match (pen.tool, mode) {
+            // A size entry (point eraser) is current when mode is point and the size matches.
+            (ActiveTool::Eraser(current, current_size), Some(mode)) => {
+                current == mode && size.is_none_or(|size| size == current_size)
+            }
+            _ => false,
+        };
+    }
+    if matches!(pen.tool, ActiveTool::Eraser(..)) {
+        return false;
+    }
+    if item.command == ids::DRAW_TOOL_ADD {
+        // An Add Pen entry is marked when it names the kind (and texture) of the pen in use.
+        let text = |name: &str| {
+            arg(name).and_then(|arg| match arg.value {
+                ArgValue::Str(text) => Some(text),
+                _ => None,
+            })
+        };
+        let kind = text("kind").unwrap_or("pen");
+        return match pen.tool {
+            ActiveTool::Highlighter => kind == "highlighter",
+            ActiveTool::Pen => kind == "pen" && text("texture").unwrap_or("") == pen.texture,
+            ActiveTool::Eraser(..) => false,
+        };
+    }
+    let color = arg("color").and_then(|arg| match arg.value {
+        ArgValue::Str(text) => crate::color::parse(text)
+            .map(|[r, g, b, _]| u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b)),
+        _ => None,
+    });
+    let width = arg("width").and_then(|arg| match arg.value {
+        ArgValue::Num(value) => Some(value),
+        ArgValue::Int(value) => Some(value as f64),
+        _ => None,
+    });
+    let own_command = match pen.tool {
+        ActiveTool::Highlighter => ids::DRAW_HIGHLIGHTER,
+        _ => ids::DRAW_PEN,
+    };
+    if item.command == own_command {
+        color == Some(pen.color) && width.is_some_and(same_width)
+    } else if item.command == ids::DRAW_THICKNESS {
+        width.is_some_and(same_width)
+    } else {
+        false
     }
 }
 
@@ -222,16 +319,37 @@ fn paper_card(
 /// The Rule Lines menu: a gallery of thumbnail cards, None first, then "Ruled Lines", then
 /// "Grid Lines" (grids and Dotted). The items stay the source of truth: a card runs its item's
 /// command with its arguments, and picking one closes the menu.
-pub(super) fn papers(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<Clicked>) {
+///
+/// With `format_background` the cards sit under two headings, Rule Lines (None first, then the
+/// ruled densities) and Grid Lines, as in the Draw tab's Format Background menu.
+pub(super) fn papers(
+    ui: &mut Ui,
+    items: &[Item],
+    format_background: bool,
+    look: Look<'_>,
+    out: &mut Vec<Clicked>,
+) {
     /// A group heading (none for the first) and which kinds of paper belong to it.
     type Group = (Option<&'static str>, fn(RuleKind) -> bool);
-    let groups: [Group; 3] = [
-        (None, |kind| kind == RuleKind::None),
-        (Some("Ruled Lines"), |kind| kind == RuleKind::Lines),
-        (Some("Grid Lines"), |kind| {
-            matches!(kind, RuleKind::Grid | RuleKind::Dots)
-        }),
-    ];
+    let groups: [Group; 3] = if format_background {
+        [
+            (Some("Rule Lines"), |kind| {
+                matches!(kind, RuleKind::None | RuleKind::Lines)
+            }),
+            (Some("Grid Lines"), |kind| {
+                matches!(kind, RuleKind::Grid | RuleKind::Dots)
+            }),
+            (None, |_| false),
+        ]
+    } else {
+        [
+            (None, |kind| kind == RuleKind::None),
+            (Some("Ruled Lines"), |kind| kind == RuleKind::Lines),
+            (Some("Grid Lines"), |kind| {
+                matches!(kind, RuleKind::Grid | RuleKind::Dots)
+            }),
+        ]
+    };
     ui.set_min_width(CARD_COLUMNS as f32 * (CARD.x + CARD_GAP));
     for (title, wanted) in groups {
         let cards: Vec<(&Item, RuleLines)> = items
@@ -258,6 +376,40 @@ pub(super) fn papers(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<
             });
         }
     }
+}
+
+/// The Format Background menu: the Rule Lines and Grid Lines cards, a Rule Line Color
+/// submenu, Always Create Pages with Rule Lines (checked while on), and a Page
+/// Color submenu.
+pub(super) fn background(
+    ui: &mut Ui,
+    menu: &BackgroundMenu,
+    look: Look<'_>,
+    out: &mut Vec<Clicked>,
+) {
+    papers(ui, menu.papers, true, look, out);
+    ui.separator();
+    ui.menu_button("Rule Line Color", |ui| {
+        colors(ui, ids::VIEW_RULE_LINE_COLOR, &menu.rule_color, look, out);
+    });
+    if marked_row(
+        ui,
+        "Always Create Pages with Rule Lines",
+        Preview::None,
+        look.always_rule_lines,
+        look,
+    )
+    .clicked()
+    {
+        out.push(Clicked {
+            command: ids::DRAW_ALWAYS_RULE_LINES,
+            args: Value::Null,
+        });
+        ui.close();
+    }
+    ui.menu_button("Page Color", |ui| {
+        colors(ui, ids::VIEW_PAGE_COLOR, &menu.page_color, look, out);
+    });
 }
 
 /// One color swatch. Its accessible name is the color's hex value.
@@ -436,7 +588,13 @@ fn remember(ctx: &egui::Context, command: CommandId, value: &str) {
 }
 
 /// Run `command` with `value` as its color argument, remembering real colors.
-fn pick(ctx: &egui::Context, command: CommandId, arg: &str, value: &str, out: &mut Vec<Clicked>) {
+pub(super) fn pick(
+    ctx: &egui::Context,
+    command: CommandId,
+    arg: &str,
+    value: &str,
+    out: &mut Vec<Clicked>,
+) {
     remember(ctx, command, value);
     out.push(Clicked {
         command,
@@ -558,17 +716,28 @@ pub(super) fn colors(
         ui.separator();
         if row(ui, "More Colors...", Preview::None, look).clicked() {
             let current = last_color(&ctx, command, menu).to_srgba_unmultiplied();
-            let dialog = Dialog {
-                command,
-                arg: menu.arg,
-                current,
-                custom: Custom::new(current),
-                tab: DialogTab::Standard,
-            };
-            ctx.data_mut(|data| data.insert_temp(dialog_id(), Some(dialog)));
+            open_colors_dialog(&ctx, command, menu.arg, current);
             ui.close();
         }
     }
+}
+
+/// Open the Colors dialog (More Colors) for `command`: OK runs it with the new color as
+/// `arg`. `current` is the color shown as Current.
+pub(super) fn open_colors_dialog(
+    ctx: &egui::Context,
+    command: CommandId,
+    arg: &'static str,
+    current: Rgba8,
+) {
+    let dialog = Dialog {
+        command,
+        arg,
+        current,
+        custom: Custom::new(current),
+        tab: DialogTab::Standard,
+    };
+    ctx.data_mut(|data| data.insert_temp(dialog_id(), Some(dialog)));
 }
 
 /// Which page of the Colors dialog shows.
@@ -767,5 +936,129 @@ pub(super) fn table_grid(ui: &mut Ui, command: CommandId, look: Look<'_>, out: &
             args: Value::Null,
         });
         ui.close();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::spec::{num_arg, str_arg};
+    use super::*;
+
+    const BLUE: Item = Item::new("Blue Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)]);
+    const THICK_BLUE: Item = Item::new("Thick Blue Pen", ids::DRAW_PEN)
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 3.5)]);
+    const WIDTH: Item = Item::new("3.5 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 3.5)]);
+    const HIGHLIGHTER: Item = Item::new("Yellow", ids::DRAW_HIGHLIGHTER)
+        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)]);
+    const ONE_POINT: Item = Item::new("1 pt", ids::DRAW_THICKNESS).args(&[num_arg("width", 1.0)]);
+    const STROKE_ERASER: Item =
+        Item::new("Stroke Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "stroke")]);
+    const SMALL_ERASER: Item = Item::new("Small Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "small")]);
+    const LARGE_ERASER: Item = Item::new("Large Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "large")]);
+    const POINT_ERASER: Item = LARGE_ERASER;
+
+    #[test]
+    fn the_menu_marks_the_pen_in_use() {
+        let pen = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0x1565C0,
+            width_pt: 1.0,
+            texture: "",
+        });
+        assert!(is_current_pen(&BLUE, pen));
+        assert!(!is_current_pen(&THICK_BLUE, pen));
+        assert!(!is_current_pen(&WIDTH, pen));
+        // Another tool's items are never the pen.
+        assert!(!is_current_pen(&HIGHLIGHTER, pen));
+        let thick = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0x1565C0,
+            width_pt: 3.5,
+            texture: "",
+        });
+        assert!(is_current_pen(&THICK_BLUE, thick) && is_current_pen(&WIDTH, thick));
+        // Nothing is marked when the pen is not the tool, or the color differs.
+        assert!(!is_current_pen(&BLUE, None));
+        let other = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0x000000,
+            width_pt: 1.0,
+            texture: "",
+        });
+        assert!(!is_current_pen(&BLUE, other));
+    }
+
+    #[test]
+    fn the_add_pen_menu_marks_the_kind_and_texture_in_use() {
+        let item = |kind, texture| {
+            let args: &'static [crate::ribbon::spec::Arg] = Box::leak(Box::new([
+                str_arg("kind", kind),
+                str_arg("texture", texture),
+            ]));
+            Item::new("Add", ids::DRAW_TOOL_ADD).args(args)
+        };
+        let gold = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0xD4AF37,
+            width_pt: 1.0,
+            texture: "gold",
+        });
+        assert!(is_current_pen(&item("pen", "gold"), gold));
+        assert!(!is_current_pen(&item("pen", "silver"), gold));
+        assert!(!is_current_pen(&item("pen", ""), gold));
+        assert!(!is_current_pen(&item("highlighter", ""), gold));
+        let plain = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0,
+            width_pt: 1.0,
+            texture: "",
+        });
+        assert!(is_current_pen(&item("pen", ""), plain));
+        assert!(!is_current_pen(&item("pen", "pencil"), plain));
+        let marker = Some(ActivePen {
+            tool: ActiveTool::Highlighter,
+            color: 0,
+            width_pt: 8.0,
+            texture: "",
+        });
+        assert!(is_current_pen(&item("highlighter", ""), marker));
+        assert!(!is_current_pen(&item("pen", ""), marker));
+        assert!(!is_current_pen(&item("pen", ""), None));
+    }
+
+    #[test]
+    fn the_menu_marks_the_highlighter_and_eraser_in_use() {
+        let highlighter = Some(ActivePen {
+            tool: ActiveTool::Highlighter,
+            color: 0x1565C0,
+            width_pt: 1.0,
+            texture: "",
+        });
+        assert!(is_current_pen(&HIGHLIGHTER, highlighter));
+        assert!(!is_current_pen(&BLUE, highlighter));
+        assert!(is_current_pen(&ONE_POINT, highlighter));
+        let point = Some(ActivePen {
+            tool: ActiveTool::Eraser("point", "large"),
+            color: 0,
+            width_pt: 0.0,
+            texture: "",
+        });
+        assert!(is_current_pen(&LARGE_ERASER, point));
+        assert!(!is_current_pen(&SMALL_ERASER, point));
+        assert!(!is_current_pen(&STROKE_ERASER, point));
+        // The eraser being in use marks no pen, highlighter, or thickness.
+        assert!(!is_current_pen(&BLUE, point));
+        assert!(!is_current_pen(&HIGHLIGHTER, point));
+        // Eraser entries are not marked while a pen is in use.
+        let pen = Some(ActivePen {
+            tool: ActiveTool::Pen,
+            color: 0x1565C0,
+            width_pt: 1.0,
+            texture: "",
+        });
+        assert!(!is_current_pen(&POINT_ERASER, pen));
     }
 }

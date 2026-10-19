@@ -182,6 +182,20 @@ pub enum Menu {
     /// The whole button opens a gallery of paper thumbnails, one card per item (Rule Lines).
     /// Each item's `style` argument names the rule lines style its card draws.
     Papers(&'static [Item]),
+    /// Format Background: the Rule Lines and Grid Lines cards, then submenus for the rule line
+    /// color and the page color.
+    Background(&'static BackgroundMenu),
+}
+
+/// What the Format Background dropdown holds.
+#[derive(Clone, Copy, Debug)]
+pub struct BackgroundMenu {
+    /// The cards, as the Rule Lines menu's items.
+    pub papers: &'static [Item],
+    /// The Rule Line Color submenu (`view.rule_line_color`).
+    pub rule_color: ColorMenu,
+    /// The Page Color submenu (`view.page_color`).
+    pub page_color: ColorMenu,
 }
 
 impl Menu {
@@ -189,6 +203,7 @@ impl Menu {
     pub fn items(&self) -> &'static [Item] {
         match self {
             Self::Split(items) | Self::Dropdown(items) | Self::Papers(items) => items,
+            Self::Background(menu) => menu.papers,
             Self::Combo(combo) => combo.items,
             Self::None | Self::Colors(_) | Self::TableGrid => &[],
         }
@@ -200,9 +215,12 @@ impl Menu {
         match self {
             Self::Split(_) => true,
             Self::Colors(colors) => colors.split,
-            Self::None | Self::Dropdown(_) | Self::Papers(_) | Self::TableGrid | Self::Combo(_) => {
-                false
-            }
+            Self::None
+            | Self::Dropdown(_)
+            | Self::Papers(_)
+            | Self::Background(_)
+            | Self::TableGrid
+            | Self::Combo(_) => false,
         }
     }
 
@@ -263,6 +281,11 @@ impl Button {
 
     pub const fn papers(mut self, items: &'static [Item]) -> Self {
         self.menu = Menu::Papers(items);
+        self
+    }
+
+    pub const fn background(mut self, menu: &'static BackgroundMenu) -> Self {
+        self.menu = Menu::Background(menu);
         self
     }
 
@@ -381,6 +404,9 @@ pub enum Column {
     Stack(&'static [Button]),
     /// Up to three rows of small or icon-only buttons.
     Rows(&'static [&'static [Button]]),
+    /// The Draw tab's pens and highlighters: one tall button per tool of the list the user
+    /// keeps (see `ribbon::tools`). The list is data, so these are not in [`Group::buttons`].
+    Tools,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -415,6 +441,7 @@ impl Group {
                     Column::Large(button) => vec![button],
                     Column::Stack(buttons) => buttons.iter().collect(),
                     Column::Rows(rows) => rows.iter().flat_map(|row| row.iter()).collect(),
+                    Column::Tools => Vec::new(),
                 }
             })
     }
@@ -785,60 +812,14 @@ const INSERT_GROUPS: &[Group] = &[
 
 // Draw tab
 
-const PENS: &[Item] = &[
-    Item::new("Black Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 1.0)])
-        .color(0x1F1F1F),
-    Item::new("Blue Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#1565C0"), num_arg("width", 1.0)])
-        .color(0x1565C0),
-    Item::new("Red Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#C62828"), num_arg("width", 1.0)])
-        .color(0xC62828),
-    Item::new("Green Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#2E7D32"), num_arg("width", 1.0)])
-        .color(0x2E7D32),
-    Item::new("Thick Black Pen", ids::DRAW_PEN)
-        .args(&[str_arg("color", "#1F1F1F"), num_arg("width", 3.5)])
-        .color(0x1F1F1F),
-];
-
-const HIGHLIGHTERS: &[Item] = &[
-    Item::new("Yellow Highlighter", ids::DRAW_HIGHLIGHTER)
-        .args(&[str_arg("color", "#FFF176"), num_arg("width", 8.0)])
-        .color(0xFFF176),
-    Item::new("Green Highlighter", ids::DRAW_HIGHLIGHTER)
-        .args(&[str_arg("color", "#A5D6A7"), num_arg("width", 8.0)])
-        .color(0xA5D6A7),
-    Item::new("Pink Highlighter", ids::DRAW_HIGHLIGHTER)
-        .args(&[str_arg("color", "#F48FB1"), num_arg("width", 8.0)])
-        .color(0xF48FB1),
-    Item::new("Turquoise Highlighter", ids::DRAW_HIGHLIGHTER)
-        .args(&[str_arg("color", "#80DEEA"), num_arg("width", 8.0)])
-        .color(0x80DEEA),
-];
-
 const ERASERS: &[Item] = &[
     Item::new("Stroke Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "stroke")]),
-    Item::new("Point Eraser", ids::DRAW_ERASER).args(&[str_arg("mode", "point")]),
-];
-
-const INK_WIDTHS: &[Item] = &[
-    Item::new("0.5 pt", ids::DRAW_THICKNESS)
-        .args(&[num_arg("width", 0.5)])
-        .width(0.5),
-    Item::new("1 pt", ids::DRAW_THICKNESS)
-        .args(&[num_arg("width", 1.0)])
-        .width(1.0),
-    Item::new("2 pt", ids::DRAW_THICKNESS)
-        .args(&[num_arg("width", 2.0)])
-        .width(2.0),
-    Item::new("3.5 pt", ids::DRAW_THICKNESS)
-        .args(&[num_arg("width", 3.5)])
-        .width(3.5),
-    Item::new("5 pt", ids::DRAW_THICKNESS)
-        .args(&[num_arg("width", 5.0)])
-        .width(5.0),
+    Item::new("Small Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "small")]),
+    Item::new("Medium Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "medium")]),
+    Item::new("Large Eraser", ids::DRAW_ERASER)
+        .args(&[str_arg("mode", "point"), str_arg("size", "large")]),
 ];
 
 const SHAPE_KINDS: &[Item] = &[
@@ -853,58 +834,103 @@ const SHAPE_KINDS: &[Item] = &[
     Item::new("Graph Axes", ids::DRAW_SHAPE).args(&[str_arg("kind", "graph_axes")]),
 ];
 
-const ARRANGE: &[Item] = &[
-    Item::new("Bring to Front", ids::DRAW_BRING_TO_FRONT),
-    Item::new("Bring Forward", ids::DRAW_BRING_FORWARD),
-    Item::new("Send Backward", ids::DRAW_SEND_BACKWARD),
-    Item::new("Send to Back", ids::DRAW_SEND_TO_BACK),
+const ADD_TOOLS: &[Item] = &[
+    Item::new("Pen", ids::DRAW_TOOL_ADD).args(&[str_arg("kind", "pen")]),
+    Item::new("Highlighter", ids::DRAW_TOOL_ADD).args(&[str_arg("kind", "highlighter")]),
+    Item::new("Pencil", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "pencil")]),
+    Item::new("Rainbow Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "rainbow")]),
+    Item::new("Galaxy Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "galaxy")]),
+    Item::new("Lava Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "lava")]),
+    Item::new("Ocean Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "ocean")]),
+    Item::new("Gold Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "gold")]),
+    Item::new("Silver Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "silver")]),
+    Item::new("Bronze Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "bronze")]),
+    Item::new("Rose Gold Pen", ids::DRAW_TOOL_ADD)
+        .args(&[str_arg("kind", "pen"), str_arg("texture", "rose_gold")]),
 ];
 
-const ROTATE: &[Item] = &[
-    Item::new("Rotate Right 90", ids::DRAW_ROTATE_RIGHT),
-    Item::new("Rotate Left 90", ids::DRAW_ROTATE_LEFT),
-    Item::new("Flip Horizontal", ids::DRAW_FLIP_HORIZONTAL),
-    Item::new("Flip Vertical", ids::DRAW_FLIP_VERTICAL),
+/// The colors of the rule lines and grid: soft grays and hues that read as paper lines.
+pub const RULE_LINE_COLORS: &[u32] = &[
+    0xB8C4D0, 0x9FB6CD, 0x7BA7D6, 0x9CCBA2, 0xE3B778, 0xE59A9A, 0xB9A3D9, 0xA0A0A0, 0x6F6F6F,
+    0x2F2F2F,
 ];
+
+/// Format Background (Draw tab): the rule lines and grid cards, the rule line color, and the
+/// page color.
+const FORMAT_BACKGROUND: BackgroundMenu = BackgroundMenu {
+    papers: RULE_LINES,
+    rule_color: ColorMenu {
+        split: false,
+        arg: "color",
+        colors: RULE_LINE_COLORS,
+        columns: 5,
+        palette: Palette::Grid,
+        default: 0xB8C4D0,
+        none: Some(("Automatic", "none")),
+        none_last: false,
+        custom: true,
+    },
+    page_color: ColorMenu {
+        split: false,
+        arg: "color",
+        colors: PAGE_COLOR_GRID,
+        columns: 5,
+        palette: Palette::Grid,
+        default: 0xDCEBF7,
+        none: Some(("No Color", "none")),
+        none_last: false,
+        custom: true,
+    },
+};
 
 const DRAW_GROUPS: &[Group] = &[
     Group {
-        name: "Tools",
+        name: "Undo",
+        columns: &[Column::Stack(&[
+            Button::icon("Undo", Icon::Undo, ids::EDIT_UNDO),
+            Button::icon("Redo", Icon::Redo, ids::EDIT_REDO),
+        ])],
+    },
+    Group {
+        name: "Selection",
+        columns: &[Column::Stack(&[
+            Button::small("Select", Icon::Select, ids::DRAW_TYPE),
+            Button::small("Lasso Select", Icon::Lasso, ids::DRAW_LASSO),
+        ])],
+    },
+    Group {
+        name: "Drawing Tools",
         columns: &[
-            Column::Stack(&[
-                Button::small("Type", Icon::TypeTool, ids::DRAW_TYPE),
-                Button::small("Lasso Select", Icon::Lasso, ids::DRAW_LASSO),
-                Button::small("Panning Hand", Icon::PanHand, ids::DRAW_PAN),
-            ]),
             Column::Large(Button::large("Eraser", Icon::Eraser, ids::DRAW_ERASER).split(ERASERS)),
-            Column::Large(Button::large("Pen", Icon::Pen, ids::DRAW_PEN).split(PENS)),
+            Column::Tools,
             Column::Large(
-                Button::large("Highlighter", Icon::Highlighter, ids::DRAW_HIGHLIGHTER)
-                    .split(HIGHLIGHTERS),
+                Button::large("Add", Icon::AddTool, ids::DRAW_TOOL_ADD).dropdown(ADD_TOOLS),
             ),
-            Column::Stack(&[
-                Button::small("Color", Icon::Color, ids::DRAW_COLOR).colors(ColorMenu {
-                    split: false,
-                    arg: "color",
-                    colors: COLOR_GRID,
-                    columns: 10,
-                    palette: Palette::Theme,
-                    default: 0x1F1F1F,
-                    none: None,
-                    none_last: false,
-                    custom: true,
-                }),
-                Button::small("Thickness", Icon::Thickness, ids::DRAW_THICKNESS)
-                    .dropdown(INK_WIDTHS),
-                Button::small("Ruler", Icon::Ruler, ids::DRAW_RULER),
-            ]),
         ],
     },
     Group {
-        name: "Shapes",
-        columns: &[Column::Large(
-            Button::large("Shapes", Icon::Shapes, ids::DRAW_SHAPE).dropdown(SHAPE_KINDS),
-        )],
+        name: "Input Mode",
+        columns: &[Column::Large(Button::large(
+            "Panning Hand",
+            Icon::PanHand,
+            ids::DRAW_PAN,
+        ))],
+    },
+    Group {
+        name: "Stencils",
+        columns: &[Column::Large(Button::large(
+            "Ruler",
+            Icon::Ruler,
+            ids::DRAW_RULER,
+        ))],
     },
     Group {
         name: "Edit",
@@ -914,34 +940,68 @@ const DRAW_GROUPS: &[Group] = &[
                 Icon::InsertSpace,
                 ids::INSERT_SPACE,
             )),
-            Column::Large(Button::large("Delete", Icon::Delete, ids::EDIT_DELETE)),
             Column::Large(
-                Button::large("Arrange", Icon::Arrange, ids::DRAW_BRING_TO_FRONT).dropdown(ARRANGE),
-            ),
-            Column::Large(
-                Button::large("Rotate", Icon::Rotate, ids::DRAW_ROTATE_RIGHT).dropdown(ROTATE),
+                Button::large(
+                    "Format Background",
+                    Icon::FormatBackground,
+                    ids::VIEW_RULE_LINES,
+                )
+                .background(&FORMAT_BACKGROUND),
             ),
         ],
     },
     Group {
-        name: "Convert",
+        name: "Shapes",
         columns: &[
+            Column::Large(
+                Button::large("Shapes", Icon::Shapes, ids::DRAW_SHAPE).dropdown(SHAPE_KINDS),
+            ),
             Column::Large(Button::large(
-                "Ink to Shape",
+                "Automatic Shapes",
                 Icon::InkToShape,
                 ids::DRAW_INK_TO_SHAPE,
             )),
-            Column::Large(Button::large(
-                "Ink to Text",
-                Icon::InkToText,
-                ids::DRAW_INK_TO_TEXT,
-            )),
-            Column::Large(Button::large(
-                "Ink to Math",
-                Icon::InkToMath,
-                ids::DRAW_INK_TO_MATH,
-            )),
         ],
+    },
+    Group {
+        name: "Text",
+        columns: &[Column::Large(Button::large(
+            "Ink to Text",
+            Icon::InkToText,
+            ids::DRAW_INK_TO_TEXT,
+        ))],
+    },
+    Group {
+        name: "Math",
+        columns: &[Column::Large(Button::large(
+            "Ink to Math",
+            Icon::InkToMath,
+            ids::DRAW_INK_TO_MATH,
+        ))],
+    },
+    Group {
+        name: "Replay",
+        columns: &[Column::Large(Button::large(
+            "Ink Replay",
+            Icon::InkReplay,
+            ids::DRAW_INK_REPLAY,
+        ))],
+    },
+    Group {
+        name: "Mode",
+        columns: &[Column::Large(Button::large(
+            "Full Page View",
+            Icon::FullPage,
+            ids::VIEW_FULL_PAGE,
+        ))],
+    },
+    Group {
+        name: "Help",
+        columns: &[Column::Large(Button::large(
+            "Ink Help",
+            Icon::Help,
+            ids::HELP_HELP,
+        ))],
     },
 ];
 
@@ -1209,6 +1269,11 @@ const HELP_GROUPS: &[Group] = &[Group {
             Icon::Training,
             ids::HELP_TRAINING,
         )),
+        Column::Large(Button::large(
+            "What's New",
+            Icon::WhatsNew,
+            ids::HELP_WHATS_NEW,
+        )),
     ],
 }];
 
@@ -1311,6 +1376,22 @@ mod tests {
                                         vec![int_arg("rows", 3), int_arg("columns", 4)],
                                     ));
                                     out.push((button.label, button.command, Vec::new()));
+                                }
+                                Menu::Background(menu) => {
+                                    for (colors, command) in [
+                                        (menu.rule_color, ids::VIEW_RULE_LINE_COLOR),
+                                        (menu.page_color, ids::VIEW_PAGE_COLOR),
+                                    ] {
+                                        for &rgb in colors.colors {
+                                            let value: &'static str =
+                                                Box::leak(format!("#{rgb:06X}").into_boxed_str());
+                                            out.push((
+                                                button.label,
+                                                command,
+                                                vec![str_arg(colors.arg, value)],
+                                            ));
+                                        }
+                                    }
                                 }
                                 Menu::None
                                 | Menu::Split(_)
@@ -1451,7 +1532,12 @@ mod tests {
     #[test]
     fn color_grids_are_full_and_distinct() {
         assert_eq!(COLOR_GRID.len(), 50);
-        for grid in [COLOR_GRID, HIGHLIGHT_GRID, PAGE_COLOR_GRID] {
+        for grid in [
+            COLOR_GRID,
+            HIGHLIGHT_GRID,
+            PAGE_COLOR_GRID,
+            RULE_LINE_COLORS,
+        ] {
             let unique: BTreeSet<u32> = grid.iter().copied().collect();
             assert_eq!(unique.len(), grid.len());
             assert!(grid.iter().all(|&rgb| rgb <= 0xFF_FF_FF));

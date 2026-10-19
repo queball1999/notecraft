@@ -12,5 +12,6 @@ authors.workspace = true
 workspace = true
 
 [dependencies]
+comrak.workspace = true
 notecraft-core.workspace = true
 notecraft-model.workspace = true
