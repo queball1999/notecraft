@@ -1,6 +1,6 @@
 # Installing NoteCraft
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: created; Linux install steps and a Flatpak troubleshooting entry.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: Linux troubleshooting entry for the software renderer (llvmpipe) and the automatic GL fallback; earlier: stage line: Phase 1 merged into main (#55); earlier: created; Linux install steps and a Flatpak troubleshooting entry.
 
 Release builds are attached to each GitHub Release at https://github.com/queball1999/notecraft/releases, with a `SHA256SUMS.txt` file. In the names below, `<version>` is the release version and `<arch>` is `x86_64` or `aarch64`. The full artifact list is in [releasing.md](releasing.md) section 3.
 
@@ -29,6 +29,14 @@ To check, run `bwrap --ro-bind / / true`. If it prints an error such as "creatin
 2. Or allow the sandbox with `sudo sysctl kernel.apparmor_restrict_unprivileged_userns=0`. Caution: this lifts the restriction for every program on the machine, which weakens a hardening measure; it lasts until reboot unless you also set it in `/etc/sysctl.d/`.
 3. Flatpak does not work inside WSL or in containers without user namespaces. Use the `.deb`, `.rpm`, or AppImage there.
 
+### Troubleshooting: the window does not open, or the log shows `adapter=llvmpipe`
+
+NoteCraft draws with wgpu. With no GPU driver in reach, Mesa offers only a software Vulkan renderer (llvmpipe), and on Linux X11 that has crashed the app at startup. Since this fix NoteCraft looks at the Vulkan adapters before it opens the window; when none is a real GPU (or there is no Vulkan at all), it starts on the GL backend instead and logs why at info level. The log is `notecraft.log` in the settings folder (also on stderr); look for `graphics ready` and the `adapter=` value.
+
+- NVIDIA with the Flatpak: the sandbox needs the GL extension that matches the host driver. If the log shows `adapter=llvmpipe`, run `flatpak update`, then check `flatpak list | grep nvidia` for `org.freedesktop.Platform.GL.nvidia-<version>` matching `nvidia-smi`'s driver version.
+- To force a backend, set `WGPU_BACKEND` (`vulkan`, `gl`; `dx12` and `metal` on other systems). A value you set always wins over the automatic choice. Flatpak: `flatpak run --env=WGPU_BACKEND=gl io.github.queball1999.notecraft`. Other installs: `WGPU_BACKEND=gl notecraft`.
+- If the GL backend cannot start either, NoteCraft logs the reason (`NoteCraft could not start its window`) and exits with an error code. Send that log with a bug report.
+
 ## Windows and macOS
 
 Windows: run the `.msi`, or unzip the portable zip. macOS: open the `.dmg` and drag NoteCraft to Applications. Builds are unsigned or ad-hoc signed unless the release says otherwise.
@@ -39,3 +47,4 @@ Windows: run the `.msi`, or unzip the portable zip. macOS: open the `.dmg` and d
 |---|---|---|
 | 2026-10-15 | 1 | Created. Linux install steps per artifact and a Flatpak "ldconfig failed, exit status 256" troubleshooting entry. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
+| 2026-10-18 | 1 | Linux troubleshooting entry: software renderer (llvmpipe), `flatpak update` for NVIDIA, the automatic GL fallback, and `WGPU_BACKEND`. |
