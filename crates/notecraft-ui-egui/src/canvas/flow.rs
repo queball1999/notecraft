@@ -22,7 +22,7 @@ use notecraft_model::{Container, ObjectKind, PlacedObject};
 use super::pictures::{PictureSource, Shown};
 use super::rawtext::Raw;
 use super::PageToScreen;
-use crate::themes::{mix, ThemeTokens};
+use crate::themes::{bold_family, mix, ThemeTokens};
 
 /// Left edge of the text column, in page units (matches the title area).
 pub const LEFT: f32 = 48.0;
@@ -47,7 +47,8 @@ enum Item {
     Text {
         pos: Pos2,
         galley: Arc<Galley>,
-        /// The bold parts again, offset by a hair: egui ships no bold face.
+        /// The bold parts again, offset by a hair. Only used for bold text that has no bold
+        /// face to draw with (no OS bold face was found, or monospace code).
         bold: Option<Arc<Galley>>,
     },
     Fill {
@@ -171,6 +172,8 @@ pub(super) struct Flow {
 struct Layout<'a> {
     painter: &'a Painter,
     tokens: &'a ThemeTokens,
+    /// Whether the bold font family is loaded; bold text uses it instead of overstriking.
+    bold_face: bool,
     zoom: f32,
     items: Vec<Item>,
     files: Vec<FileHit>,
@@ -208,6 +211,7 @@ pub(super) fn layout(
     let mut ctx = Layout {
         painter,
         tokens,
+        bold_face: painter.fonts(|fonts| fonts.families().contains(&bold_family())),
         files: Vec::new(),
         picture_hits: Vec::new(),
         picture_counts: std::collections::HashMap::new(),
@@ -915,7 +919,7 @@ impl Layout<'_> {
                     Align::None | Align::Left => 0.0,
                 };
                 let pos = Pos2::new(x + c as f32 * col_w + pad + dx, row_top + pad);
-                let bold = is_header.then(|| galley.clone());
+                let bold = (is_header && !self.bold_face).then(|| galley.clone());
                 self.items.push(Item::Text { pos, galley, bold });
             }
             *y += row_h;
@@ -960,8 +964,8 @@ impl Layout<'_> {
         }
         let galley = self.galley(runs, size, bold, color, width);
         let height = galley.size().y / self.zoom;
-        let wants_bold = bold || runs.iter().any(|r| r.bold);
-        let ghost = wants_bold.then(|| self.galley_bold_only(runs, size, bold, color, width));
+        let wants_ghost = runs.iter().any(|r| self.overstruck(r, bold));
+        let ghost = wants_ghost.then(|| self.galley_bold_only(runs, size, bold, color, width));
         // With a centered or right alignment the galley is anchored at the middle or right edge.
         let x = match self.align {
             egui::Align::Min => x,
@@ -974,6 +978,12 @@ impl Layout<'_> {
             bold: ghost,
         });
         height
+    }
+
+    /// Whether `run` is bold text that has to be faked by drawing it twice: there is no bold
+    /// face, or the run is monospace code (no bold face is loaded for it).
+    fn overstruck(&self, run: &Run, bold: bool) -> bool {
+        (bold || run.bold) && (run.code || !self.bold_face)
     }
 
     fn job(
@@ -989,9 +999,11 @@ impl Layout<'_> {
         job.wrap.max_width = (width * self.zoom).max(1.0);
         job.halign = self.align;
         for run in runs {
-            let is_bold = bold || run.bold;
+            let is_bold = self.overstruck(run, bold);
             let family = if run.code {
                 FontFamily::Monospace
+            } else if (bold || run.bold) && self.bold_face {
+                bold_family()
             } else {
                 FontFamily::Proportional
             };
@@ -1789,6 +1801,99 @@ mod tests {
             assert!((4..8).contains(&down));
             assert_eq!(raw.row_edge(5, false), 4);
             assert_eq!(raw.row_edge(5, true), 7);
+        });
+    }
+
+    /// Run `f` once the fonts are loaded; with `bold` the bold family is registered (backed by
+    /// egui's own fonts, which is enough to test which family text is laid out with).
+    fn with_bold_painter<R>(bold: bool, f: impl FnOnce(&Painter) -> R) -> R {
+        let ctx = egui::Context::default();
+        let mut definitions = egui::FontDefinitions::default();
+        if bold {
+            let names = definitions.families[&FontFamily::Proportional].clone();
+            definitions
+                .families
+                .insert(crate::themes::bold_family(), names);
+        }
+        ctx.set_fonts(definitions);
+        // The fonts take effect at the start of the next frame.
+        ctx.run_ui(egui::RawInput::default(), |_| {})
+            .textures_delta
+            .clear();
+        let mut out = None;
+        let mut f = Some(f);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            if let Some(f) = f.take() {
+                out = Some(f(ui.painter()));
+            }
+        });
+        output.textures_delta.clear();
+        out.expect("ran once")
+    }
+
+    /// The text items of a flow: whether each is overstruck, and the families of its runs.
+    fn text_items(flow: &Flow) -> Vec<(bool, Vec<FontFamily>)> {
+        flow.items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Text { galley, bold, .. } => Some((
+                    bold.is_some(),
+                    galley
+                        .job
+                        .sections
+                        .iter()
+                        .map(|s| s.format.font_id.family.clone())
+                        .collect(),
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_bold_run_lays_out_with_the_bold_family_when_it_is_loaded() {
+        let tokens = tokens();
+        let text = "plain **loud** plain\n\n# Heading\n\n| a |\n|---|\n| b |\n";
+        with_bold_painter(true, |painter| {
+            let flow = lay(painter, text, 1.0, &tokens, None);
+            let items = text_items(&flow);
+            assert!(!items.is_empty());
+            let bold = crate::themes::bold_family();
+            // Real bold: nothing is drawn twice.
+            assert!(items.iter().all(|(overstruck, _)| !overstruck));
+            let paragraph = &items[0].1;
+            assert_eq!(paragraph.len(), 3);
+            assert_eq!(paragraph[0], FontFamily::Proportional);
+            assert_eq!(paragraph[1], bold);
+            assert_eq!(paragraph[2], FontFamily::Proportional);
+            // Headings and table header cells use it too.
+            assert!(items.iter().filter(|(_, f)| f.contains(&bold)).count() >= 3);
+        });
+    }
+
+    #[test]
+    fn bold_falls_back_to_overstriking_without_a_bold_face() {
+        let tokens = tokens();
+        let text = "plain **loud** plain\n\n# Heading\n";
+        with_bold_painter(false, |painter| {
+            let flow = lay(painter, text, 1.0, &tokens, None);
+            let items = text_items(&flow);
+            assert_eq!(items.len(), 2);
+            assert!(items.iter().all(|(overstruck, _)| *overstruck));
+            let bold = crate::themes::bold_family();
+            assert!(items.iter().all(|(_, f)| !f.contains(&bold)));
+        });
+    }
+
+    #[test]
+    fn bold_code_stays_overstruck_and_monospace_with_a_bold_face() {
+        let tokens = tokens();
+        with_bold_painter(true, |painter| {
+            let flow = lay(painter, "**`code`**\n", 1.0, &tokens, None);
+            let items = text_items(&flow);
+            assert_eq!(items.len(), 1);
+            assert!(items[0].0);
+            assert_eq!(items[0].1, vec![FontFamily::Monospace]);
         });
     }
 }
