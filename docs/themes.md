@@ -1,6 +1,6 @@
 # Themes
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: new token canvas_margin_rule for the ruled-paper margin line.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: bold text is drawn with the OS bold face (feat/bold-face); earlier: stage line: Phase 1 merged into main (#55); earlier: new token canvas_margin_rule for the ruled-paper margin line.
 
 NoteCraft ships four theme presets that evoke each era of OneNote, each in a light and a dark mode, for eight variants. Themes change colors, spacing, corner radius, and control style. They never change layout or behavior.
 
@@ -21,6 +21,8 @@ NoteCraft does not bundle Segoe UI. It asks the OS for its UI font at runtime:
 | Windows 10 and 11 | Segoe UI (Microsoft 365 preset: Segoe UI Variable when present) | egui's built-in font |
 | macOS | system font (San Francisco) | egui's built-in font |
 | Linux | fontconfig `sans-serif` | egui's built-in font |
+
+Bold text on the page uses the bold face of the same OS font, found the same way (Segoe UI Bold on Windows; the system font at weight 700 on macOS; the file fontconfig names for `sans-serif:bold` on Linux; each file is checked for an OS/2 weight of 600 or more, or for a weight axis). It is registered as the egui family `notecraft:bold`, with the regular fonts behind it. When none is found, bold is overstruck.
 
 Decision (PR 0.4): NoteCraft bundles no UI font of its own. When the OS font is missing or cannot be parsed, it falls back to the fonts built into egui, which ship inside the egui dependency rather than as NoteCraft assets. So there is no ATTRIBUTION.md row and no `craft-fonts-ref` in the release workflows; revisit if the egui fallback looks wrong on a real Linux desktop. Every OS font file is size capped and parsed with skrifa (the parser egui uses) before egui loads it, because egui panics on font data it cannot parse. Note text defaults to the UI font at 11 pt, matching OneNote's default size.
 
@@ -177,3 +179,4 @@ Every preset must pass WCAG AA (4.5:1) for `text` on `canvas_bg`, `ribbon_text` 
 | 2026-10-15 | 0 | New token `canvas_margin_rule` (red margin line on ruled paper), a soft red in light and a dim red in dark for each preset; not contrast checked because it is decorative. |
 | 2026-10-15 | 0 | `canvas_margin_rule` made stronger in every preset (light and dark) so the margin line reads clearly, after maintainer review. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
+| 2026-10-18 | 1 | Section 2 notes the OS bold face used for bold text (feat/bold-face). |
