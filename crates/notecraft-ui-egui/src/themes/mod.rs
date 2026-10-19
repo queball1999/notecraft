@@ -15,7 +15,7 @@ mod onenote2021;
 mod tokens;
 
 pub use apply::{install, style};
-pub use fonts::{is_usable, OsFonts};
+pub use fonts::{bold_family, is_usable, OsFonts, BOLD_FAMILY};
 pub use notecraft_engine::view::{ThemeMode as Mode, ThemePreset as Preset};
 pub use tokens::{hex, mix, ButtonStyle, ShadowStyle, ThemeTokens};
 

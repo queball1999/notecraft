@@ -1,6 +1,6 @@
 # OneNote parity assessment
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-18. Last updated: 2026-10-18. Change: rows re-scored and the Now column filled for the state after Phase 1 merged into main (#55); page color and rule lines are P (not saved to the page file yet); font, size, and color per run are D (`<span style>`); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.10: the pen and input rows are partial; PR 1.8: undo and redo is partial; Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Ink to Math stays not planned; PR 1.11: the highlighter and both erasers are partial.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-18. Last updated: 2026-10-18. Change: rule lines, grid, and page color scored D (saved in the page frontmatter); earlier: rows re-scored and the Now column filled for the state after Phase 1 merged into main (#55); page color and rule lines are P (not saved to the page file yet); font, size, and color per run are D (`<span style>`); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.10: the pen and input rows are partial; PR 1.8: undo and redo is partial; Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Ink to Math stays not planned; PR 1.11: the highlighter and both erasers are partial.
 
 
 Target: OneNote for Windows as shipped around 2020 (OneNote 2016 desktop and the Microsoft 365 app of that era), with theme presets for 2016, 2019, 2021, and Microsoft 365. NoteCraft matches OneNote's workflow and layout one to one. It differs on purpose in one place: storage. OneNote keeps notebooks in a binary format; NoteCraft keeps them as markdown folders (docs/markdown.md).
@@ -36,8 +36,8 @@ Shared work not tied to one area (file formats, command registry, localization, 
 | Drag a container by its top bar; resize its width | Same | 1 | P |
 | Page grows right and down as content is added | Canvas extents fit content plus margin | 1 | D |
 | Zoom 10% to 400%, zoom to page width | Same range; Ctrl+wheel, pinch, View tab | 0 | D |
-| Rule lines and grid (View > Rule Lines), with the red margin line on ruled paper | `paper:` frontmatter: blank, lined, grid, dotted (dotted is a kept extra beyond OneNote, see post-parity.md) | 0 (draw, done), 1 (save, not yet: kept per page in the session only, docs/gaps.md) | P |
-| Page color | `notecraft.color` frontmatter; set live with `view.page_color` and undoable, not yet written to the page file (docs/gaps.md) | 1 | P |
+| Rule lines and grid (View > Rule Lines), with the red margin line on ruled paper | `paper:` frontmatter: blank, lined, grid, dotted (dotted is a kept extra beyond OneNote, see post-parity.md) | 0 (draw), 1 (save in the page file, docs/markdown.md section 2.5), both done | D |
+| Page color | `notecraft.color` frontmatter (docs/markdown.md section 2.5); set with `view.page_color`, undoable, and saved in the page file | 1 (done) | D |
 | Insert Space tool | `canvas.insert_space` command | 3 | M |
 | Lasso and rectangle select across ink, text, images | Same | 3 | M |
 | Arrange: bring forward, send back | Same; stored in canvas `z` list | 3 | M |
@@ -180,3 +180,4 @@ Four presets, each in light and dark (docs/themes.md). Palettes are original col
 | 2026-10-16 | 1 | PR 1.11: the highlighter and both erasers are partial (strokes are not saved yet; true multiply is later). |
 | 2026-10-16 | 1 | OneNote import covers every OneNote file type with full fidelity, in Phase 3 (maintainer decision). |
 | 2026-10-18 | 1 | Re-scored every row from parity-checklist.md after Phase 1 merged into main (#55) and filled the Now column (about 45% overall). Page color and rule lines are P: they apply live and undo, but are kept per page in the session and not written to the page file. Font, size, and color per run moved from n/a to D (one-property `<span style>`, PR 1.6). Text highlight is P (yellow done, other colors Phase 2). |
+| 2026-10-18 | 1 | Rule lines and grid and Page color scored D: both are saved in the page frontmatter (docs/markdown.md section 2.5) and read back when the page opens. |

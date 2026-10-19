@@ -19,6 +19,7 @@
 
 mod args;
 mod control;
+mod graphics;
 mod logging;
 mod picker;
 mod prefs;
@@ -246,13 +247,14 @@ fn main() -> eframe::Result<()> {
     if let Some(i) = icon() {
         viewport = viewport.with_icon(i);
     }
-    let options = eframe::NativeOptions {
+    let mut options = eframe::NativeOptions {
         viewport,
         ..Default::default()
     };
+    graphics::configure(&mut options);
 
     let mut pending = Some(store);
-    eframe::run_native(
+    let result = eframe::run_native(
         "NoteCraft",
         options,
         Box::new(move |cc| {
@@ -325,5 +327,10 @@ fn main() -> eframe::Result<()> {
                 logged_save_error: None,
             }))
         }),
-    )
+    );
+    if let Err(e) = &result {
+        // Graphics that cannot start (no usable Vulkan or GL) end here with an exit code, not an abort.
+        tracing::error!(error = %e, "NoteCraft could not start its window; see the lines above and docs/install.md");
+    }
+    result
 }

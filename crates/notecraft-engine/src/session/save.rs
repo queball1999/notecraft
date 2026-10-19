@@ -53,7 +53,7 @@ pub const CONVERT_WARNING: &str = "Converting this page to markdown removes its 
 
 impl Session {
     /// The notebook id, folder, and path inside it for page `page_id`.
-    fn page_location(&self, page_id: &str) -> Option<(String, PathBuf, String)> {
+    pub(super) fn page_location(&self, page_id: &str) -> Option<(String, PathBuf, String)> {
         let (notebook, root) = self
             .notebook_roots
             .iter()
@@ -77,6 +77,7 @@ impl Session {
     /// notice, keeps a copy of the file under `.notecraft/history/`, and leaves the page in
     /// flow layout with its text. Markdown pages and cut-short reads are left alone.
     pub(super) fn load_canvas(&mut self, page_id: &str, text: &str, truncated: bool) {
+        self.load_page_style(page_id, text, truncated);
         if self.kind_of_page(page_id) == Some(PageKind::Canvas) {
             self.load_canvas_block(page_id, text, truncated);
         }
@@ -86,6 +87,7 @@ impl Session {
     /// file as it would be saved, canvas block included, even for a `.md` page that had its
     /// first stroke.
     pub(super) fn load_canvas_from_journal(&mut self, page_id: &str, text: &str) {
+        self.load_page_style(page_id, text, false);
         if self.kind_of_page(page_id).is_some() {
             self.load_canvas_block(page_id, text, false);
         }
@@ -165,8 +167,11 @@ impl Session {
     /// its canvas block. `None` for a page with no text; `Some(Err(()))` when the canvas block
     /// is one that must not be rewritten.
     pub(super) fn file_text(&self, page_id: &str) -> Option<Result<String, ()>> {
-        let text = self.page_text(page_id)?;
         let kind = self.kind_of_page(page_id)?;
+        // The page style goes into the frontmatter first; only keys that differ are touched.
+        let styled =
+            super::page_style::text_with_style(self.page_text(page_id)?, &self.style_of(page_id));
+        let text = styled.as_str();
         let strokes = self.ink().layer(page_id).map_or(&[][..], InkLayer::strokes);
         let positions = self.canvas_positions(page_id);
         let objects = self.live_objects(page_id);

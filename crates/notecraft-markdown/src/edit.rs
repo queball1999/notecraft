@@ -314,6 +314,134 @@ impl<'a> Editor<'a> {
         Ok(removed)
     }
 
+    /// Set or remove keys inside a top-level one-level map entry such as `notecraft:`. Each
+    /// change is a key and `Some(value)` to set it or `None` to remove it. Only the lines of
+    /// the touched keys change: other keys in the map, their comments, and every other entry
+    /// keep their bytes. A new key goes after the map's last key; a missing map is added at
+    /// the end of the block (or in a new block, only when something is set); a map left with
+    /// no keys is removed. A `notecraft:` that is not a one-level map (a flow map such as
+    /// `{a: 1}`) is refused with [`EditError::InvalidValue`] rather than rewritten.
+    pub fn set_frontmatter_map(
+        &mut self,
+        map: &str,
+        changes: &[(&str, Option<&str>)],
+    ) -> Result<(), EditError> {
+        check_key(map)?;
+        for (key, _) in changes {
+            check_key(key)?;
+        }
+        let sets: Vec<(String, String)> = changes
+            .iter()
+            .filter_map(|(k, v)| v.map(|v| ((*k).to_owned(), v.to_owned())))
+            .collect();
+        let Some(fm) = frontmatter::parse(self.source) else {
+            if sets.is_empty() {
+                return Ok(());
+            }
+            return self.create_frontmatter(map, &Value::Map(sets));
+        };
+        if fm.oversize {
+            return Err(EditError::FrontmatterOversize);
+        }
+        let Some(entry) = fm.get(map) else {
+            if sets.is_empty() {
+                return Ok(());
+            }
+            return self.set_frontmatter(map, &Value::Map(sets));
+        };
+        let eol = region_eol(self.source, &fm, self.style.eol);
+        let pairs = match &entry.value {
+            Value::Map(pairs) => pairs,
+            Value::Scalar(s) if s.is_empty() => {
+                if sets.is_empty() {
+                    return Ok(());
+                }
+                let text = format_entry(map, &Value::Map(sets), eol)?;
+                return self.replace(entry_span(entry), &text);
+            }
+            _ => {
+                return Err(EditError::InvalidValue(format!(
+                    "{map} is not a one-level map"
+                )))
+            }
+        };
+        // The child lines: key and the span of the whole line.
+        let text = entry.span.slice(self.source);
+        let mut children: Vec<(String, Span)> = Vec::new();
+        let mut indent = String::from("  ");
+        let mut first_line_end = entry.span.start;
+        let mut offset = 0;
+        for (n, line) in text.split_inclusive('\n').enumerate() {
+            let start = entry.span.start + offset;
+            let span = Span::new(start, start + line.len());
+            offset += line.len();
+            if n == 0 {
+                first_line_end = span.end;
+                continue;
+            }
+            let content = line.trim_end_matches(['\r', '\n']);
+            let trimmed = content.trim_start();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            let Some((key, _)) = trimmed.split_once(':') else {
+                continue;
+            };
+            if children.is_empty() {
+                indent = content[..content.len() - trimmed.len()].to_owned();
+            }
+            children.push((key.trim().trim_matches(['"', '\'']).to_owned(), span));
+        }
+        let current = |key: &str| {
+            pairs
+                .iter()
+                .find(|(k, _)| k == key)
+                .map(|(_, v)| v.as_str())
+        };
+        let mut added = String::new();
+        let mut kept = children.len();
+        for (key, value) in changes {
+            let line = children.iter().find(|(k, _)| k == key);
+            match (line, value) {
+                (Some((_, span)), Some(value)) => {
+                    if current(key) != Some(value) {
+                        let old = span.slice(self.source);
+                        let line_eol = if old.ends_with("\r\n") {
+                            "\r\n"
+                        } else if old.ends_with('\n') {
+                            "\n"
+                        } else {
+                            eol.as_str()
+                        };
+                        let new = format!("{indent}{key}: {}{line_eol}", yaml_scalar(value));
+                        self.replace(*span, &new)?;
+                    }
+                }
+                (Some((_, span)), None) => {
+                    self.delete(*span)?;
+                    kept -= 1;
+                }
+                (None, Some(value)) => {
+                    added.push_str(&format!(
+                        "{indent}{key}: {}{}",
+                        yaml_scalar(value),
+                        eol.as_str()
+                    ));
+                    kept += 1;
+                }
+                (None, None) => {}
+            }
+        }
+        if kept == 0 {
+            // Nothing left under the key: drop the key line too.
+            return self.delete(Span::new(entry.span.start, first_line_end));
+        }
+        if !added.is_empty() {
+            self.insert(entry.span.end, &added)?;
+        }
+        Ok(())
+    }
+
     fn create_frontmatter(&mut self, key: &str, value: &Value) -> Result<(), EditError> {
         let eol = self.style.eol;
         let line = format_entry(key, value, eol)?;
