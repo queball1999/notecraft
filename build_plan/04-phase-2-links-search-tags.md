@@ -1,6 +1,6 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-19. Change: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change.
 
 Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
 
@@ -15,7 +15,7 @@ Backlinks, the graph view, the command palette, and other features OneNote does 
 
 ## Entry criteria
 
-- Phase 1 closed; v0.1.0 published.
+- Phase 1 closed; v0.0.2 published (the Phase 1 alpha; maintainer decision, 2026-10-18).
 - Alpha feedback triaged into docs/gaps.md (bugs from alpha users rank above new Phase 2 work).
 
 ## PR 2.1: page link parser
@@ -237,3 +237,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2026-10-15 | 0 | Added PR 2.11 (command line search and index) after the maintainer decision of 2026-10-15; Phase 2 estimate 134-230 hours. |
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
+| 2026-10-19 | 1 | Entry criteria: v0.0.2 (not v0.1.0) is the Phase 1 alpha that must be published first. |
