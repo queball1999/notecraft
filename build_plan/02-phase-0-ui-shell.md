@@ -1,6 +1,6 @@
 # Phase 0: UI shell
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-15. Change: PR 0.12 landed; status table with every PR number.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: PR 0.12 landed; status table with every PR number.
 
 
 Goal: the whole OneNote interface, fully clickable, on mock data. Every ribbon button exists and is bound to a command id. Buttons whose engine work is not done show a "Coming Soon" badge and toast. Themes switch live. The canvas pans and zooms. Nothing reads or writes real notes yet (that is Phase 1).
@@ -532,3 +532,4 @@ PR 0.12 landed on `docs/phase-0-close`. The alpha gate evidence is filled for th
 | 2026-10-15 | 0 | PR 0.7 follow-up recorded: dotted paper kept as an extra, and the ruled margin line. |
 | 2026-10-15 | 0 | PR 0.7 follow-up: the Rule Lines dropdown is a gallery of paper thumbnail cards drawn with the canvas paper code. |
 | 2026-10-15 | 0 | PR 0.12 landed on docs/phase-0-close: Phase 0 closed; status table with every PR number added; no actual hours recorded; hands-on checks moved to gaps rank 25 and PR 1.15. |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |

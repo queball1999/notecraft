@@ -1,6 +1,6 @@
 # Build plan
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Phase 0 done, Phase 1 next; totals updated.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: Phase 1 merged into main (#55), Phase 2 next; earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Phase 0 done, Phase 1 next; totals updated.
 
 
 This folder is the execution plan for NoteCraft. It is written so an agent or a new contributor can pick up any phase cold and know exactly which branch to create, which files to touch, which commits to make, and how to open each PR.
@@ -14,8 +14,8 @@ The spec is [SCRD.md](../SCRD.md). The rules are [AGENTS.md](../AGENTS.md). Prog
 | [00-conventions.md](00-conventions.md) | all | n/a | branch, commit, PR, and review rules |
 | [01-phase-minus-1-scaffolding.md](01-phase-minus-1-scaffolding.md) | -1 | 55-98 | done 2026-10-14 |
 | [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 284-474 | done 2026-10-15 |
-| [03-phase-1-core-engine.md](03-phase-1-core-engine.md) | 1 | 456-776 | next |
-| [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 134-230 | not started |
+| [03-phase-1-core-engine.md](03-phase-1-core-engine.md) | 1 | 456-776 | merged into main 2026-10-18 (#55); closes with the v0.0.2 release after the hands-on pass |
+| [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 134-230 | next |
 | [05-phase-3-polish-parity.md](05-phase-3-polish-parity.md) | 3, plus beta-to-1.0 hardening | 664-1,126, plus 80-160 | not started |
 | [06-phase-4-advanced.md](06-phase-4-advanced.md) | 4 | 508-952 | not started |
 
@@ -58,3 +58,4 @@ The build plan covers OneNote parity only, with one exception: the command line 
 | 2026-10-15 | 0 | Command line PRs added (0.13, 1.16, 2.11, 3.14, 3.15); phase and total hours updated. |
 | 2026-10-15 | 0 | Phase 0 marked done, Phase 1 next; Phase 1 estimate 456-776 hours (PR 1.15 +2-4 for deferred hands-on checks); totals 1,401-2,404 to 1.0 and 2,045-3,632 to full parity. |
 | 2026-10-16 | 1 | OneNote import moved to Phase 3 with full fidelity (PR 3.16, 3.17); PR 4.3 narrowed; phase and total hours updated. |
+| 2026-10-18 | 1 | Phase 1 merged into main (#55); it closes with the v0.0.2 release after the hands-on pass. Phase 2 marked next. |

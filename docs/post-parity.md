@@ -1,6 +1,6 @@
 # Post-parity optional features
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); review markup (comments, tracked changes) recorded from the WordCraft survey.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); review markup (comments, tracked changes) recorded from the WordCraft survey.
 
 
 The build plan covers OneNote parity only. Everything in this doc is something OneNote does not do. None of it is scheduled. Each item is optional and is considered only after full parity (v1.0.0 and the parity items in Phase 4) is reached, and only if users ask for it.
@@ -51,3 +51,4 @@ Hour ranges come from the PRs these features had in the build plan before it was
 | 2026-10-15 | 0 | Dotted paper recorded as a kept extra (maintainer decision, 2026-10-15). |
 | 2026-10-15 | 1 | Review markup row added (comments and tracked changes, a WordCraft feature OneNote lacks); total 312-540. |
 | 2026-10-16 | 1 | OneNote file export (`.one`, `.onex`, `.onepkg`) added as an optional item; import is in the build plan (PR 3.16, 3.17). |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |

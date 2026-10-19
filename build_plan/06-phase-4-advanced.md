@@ -1,6 +1,6 @@
 # Phase 4: advanced (post-1.0)
 
-> Stage: pre-alpha (Phase 0 closed; Phase 1 next). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 4.1 note from the WordCraft ink survey; PR 4.5 finishes the `make server` placeholder in the new root Makefile.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 4.1 note from the WordCraft ink survey; PR 4.5 finishes the `make server` placeholder in the new root Makefile.
 
 
 Goal: the remaining OneNote features, which are large and independent of each other: handwriting recognition and ink search, the OneNote import of content that needs these features (the reader and full import are in Phase 3), a browser build (OneNote has a web version), sync research, docked window, right-to-left layout, translations, OCR (copy text from picture), audio and video recording, and password-protected sections. Together with v1.0.0 these complete full OneNote parity. Order by user demand.
@@ -223,3 +223,4 @@ Follow 00-conventions.md section 6 whenever the chosen subset is done; release a
 | 2026-10-15 | 0 | PR 4.5 also finishes the `make server` placeholder in the root Makefile (added at the Phase 0 close); no change to hours. |
 | 2026-10-15 | 1 | PR 4.1 note: stroke grouping can reuse the grid index; the WordCraft ink survey found nothing to adopt for recognition. Hours unchanged. |
 | 2026-10-16 | 1 | OneNote reader and full import moved to Phase 3 (PR 3.16, 3.17) by maintainer decision; PR 4.3 now imports only content that needs Phase 4 features (24-44 hours); Phase 4 estimate 508-952 hours. |
+| 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
