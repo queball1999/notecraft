@@ -33,6 +33,8 @@ pub mod image;
 #[cfg(test)]
 mod image_tests;
 pub mod links;
+#[cfg(test)]
+mod links_tests;
 pub mod markup;
 #[cfg(test)]
 mod markup_tests;
