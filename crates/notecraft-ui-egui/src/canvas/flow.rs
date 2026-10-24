@@ -1019,7 +1019,8 @@ impl Layout<'_> {
             if run.script != Script::None {
                 run_size *= 0.7;
             }
-            let mut text_color = if run.link.is_some() {
+            let is_link = run.link.is_some() || run.page_link.is_some();
+            let mut text_color = if is_link {
                 self.tokens.accent
             } else if let Some(rgb) = run.color {
                 rgb_color(rgb)
@@ -1029,12 +1030,11 @@ impl Layout<'_> {
             if only_bold && !is_bold {
                 text_color = Color32::TRANSPARENT;
             }
-            let underline =
-                if (run.link.is_some() || run.underline) && text_color != Color32::TRANSPARENT {
-                    Stroke::new(1.0, text_color)
-                } else {
-                    Stroke::NONE
-                };
+            let underline = if (is_link || run.underline) && text_color != Color32::TRANSPARENT {
+                Stroke::new(1.0, text_color)
+            } else {
+                Stroke::NONE
+            };
             let strikethrough = if run.strike && text_color != Color32::TRANSPARENT {
                 Stroke::new(1.0, text_color)
             } else {
