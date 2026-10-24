@@ -244,6 +244,10 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
             }
             continue;
         }
+        if let Some(target) = &run.page_link {
+            out.push_str(&page_link_text(target, &run.text, in_cell));
+            continue;
+        }
         let mut text = if run.code {
             code_span(&run.text)
         } else {
@@ -265,6 +269,16 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
         out.push_str(&text);
     }
     out
+}
+
+/// A page link run as `[[Target]]` or `[[Target|shown]]` (the pipe is `\|` inside a table cell).
+fn page_link_text(target: &str, shown: &str, in_cell: bool) -> String {
+    let bar = if in_cell { "\\|" } else { "|" };
+    if shown == target {
+        format!("[[{target}]]")
+    } else {
+        format!("[[{target}{bar}{shown}]]")
+    }
 }
 
 /// Wrap `text` in the HTML tags and `==` that `run` needs beyond markdown emphasis.

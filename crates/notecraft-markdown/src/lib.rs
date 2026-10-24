@@ -32,6 +32,7 @@ mod frontmatter_tests;
 pub mod image;
 #[cfg(test)]
 mod image_tests;
+pub mod links;
 pub mod markup;
 #[cfg(test)]
 mod markup_tests;
@@ -51,6 +52,7 @@ pub use containers::{split_containers, ContainerRun};
 pub use document::{parse, Document};
 pub use edit::{apply_edits, Edit, EditError, Editor};
 pub use frontmatter::{parse as parse_frontmatter, Entry, Frontmatter, Value};
+pub use links::{find_page_links, PageLink};
 pub use parse::{parse_blocks, MAX_DEPTH, MAX_PARSE_BYTES};
 pub use style::{LineEnding, Style};
 

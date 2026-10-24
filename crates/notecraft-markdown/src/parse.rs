@@ -255,7 +255,7 @@ struct Style {
 fn runs_of<'a>(node: &'a AstNode<'a>) -> Vec<Run> {
     let mut runs = Vec::new();
     inline_children(node, &Style::default(), 0, &mut runs);
-    merge(runs)
+    crate::links::split_runs(merge(runs))
 }
 
 fn push(runs: &mut Vec<Run>, text: &str, style: &Style, code: bool) {
@@ -275,6 +275,7 @@ fn push(runs: &mut Vec<Run>, text: &str, style: &Style, code: bool) {
         size_pt: style.size_pt,
         family: style.family.clone(),
         link: style.link.clone(),
+        page_link: None,
         image: false,
         image_width: None,
     });
@@ -379,6 +380,7 @@ fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs:
                 size_pt: style.size_pt,
                 family: style.family.clone(),
                 link: Some(link.url),
+                page_link: None,
                 image: true,
                 image_width: None,
             }),
@@ -405,7 +407,8 @@ fn merge(runs: Vec<Run>) -> Vec<Run> {
                     && last.color == run.color
                     && last.size_pt == run.size_pt
                     && last.family == run.family
-                    && last.link == run.link =>
+                    && last.link == run.link
+                    && last.page_link == run.page_link =>
             {
                 last.text.push_str(&run.text);
             }

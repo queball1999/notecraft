@@ -51,6 +51,9 @@ pub struct Run {
     pub family: Option<String>,
     /// The link target, for text inside a link (or an image, whose alt text is shown).
     pub link: Option<String>,
+    /// The run is a page link (`[[Target]]` or `[[Target|text]]`): `text` is what shows and
+    /// this is the target as written (docs/markdown.md section 5.1).
+    pub page_link: Option<String>,
     /// The run is an image (`![alt](target)`): `text` is the alt text and `link` the target.
     pub image: bool,
     /// For an image: the display width the user chose, in page units (docs/markdown.md
@@ -80,6 +83,7 @@ impl Run {
             && self.size_pt.is_none()
             && self.family.is_none()
             && self.link.is_none()
+            && self.page_link.is_none()
     }
 }
 
