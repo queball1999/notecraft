@@ -329,6 +329,8 @@ impl Walk<'_> {
             None => self.stats.added.push(id),
             Some(_) if same_content => self.stats.unchanged += 1,
             Some(old) if old.id != id => {
+                self.tx
+                    .execute("DELETE FROM fts_pages WHERE page = ?1", [&old.id])?;
                 self.stats.removed.push(old.id);
                 self.stats.added.push(id);
             }
