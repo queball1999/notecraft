@@ -264,7 +264,7 @@ OneNote lets you type `[[Page name]]` to link to a page (and creates the page if
 | `[[Page\|shown text]]` | link with different display text |
 | `[[Section/Page]]` | disambiguate by section path |
 
-Inside a table cell the pipe must be escaped as `\|` (GFM rule).
+Inside a table cell the pipe must be escaped as `\|` (GFM rule), and there `\|` separates the target from the shown text. Outside a table only a plain `|` separates them, and `\|` is a literal pipe in the target. An escaped opening bracket (`\[[x]]`) is plain text, never a link, so text that happens to read `[[x]]` survives a save and reopen. NoteCraft writes `[[Page|Page]]` as `[[Page]]` when it rewrites the block that holds it; blocks it does not rewrite keep their bytes (minimal-diff writes).
 
 ### 5.2 Writing links
 
@@ -362,3 +362,4 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-10-18 | 1 | Section 2.5 (new): page style keys in the `notecraft:` frontmatter map: `paper` (blank, lined, grid, dotted), `paper_spacing`, `paper_size`, `rule_color`, and `color`; lenient reading, minimal-diff writing, a key is removed at its default. |
 | 2026-10-24 | 2 | Section 5.1 implemented (PR 2.1): the reader skips code spans, code blocks, and raw HTML, treats `\|` as the separator in table cells, ignores an escaped opening bracket, and reads at most 1,024 bytes between the brackets. |
+| 2026-10-24 | 2 | Section 5.1: `\|` is the separator only inside table cells; an escaped opening bracket is plain text; a rewritten block drops a redundant shown text. |
