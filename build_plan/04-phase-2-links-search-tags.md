@@ -95,6 +95,8 @@ Commits:
 
 PR title: `feat(engine): add search across notebooks`.
 
+Notes (landed): the index stores stripped page text in an FTS5 table kept in step with the page files; titles rank above body words. Attachment search takes `type:` words (extension, major type, or mime type) next to name words. An attachment hit opens the first page that links to it, and does nothing when no page does.
+
 ## PR 2.5: note tags
 
 | | |

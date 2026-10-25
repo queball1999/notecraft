@@ -27,9 +27,9 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | Structure | 7 | 1 | 4 | 12 | 58% |
 | Attachments | 1 | 4 | 3 | 8 | 12% |
 | Format | 7 | 1 | 3 | 11 | 63% |
-| Links | 0 | 0 | 8 | 8 | 0% |
+| Links | 2 | 0 | 6 | 8 | 25% |
 | Export | 0 | 0 | 4 | 4 | 0% |
-| Total | 58 | 13 | 46 | 117 | 49% |
+| Total | 60 | 13 | 44 | 117 | 51% |
 <!-- parity:summary:end -->
 
 ## Scaffolding (Phase -1)
@@ -190,10 +190,10 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | LK-02 | Links | Link resolution, page picker, create missing page | 2 | M | |
 | LK-03 | Links | Links update on rename and move | 2 | M | |
 | LK-04 | Links | Copy link to page (`notecraft://`) | 3 | M | |
-| LK-05 | Links | Search with scopes (page to all notebooks) | 2 | M | |
+| LK-05 | Links | Search with scopes (page to all notebooks) | 2 | D | PR 2.4: FTS5 page text index, search.* commands, Ctrl+E box with scope and sort, results pane with snippets |
 | LK-06 | Links | Note tags with icons, gallery, shortcuts | 2 | M | |
 | LK-07 | Links | Find Tags summary pane and summary page | 2 | M | |
-| LK-08 | Links | Search attachments by name and type | 2 | M | |
+| LK-08 | Links | Search attachments by name and type | 2 | D | PR 2.4: attachments match on name words and type: words (type:pdf, type:image); listed with their page |
 
 ## Export
 
@@ -274,3 +274,4 @@ Row format, which the xtask parses: `| ID | Area | Feature | Phase | Score | Evi
 | 2026-10-18 | 1 | CV-03 evidence: rule lines, rule line color, page color, and paper size are saved in the page frontmatter and read back when the page opens. Score unchanged (D). |
 | 2026-10-18 | 1 | TX-02 evidence: bold text is drawn with the OS bold face (feat/bold-face). Score unchanged. |
 | 2026-10-19 | 1 | IN-02 scope: scored on Windows only (maintainer decision). Pressure on macOS and Linux is deferred until eframe adopts a winit release that reports tablet pressure; it is tracked in docs/gaps.md (Deferred), not in the Phase 1 score. Score unchanged (P until checklist step 9 on Windows). |
+| 2026-10-24 | 2 | LK-05 and LK-08 scored D (PR 2.4, feat/search). |
