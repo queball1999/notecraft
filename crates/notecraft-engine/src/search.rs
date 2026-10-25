@@ -397,6 +397,17 @@ pub fn update_text_index(
     Ok(count)
 }
 
+/// Bring the notebook index at `root` in line with the folder, text included, without the
+/// app running (the command line `index` and `search` call this). Returns the number of
+/// pages whose search text was built.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn refresh_search_index(root: &std::path::Path) -> Result<usize, String> {
+    let (mut index, _) =
+        notecraft_storage::index::refresh_or_rebuild(root, &notecraft_storage::index_path(root))
+            .map_err(|err| err.to_string())?;
+    update_text_index(root, &mut index)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
