@@ -1,6 +1,6 @@
 # Architecture
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: section 8 notes the Linux graphics backend choice; earlier: stage line: Phase 1 merged into main (#55); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); section 10.3a describes textured pens and the pencil; earlier: highlighter true multiply paint callback (section 10.3); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); PR 1.7: dirty tracking, auto-save, recovery journal, and outside edit handling (sections 3.2 to 3.4, 7); ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11: sections 10.3 and 10.4 describe the highlighter and erasers as built; section 5.1: structure editing and how undo works on disk (PR 1.13); Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; Draw tab parity (feat/draw-tab-parity): OneNote Draw groups, editable pen list saved in settings, pen menu with palette and Eyedropper, Format Background, smooth curves for ink, Rule Lines thumbnail margin fix; attachment storage note (PR 1.12); ST-07: the navigation reads the notebook index, frontmatter titles show, and a background thread keeps the index current (feat/nav-from-index).
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: section 12 records the equation renderer choice (PR 2.7); earlier: section 8 notes the Linux graphics backend choice; earlier: stage line: Phase 1 merged into main (#55); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); section 10.3a describes textured pens and the pencil; earlier: highlighter true multiply paint callback (section 10.3); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); PR 1.7: dirty tracking, auto-save, recovery journal, and outside edit handling (sections 3.2 to 3.4, 7); ink design (PR 1.10) added to section 4; PR 1.3: notecraft-markdown parses blocks with source spans; the canvas renders pages from session page text (the seam for PR 1.1); page text read from disk when a page is shown (FM-01 scored D); PR 1.2 landed (rebuildable notebook index); page text read from disk when a page is shown (FM-01 scored D). PR 1.8: sections 5 and 6 describe undo as built; also: PR 1.4: markdown write (span-replacement Editor, canonical serializer) and atomic page writes in storage; PR 1.10 follow-ups (anti-aliased ink edges, marked current pen, WordCraft survey notes); Ink Replay scheduled in PR 3.2 (IN-13); PR 1.11 follow-ups (eraser sizes, grazing point eraser); PR 1.11: sections 10.3 and 10.4 describe the highlighter and erasers as built; section 5.1: structure editing and how undo works on disk (PR 1.13); Ink Replay scheduled in PR 3.2 (IN-13). PR 1.5: text editing in containers; Draw tab parity (feat/draw-tab-parity): OneNote Draw groups, editable pen list saved in settings, pen menu with palette and Eyedropper, Format Background, smooth curves for ink, Rule Lines thumbnail margin fix; attachment storage note (PR 1.12); ST-07: the navigation reads the notebook index, frontmatter titles show, and a background thread keeps the index current (feat/nav-from-index).
 
 How NoteCraft is built. Until Phase -1 lands, this describes the target; each phase updates it to match the code.
 
@@ -44,7 +44,7 @@ Plus `xtask` (build tooling, not shipped) and `testdata/`. The MCP server (PR 3.
 | `notecraft-storage` | L1 | notebook folder scan, page file read and write, `index.sqlite`, file watcher, auto-save timer, attachment copy | `rusqlite` (bundled), `notify`, `craft-atomic`, `craft-settings` |
 | `notecraft-model` | L2 | `Notebook`, `Section`, `Page`, `Container`, `InkStroke`, `Shape`, `ImageObj`, `FileObj` | `notecraft-core` |
 | `notecraft-onenote` | L2 | (Phase 3) read OneNote `.one`, `.onex`, `.onetoc2`, and `.onepkg` from bytes into `notecraft-model`; no file I/O | `notecraft-core`, `notecraft-model`, a pure-Rust CAB reader |
-| `notecraft-markdown` | L3 | markdown to blocks, blocks to markdown with minimal diffs, page link parse and resolve, note tags, equation layout | `comrak` |
+| `notecraft-markdown` | L3 | markdown to blocks, blocks to markdown with minimal diffs, page link parse and resolve, note tags, equation layout | `comrak`, `latex-rust` |
 | `notecraft-canvas` | L4 | stroke smoothing, eraser, shapes, ink to shape, container layout, hit testing, viewport | `kurbo` |
 | `notecraft-engine` | L5 | `Session`, command registry, undo/redo, clipboard model, PDF and HTML export | the crates above |
 | `notecraft-ui-egui` | L6 | ribbon, File backstage, navigation, canvas widget, themes, dialogs | `egui`, `eframe`, `craft-ui` |
@@ -254,6 +254,31 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 - Guards: the caret never sits in the frontmatter or on a container marker line; an edit that would cut a marker in half or leave one off the start of a line is refused. A page with a read-only `PageNotice` or a disk page that was never read is not editable.
 - Containers are marker lines (docs/markdown.md section 3.3) appended to the page; geometry is kept in the session (`SetContainer` op) until PR 1.9 stores it in the canvas block. A container the caret leaves with no text is removed, as in OneNote.
 
+## 12. Equations (PR 2.7)
+
+Equations are stored as LaTeX math in the page text (`$...$` inline, `$$...$$` display; docs/markdown.md section 3.2) and typeset on the canvas. The page file never holds anything but the source.
+
+### 12.1 Renderer choice
+
+NoteCraft needs more than a LaTeX parser: it needs glyph placement (fractions, radicals, scripts, large operators, delimiters, matrices) from a math font, in pure Rust, buildable for `wasm32`, under a license compatible with MIT OR Apache-2.0. Evaluated on 2026-10-24 from the published crates:
+
+| Candidate | License | What it does | Verdict |
+|---|---|---|---|
+| `latex-rust` 2.1.1 | MIT OR Apache-2.0 | LaTeX math to AST, TeX-style box layout using the OpenType MATH table, SVG output; embeds STIX Two Math (SIL OFL). Only required dependency is `ttf-parser` (itself `forbid(unsafe_code)`, MIT OR Apache-2.0). Parser nesting depth is a parameter (default 32). Unsupported input is an `Err`, never a fake render. MSRV 1.76. | Chosen. |
+| `latex-rust` 3.0.1 | MIT OR Apache-2.0 | Same project, newer. Requires Rust 1.99 (the workspace MSRV is 1.95) and swaps `ttf-parser` for `skrifa`. | Not chosen; revisit when the workspace MSRV passes 1.99. 2.1.1 is pinned exactly. |
+| `mathtex` 0.2.0 (with `mathtex-engine`, `-font`, `-ir`, `-svg`) | MIT OR Apache-2.0 | A XeTeX engine port with baked formats and a renderer-neutral IR. | Not chosen: four more crates plus generated engine data and `miniz_oxide`, and a much larger surface than a note-taking app needs for `$...$`. |
+| `pulldown-latex`, `latex2mathml`, `math-core`, `tex2math` | MIT | LaTeX to MathML. | Not chosen: they stop at MathML, so NoteCraft would still have to write the layout. |
+| Write our own bounded layout | n/a | Fractions, scripts, and radicals only. | Not needed: a crate fits. |
+
+Costs, accepted: the crate embeds STIX Two Math (about 1.7 MiB in the binary; ATTRIBUTION.md has a row); `ttf-parser` 0.25 carries an informational "unmaintained" advisory (RUSTSEC-2026-0192) and the crate keeps it on purpose; the layout uses exact rational arithmetic, so a hostile formula can be slow, which is why the canvas typesets on a helper thread with a time limit (12.2). The crate also bundles a dvips color-name table (LaTeX Project Public License data, recorded in its NOTICE); NoteCraft does not expose it separately.
+
+### 12.2 How it fits the layers
+
+- `notecraft-markdown::math` (L3) owns the limits (4 KiB per formula, nesting depth 32), `typeset` (formula to an SVG of paths and rectangles plus width, height, and depth in ems), and `wrap`. The parser turns comrak's dollar math into a `Run` with `math` set to `Inline` or `Display`; the run text is the LaTeX without the dollar signs, so the canonical writer reproduces the source. A formula over a limit stays a plain-text run including its dollar signs. The canonical writer escapes a literal `$` in text.
+- `notecraft-canvas::math` (L4) rasterizes a typeset formula with `resvg` into a small RGBA bitmap on a helper thread with a time limit and a pixel cap, the same way SVG pictures are drawn. Typesetting failures and timeouts are results, not errors.
+- `notecraft-engine` (L5): `insert.equation` (Alt+=) inserts `$...$` at the caret, or wraps the selection, and selects the placeholder so the next keystroke replaces it. Everything else is ordinary text editing.
+- `notecraft-ui-egui` (L6): the flow layout draws inline formulas inside text (a zero-width placeholder character reserves the room in the line) and display formulas centered on their own line, as textures cached per page. The block holding the caret is shown as raw markdown like every other block, which is how the source appears while editing. A formula that fails to typeset is shown as its source.
+
 ## Revision history
 
 | Date | Phase | Change |
@@ -290,3 +315,4 @@ WordCraft's `crates/engine/src/cmd/ink_shape.rs` is a bounded, dependency-free g
 | 2026-10-18 | 1 | Section 10.3a: textured pens and the pencil (procedural images, per-vertex along and across, one mesh per stroke). |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-10-18 | 1 | Section 8: Linux graphics backend choice (software-only Vulkan falls back to GL). |
+| 2026-10-24 | 2 | Section 12 (new): equation renderer evaluation and choice (latex-rust 2.1.1), and how equations fit the layers (PR 2.7). |

@@ -4,7 +4,9 @@
 use comrak::nodes::{AstNode, ListType, NodeValue, Sourcepos, TableAlignment};
 use comrak::{parse_document, Arena, Options};
 
-use crate::block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Script, Span, Table};
+use crate::block::{
+    Align, Block, BlockKind, Cell, ListItem, ListKind, Math, Run, Script, Span, Table,
+};
 use crate::markup::{self, Mark, Tag};
 
 /// Deepest block nesting parsed into structure (docs/markdown.md section 9). Deeper content
@@ -22,6 +24,7 @@ fn options() -> Options<'static> {
     options.extension.tasklist = true;
     options.extension.autolink = true;
     options.extension.highlight = true;
+    options.extension.math_dollars = true;
     options
 }
 
@@ -290,6 +293,7 @@ fn push(runs: &mut Vec<Run>, text: &str, style: &Style, code: bool) {
         page_link: None,
         image: false,
         image_width: None,
+        math: Math::None,
     });
 }
 
@@ -353,6 +357,7 @@ fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs:
         match value {
             NodeValue::Text(t) => push(runs, &t, style, false),
             NodeValue::Code(c) => push(runs, &c.literal, style, true),
+            NodeValue::Math(m) => runs.push(crate::math::run_of(&m.literal, m.display_math)),
             NodeValue::HtmlInline(h) => match markup::parse_tag(&h) {
                 Some((tag, len)) if len == h.len() => apply_tag(&mut current, &mut open_spans, tag),
                 _ => push(runs, &h, style, false),
@@ -395,6 +400,7 @@ fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs:
                 page_link: None,
                 image: true,
                 image_width: None,
+                math: Math::None,
             }),
             _ => nested(style.clone()),
         }
@@ -408,6 +414,8 @@ fn merge(runs: Vec<Run>) -> Vec<Run> {
         match out.last_mut() {
             Some(last)
                 if !last.image
+                    && last.math == Math::None
+                    && run.math == Math::None
                     && !run.image
                     && last.bold == run.bold
                     && last.italic == run.italic

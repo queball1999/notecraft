@@ -248,6 +248,10 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
             out.push_str(&page_link_text(target, &run.text, in_cell));
             continue;
         }
+        if run.math != crate::block::Math::None {
+            out.push_str(&crate::math::wrap(&run.text, run.math));
+            continue;
+        }
         let mut text = if run.code {
             code_span(&run.text)
         } else {
@@ -334,7 +338,7 @@ fn escape(text: &str, in_cell: bool) -> String {
     for c in text.chars() {
         match c {
             '=' if has_pair => out.push_str("\\="),
-            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '~' => {
+            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '~' | '$' => {
                 out.push('\\');
                 out.push(c);
             }

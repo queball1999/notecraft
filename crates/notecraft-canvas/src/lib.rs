@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 pub mod ink;
+pub mod math;
 pub mod paper;
 pub mod picture;
 mod svg;

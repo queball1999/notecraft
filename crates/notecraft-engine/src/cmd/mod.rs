@@ -7,6 +7,9 @@ mod builtin;
 mod canvas;
 mod draw;
 mod edit;
+mod equation;
+#[cfg(test)]
+mod equation_tests;
 mod file;
 mod find;
 #[cfg(test)]
