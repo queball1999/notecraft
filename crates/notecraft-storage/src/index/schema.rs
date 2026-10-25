@@ -75,8 +75,16 @@ const V3: &str = "ALTER TABLE pages ADD COLUMN collapsed INTEGER NOT NULL DEFAUL
 /// changed since is found by `pages_needing_text`. Null means no text is stored yet.
 const V4: &str = "ALTER TABLE pages ADD COLUMN text_hash INTEGER;";
 
+/// Version 5: the section folder an attachment belongs to (empty for the notebook folder)
+/// and its file modified time, so a search can limit attachments to a scope.
+const V5: &str = "
+ALTER TABLE attachments ADD COLUMN section TEXT NOT NULL DEFAULT '';
+ALTER TABLE attachments ADD COLUMN modified INTEGER NOT NULL DEFAULT 0;
+DELETE FROM attachments;
+";
+
 /// Migrations in order. Index `n` upgrades version `n` to `n + 1`.
-pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4];
+pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
 
 /// The schema version this build writes.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;

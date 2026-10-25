@@ -29,7 +29,8 @@ pub use ink::{
 pub use notecraft_core::InkTexture;
 pub use notecraft_storage::RecoveryEntry;
 pub use search::{
-    SearchContext, SearchHit, SearchResults, SearchRoot, SearchScope, SearchSort, SearchState,
+    AttachmentInfo, HitKind, SearchContext, SearchHit, SearchResults, SearchRoot, SearchScope,
+    SearchSort, SearchState,
 };
 pub use session::{
     AttachKind, Attached, ConvertOutcome, InsertError, PageNotice, PageSource, ReadPurpose,

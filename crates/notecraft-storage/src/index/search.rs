@@ -100,6 +100,52 @@ fn words_of(segment: &str) -> Vec<String> {
         .collect()
 }
 
+/// One attachment file in the index.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AttachmentRow {
+    /// Path from the notebook folder, such as `Work/attachments/3f9a2c-budget.xlsx`.
+    pub path: String,
+    /// The name the user gave it (the stored name without its hash prefix).
+    pub name: String,
+    /// The section folder it is stored in (empty for the notebook folder).
+    pub section: String,
+    pub size: i64,
+    pub mime: String,
+    /// File modified time, milliseconds since the Unix epoch.
+    pub modified: i64,
+    /// The first page that links to it, if any page does.
+    pub page: Option<String>,
+}
+
+/// Most attachment rows one listing returns.
+const MAX_ATTACHMENT_ROWS: i64 = 100_000;
+/// Most attachment links recorded for one page.
+const MAX_REFS_PER_PAGE: usize = 1_000;
+
+/// The name of an attachment from its index path: the file name, without the hash prefix
+/// (`3f9a2c-`) the attachment store puts in front.
+pub fn attachment_name(path: &str) -> String {
+    let file = path.rsplit('/').next().unwrap_or(path);
+    let bytes = file.as_bytes();
+    let hashed =
+        bytes.len() > 7 && bytes[6] == b'-' && bytes[..6].iter().all(u8::is_ascii_hexdigit);
+    if hashed {
+        file.get(7..).unwrap_or(file).to_owned()
+    } else {
+        file.to_owned()
+    }
+}
+
+/// The scope as the three values the SQL uses: kind, value, and a `LIKE` pattern.
+fn scope_params<'a>(scope: TextScope<'a>) -> (i64, &'a str, String) {
+    match scope {
+        TextScope::All => (0, "", String::new()),
+        TextScope::Page(id) => (1, id, String::new()),
+        TextScope::Section(path) => (2, path, String::new()),
+        TextScope::Group(path) => (3, path, format!("{}/%", like_escape(path))),
+    }
+}
+
 /// Escape `%`, `_`, and `\` for a `LIKE ... ESCAPE '\'` pattern.
 pub(super) fn like_escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);
@@ -152,6 +198,57 @@ impl Index {
         tx.commit()
     }
 
+    /// Record which attachments each page links to, replacing the pages' earlier lists. Each
+    /// pair is a page id and the index paths of attachments (`Section/attachments/name`).
+    /// Paths that are not attachments in the index are ignored. One transaction.
+    pub fn set_attachment_refs(&mut self, refs: &[(String, Vec<String>)]) -> rusqlite::Result<()> {
+        let tx = self.conn.transaction()?;
+        for (page, paths) in refs {
+            tx.execute("DELETE FROM attachment_refs WHERE page = ?1", [page])?;
+            for path in paths.iter().take(MAX_REFS_PER_PAGE) {
+                tx.execute(
+                    "INSERT OR IGNORE INTO attachment_refs (attachment, page)
+                     SELECT path, ?2 FROM attachments WHERE path = ?1",
+                    params![path, page],
+                )?;
+            }
+        }
+        tx.commit()
+    }
+
+    /// The attachments in a scope, by path. A page scope lists the attachments the page
+    /// links to; a section or group scope, the attachments stored in those sections.
+    pub fn attachments(&self, scope: TextScope<'_>) -> rusqlite::Result<Vec<AttachmentRow>> {
+        let (kind, value, pattern) = scope_params(scope);
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT a.path, a.section, a.size, a.mime, a.modified,
+                    (SELECT min(r.page) FROM attachment_refs r WHERE r.attachment = a.path)
+             FROM attachments a
+             WHERE ?1 = 0
+                OR (?1 = 1 AND EXISTS (SELECT 1 FROM attachment_refs r
+                                       WHERE r.attachment = a.path AND r.page = ?2))
+                OR (?1 = 2 AND a.section = ?2)
+                OR (?1 = 3 AND (a.section = ?2 OR a.section LIKE ?3 ESCAPE '\\'))
+             ORDER BY a.path
+             LIMIT ?4",
+        )?;
+        let rows = stmt
+            .query_map(params![kind, value, pattern, MAX_ATTACHMENT_ROWS], |row| {
+                let path: String = row.get(0)?;
+                Ok(AttachmentRow {
+                    name: attachment_name(&path),
+                    path,
+                    section: row.get(1)?,
+                    size: row.get(2)?,
+                    mime: row.get(3)?,
+                    modified: row.get(4)?,
+                    page: row.get(5)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
+    }
+
     /// Search page titles and text. Best matches first (titles weigh more than body text),
     /// at most `limit` (capped at [`MAX_HITS`]). An empty or wordless `text` finds nothing.
     pub fn search_text(
@@ -163,12 +260,7 @@ impl Index {
         let Some(expression) = match_expression(text) else {
             return Ok(Vec::new());
         };
-        let (kind, value, pattern): (i64, &str, String) = match scope {
-            TextScope::All => (0, "", String::new()),
-            TextScope::Page(id) => (1, id, String::new()),
-            TextScope::Section(path) => (2, path, String::new()),
-            TextScope::Group(path) => (3, path, format!("{}/%", like_escape(path))),
-        };
+        let (kind, value, pattern) = scope_params(scope);
         let limit = i64::try_from(limit.min(MAX_HITS)).unwrap_or(0);
         let mut stmt = self.conn.prepare_cached(
             "SELECT p.id, p.path, p.section,
@@ -440,6 +532,83 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn attachment_names_drop_the_hash_prefix() {
+        assert_eq!(
+            attachment_name("Work/attachments/3f9a2c-budget.xlsx"),
+            "budget.xlsx"
+        );
+        assert_eq!(attachment_name("attachments/photo.png"), "photo.png");
+        assert_eq!(attachment_name("a/zzzzzz-name.txt"), "zzzzzz-name.txt");
+        assert_eq!(attachment_name("a/3f9a2c-"), "3f9a2c-");
+    }
+
+    #[test]
+    fn attachments_are_listed_by_scope_and_link() {
+        let (_dir, root) = notebook();
+        for (rel, bytes) in [
+            ("Grp/Work/attachments/3f9a2c-budget.xlsx", &b"xx"[..]),
+            ("Grp/Work/attachments/aaaaaa-photo.png", &b"yyy"[..]),
+            ("Home/attachments/bbbbbb-map.pdf", &b"z"[..]),
+        ] {
+            let path = root.join(rel);
+            fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+            fs::write(path, bytes).expect("write");
+        }
+        let mut index = Index::open_in_memory().expect("open");
+        load(&mut index, &root);
+        let all = index.attachments(TextScope::All).expect("all");
+        let names: Vec<&str> = all.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["budget.xlsx", "photo.png", "map.pdf"]);
+        let budget = &all[0];
+        assert_eq!(budget.section, "Grp/Work");
+        assert_eq!(budget.mime, "application/octet-stream");
+        assert_eq!(budget.size, 2);
+        assert!(budget.page.is_none());
+        let in_section = index
+            .attachments(TextScope::Section("Grp/Work"))
+            .expect("section");
+        assert_eq!(in_section.len(), 2);
+        let in_group = index.attachments(TextScope::Group("Grp")).expect("group");
+        assert_eq!(in_group.len(), 2);
+        assert!(
+            index
+                .attachments(TextScope::Group("Home"))
+                .expect("group")
+                .len()
+                == 1
+        );
+        // Links decide the page scope; unknown paths are ignored.
+        let plan = index.search_text("plan", TextScope::All, 5).expect("plan")[0]
+            .id
+            .clone();
+        index
+            .set_attachment_refs(&[(
+                plan.clone(),
+                vec![
+                    "Grp/Work/attachments/aaaaaa-photo.png".to_owned(),
+                    "nope/attachments/x.png".to_owned(),
+                ],
+            )])
+            .expect("refs");
+        let on_page = index.attachments(TextScope::Page(&plan)).expect("page");
+        assert_eq!(on_page.len(), 1);
+        assert_eq!(on_page[0].name, "photo.png");
+        assert_eq!(on_page[0].page.as_deref(), Some(plan.as_str()));
+        // A new list replaces the old one.
+        index
+            .set_attachment_refs(&[(plan.clone(), Vec::new())])
+            .expect("refs");
+        assert!(index
+            .attachments(TextScope::Page(&plan))
+            .expect("page")
+            .is_empty());
+        // A removed file leaves the list on the next refresh.
+        fs::remove_file(root.join("Home/attachments/bbbbbb-map.pdf")).expect("rm");
+        index.refresh(&root).expect("refresh");
+        assert_eq!(index.attachments(TextScope::All).expect("all").len(), 2);
     }
 
     #[test]

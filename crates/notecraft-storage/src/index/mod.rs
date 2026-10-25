@@ -16,7 +16,10 @@ use crate::notebook_dir::PageKind;
 
 pub use refresh::{IndexError, RefreshStats};
 pub use schema::SCHEMA_VERSION;
-pub use search::{match_expression, PageBody, TextHit, TextScope, MARK_END, MARK_START, MAX_HITS};
+pub use search::{
+    attachment_name, match_expression, AttachmentRow, PageBody, TextHit, TextScope, MARK_END,
+    MARK_START, MAX_HITS,
+};
 pub use worker::{refresh_or_rebuild, IndexWorker, WorkerReport};
 
 /// One section or group row, in sidebar order.

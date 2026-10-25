@@ -7,7 +7,7 @@ use serde_json::json;
 
 use super::theme::{invalid, string_arg};
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
-use crate::search::{SearchResults, SearchRoot, SearchScope, SearchSort};
+use crate::search::{HitKind, SearchResults, SearchRoot, SearchScope, SearchSort};
 use crate::session::Session;
 
 /// Longest query kept, in characters.
@@ -67,6 +67,15 @@ fn summary(results: &SearchResults) -> Value {
         .iter()
         .map(|hit| {
             json!({
+                "kind": match hit.kind {
+                    HitKind::Page => "page",
+                    HitKind::Attachment => "attachment",
+                },
+                "attachment": hit.attachment.as_ref().map(|a| json!({
+                    "path": a.path,
+                    "mime": a.mime,
+                    "size": a.size,
+                })),
                 "notebook": hit.notebook_id,
                 "section": hit.section_id,
                 "page": hit.page_id,

@@ -140,7 +140,7 @@ fn hit_row(ui: &mut Ui, hit: &SearchHit, multi: bool, t: &ThemeTokens, out: &mut
     if let Some(snippet) = snippet {
         painter.galley(egui::pos2(x, y), snippet, t.text);
     }
-    if response.clicked() {
+    if response.clicked() && !hit.page_id.is_empty() {
         out.push(command(
             ids::NAV_PAGE_SELECT,
             &[("id", hit.page_id.as_str())],

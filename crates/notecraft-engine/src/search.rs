@@ -102,9 +102,31 @@ impl SearchSort {
     }
 }
 
-/// One result: a page whose title or text matched.
+/// What a result is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum HitKind {
+    /// A page whose title or text matched.
+    #[default]
+    Page,
+    /// A file attached to a page whose name or type matched.
+    Attachment,
+}
+
+/// The file behind an attachment result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AttachmentInfo {
+    /// Path from the notebook folder.
+    pub path: String,
+    pub mime: String,
+    pub size: u64,
+}
+
+/// One result: a page whose title or text matched, or an attachment whose name or type did.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SearchHit {
+    pub kind: HitKind,
+    /// Set for an attachment.
+    pub attachment: Option<AttachmentInfo>,
     pub notebook_id: String,
     pub notebook_name: String,
     /// The section id (`<notebook id>/<folder path>`), as the navigation uses it.
@@ -113,7 +135,9 @@ pub struct SearchHit {
     pub section_path: String,
     /// The last part of `section_path`.
     pub section_name: String,
+    /// The page; for an attachment, the first page that links to it (empty if none does).
     pub page_id: String,
+    /// The page title, or the attachment name.
     pub title: String,
     /// File modified time, milliseconds since the Unix epoch.
     pub modified: i64,
@@ -241,6 +265,169 @@ impl SearchHit {
     }
 }
 
+/// A search text split into what pages are matched on and what attachments are matched on.
+///
+/// `type:pdf` (or `type:image`, `type:png`, a mime type) limits the search to attachments of
+/// that type. The other words match page titles and text, and attachment names.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ParsedQuery {
+    /// The query without `type:` words.
+    text: String,
+    /// Lowercase words an attachment name must contain.
+    words: Vec<String>,
+    /// Lowercase types, all of which an attachment must match.
+    types: Vec<String>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl ParsedQuery {
+    fn new(query: &str) -> Self {
+        let mut text = Vec::new();
+        let mut types = Vec::new();
+        for token in query.split_whitespace() {
+            let lower = token.to_lowercase();
+            match lower.strip_prefix("type:") {
+                Some(kind) => {
+                    let kind = kind.trim_start_matches('.');
+                    if !kind.is_empty() && types.len() < 4 {
+                        types.push(kind.to_owned());
+                    }
+                }
+                None => text.push(token),
+            }
+        }
+        let text = text.join(" ");
+        let words = text
+            .to_lowercase()
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .take(16)
+            .map(str::to_owned)
+            .collect();
+        Self { text, words, types }
+    }
+
+    /// Whether an attachment named `name` with mime type `mime` matches.
+    fn matches_attachment(&self, name: &str, mime: &str) -> bool {
+        if self.words.is_empty() && self.types.is_empty() {
+            return false;
+        }
+        let lower = name.to_lowercase();
+        let ext = lower.rsplit_once('.').map_or("", |(_, ext)| ext);
+        let mime = mime.to_lowercase();
+        self.words.iter().all(|w| lower.contains(w.as_str()))
+            && self.types.iter().all(|t| {
+                ext == t
+                    || mime == *t
+                    || mime
+                        .split_once('/')
+                        .is_some_and(|(major, _)| major == t || mime.ends_with(&format!("/{t}")))
+            })
+    }
+}
+
+/// "2 KB" style size.
+#[cfg(not(target_arch = "wasm32"))]
+fn size_text(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+    if bytes >= GB {
+        format!("{} GB", bytes / GB)
+    } else if bytes >= MB {
+        format!("{} MB", bytes / MB)
+    } else if bytes >= KB {
+        format!("{} KB", bytes / KB)
+    } else {
+        format!("{bytes} bytes")
+    }
+}
+
+/// The page and attachment hits of one notebook index.
+#[cfg(not(target_arch = "wasm32"))]
+fn notebook_hits(
+    root: &SearchRoot,
+    index: &notecraft_storage::index::Index,
+    scope: notecraft_storage::index::TextScope<'_>,
+    query: &ParsedQuery,
+    out: &mut Vec<SearchHit>,
+) -> Result<(), String> {
+    // A type filter is about files, so pages are not searched.
+    if query.types.is_empty() {
+        let pages = index
+            .search_text(&query.text, scope, MAX_RESULTS)
+            .map_err(|err| err.to_string())?;
+        for hit in pages {
+            let (snippet, highlights) = split_marks(&hit.snippet);
+            out.push(SearchHit {
+                kind: HitKind::Page,
+                attachment: None,
+                notebook_id: root.id.clone(),
+                notebook_name: root.name.clone(),
+                section_id: format!("{}/{}", root.id, hit.section),
+                section_name: last_part(&hit.section),
+                section_path: hit.section,
+                page_id: hit.id,
+                title: hit.title,
+                modified: hit.modified,
+                rank: hit.rank,
+                snippet,
+                highlights,
+            });
+        }
+    }
+    if query.words.is_empty() && query.types.is_empty() {
+        return Ok(());
+    }
+    let files = index.attachments(scope).map_err(|err| err.to_string())?;
+    for file in files
+        .into_iter()
+        .filter(|f| query.matches_attachment(&f.name, &f.mime))
+        .take(MAX_RESULTS)
+    {
+        let size = u64::try_from(file.size).unwrap_or(0);
+        let kind = file
+            .name
+            .rsplit_once('.')
+            .map_or_else(|| file.mime.clone(), |(_, ext)| ext.to_lowercase());
+        out.push(SearchHit {
+            kind: HitKind::Attachment,
+            section_id: if file.section.is_empty() {
+                String::new()
+            } else {
+                format!("{}/{}", root.id, file.section)
+            },
+            section_name: if file.section.is_empty() {
+                root.name.clone()
+            } else {
+                last_part(&file.section)
+            },
+            attachment: Some(AttachmentInfo {
+                path: file.path,
+                mime: file.mime,
+                size,
+            }),
+            notebook_id: root.id.clone(),
+            notebook_name: root.name.clone(),
+            section_path: file.section,
+            page_id: file.page.unwrap_or_default(),
+            title: file.name,
+            modified: file.modified,
+            // Pages score below zero, so a name match lists after the page matches.
+            rank: 0.0,
+            snippet: format!("{kind} file, {}", size_text(size)),
+            highlights: Vec::new(),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn last_part(path: &str) -> String {
+    path.rsplit('/').next().unwrap_or(path).to_owned()
+}
+
 /// Search `roots` for `query` within `scope`, relative to `context`, ordered by `sort`.
 ///
 /// A notebook whose index cannot be read is skipped. An empty query, or a scope that needs a
@@ -262,6 +449,7 @@ pub fn search(
         sort,
         ..SearchResults::default()
     };
+    let parsed = ParsedQuery::new(query);
     let mut found: Vec<(usize, SearchHit)> = Vec::new();
     for (at, root) in roots.iter().enumerate() {
         let current = context.notebook.as_deref() == Some(root.id.as_str());
@@ -290,40 +478,19 @@ pub fn search(
         if !db.is_file() {
             continue;
         }
-        let hits =
-            Index::open(&db).and_then(|index| index.search_text(query, text_scope, MAX_RESULTS));
-        let hits = match hits {
-            Ok(hits) => hits,
+        let index = match Index::open(&db) {
+            Ok(index) => index,
             Err(err) => {
                 tracing::warn!("search in {} failed: {err}", root.name);
                 continue;
             }
         };
-        for hit in hits {
-            let (snippet, highlights) = split_marks(&hit.snippet);
-            let section_name = hit
-                .section
-                .rsplit('/')
-                .next()
-                .unwrap_or(hit.section.as_str())
-                .to_owned();
-            found.push((
-                at,
-                SearchHit {
-                    notebook_id: root.id.clone(),
-                    notebook_name: root.name.clone(),
-                    section_id: format!("{}/{}", root.id, hit.section),
-                    section_path: hit.section,
-                    section_name,
-                    page_id: hit.id,
-                    title: hit.title,
-                    modified: hit.modified,
-                    rank: hit.rank,
-                    snippet,
-                    highlights,
-                },
-            ));
+        let mut hits = Vec::new();
+        if let Err(err) = notebook_hits(root, &index, text_scope, &parsed, &mut hits) {
+            tracing::warn!("search in {} failed: {err}", root.name);
+            continue;
         }
+        found.extend(hits.into_iter().map(|hit| (at, hit)));
     }
     let mut keyed: Vec<(Sortable, SearchHit)> = found
         .into_iter()
@@ -378,14 +545,20 @@ pub fn update_text_index(
 
     let pending = index.pages_needing_text().map_err(|err| err.to_string())?;
     let mut rows = Vec::with_capacity(pending.len());
+    let mut refs = Vec::with_capacity(pending.len());
     for (id, path, title) in pending {
         let mut bytes = Vec::new();
         let read = std::fs::File::open(root.join(&path))
             .and_then(|file| file.take(MAX_INDEX_READ).read_to_end(&mut bytes));
-        let (found_title, body) = match read {
-            Ok(_) => page_search_text(&String::from_utf8_lossy(&bytes)),
-            Err(_) => (None, String::new()),
+        let (found_title, body, links) = match read {
+            Ok(_) => {
+                let source = String::from_utf8_lossy(&bytes);
+                let (title, body) = page_search_text(&source);
+                (title, body, attachment_links(&source, &path))
+            }
+            Err(_) => (None, String::new(), Vec::new()),
         };
+        refs.push((id.clone(), links));
         rows.push(PageBody {
             id,
             title: found_title.unwrap_or(title),
@@ -394,7 +567,78 @@ pub fn update_text_index(
     }
     let count = rows.len();
     index.set_page_texts(&rows).map_err(|err| err.to_string())?;
+    index
+        .set_attachment_refs(&refs)
+        .map_err(|err| err.to_string())?;
     Ok(count)
+}
+
+/// Most attachment links read from one page.
+#[cfg(not(target_arch = "wasm32"))]
+const MAX_PAGE_ATTACHMENT_LINKS: usize = 1_000;
+
+/// The attachments a page file links to, as paths from the notebook folder. An insert writes
+/// `attachments/<stored name>` next to the page (percent-encoded), so a link is that text
+/// right after `(`, a quote, `<`, `[`, or white space.
+#[cfg(not(target_arch = "wasm32"))]
+fn attachment_links(source: &str, page_path: &str) -> Vec<String> {
+    const MARKER: &str = "attachments/";
+    let folder = page_path.rsplit_once('/').map_or("", |(dir, _)| dir);
+    let mut out: Vec<String> = Vec::new();
+    let mut from = 0;
+    while let Some(found) = source.get(from..).and_then(|rest| rest.find(MARKER)) {
+        let at = from + found;
+        from = at + MARKER.len();
+        let before = source.get(..at).and_then(|s| s.chars().next_back());
+        if before.is_some_and(|c| !(c.is_whitespace() || matches!(c, '(' | '"' | '\'' | '<' | '[')))
+        {
+            continue;
+        }
+        let tail = source.get(from..).unwrap_or_default();
+        let end = tail
+            .find(|c: char| c.is_whitespace() || matches!(c, ')' | '"' | '\'' | '>' | ']' | '<'))
+            .unwrap_or(tail.len());
+        let name = percent_decode(tail.get(..end).unwrap_or_default());
+        if name.is_empty() || name.contains("..") || name.contains('\\') {
+            continue;
+        }
+        let path = if folder.is_empty() {
+            format!("{MARKER}{name}")
+        } else {
+            format!("{folder}/{MARKER}{name}")
+        };
+        if !out.contains(&path) {
+            out.push(path);
+            if out.len() >= MAX_PAGE_ATTACHMENT_LINKS {
+                break;
+            }
+        }
+    }
+    out
+}
+
+/// `%20` style escapes undone; a bad escape stays as it is.
+#[cfg(not(target_arch = "wasm32"))]
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while let Some(&byte) = bytes.get(at) {
+        let hex = |b: Option<&u8>| {
+            b.and_then(|b| char::from(*b).to_digit(16))
+                .and_then(|d| u8::try_from(d).ok())
+        };
+        if byte == b'%' {
+            if let (Some(high), Some(low)) = (hex(bytes.get(at + 1)), hex(bytes.get(at + 2))) {
+                out.push(high * 16 + low);
+                at += 3;
+                continue;
+            }
+        }
+        out.push(byte);
+        at += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Bring the notebook index at `root` in line with the folder, text included, without the
@@ -440,5 +684,39 @@ mod tests {
         assert_eq!(section_path("nb", "nb/Grp/Sec"), Some("Grp/Sec"));
         assert_eq!(section_path("nb", "other/Sec"), None);
         assert_eq!(section_path("nb", "nbx/Sec"), None);
+    }
+
+    #[test]
+    fn type_words_limit_a_search_to_attachments() {
+        let q = ParsedQuery::new("budget type:PDF");
+        assert_eq!(q.text, "budget");
+        assert!(q.matches_attachment("budget-2026.pdf", "application/pdf"));
+        assert!(!q.matches_attachment("budget-2026.png", "image/png"));
+        assert!(!q.matches_attachment("notes.pdf", "application/pdf"));
+        let q = ParsedQuery::new("type:image");
+        assert!(q.matches_attachment("a.png", "image/png"));
+        assert!(!q.matches_attachment("a.pdf", "application/pdf"));
+        let q = ParsedQuery::new("   ");
+        assert!(!q.matches_attachment("a.pdf", "application/pdf"));
+    }
+
+    #[test]
+    fn attachment_links_are_read_from_page_text() {
+        let links = attachment_links(
+            "see ![x](attachments/ab12-my%20file.pdf) and <attachments/c.png> not xattachments/d",
+            "Sec/page.notecraft",
+        );
+        assert_eq!(
+            links,
+            ["Sec/attachments/ab12-my file.pdf", "Sec/attachments/c.png"]
+        );
+        assert!(attachment_links("(attachments/../x)", "p.notecraft").is_empty());
+    }
+
+    #[test]
+    fn sizes_read_in_units() {
+        assert_eq!(size_text(12), "12 bytes");
+        assert_eq!(size_text(2048), "2 KB");
+        assert_eq!(size_text(3 * 1024 * 1024), "3 MB");
     }
 }
