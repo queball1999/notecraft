@@ -260,14 +260,18 @@ pub(crate) fn restore(text: &str) -> String {
 }
 
 /// Replace the marked page links inside plain-text runs with link runs, and restore the
-/// stand-ins everywhere else. A link inside code, an image, or an ordinary link is not a page
+/// stand-ins everywhere else. A link inside code, math, an image, or an ordinary link is not a page
 /// link (a link cannot hold another link).
 pub fn split_runs(runs: Vec<Run>) -> Vec<Run> {
     let mut out = Vec::with_capacity(runs.len());
     for mut run in runs {
         if !run.text.contains(STAND_INS) {
             out.push(run);
-        } else if run.code || run.image || run.link.is_some() {
+        } else if run.code
+            || run.image
+            || run.link.is_some()
+            || run.math != crate::block::Math::None
+        {
             run.text = restore(&run.text);
             out.push(run);
         } else {

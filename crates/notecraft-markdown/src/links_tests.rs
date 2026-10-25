@@ -195,3 +195,15 @@ fn a_link_split_by_emphasis_keeps_both_brackets() {
     assert!(text.contains("]]"), "{text:?}");
     assert_eq!(text.matches("[[").count(), 1, "{text:?}");
 }
+
+#[test]
+fn double_brackets_inside_math_stay_math() {
+    let runs = runs_of("see $[[0,1]]$ here");
+    let math: Vec<_> = runs
+        .iter()
+        .filter(|r| r.math != crate::block::Math::None)
+        .collect();
+    assert_eq!(math.len(), 1, "{runs:?}");
+    assert_eq!(math[0].text, "[[0,1]]");
+    assert!(runs.iter().all(|r| r.page_link.is_none()));
+}
