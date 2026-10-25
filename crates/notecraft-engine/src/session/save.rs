@@ -18,8 +18,8 @@ use notecraft_markdown::{apply_edits, remove_container_markers};
 use notecraft_model::SectionNode;
 use notecraft_model::{Container, ObjectKind, PlacedObject};
 use notecraft_storage::{
-    change_page_kind, keep_unreadable_copy, read_canvas, repair_canvas, strip_canvas_block,
-    write_canvas_all, CanvasContainer, PageKind,
+    change_page_kind, keep_snapshot_before_convert, keep_unreadable_copy, read_canvas,
+    repair_canvas, strip_canvas_block, write_canvas_all, CanvasContainer, PageKind,
 };
 
 use super::saving::{hash_text, SaveOutcome};
@@ -335,6 +335,10 @@ impl Session {
         let markdown = apply_edits(&text, &remove_container_markers(&text, block_start))
             .unwrap_or_else(|_| text.clone());
         let markdown = strip_canvas_block(&markdown);
+        // Converting drops the canvas data for good, so keep the page as it was.
+        if let Err(err) = keep_snapshot_before_convert(&root, Path::new(&rel), &text) {
+            tracing::warn!(page = %page_id, "cannot keep a copy before converting: {err}");
+        }
         let old_path = root.join(&rel);
         match change_page_kind(&root, &rel, &markdown) {
             Ok(new_rel) => {
@@ -412,6 +416,11 @@ impl Session {
             if owner == old {
                 *owner = new.to_owned();
             }
+        }
+        // A background index refresh begun before this saw the old file name; its result
+        // must be dropped, or it would reselect the section's first page.
+        if let Some((notebook, _, _)) = self.page_location(new) {
+            self.bump_tree_generation(&notebook);
         }
         self.saving.rekey(old, new);
         self.history.clear_page(old);

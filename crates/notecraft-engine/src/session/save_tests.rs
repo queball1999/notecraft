@@ -91,7 +91,8 @@ fn a_page_whose_canvas_block_cannot_be_read_is_kept_and_not_saved_over() {
     assert!(session.current_ink().is_none());
     let copy = dir
         .path()
-        .join(".notecraft/history/Sec_A.notecraft/canvas-unreadable.notecraft");
+        .join(".notecraft/history/Sec_A.notecraft")
+        .join(&history_files(&dir, "Sec_A.notecraft")[0]);
     assert_eq!(std::fs::read_to_string(copy).unwrap(), text);
     let id = current_id(&session);
     session.mark_page_dirty(&id);
@@ -428,7 +429,8 @@ fn a_broken_canvas_block_can_be_repaired() {
     // The unreadable original is still under history.
     let copy = dir
         .path()
-        .join(".notecraft/history/Sec_A.notecraft/canvas-unreadable.notecraft");
+        .join(".notecraft/history/Sec_A.notecraft")
+        .join(&history_files(&dir, "Sec_A.notecraft")[0]);
     assert_eq!(std::fs::read_to_string(copy).unwrap(), text);
     // Nothing left to repair.
     let out = run(&mut session, "page.repair_canvas", json!({}));
@@ -847,4 +849,67 @@ fn a_point_or_no_caret_keeps_the_other_placements() {
     );
     assert_eq!(session.page_objects(&id).len(), 1);
     assert!(session.page_text(&id).unwrap().ends_with(")\n"));
+}
+
+fn history_files(dir: &tempfile::TempDir, page_folder: &str) -> Vec<String> {
+    let path = dir.path().join(".notecraft/history").join(page_folder);
+    let mut names: Vec<String> = std::fs::read_dir(path)
+        .map(|rd| {
+            rd.flatten()
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    names
+}
+
+#[test]
+fn promoting_a_page_makes_an_in_flight_index_refresh_stale() {
+    let dir = notebook(&[("Sec/A.md", "# Hi\n"), ("Sec/B.md", "other\n")]);
+    let mut session = open(&dir);
+    let notebook_id = session.notebooks()[0].id.clone();
+    let before = session.tree_generation(&notebook_id);
+    let old_tree = session.notebooks()[0].clone();
+    let id = current_id(&session);
+    draw(&mut session, json!([[1, 2], [3, 4]]));
+    let SaveOutcome::Promoted { new_id } = session.save_page(&id) else {
+        panic!("not promoted");
+    };
+    assert_ne!(session.tree_generation(&notebook_id), before);
+    // The refresh that began before the promotion lists A.md; it must not be applied.
+    assert!(!session.apply_index_refresh(before, old_tree, Default::default()));
+    assert_eq!(current_id(&session), new_id);
+}
+
+#[test]
+fn reopening_an_unreadable_page_writes_one_snapshot_only() {
+    let text = "Words\n\n```notecraft-canvas\n{ \"ink\": [ \n```\n";
+    let dir = notebook(&[("Sec/A.notecraft", text)]);
+    let mut session = open(&dir);
+    assert_eq!(history_files(&dir, "Sec_A.notecraft").len(), 1);
+    session.load_current_page();
+    session.load_current_page();
+    let again = open(&dir);
+    drop(again);
+    assert_eq!(history_files(&dir, "Sec_A.notecraft").len(), 1);
+}
+
+#[test]
+fn convert_to_markdown_keeps_a_snapshot_of_the_page() {
+    let dir = notebook(&[("Sec/A.notecraft", BASIC)]);
+    let mut session = open(&dir);
+    run(
+        &mut session,
+        "page.convert_to_markdown",
+        json!({ "confirm": true }),
+    );
+    let files = history_files(&dir, "Sec_A.notecraft");
+    assert_eq!(files.len(), 1, "{files:?}");
+    assert!(files[0].starts_with("before-convert-"), "{files:?}");
+    let kept = read(
+        &dir,
+        &format!(".notecraft/history/Sec_A.notecraft/{}", files[0]),
+    );
+    assert_eq!(kept, BASIC);
 }
