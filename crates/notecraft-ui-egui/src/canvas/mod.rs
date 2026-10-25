@@ -68,6 +68,8 @@ pub struct CanvasUi {
     /// Where the next inserted picture or file goes: the page and the page point of the last
     /// click on it (below the note container the click was in).
     insert_at: Option<(String, Vec2)>,
+    /// The find scroll request last followed (`FindState::scroll`).
+    seen_find_scroll: u64,
 }
 
 impl Default for CanvasUi {
@@ -83,6 +85,7 @@ impl Default for CanvasUi {
             title: None,
             last_map: None,
             insert_at: None,
+            seen_find_scroll: 0,
         }
     }
 }
@@ -179,6 +182,29 @@ impl CanvasUi {
                 .zoom_about(Vec2::ZERO, f32::from(percent) / 100.0);
             self.force_offset = true;
         }
+    }
+
+    /// Scroll so the page rectangle `target` is in view, if it is not already: centered
+    /// vertically, and moved sideways only when it is off to one side. `view` is the size of
+    /// the canvas in page units.
+    fn scroll_to(&mut self, target: egui::Rect, view: Vec2) {
+        const MARGIN: f32 = 24.0;
+        let origin = self.viewport.origin();
+        let inside = target.min.x >= origin.x + MARGIN
+            && target.max.x <= origin.x + view.x - MARGIN
+            && target.min.y >= origin.y + MARGIN
+            && target.max.y <= origin.y + view.y - MARGIN;
+        if inside {
+            return;
+        }
+        let y = (target.center().y - view.y / 2.0).max(0.0);
+        let x = if target.min.x < origin.x + MARGIN || target.max.x > origin.x + view.x - MARGIN {
+            (target.min.x - 2.0 * MARGIN).max(0.0)
+        } else {
+            origin.x
+        };
+        self.viewport.set_origin(Vec2::new(x, y));
+        self.force_offset = true;
     }
 
     /// Zoom by `factor` about `anchor` (canvas screen point), as Ctrl+wheel or a pinch does.

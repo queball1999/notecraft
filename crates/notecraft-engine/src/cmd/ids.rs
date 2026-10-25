@@ -82,6 +82,14 @@ command_ids! {
     EDIT_DELETE = "edit.delete";
     /// Find text on the current page.
     EDIT_FIND = "edit.find";
+    /// Change the text to find on the current page.
+    EDIT_FIND_SET_QUERY = "edit.find.set_query";
+    /// Go to the next match on the current page.
+    EDIT_FIND_NEXT = "edit.find.next";
+    /// Go to the previous match on the current page.
+    EDIT_FIND_PREVIOUS = "edit.find.previous";
+    /// Close the find bar.
+    EDIT_FIND_CLOSE = "edit.find.close";
 
     // Home tab: Basic Text group
     /// Set the font family of the selection.

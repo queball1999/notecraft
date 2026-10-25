@@ -16,6 +16,7 @@ pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
 mod attach;
+mod find;
 mod objects;
 
 pub use attach::{AttachKind, Attached, InlineEdit, InsertError};
@@ -111,6 +112,8 @@ pub struct Session {
     containers: BTreeMap<String, BTreeMap<String, notecraft_model::Container>>,
     /// Pictures and file attachments with a place of their own, by page id (see `objects`).
     objects: BTreeMap<String, Vec<notecraft_model::PlacedObject>>,
+    /// The find bar: its query and which match is current (see [`crate::find`]).
+    find: crate::find::FindState,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).
     saving: saving::SavingState,

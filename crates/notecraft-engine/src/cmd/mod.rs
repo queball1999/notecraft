@@ -8,6 +8,9 @@ mod canvas;
 mod draw;
 mod edit;
 mod file;
+mod find;
+#[cfg(test)]
+mod find_tests;
 mod format;
 #[cfg(test)]
 mod format_tests;
