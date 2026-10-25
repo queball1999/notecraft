@@ -185,3 +185,13 @@ fn page_links_round_trip_through_the_writer() {
         assert_eq!(runs_of(&written), runs_of(src));
     }
 }
+
+#[test]
+fn a_link_split_by_emphasis_keeps_both_brackets() {
+    // The emphasis cuts the marked link across two runs, so neither run holds it whole and
+    // both brackets go back as plain text.
+    let src = "*a [[b* c]]";
+    let text: String = runs_of(src).iter().map(|r| r.text.as_str()).collect();
+    assert!(text.contains("]]"), "{text:?}");
+    assert_eq!(text.matches("[[").count(), 1, "{text:?}");
+}

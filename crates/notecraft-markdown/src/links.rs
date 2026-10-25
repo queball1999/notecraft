@@ -251,7 +251,8 @@ pub(crate) fn restore(text: &str) -> String {
     }
     text.chars()
         .map(|c| match c {
-            OPEN | CLOSE => "[[".to_owned(),
+            OPEN => "[[".to_owned(),
+            CLOSE => "]]".to_owned(),
             SEP_ESCAPED | SEP_PLAIN => "|".to_owned(),
             other => other.to_string(),
         })
