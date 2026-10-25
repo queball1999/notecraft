@@ -4,8 +4,8 @@
 
 use super::page;
 use super::{
-    attach, canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind,
-    ArgSpec, CommandId, CommandSpec, Handler,
+    attach, canvas, draw, edit, equation, file, format, ids, layout, nav, structure, text, theme,
+    ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
 const SET_CARET_ARGS: &[ArgSpec] = &[
@@ -276,6 +276,18 @@ const TEMPLATE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     ArgKind::String,
     "Template id; opens the template pane when omitted.",
 )];
+const EQUATION_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "latex",
+        ArgKind::String,
+        "The formula as LaTeX math, up to 4 KiB, with no unescaped dollar sign; the selection or a placeholder when omitted.",
+    ),
+    ArgSpec::optional(
+        "display",
+        ArgKind::Bool,
+        "Insert a display formula ($$...$$) instead of an inline one ($...$).",
+    ),
+];
 const SYMBOL_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "symbol",
     ArgKind::String,
@@ -907,8 +919,10 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable()
     .args(TEMPLATE_ARGS),
     CommandSpec::new(ids::INSERT_EQUATION, "Equation", "Insert an equation.")
+        .args(EQUATION_ARGS)
         .undoable()
-        .shortcut("Alt+="),
+        .shortcut("Alt+=")
+        .ready(),
     CommandSpec::new(ids::INSERT_SYMBOL, "Symbol", "Insert a symbol.")
         .undoable()
         .args(SYMBOL_ARGS),
@@ -1602,6 +1616,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
     (ids::INSERT_PICTURE, attach::insert_picture),
+    (ids::INSERT_EQUATION, equation::insert_equation),
     (ids::INSERT_FILE_ATTACHMENT, attach::insert_file),
     (ids::EDIT_PASTE_PICTURE, attach::paste_picture),
     (ids::PICTURE_RESIZE, attach::resize_picture),

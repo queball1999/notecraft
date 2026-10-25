@@ -2390,6 +2390,7 @@ version = "0.0.2"
 dependencies = [
  "image",
  "notecraft-core",
+ "notecraft-markdown",
  "notecraft-model",
  "resvg",
  "tempfile",

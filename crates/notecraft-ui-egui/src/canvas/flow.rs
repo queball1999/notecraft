@@ -14,12 +14,16 @@ use notecraft_core::Vec2;
 use notecraft_engine::TextCursor;
 use notecraft_markdown::objects::{is_file_link, is_file_paragraph};
 use notecraft_markdown::{
-    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Run, Script, Span,
-    Table,
+    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Math, Run, Script,
+    Span, Table,
 };
 use notecraft_model::{Container, ObjectKind, PlacedObject};
 
 use super::pictures::{PictureSource, Shown};
+
+mod math;
+#[cfg(test)]
+mod math_tests;
 use super::rawtext::Raw;
 use super::PageToScreen;
 use crate::themes::{bold_family, mix, ThemeTokens};
@@ -74,6 +78,11 @@ enum Item {
         shown: Shown,
         /// Alt text (and the reason, for a placeholder).
         label: Arc<Galley>,
+    },
+    /// A typeset formula, drawn from its texture.
+    Math {
+        rect: Rect,
+        texture: egui::TextureId,
     },
     /// A file attachment: an icon with the file name.
     File {
@@ -195,6 +204,8 @@ struct Layout<'a> {
     pending_align: Option<egui::Align>,
     /// Alignment of the paragraph being laid out.
     align: egui::Align,
+    /// Inline formulas ready to draw, by source and text size.
+    inline_math: math::InlineMap,
 }
 
 /// Lay out the page's containers at `zoom` (1.0 is 100%). Containers without a position stack
@@ -231,6 +242,7 @@ pub(super) fn layout(
         caret: None,
         pending_align: None,
         align: egui::Align::Min,
+        inline_math: math::InlineMap::new(),
     };
     let mut y_flow = TOP;
     let mut bottom = TOP;
@@ -589,6 +601,18 @@ impl Layout<'_> {
                     }
                     self.paragraph_text(&mut pending, x, width, y);
                     self.picture(run, x, width, y);
+                }
+                self.paragraph_text(&mut pending, x, width, y);
+            }
+            BlockKind::Paragraph { runs } if runs.iter().any(|r| r.math == Math::Display) => {
+                let mut pending: Vec<Run> = Vec::new();
+                for run in runs {
+                    if run.math != Math::Display {
+                        pending.push(run.clone());
+                        continue;
+                    }
+                    self.paragraph_text(&mut pending, x, width, y);
+                    self.display_math(run, x, width, y);
                 }
                 self.paragraph_text(&mut pending, x, width, y);
             }
@@ -962,6 +986,7 @@ impl Layout<'_> {
         if runs.is_empty() {
             return 0.0;
         }
+        self.prepare_inline_math(runs, size);
         let galley = self.galley(runs, size, bold, color, width);
         let height = galley.size().y / self.zoom;
         let wants_ghost = runs.iter().any(|r| self.overstruck(r, bold));
@@ -972,6 +997,7 @@ impl Layout<'_> {
             egui::Align::Center => x + width / 2.0,
             egui::Align::Max => x + width,
         };
+        self.place_inline_math(runs, size, &galley, Pos2::new(x, y));
         self.items.push(Item::Text {
             pos: Pos2::new(x, y),
             galley,
@@ -999,6 +1025,32 @@ impl Layout<'_> {
         job.wrap.max_width = (width * self.zoom).max(1.0);
         job.halign = self.align;
         for run in runs {
+            if run.math == Math::Inline {
+                if let Some(ready) = self.inline_math.get(&(run.text.clone(), size.to_bits())) {
+                    // Room for the formula, drawn over the gap after layout.
+                    let wanted = (ready.ascent + ready.descent) * 1.1 * self.zoom;
+                    job.append(
+                        &math::PLACEHOLDER.to_string(),
+                        ready.width * self.zoom,
+                        TextFormat {
+                            font_id: FontId::new(size * self.zoom, FontFamily::Proportional),
+                            color: Color32::TRANSPARENT,
+                            line_height: (wanted > size * 1.3 * self.zoom).then_some(wanted),
+                            valign: egui::Align::Center,
+                            ..TextFormat::default()
+                        },
+                    );
+                    continue;
+                }
+            }
+            // A formula that is not drawn is shown as its source.
+            let source_run;
+            let run = if run.math == Math::None {
+                run
+            } else {
+                source_run = math::source_run(run);
+                &source_run
+            };
             let is_bold = self.overstruck(run, bold);
             let family = if run.code {
                 FontFamily::Monospace
@@ -1202,6 +1254,13 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                             tokens.text_muted,
                         );
                     }
+                }
+            }
+            Item::Math { rect, texture } => {
+                let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
+                if r.intersects(clip) {
+                    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+                    painter.image(*texture, r, uv, Color32::WHITE);
                 }
             }
             Item::File { rect, name, ext } => {
