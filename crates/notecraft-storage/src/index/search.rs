@@ -126,9 +126,12 @@ const MAX_REFS_PER_PAGE: usize = 1_000;
 /// (`3f9a2c-`) the attachment store puts in front.
 pub fn attachment_name(path: &str) -> String {
     let file = path.rsplit('/').next().unwrap_or(path);
-    let bytes = file.as_bytes();
-    let hashed =
-        bytes.len() > 7 && bytes[6] == b'-' && bytes[..6].iter().all(u8::is_ascii_hexdigit);
+    let hashed = file.len() > 7
+        && file.as_bytes().get(6) == Some(&b'-')
+        && file
+            .as_bytes()
+            .get(..6)
+            .is_some_and(|head| head.iter().all(u8::is_ascii_hexdigit));
     if hashed {
         file.get(7..).unwrap_or(file).to_owned()
     } else {
