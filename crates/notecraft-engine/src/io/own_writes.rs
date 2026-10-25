@@ -92,17 +92,17 @@ impl OwnWrites {
                     && std::fs::read(changed).is_ok_and(|b| hash_bytes(&b) == written.hash);
             }
         }
-        // A temporary sibling of a page file that was just written.
+        // A temporary sibling of a page file that was just written, or its folder.
         let (Some(name), Some(folder)) = (name_of(changed), changed.parent().and_then(name_of))
         else {
             return false;
         };
         self.recent.values().any(|w| {
-            fresh(w)
-                && !w.title_changed
-                && w.folder_name == folder
-                && name != w.file_name
-                && name.contains(&w.file_name)
+            let temp_sibling =
+                w.folder_name == folder && name != w.file_name && name.contains(&w.file_name);
+            // The write also reports the folder that holds the page.
+            let its_folder = w.folder_name == name && changed.is_dir();
+            fresh(w) && !w.title_changed && (temp_sibling || its_folder)
         })
     }
 }

@@ -49,6 +49,9 @@ struct Slot {
 #[derive(Default)]
 pub(super) struct IndexSync {
     slots: BTreeMap<PathBuf, Slot>,
+    /// Refreshes started so far (tests count them).
+    #[cfg(test)]
+    pub(super) started: usize,
 }
 
 impl IndexSync {
@@ -102,6 +105,10 @@ impl IndexSync {
             if slot.job.is_none() && slot.stale {
                 slot.stale = false;
                 slot.job = spawn(folder, id, session.tree_generation(id), wake);
+                #[cfg(test)]
+                {
+                    self.started += 1;
+                }
             }
         }
     }

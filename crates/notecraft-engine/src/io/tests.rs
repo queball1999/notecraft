@@ -212,6 +212,43 @@ fn a_save_that_changes_the_title_is_not_an_echo() {
     assert!(!writes.is_echo(None, &temp, now));
 }
 
+/// Pump with the real clock for `ms` milliseconds so watcher events arrive and are handled.
+fn settle(io: &mut SessionIo, session: &mut Session, ms: u64) {
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(ms) {
+        io.pump(session, Instant::now(), true);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn an_auto_save_that_keeps_the_title_does_not_start_an_index_refresh() {
+    let fx = Fixture::new("---\ntitle: One\n---\nBody\n");
+    let mut session = fx.session();
+    let mut io = fx.io();
+    loaded(&mut io, &mut session);
+    let id = page_id(&session);
+    settle(&mut io, &mut session, 600);
+    let save = |io: &mut SessionIo, session: &mut Session, at: usize| {
+        let t = Instant::now();
+        session.edit_page_text(&id, at, 0, "x", false);
+        io.pump(session, t, true);
+        io.pump(session, t + SAVE_AFTER_IDLE, true);
+        assert!(!session.is_page_dirty(&id));
+    };
+    // The first save of a page has no known title, so it may refresh the index.
+    save(&mut io, &mut session, 22);
+    settle(&mut io, &mut session, 800);
+    let before = io.index_sync.started;
+    save(&mut io, &mut session, 22);
+    settle(&mut io, &mut session, 800);
+    assert_eq!(io.index_sync.started, before, "no refresh for our own save");
+    // An outside edit still does.
+    std::fs::write(fx.page_file(), "---\ntitle: One\n---\nOutside\n").expect("write");
+    settle(&mut io, &mut session, 800);
+    assert!(io.index_sync.started > before, "outside edits refresh");
+}
+
 #[test]
 fn the_navigation_shows_a_new_title_right_after_the_save() {
     let fx = Fixture::new("---\ntitle: One\n---\nBody\n");
