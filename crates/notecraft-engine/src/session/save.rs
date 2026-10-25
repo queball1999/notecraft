@@ -46,6 +46,8 @@ pub enum ConvertOutcome {
     NeedsConfirm { warning: String },
     /// The page is now a `.md` file with this page id.
     Converted { new_id: String },
+    /// The file could not be changed; the page stays as it was and a notice says why.
+    Failed { reason: String },
 }
 
 /// The warning shown before a page is converted to markdown.
@@ -358,7 +360,20 @@ impl Session {
             }
             Err(err) => {
                 tracing::warn!(page = %page_id, "cannot convert page: {err}");
-                ConvertOutcome::NotApplicable
+                let reason = format!("Could not convert this page to markdown: {err}");
+                let text = match self.page_notices.remove(&page_id) {
+                    Some(old) => format!("{} {reason}", old.text),
+                    None => reason.clone(),
+                };
+                self.page_notices.insert(
+                    page_id,
+                    PageNotice {
+                        text,
+                        read_only: false,
+                    },
+                );
+                self.mark_changed();
+                ConvertOutcome::Failed { reason }
             }
         }
     }

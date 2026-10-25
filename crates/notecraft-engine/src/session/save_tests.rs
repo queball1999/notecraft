@@ -913,3 +913,35 @@ fn convert_to_markdown_keeps_a_snapshot_of_the_page() {
     );
     assert_eq!(kept, BASIC);
 }
+
+// A file held open without sharing cannot be removed on Windows, which is how a failed
+// convert shows up there.
+#[cfg(windows)]
+#[test]
+fn a_failed_convert_is_reported_with_a_notice_and_leaves_one_copy() {
+    let dir = notebook(&[("Sec/A.notecraft", BASIC)]);
+    let mut session = open(&dir);
+    let path = dir.path().join("Sec/A.notecraft");
+    // An open handle that allows no sharing blocks the delete.
+    let held = {
+        use std::os::windows::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&path)
+            .unwrap()
+    };
+    let out = run(
+        &mut session,
+        "page.convert_to_markdown",
+        json!({ "confirm": true }),
+    );
+    assert_eq!(out["converted"], false);
+    assert!(out["error"].as_str().is_some(), "{out}");
+    assert!(!dir.path().join("Sec/A.md").exists());
+    let notice = session.current_page_notice().unwrap();
+    assert!(notice.text.contains("Could not convert"), "{notice:?}");
+    assert!(!notice.read_only);
+    assert!(current_id(&session).ends_with("Sec/A.notecraft"));
+    drop(held);
+}
