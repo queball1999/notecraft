@@ -36,7 +36,7 @@ pub(super) struct OwnWrites {
 
 /// The frontmatter title in saved page text, trimmed; `None` when there is none.
 fn title_of(bytes: &[u8]) -> Option<String> {
-    let head = &bytes[..bytes.len().min(64 * 1024)];
+    let head = bytes.get(..64 * 1024).unwrap_or(bytes);
     let text = String::from_utf8_lossy(head);
     let title = notecraft_markdown::parse_frontmatter(&text)?
         .title()?
