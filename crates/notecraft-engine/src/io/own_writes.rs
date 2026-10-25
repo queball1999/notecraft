@@ -21,12 +21,28 @@ struct Written {
     folder_name: String,
     hash: u64,
     at: Instant,
+    /// The page's frontmatter title differs from the one saved before (or none was known), so
+    /// the index and the navigation must still refresh for this save.
+    title_changed: bool,
 }
 
 /// Recent saves by page id.
 #[derive(Default)]
 pub(super) struct OwnWrites {
     recent: BTreeMap<String, Written>,
+    /// The frontmatter title of each page as last saved; absent for a page not saved yet.
+    titles: BTreeMap<String, Option<String>>,
+}
+
+/// The frontmatter title in saved page text, trimmed; `None` when there is none.
+fn title_of(bytes: &[u8]) -> Option<String> {
+    let head = &bytes[..bytes.len().min(64 * 1024)];
+    let text = String::from_utf8_lossy(head);
+    let title = notecraft_markdown::parse_frontmatter(&text)?
+        .title()?
+        .trim()
+        .to_owned();
+    (!title.is_empty()).then_some(title)
 }
 
 fn hash_bytes(bytes: &[u8]) -> u64 {
@@ -51,6 +67,9 @@ impl OwnWrites {
         else {
             return;
         };
+        let title = title_of(&bytes);
+        let title_changed = self.titles.get(page_id) != Some(&title);
+        self.titles.insert(page_id.to_owned(), title);
         self.recent.insert(
             page_id.to_owned(),
             Written {
@@ -58,6 +77,7 @@ impl OwnWrites {
                 folder_name,
                 hash: hash_bytes(&bytes),
                 at: now,
+                title_changed,
             },
         );
     }
@@ -68,7 +88,8 @@ impl OwnWrites {
         let fresh = |w: &Written| now.saturating_duration_since(w.at) < OWN_WRITE_WINDOW;
         if let Some(written) = page_id.and_then(|id| self.recent.get(id)) {
             if fresh(written) {
-                return std::fs::read(changed).is_ok_and(|b| hash_bytes(&b) == written.hash);
+                return !written.title_changed
+                    && std::fs::read(changed).is_ok_and(|b| hash_bytes(&b) == written.hash);
             }
         }
         // A temporary sibling of a page file that was just written.
@@ -78,6 +99,7 @@ impl OwnWrites {
         };
         self.recent.values().any(|w| {
             fresh(w)
+                && !w.title_changed
                 && w.folder_name == folder
                 && name != w.file_name
                 && name.contains(&w.file_name)

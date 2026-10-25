@@ -198,10 +198,66 @@ fn a_clean_quit_keeps_nothing_for_recovery() {
 }
 
 #[test]
+fn a_save_that_changes_the_title_is_not_an_echo() {
+    let fx = Fixture::new("---\ntitle: One\n---\nBody\n");
+    let mut writes = own_writes::OwnWrites::default();
+    let now = Instant::now();
+    writes.record("p", &fx.page_file(), now);
+    writes.record("p", &fx.page_file(), now);
+    assert!(writes.is_echo(Some("p"), &fx.page_file(), now));
+    std::fs::write(fx.page_file(), "---\ntitle: Two\n---\nBody\n").expect("write");
+    writes.record("p", &fx.page_file(), now);
+    assert!(!writes.is_echo(Some("p"), &fx.page_file(), now));
+    let temp = fx.notebook.path().join("Sec/.A.md.tmp9");
+    assert!(!writes.is_echo(None, &temp, now));
+}
+
+#[test]
+fn the_navigation_shows_a_new_title_right_after_the_save() {
+    let fx = Fixture::new("---\ntitle: One\n---\nBody\n");
+    let mut session = fx.session();
+    let mut io = fx.io();
+    loaded(&mut io, &mut session);
+    let id = page_id(&session);
+    let shown = |s: &Session| {
+        s.current_section()
+            .and_then(|sec| sec.pages.iter().find(|p| p.id == id))
+            .map(|p| p.title.clone())
+    };
+    pump_until(&mut io, &mut session, "first index", |s| {
+        shown(s).as_deref() == Some("One")
+    });
+    // A body edit saves first, so the page's saved title is known.
+    let t0 = Instant::now();
+    session.edit_page_text(&id, 22, 0, "more ", false);
+    io.pump(&mut session, t0, true);
+    io.pump(&mut session, t0 + SAVE_AFTER_IDLE, true);
+    assert!(!session.is_page_dirty(&id));
+    // Let the watcher events of that save pass, then change the title.
+    std::thread::sleep(Duration::from_millis(500));
+    for _ in 0..10 {
+        io.pump(&mut session, Instant::now(), true);
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    session.edit_page_text(&id, 11, 3, "Two", false);
+    let t1 = Instant::now();
+    io.pump(&mut session, t1, true);
+    io.pump(&mut session, t1 + SAVE_AFTER_IDLE, true);
+    assert!(!session.is_page_dirty(&id));
+    assert!(fx.on_disk().contains("title: Two"));
+    pump_until(&mut io, &mut session, "new title", |s| {
+        shown(s).as_deref() == Some("Two")
+    });
+}
+
+#[test]
 fn the_echo_of_our_own_save_does_not_count_as_an_outside_change() {
     let fx = Fixture::new("one\n");
     let mut writes = own_writes::OwnWrites::default();
     let now = Instant::now();
+    // The first save of a page has no known title yet, so it is not skipped; the second is.
+    writes.record("nb/Sec/A.md", &fx.page_file(), now);
+    assert!(!writes.is_echo(Some("nb/Sec/A.md"), &fx.page_file(), now));
     writes.record("nb/Sec/A.md", &fx.page_file(), now);
     let soon = now + Duration::from_secs(1);
     assert!(writes.is_echo(Some("nb/Sec/A.md"), &fx.page_file(), soon));
