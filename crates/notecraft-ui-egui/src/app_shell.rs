@@ -4,6 +4,7 @@
 //! the notebook pane, section tabs, and page list on mock notebooks; PR 0.7 adds the canvas.
 
 use notecraft_engine::cmd::{ids, CommandError, CommandId, CommandOutput, Map, Registry, Value};
+use notecraft_engine::recent::{RecentItem, RecentKind};
 use notecraft_engine::view::{RibbonLayout, RibbonShow};
 use notecraft_engine::Session;
 
@@ -108,6 +109,8 @@ pub struct AppShell {
     about: AppInfo,
     /// The What's New dialog.
     whats_new: crate::whats_new::WhatsNew,
+    /// The dialog for a recent notebook or page that no longer exists.
+    missing_item: crate::missing_item::MissingItem,
     /// Text for the clipboard, put there on the next frame.
     pending_copy: Option<String>,
     /// The temporary file holding a clipboard picture while Paste as Picture runs.
@@ -166,6 +169,7 @@ impl AppShell {
             recent_colors: Vec::new(),
             about: AppInfo::default(),
             whats_new: crate::whats_new::WhatsNew::new(),
+            missing_item: crate::missing_item::MissingItem::default(),
             pending_copy: None,
             #[cfg(test)]
             ran: Vec::new(),
@@ -380,6 +384,7 @@ impl AppShell {
     /// file command without a path asks the picker first; canceling runs nothing. Returns
     /// whether the command ran.
     pub fn dispatch(&mut self, id: &str, args: Value) -> bool {
+        let missing = self.missing_recent(id, &args);
         match self.run_command(id, args) {
             Some(Ok(_)) => {
                 #[cfg(test)]
@@ -392,10 +397,33 @@ impl AppShell {
                     CommandError::ComingSoon { .. } => tracing::debug!("{err}"),
                     _ => tracing::warn!("{err}"),
                 }
-                self.toasts.push(toast::error_text(&self.registry, &err));
+                match missing {
+                    // A stale recent entry gets a dialog that offers to remove it.
+                    Some(item) => self.missing_item.open(item),
+                    None => self.toasts.push(toast::error_text(&self.registry, &err)),
+                }
                 false
             }
         }
+    }
+
+    /// The recent entry a notebook or page open names when its path no longer exists.
+    fn missing_recent(&self, id: &str, args: &Value) -> Option<RecentItem> {
+        let kind = if id == ids::FILE_OPEN_NOTEBOOK.as_str() {
+            RecentKind::Notebook
+        } else if id == ids::FILE_OPEN.as_str() {
+            RecentKind::Page
+        } else {
+            return None;
+        };
+        let path = args.get("path")?.as_str()?.trim();
+        let listed = self
+            .session
+            .recents()
+            .items()
+            .iter()
+            .find(|item| item.kind == kind && item.path == path)?;
+        (!std::path::Path::new(path).exists()).then(|| listed.clone())
     }
 
     /// The one path every command takes, whether from the ribbon, a shortcut, or the control
@@ -636,6 +664,10 @@ impl AppShell {
         let tokens = self.tokens(ui.ctx());
         // First, so Esc closes the dialog before any shortcut sees it.
         self.whats_new.show(ui.ctx(), &tokens, &self.about.version);
+        let mut missing_clicks = Vec::new();
+        self.missing_item
+            .show(ui.ctx(), &tokens, &mut missing_clicks);
+        self.dispatch_all(missing_clicks);
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
         self.insert_dropped_files(ui.ctx());
@@ -2330,14 +2362,26 @@ mod tests {
 
     #[test]
     fn open_notebook_asks_the_picker_and_opens() {
+        let (_dir, work, _plans) = work_and_plans();
+        let mut harness = harness(picking(Some(&work), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        assert_eq!(recent_paths(harness.state()), [work]);
+        let _ = harness.get_by_label("Canvas");
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn open_notebook_with_a_missing_folder_shows_no_sample_notebooks() {
         let mut harness = harness(picking(Some("C:\\Notes\\Work"), None), WINDOW);
         harness.run();
         harness.get_by_label("Open Notebook").click();
         harness.run();
-        assert_eq!(harness.state().session().notebooks().len(), 2);
-        assert_eq!(recent_paths(harness.state()), ["C:\\Notes\\Work"]);
-        let _ = harness.get_by_label("Canvas");
-        assert!(toasts(&harness).is_empty());
+        assert!(harness.state().session().notebooks().is_empty());
+        assert!(recent_paths(harness.state()).is_empty());
+        assert_eq!(toasts(&harness).len(), 1);
     }
 
     fn sample_notebook_path() -> String {
@@ -2555,33 +2599,94 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         assert_eq!(toasts(&harness).len(), 1);
     }
 
+    /// A temp folder with a notebook folder `Work` (one section, one page) and a page file
+    /// `Plans.md` beside it. Returns the folder and the two paths.
+    fn work_and_plans() -> (tempfile::TempDir, String, String) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let work = dir.path().join("Work");
+        std::fs::create_dir_all(work.join("Sec")).unwrap();
+        std::fs::write(work.join("Sec").join("Note.md"), "x").unwrap();
+        let plans = dir.path().join("Plans.md");
+        std::fs::write(&plans, "# Plans\n").unwrap();
+        let text = |p: &std::path::Path| p.to_string_lossy().into_owned();
+        let (work, plans) = (text(&work), text(&plans));
+        (dir, work, plans)
+    }
+
     #[test]
     fn recent_rows_reopen_without_the_picker() {
+        let (_dir, work, plans) = work_and_plans();
         let mut shell = AppShell::empty();
         let recents = notecraft_engine::recent::Recents::from_items([
-            (
-                notecraft_engine::recent::RecentKind::Page,
-                "/n/Plans.md".to_owned(),
-            ),
-            (
-                notecraft_engine::recent::RecentKind::Notebook,
-                "/n/Work".to_owned(),
-            ),
+            (notecraft_engine::recent::RecentKind::Page, plans.clone()),
+            (notecraft_engine::recent::RecentKind::Notebook, work.clone()),
         ]);
         shell.set_recents(recents);
         let mut harness = harness(shell, WINDOW);
         harness.run();
         harness.get_by_label("Work").click();
         harness.run();
-        assert_eq!(harness.state().session().notebooks().len(), 2);
-        assert_eq!(recent_paths(harness.state()), ["/n/Work", "/n/Plans.md"]);
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        assert_eq!(recent_paths(harness.state()), [work, plans]);
+    }
+
+    #[test]
+    fn a_missing_recent_asks_to_remove_it_and_shows_no_sample_notebooks() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let gone = dir.path().join("Gone.md").to_string_lossy().into_owned();
+        let mut shell = AppShell::empty();
+        shell.set_recents(notecraft_engine::recent::Recents::from_items([(
+            notecraft_engine::recent::RecentKind::Page,
+            gone,
+        )]));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("Gone.md").click();
+        harness.run();
+        assert!(harness.state().session().notebooks().is_empty());
+        assert!(toasts(&harness).is_empty(), "the dialog replaces the toast");
+        let _ = harness.get_by_label_contains("was not found");
+        assert_eq!(
+            recent_paths(harness.state()).len(),
+            1,
+            "nothing is removed yet"
+        );
+        harness.get_by_label("Remove from Recent").click();
+        harness.run();
+        assert!(recent_paths(harness.state()).is_empty());
+        assert!(harness.state().session().notebooks().is_empty());
+        assert!(harness.query_by_label_contains("was not found").is_none());
+    }
+
+    #[test]
+    fn keeping_a_missing_recent_closes_the_dialog() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let gone = dir.path().join("Gone").to_string_lossy().into_owned();
+        let mut shell = AppShell::empty();
+        shell.set_recents(notecraft_engine::recent::Recents::from_items([(
+            notecraft_engine::recent::RecentKind::Notebook,
+            gone,
+        )]));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("Gone").click();
+        harness.run();
+        let _ = harness.get_by_label_contains("notebook folder");
+        harness.get_by_label("Keep").click();
+        harness.run();
+        assert_eq!(recent_paths(harness.state()).len(), 1);
+        assert!(harness.query_by_label_contains("notebook folder").is_none());
     }
 
     #[test]
     fn backstage_open_page_lists_recents_and_opens_files() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let ideas = dir.path().join("Ideas.notecraft");
+        std::fs::write(&ideas, "x").unwrap();
+        let ideas = ideas.to_string_lossy().into_owned();
         let mut shell = AppShell::new().with_picker(Box::new(FakePicker {
             folder: None,
-            file: Some("/n/Ideas.notecraft".to_owned()),
+            file: Some(ideas.clone()),
         }));
         shell.set_recents(notecraft_engine::recent::Recents::from_items([(
             notecraft_engine::recent::RecentKind::Notebook,
@@ -2601,10 +2706,7 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
             !harness.state().ribbon().backstage_open(),
             "opening returns to the notes"
         );
-        assert_eq!(
-            recent_paths(harness.state()),
-            ["/n/Ideas.notecraft", "/n/Work"]
-        );
+        assert_eq!(recent_paths(harness.state()), [ideas.as_str(), "/n/Work"]);
 
         harness.get_by_label("File").click();
         harness.run();
@@ -2640,21 +2742,21 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
 
     #[test]
     fn reopen_last_opens_the_newest_entry_without_reordering() {
+        let (_dir, work, plans) = work_and_plans();
         let mut shell = AppShell::empty();
         assert!(!shell.reopen_last(), "nothing to reopen");
         shell.set_recents(notecraft_engine::recent::Recents::from_items([
-            (
-                notecraft_engine::recent::RecentKind::Page,
-                "/n/Plans.md".to_owned(),
-            ),
-            (
-                notecraft_engine::recent::RecentKind::Notebook,
-                "/n/Work".to_owned(),
-            ),
+            (notecraft_engine::recent::RecentKind::Page, plans.clone()),
+            (notecraft_engine::recent::RecentKind::Notebook, work.clone()),
         ]));
         assert!(shell.reopen_last());
-        assert_eq!(shell.session().notebooks().len(), 2);
-        assert_eq!(recent_paths(&shell), ["/n/Plans.md", "/n/Work"]);
+        assert_eq!(shell.session().notebooks().len(), 1);
+        assert_eq!(
+            shell.session().current_page().map(|p| p.title.as_str()),
+            Some("Plans"),
+            "the page is shown, in a loose view"
+        );
+        assert_eq!(recent_paths(&shell), [plans, work]);
     }
 
     #[test]
@@ -2682,6 +2784,34 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         assert!(!shell.open_path(&dir.join("todo.txt")));
         assert_eq!(recent_paths(&shell).len(), 2);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn open_path_shows_a_page_in_its_notebook_or_on_its_own() {
+        let (dir, _work, plans) = work_and_plans();
+        std::fs::create_dir_all(dir.path().join("Work").join(".notecraft")).unwrap();
+        let mut shell = AppShell::empty();
+        assert!(shell.open_path(&dir.path().join("Work").join("Sec").join("Note.md")));
+        let session = shell.session();
+        assert_eq!(
+            session.current_notebook().map(|n| n.name.as_str()),
+            Some("Work")
+        );
+        assert_eq!(
+            session.current_page().map(|p| p.title.as_str()),
+            Some("Note")
+        );
+        assert!(!session.is_loose_notebook(&session.current_notebook().unwrap().id));
+        // A file outside any notebook opens beside it as a loose page.
+        assert!(shell.open_path(std::path::Path::new(&plans)));
+        let session = shell.session();
+        assert_eq!(session.notebooks().len(), 2);
+        assert!(session.is_loose_notebook(&session.current_notebook().unwrap().id));
+        assert_eq!(
+            session.current_page().map(|p| p.title.as_str()),
+            Some("Plans")
+        );
+        assert!(shell.toasts().is_empty());
     }
 
     #[test]
