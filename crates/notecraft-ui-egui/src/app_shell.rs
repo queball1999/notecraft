@@ -19,7 +19,7 @@ use crate::ribbon::{self, Clicked, Ribbon};
 use crate::shortcuts::Shortcuts;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
-use crate::{bars, start, status};
+use crate::{bars, find_bar, start, status};
 /// Height of the status bar, in points.
 pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
@@ -762,7 +762,12 @@ impl AppShell {
                     egui::vec2(full.width(), bars::height(session)),
                 );
                 bars::show(ui, bar, session, &tokens, &mut clicked);
-                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, bar.max.y), full.max);
+                let find = egui::Rect::from_min_size(
+                    egui::pos2(full.min.x, bar.max.y),
+                    egui::vec2(full.width(), find_bar::height(session)),
+                );
+                find_bar::show(ui, find, session, &tokens, &mut clicked);
+                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, find.max.y), full.max);
                 canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
             })
             .inner;

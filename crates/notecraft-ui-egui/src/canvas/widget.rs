@@ -31,7 +31,6 @@ pub fn show(
     zoom_gestures(ui, rect, state, clicked);
 
     let zoom = state.viewport.zoom();
-    let origin = state.viewport.origin();
     let view_size = Vec2::new(rect.width(), rect.height()) / zoom;
     let style = session.page_style();
     // Text with no color of its own is Automatic: it reads on whatever color the page is.
@@ -68,6 +67,17 @@ pub fn show(
     });
     state.pictures = cache;
     let flow = page.as_ref().map(|(_, _, _, laid)| laid);
+    // Find on page: the matches on screen, and a scroll to the current one when asked.
+    let find = find_hits(session, flow);
+    let scroll = session.find().scroll;
+    if flow.is_some() && scroll != state.seen_find_scroll {
+        state.seen_find_scroll = scroll;
+        let target = find.current.and_then(|i| find.hits.get(i));
+        if let Some(rect) = target.and_then(|rects| rects.first()) {
+            state.scroll_to(*rect, view_size);
+        }
+    }
+    let origin = state.viewport.origin();
     let extent = page_extent(
         content_extent(origin, view_size, style.paper_size.size()),
         flow.map(|flow| Vec2::new(flow.width, flow.height)),
@@ -165,6 +175,7 @@ pub fn show(
                     );
                 }
                 if let Some((page_id, text, parsed, flow)) = &page {
+                    paint_find(ui.painter(), map, &find, tokens);
                     flow::paint(ui.painter(), map, flow, tokens);
                     let type_tool = session.ink().tool() == DrawTool::Type;
                     picture_ui::files(
@@ -258,6 +269,54 @@ pub fn show(
         ui.ctx().set_cursor_icon(CursorIcon::Grab);
     }
     output.inner_rect.width()
+}
+
+/// The find on page matches on screen this frame.
+struct FindHits {
+    /// Each match as the page rectangles it covers.
+    hits: Vec<Vec<Rect>>,
+    /// Index of the current match.
+    current: Option<usize>,
+}
+
+/// The matches of the find bar's query, when the bar is open.
+fn find_hits(session: &Session, flow: Option<&flow::Flow>) -> FindHits {
+    let state = session.find();
+    let hits = match flow {
+        Some(flow) if state.open && !state.query.is_empty() => flow.find_rects(&state.query),
+        _ => Vec::new(),
+    };
+    let current = state.current_of(hits.len());
+    FindHits { hits, current }
+}
+
+/// Highlight every match, and mark the current one more strongly. Under the text.
+fn paint_find(painter: &egui::Painter, map: PageToScreen, find: &FindHits, tokens: &ThemeTokens) {
+    let clip = painter.clip_rect();
+    let others = crate::themes::mix(tokens.canvas_bg, tokens.accent, 0.3);
+    let current = crate::themes::mix(tokens.canvas_bg, tokens.accent, 0.7);
+    for (index, rects) in find.hits.iter().enumerate() {
+        let is_current = find.current == Some(index);
+        for rect in rects {
+            let screen = Rect::from_min_max(
+                map.pos(Vec2::new(rect.min.x, rect.min.y)),
+                map.pos(Vec2::new(rect.max.x, rect.max.y)),
+            );
+            if !screen.intersects(clip) {
+                continue;
+            }
+            let fill = if is_current { current } else { others };
+            painter.rect_filled(screen, 2.0, fill);
+            if is_current {
+                painter.rect_stroke(
+                    screen,
+                    2.0,
+                    egui::Stroke::new(1.5, tokens.accent),
+                    egui::StrokeKind::Outside,
+                );
+            }
+        }
+    }
 }
 
 /// What one frame of ink capture found, for the two paint passes.

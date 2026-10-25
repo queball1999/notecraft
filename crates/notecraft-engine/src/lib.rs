@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 pub mod cmd;
+pub mod find;
 pub mod ink;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod io;
@@ -21,6 +22,7 @@ pub mod undo;
 pub mod view;
 pub mod whats_new;
 
+pub use find::{FindState, Match as FindMatch};
 pub use ink::{
     default_pen_tools, DrawTool, EraserMode, EraserSize, InkState, PenStyle, PenTool, ToolKind,
     MAX_PEN_POINTS, MAX_PEN_TOOLS, MIN_PEN_POINTS,

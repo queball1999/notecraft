@@ -4,10 +4,20 @@
 
 use super::page;
 use super::{
-    attach, canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind,
-    ArgSpec, CommandId, CommandSpec, Handler,
+    attach, canvas, draw, edit, file, find, format, ids, layout, nav, structure, text, theme,
+    ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
+const FIND_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "query",
+    ArgKind::String,
+    "The text to find; omitted keeps the last one.",
+)];
+const FIND_QUERY_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "query",
+    ArgKind::String,
+    "The text to find (case-insensitive); empty clears it.",
+)];
 const SET_CARET_ARGS: &[ArgSpec] = &[
     ArgSpec::required("at", ArgKind::Integer, "Byte offset in the page text."),
     ArgSpec::optional("extend", ArgKind::Bool, "Extend the selection instead."),
@@ -609,7 +619,31 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Find on Page",
         "Find text on the current page.",
     )
-    .shortcut("Ctrl+F"),
+    .args(FIND_ARGS)
+    .shortcut("Ctrl+F")
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_SET_QUERY,
+        "Find Text",
+        "Change the text to find on the current page.",
+    )
+    .args(FIND_QUERY_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_NEXT,
+        "Find Next",
+        "Go to the next match on the current page.",
+    )
+    .shortcut("F3")
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_PREVIOUS,
+        "Find Previous",
+        "Go to the previous match on the current page.",
+    )
+    .shortcut("Shift+F3")
+    .ready(),
+    CommandSpec::new(ids::EDIT_FIND_CLOSE, "Close Find", "Close the find bar.").ready(),
     // Home tab: Basic Text group
     CommandSpec::new(
         ids::FORMAT_FONT_FAMILY,
@@ -1644,6 +1678,11 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FORMAT_ALIGN_RIGHT, format::align_right),
     (ids::STYLE_APPLY, format::style_apply),
     (ids::TAG_TODO, format::todo),
+    (ids::EDIT_FIND, find::open),
+    (ids::EDIT_FIND_SET_QUERY, find::set_query),
+    (ids::EDIT_FIND_NEXT, find::next),
+    (ids::EDIT_FIND_PREVIOUS, find::previous),
+    (ids::EDIT_FIND_CLOSE, find::close),
     (ids::EDIT_UNDO, edit::undo),
     (ids::EDIT_REDO, edit::redo),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),

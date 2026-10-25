@@ -19,6 +19,9 @@ pub mod canvas;
 pub mod color;
 #[cfg(test)]
 mod draw_tab_tests;
+pub mod find_bar;
+#[cfg(test)]
+mod find_tests;
 pub mod font_list;
 pub mod icons;
 pub mod nav;
