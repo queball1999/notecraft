@@ -568,7 +568,7 @@ mod tests {
         assert_eq!(session.notebooks()[1].id, loose, "back in its place");
         assert!(session.is_loose_notebook(&loose));
         assert_eq!(session.current_page().unwrap().title, "Loose");
-        assert_eq!(session.loose_files(), [file.clone()]);
+        assert_eq!(session.loose_files(), std::slice::from_ref(&file));
         // Redo closes it again; the file is untouched, and no notebook folder appeared.
         run(&mut session, "edit.redo", json!(null)).unwrap();
         assert_eq!(session.notebooks().len(), 1);
