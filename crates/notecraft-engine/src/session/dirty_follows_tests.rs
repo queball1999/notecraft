@@ -100,9 +100,61 @@ fn an_edit_survives_delete_and_undo() {
     let id = shown(&session);
     session.edit_page_text(&id, 0, 0, "mine ", false);
     session.delete_page(&id).expect("delete");
+    assert!(
+        !session.is_page_dirty(&id),
+        "the dirty mark left the old id"
+    );
+    assert!(session.has_unsaved_changes(), "it follows the page");
+    assert_eq!(session.save_page(&id), SaveOutcome::NotDirty);
+    assert!(!dir.path().join("Sec/A.md").exists());
     session.undo();
-    assert!(session.is_page_dirty(&id), "the id is back and dirty");
-    assert_eq!(session.save_page(&id), SaveOutcome::Saved);
+    assert_eq!(session.page_text(&id), Some("mine one\n"));
+    session.save_dirty();
+    assert_eq!(read(&dir, "Sec/A.md"), "mine one\n");
+}
+
+fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            out.extend(walk(&path));
+        } else {
+            out.push(path);
+        }
+    }
+    out
+}
+
+#[test]
+fn a_deleted_dirty_page_saves_into_the_trash_never_the_original_path() {
+    let dir = notebook();
+    let mut session = open(&dir);
+    let id = shown(&session);
+    session.edit_page_text(&id, 0, 0, "mine ", false);
+    session.delete_page(&id).expect("delete");
+    // Auto-save runs while the page sits in the trash.
+    let outcomes = session.save_dirty();
+    assert!(
+        outcomes.iter().all(|(_, o)| *o == SaveOutcome::Saved),
+        "{outcomes:?}"
+    );
+    assert!(!dir.path().join("Sec/A.md").exists(), "not recreated");
+    assert!(!session.has_unsaved_changes());
+    let trashed: Vec<_> = walk(&dir.path().join(".notecraft/trash"))
+        .into_iter()
+        .filter(|p| p.file_name().is_some_and(|n| n == "A.md"))
+        .collect();
+    assert_eq!(trashed.len(), 1, "{trashed:?}");
+    assert_eq!(
+        std::fs::read_to_string(&trashed[0]).expect("read"),
+        "mine one\n"
+    );
+    // Undo brings the page back with the edits.
+    session.undo();
     assert_eq!(read(&dir, "Sec/A.md"), "mine one\n");
 }
 
