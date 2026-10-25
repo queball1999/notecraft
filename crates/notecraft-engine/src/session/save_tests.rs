@@ -887,7 +887,9 @@ fn reopening_an_unreadable_page_writes_one_snapshot_only() {
     let text = "Words\n\n```notecraft-canvas\n{ \"ink\": [ \n```\n";
     let dir = notebook(&[("Sec/A.notecraft", text)]);
     let mut session = open(&dir);
-    assert_eq!(history_files(&dir, "Sec_A.notecraft").len(), 1);
+    let first = history_files(&dir, "Sec_A.notecraft");
+    assert_eq!(first.len(), 1);
+    assert!(first[0].starts_with("canvas-unreadable-"), "{first:?}");
     session.load_current_page();
     session.load_current_page();
     let again = open(&dir);
