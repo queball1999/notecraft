@@ -144,6 +144,27 @@ impl Session {
                 *id = Some(new);
             }
         };
+        // Unsaved pages follow their file: the save state moves with the id, and the journal
+        // entry of the old path is dropped (the next journal pass writes the new one).
+        let moved_dirty: Vec<String> = self
+            .saving
+            .dirty
+            .iter()
+            .filter(|id| map(id.as_str()).is_some())
+            .cloned()
+            .collect();
+        for id in &moved_dirty {
+            if let Some(path) = self.page_file_path(id) {
+                self.saving.journal_clean.push(path);
+            }
+        }
+        self.saving.rekey_with(&map);
+        for mut request in std::mem::take(&mut self.saving.read_requests) {
+            if let Some(path) = self.page_file_path(&request.page_id) {
+                request.path = path;
+            }
+            self.saving.read_requests.push(request);
+        }
         rekey_map(&mut self.selection.section);
         rekey_map(&mut self.selection.page);
         rekey_keys(&mut self.page_sources, &map);

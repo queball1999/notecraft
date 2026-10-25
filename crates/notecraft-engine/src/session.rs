@@ -202,16 +202,29 @@ impl Session {
             .filter(|id| id.starts_with(&prefix) && self.is_page_dirty(id))
             .cloned()
             .collect();
+        // A page whose save did not go through keeps its unsaved text: it is not read again.
+        let mut kept = std::collections::BTreeSet::new();
         for id in unsaved {
-            self.save_page(&id);
+            match self.save_page(&id) {
+                saving::SaveOutcome::Saved
+                | saving::SaveOutcome::Unchanged
+                | saving::SaveOutcome::NotDirty
+                | saving::SaveOutcome::NoFile
+                | saving::SaveOutcome::Promoted { .. } => {}
+                _ => {
+                    kept.insert(id);
+                }
+            }
         }
         self.notebook_roots
             .insert(notebook_id.to_owned(), folder.to_path_buf());
         self.bump_tree_generation(notebook_id);
         // Pages of a notebook that is opened again are read again.
-        self.page_sources.retain(|id, _| !id.starts_with(&prefix));
-        self.page_notices.retain(|id, _| !id.starts_with(&prefix));
-        self.saving.forget_notebook(&prefix);
+        self.page_sources
+            .retain(|id, _| !id.starts_with(&prefix) || kept.contains(id));
+        self.page_notices
+            .retain(|id, _| !id.starts_with(&prefix) || kept.contains(id));
+        self.saving.forget_notebook(&prefix, &kept);
     }
 
     /// Read the page shown now from disk if it comes from a notebook folder and has not been
@@ -528,3 +541,6 @@ mod page_load_tests {
 
 #[cfg(test)]
 mod saving_tests;
+
+#[cfg(test)]
+mod dirty_follows_tests;
