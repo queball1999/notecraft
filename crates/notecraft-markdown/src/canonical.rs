@@ -274,7 +274,14 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
 /// A page link run as `[[Target]]` or `[[Target|shown]]` (the pipe is `\|` inside a table cell).
 fn page_link_text(target: &str, shown: &str, in_cell: bool) -> String {
     let bar = if in_cell { "\\|" } else { "|" };
-    if shown == target {
+    let same = shown == target;
+    // Outside a table a literal pipe in the target is written `\|`.
+    let target = &if in_cell {
+        target.to_owned()
+    } else {
+        target.replace('|', "\\|")
+    };
+    if same {
         format!("[[{target}]]")
     } else {
         format!("[[{target}{bar}{shown}]]")
