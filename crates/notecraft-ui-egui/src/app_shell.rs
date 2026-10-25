@@ -2720,8 +2720,10 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
 
     #[test]
     fn backstage_new_page_asks_for_a_folder() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let fresh = dir.path().join("Fresh").to_string_lossy().into_owned();
         let shell = AppShell::new().with_picker(Box::new(FakePicker {
-            folder: Some("/n/Fresh".to_owned()),
+            folder: Some(fresh.clone()),
             file: None,
         }));
         let mut harness = harness(shell, WINDOW);
@@ -2736,7 +2738,7 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         );
         harness.get_by_label("Choose a Folder").click();
         harness.run();
-        assert_eq!(recent_paths(harness.state()), ["/n/Fresh"]);
+        assert_eq!(recent_paths(harness.state()), [fresh]);
         assert!(!harness.state().ribbon().backstage_open());
     }
 

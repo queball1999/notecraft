@@ -243,6 +243,10 @@ impl Session {
                 id.push('/');
                 id.push_str(part.to_str()?);
             }
+            // A loose page owns its one file, not the rest of the folder.
+            if self.loose.get(nb).is_some_and(|page| *page != id) {
+                return None;
+            }
             Some(id)
         })
     }
@@ -251,7 +255,7 @@ impl Session {
     pub fn notebook_folders(&self) -> impl Iterator<Item = &Path> {
         self.notebook_roots
             .iter()
-            .filter(|(id, _)| !self.loose.contains(id.as_str()))
+            .filter(|(id, _)| !self.loose.contains_key(id.as_str()))
             .map(|(_, root)| root.as_path())
     }
 

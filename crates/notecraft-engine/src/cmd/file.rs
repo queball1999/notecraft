@@ -13,7 +13,6 @@ use std::path::Path;
 use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
-use crate::mock;
 use crate::open::{find_notebook_root, open_folder_for_navigation, NavOpened};
 use crate::recent::{RecentItem, RecentKind, MAX_PATH_CHARS};
 use crate::session::Session;
@@ -48,17 +47,6 @@ pub fn is_page_file(path: &str) -> bool {
     })
 }
 
-/// Record `item` as most recent and show the mock notebooks if nothing is open yet.
-fn open(session: &mut Session, item: RecentItem) -> CommandOutput {
-    let value = json!({ "kind": item.kind.id(), "path": item.path });
-    session.recents_mut().push(item);
-    if session.notebooks().is_empty() {
-        session.set_notebooks(mock::notebooks());
-    }
-    session.mark_changed();
-    CommandOutput { value }
-}
-
 /// The message for a path that no longer exists (a stale recent entry, a moved folder).
 fn not_found(what: &str, path: &str) -> String {
     format!("the {what} was not found: {path}. It may have been moved, renamed, or deleted.")
@@ -66,8 +54,8 @@ fn not_found(what: &str, path: &str) -> String {
 
 /// `file.new_notebook { path }`: create a notebook in a folder and open it. The folder is made
 /// when it does not exist (its parent must), and gets `.notecraft/notebook.toml`; files already
-/// in it stay as they are. A path whose parent does not exist keeps the Phase 0 behavior (record
-/// it, show the mock notebooks if nothing is open).
+/// in it stay as they are. A path whose parent folder does not exist is `invalid_args` with a
+/// message that says so; nothing is recorded and no sample data is shown.
 pub(super) fn new_notebook(
     session: &mut Session,
     args: &Map<String, Value>,
@@ -81,10 +69,17 @@ pub(super) fn new_notebook(
         ));
     };
     let folder = Path::new(&item.path);
-    let can_create = folder.is_dir() || folder.parent().is_some_and(Path::is_dir);
+    let absolute = std::path::absolute(folder).unwrap_or_else(|_| folder.to_path_buf());
+    let can_create = absolute.is_dir() || absolute.parent().is_some_and(Path::is_dir);
     if !can_create {
-        tracing::warn!(path = %item.path, "parent folder not found; showing the sample notebooks");
-        return Ok(open(session, item));
+        tracing::warn!(path = %item.path, "parent folder not found; no notebook created");
+        return Err(bad_path(
+            id,
+            &format!(
+                "the folder for the new notebook cannot be created because its parent folder was not found: {}. Choose a folder inside one that exists.",
+                item.path
+            ),
+        ));
     }
     let notebook_id = session
         .create_notebook(folder)
@@ -550,6 +545,41 @@ mod tests {
     }
 
     #[test]
+    fn closing_a_loose_page_can_be_undone_and_reopens_it_as_a_loose_page() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let file = dir.path().join("Loose.md");
+        std::fs::write(&file, "# Loose\n").unwrap();
+        let other = notebook_dir();
+        let mut session = Session::new();
+        run(
+            &mut session,
+            "file.open_notebook",
+            json!({ "path": text(other.path()) }),
+        )
+        .unwrap();
+        run(&mut session, "file.open", json!({ "path": text(&file) })).unwrap();
+        let loose = session.current_notebook().unwrap().id.clone();
+        assert_eq!(session.notebooks().len(), 2);
+        run(&mut session, "file.close_notebook", json!({ "id": loose })).unwrap();
+        assert_eq!(session.notebooks().len(), 1);
+        assert_eq!(session.notebook_folders().count(), 1);
+        run(&mut session, "edit.undo", json!(null)).unwrap();
+        assert_eq!(session.notebooks().len(), 2);
+        assert_eq!(session.notebooks()[1].id, loose, "back in its place");
+        assert!(session.is_loose_notebook(&loose));
+        assert_eq!(session.current_page().unwrap().title, "Loose");
+        assert_eq!(session.loose_files(), [file.clone()]);
+        // Redo closes it again; the file is untouched, and no notebook folder appeared.
+        run(&mut session, "edit.redo", json!(null)).unwrap();
+        assert_eq!(session.notebooks().len(), 1);
+        assert!(
+            session.loose_files().is_empty(),
+            "a closed page is not watched"
+        );
+        assert!(!dir.path().join(".notecraft").exists());
+    }
+
+    #[test]
     fn a_file_in_the_notebook_folder_itself_opens_as_a_loose_page() {
         let dir = notebook_dir();
         let file = text(&dir.path().join("Root.md"));
@@ -797,6 +827,21 @@ mod tests {
             1,
             "clearing does not close anything"
         );
+    }
+
+    #[test]
+    fn a_new_notebook_with_a_missing_parent_is_an_error_and_shows_no_sample_data() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = text(&dir.path().join("no-such-parent").join("Fresh"));
+        let mut session = Session::new();
+        let before = session.clone();
+        let message = Registry::builtin()
+            .run(&mut session, "file.new_notebook", json!({ "path": path }))
+            .expect_err("missing parent")
+            .to_string();
+        assert!(message.contains("parent folder was not found"), "{message}");
+        assert_eq!(session, before, "nothing recorded, no sample notebooks");
+        assert!(!dir.path().join("no-such-parent").exists());
     }
 
     #[test]

@@ -6,9 +6,11 @@
 //! folder, so reading, saving, text editing, and attachments take the same paths as any other
 //! page. Three things differ, all enforced by the session:
 //!
-//! - nothing is written next to the file except the file itself: no `.notecraft/` folder, no
-//!   index, no watcher (the loose root is left out of [`Session::notebook_roots`] and
-//!   [`Session::notebook_folders`]);
+//! - nothing is written next to the file except the file itself: no `.notecraft/` folder and
+//!   no index (the loose root is left out of [`Session::notebook_roots`] and
+//!   [`Session::notebook_folders`]). The file is watched on its own, without recursion, and
+//!   offered crash recovery from the settings-folder journal (`io/loose.rs`), through
+//!   [`Session::loose_files`];
 //! - structure edits (new, rename, move, delete of pages and sections) are refused, because
 //!   the folder is not a notebook;
 //! - the notebook id is `loose-` and 16 hex digits of a hash of the file path, so it is the
@@ -27,14 +29,48 @@ const LOOSE_COLOR: u32 = 0x78909C;
 impl Session {
     /// Whether notebook `id` is a loose page view.
     pub fn is_loose_notebook(&self, id: &str) -> bool {
-        self.loose.contains(id)
+        self.loose.contains_key(id)
+    }
+
+    /// The page files of the loose pages that are open now. The front end watches each one
+    /// and offers crash recovery for it.
+    pub fn loose_files(&self) -> Vec<std::path::PathBuf> {
+        self.loose
+            .iter()
+            .filter(|(id, _)| self.notebooks.iter().any(|nb| nb.id == **id))
+            .filter_map(|(_, page)| self.page_file_path(page))
+            .collect()
+    }
+
+    /// Put a closed loose page back at `index` (undo of Close Notebook). The tree is built
+    /// again from the file name, not read from the folder as a notebook.
+    pub(super) fn relist_loose(
+        &mut self,
+        id: &str,
+        root: &Path,
+        index: usize,
+    ) -> Result<(), String> {
+        let page = self.loose.get(id).cloned().ok_or("not a loose page")?;
+        let name = page.get(id.len() + 1..).ok_or("not a loose page")?;
+        let file = root.join(name);
+        if !file.is_file() {
+            return Err("the page file is gone".to_owned());
+        }
+        self.open_loose_page(&file)
+            .ok_or_else(|| "the page cannot be opened".to_owned())?;
+        if let Some(at) = self.notebooks.iter().position(|nb| nb.id == id) {
+            let notebook = self.notebooks.remove(at);
+            self.notebooks
+                .insert(index.min(self.notebooks.len()), notebook);
+        }
+        Ok(())
     }
 
     /// The id of the open notebook (not a loose page) whose folder is `root`.
     pub fn notebook_id_for_root(&self, root: &Path) -> Option<String> {
         let canonical = root.canonicalize().ok();
         self.notebook_roots.iter().find_map(|(id, folder)| {
-            if self.loose.contains(id) {
+            if self.loose.contains_key(id) {
                 return None;
             }
             let same = folder == root
@@ -92,7 +128,7 @@ impl Session {
             });
             self.notebook_roots
                 .insert(notebook_id.clone(), folder.to_path_buf());
-            self.loose.insert(notebook_id);
+            self.loose.insert(notebook_id, page_id.clone());
         }
         self.select_page_by_id(&page_id).then_some(page_id)
     }

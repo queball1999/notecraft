@@ -38,6 +38,8 @@ pub struct SessionIo {
     index_sync: index_sync::IndexSync,
     /// Folders already checked for recovery entries.
     offered: Vec<PathBuf>,
+    /// Watchers and recovery offers for loose pages (`io/loose.rs`).
+    loose: loose::LooseWatch,
     wake: Wake,
     debounce: Duration,
     autosave_every: Duration,
@@ -76,6 +78,7 @@ impl SessionIo {
             watchers: BTreeMap::new(),
             index_sync: index_sync::IndexSync::default(),
             offered: Vec::new(),
+            loose: loose::LooseWatch::default(),
             wake,
             debounce: DEBOUNCE,
             autosave_every: AUTOSAVE_EVERY,
@@ -104,6 +107,8 @@ impl SessionIo {
     pub fn pump(&mut self, session: &mut Session, now: Instant, focused: bool) -> Option<Duration> {
         session.set_background_reads(self.reader.is_some());
         self.sync_notebooks(session);
+        self.loose
+            .sync(session, self.journal.as_ref(), self.debounce, &self.wake);
 
         // Saves on a page switch and on focus loss.
         let page = session.selection().page.clone();
@@ -194,6 +199,7 @@ impl SessionIo {
     }
 
     fn drain_watchers(&mut self, session: &mut Session) {
+        self.loose.drain(session);
         for (root, watcher) in &self.watchers {
             for path in watcher.poll() {
                 self.index_sync.note_change(root, &path);
@@ -243,5 +249,8 @@ impl SessionIo {
 }
 
 mod index_sync;
+mod loose;
+#[cfg(test)]
+mod loose_tests;
 #[cfg(test)]
 mod tests;
