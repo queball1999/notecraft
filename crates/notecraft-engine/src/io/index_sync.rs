@@ -84,8 +84,15 @@ impl IndexSync {
                 match job.rx.try_recv() {
                     Ok(result) => {
                         let job = slot.job.take();
-                        if let (Ok(done), Some(job)) = (result, job) {
-                            apply(session, slot, job, done);
+                        match (result, job) {
+                            (Ok(done), Some(job)) => apply(session, slot, job, done),
+                            (Err(err), _) => {
+                                tracing::warn!(
+                                    folder = %folder.display(),
+                                    "cannot refresh the notebook index: {err}"
+                                );
+                            }
+                            _ => {}
                         }
                     }
                     Err(TryRecvError::Empty) => {}
