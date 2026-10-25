@@ -37,6 +37,8 @@ pub mod markup;
 mod markup_tests;
 pub mod math;
 #[cfg(test)]
+mod math_hostile_tests;
+#[cfg(test)]
 mod math_tests;
 pub mod objects;
 mod parse;
