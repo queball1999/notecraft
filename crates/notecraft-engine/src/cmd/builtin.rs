@@ -3,6 +3,7 @@
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
 use super::page;
+use super::search;
 use super::{
     attach, canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind,
     ArgSpec, CommandId, CommandSpec, Handler,
@@ -393,6 +394,29 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "kind",
     ArgKind::String,
     "Shape kind, for example line, arrow, rectangle, or ellipse.",
+)];
+const SEARCH_RUN_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("query", ArgKind::String, "The words to look for."),
+    ArgSpec::optional(
+        "scope",
+        ArgKind::String,
+        "page, section, group, notebook, or all (default: the last scope used).",
+    ),
+    ArgSpec::optional(
+        "sort",
+        ArgKind::String,
+        "relevance, section, title, or modified (default: the last sort used).",
+    ),
+];
+const SEARCH_SCOPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "scope",
+    ArgKind::String,
+    "page, section, group, notebook, or all.",
+)];
+const SEARCH_SORT_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "sort",
+    ArgKind::String,
+    "relevance, section, title, or modified.",
 )];
 const CONVERT_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "confirm",
@@ -1555,7 +1579,46 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Replace the unreadable ink and layout data of the page with a fresh block that keeps what could be read. The old file is kept in the notebook history folder.",
     )
     .ready(),
-    CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
+    CommandSpec::new(
+        ids::SEARCH_OPEN,
+        "Search",
+        "Show the search box and results.",
+    )
+    .shortcut("Ctrl+E")
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_ALL,
+        "Search All Notebooks",
+        "Show the search box and look in every open notebook.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_RUN,
+        "Run Search",
+        "Search page titles and text and show the results.",
+    )
+    .args(SEARCH_RUN_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_SET_SCOPE,
+        "Search Scope",
+        "Choose where a search looks.",
+    )
+    .args(SEARCH_SCOPE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_SET_SORT,
+        "Sort Search Results",
+        "Choose how search results are ordered.",
+    )
+    .args(SEARCH_SORT_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_CLOSE,
+        "Close Search",
+        "Hide the search box and results.",
+    )
+    .ready(),
 ];
 
 /// The handler of every Ready command.
@@ -1649,6 +1712,12 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
+    (ids::SEARCH_OPEN, search::open),
+    (ids::SEARCH_ALL, search::all),
+    (ids::SEARCH_RUN, search::run),
+    (ids::SEARCH_SET_SCOPE, search::set_scope),
+    (ids::SEARCH_SET_SORT, search::set_sort),
+    (ids::SEARCH_CLOSE, search::close),
     (ids::FILE_CLOSE_NOTEBOOK, structure::close_notebook),
     (ids::SECTION_NEW, structure::section_new),
     (ids::SECTION_GROUP_NEW, structure::section_group_new),

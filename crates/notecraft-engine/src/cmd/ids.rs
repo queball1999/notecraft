@@ -402,6 +402,16 @@ command_ids! {
     PAGE_REPAIR_CANVAS = "page.repair_canvas";
 
     // Search (Phase 2)
-    /// Search every open notebook.
+    /// Show the search box, ready to type in.
+    SEARCH_OPEN = "search.open";
+    /// Show the search box and look in every open notebook.
     SEARCH_ALL = "search.all";
+    /// Search for text and show the results.
+    SEARCH_RUN = "search.run";
+    /// Choose where a search looks: this page, section, section group, notebook, or all notebooks.
+    SEARCH_SET_SCOPE = "search.set_scope";
+    /// Choose how search results are ordered.
+    SEARCH_SET_SORT = "search.set_sort";
+    /// Hide the search box and results.
+    SEARCH_CLOSE = "search.close";
 }

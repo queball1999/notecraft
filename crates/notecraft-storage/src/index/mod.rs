@@ -130,6 +130,9 @@ impl Index {
     fn init(mut conn: Connection) -> rusqlite::Result<Self> {
         // The index is a cache that can be rebuilt, so trade durability for speed.
         conn.pragma_update(None, "synchronous", "OFF")?;
+        // A search can open the file while the background refresh writes it; wait a moment
+        // instead of failing.
+        conn.busy_timeout(std::time::Duration::from_secs(2))?;
         schema::migrate(&mut conn)?;
         Ok(Self { conn })
     }

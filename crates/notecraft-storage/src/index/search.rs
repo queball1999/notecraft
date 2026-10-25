@@ -114,14 +114,14 @@ pub(super) fn like_escape(text: &str) -> String {
 
 impl Index {
     /// Pages whose text is missing or was built from older content: new pages and pages
-    /// whose file changed since the last [`Index::set_page_texts`]. Returns `(id, path)`
-    /// pairs, path relative to the notebook folder.
-    pub fn pages_needing_text(&self) -> rusqlite::Result<Vec<(String, String)>> {
+    /// whose file changed since the last [`Index::set_page_texts`]. Returns `(id, path, title)`
+    /// triples: path relative to the notebook folder, and the title to show.
+    pub fn pages_needing_text(&self) -> rusqlite::Result<Vec<(String, String, String)>> {
         let mut stmt = self.conn.prepare_cached(
-            "SELECT id, path FROM pages WHERE text_hash IS NULL OR text_hash != hash ORDER BY ord",
+            "SELECT id, path, COALESCE(NULLIF(trim(fm_title), ''), title) FROM pages WHERE text_hash IS NULL OR text_hash != hash ORDER BY ord",
         )?;
         let rows = stmt
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     }
@@ -274,7 +274,7 @@ mod tests {
         let pending = index.pages_needing_text().expect("pending");
         let texts: Vec<PageBody> = pending
             .iter()
-            .map(|(id, path)| {
+            .map(|(id, path, _)| {
                 let body = fs::read_to_string(root.join(path)).expect("read");
                 let title = Path::new(path)
                     .file_stem()
@@ -373,7 +373,7 @@ mod tests {
             .expect("pending")
             .into_iter()
             .zip(pages)
-            .map(|((id, _), (title, body))| PageBody {
+            .map(|((id, _, _), (title, body))| PageBody {
                 id,
                 title: title.to_owned(),
                 body: body.to_owned(),
