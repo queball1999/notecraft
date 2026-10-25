@@ -3158,8 +3158,8 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
             .session
             .note_outside_change(&dir.path().join("Notes/Only.md"));
         harness.run();
-        let _ = harness.get_by_label_contains("changed outside NoteCraft");
-        let _ = harness.get_by_label("Unsaved changes");
+        let _ = harness.get_by_label_contains("Your version is still open");
+        let _ = harness.get_by_label("Not saved: changed outside NoteCraft");
         harness.get_by_label("Use outside version").click();
         harness.run();
         assert_eq!(harness.state().session().page_text(&page), Some("theirs\n"));
