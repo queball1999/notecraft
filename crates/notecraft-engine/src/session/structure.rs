@@ -393,6 +393,9 @@ impl Plan {
         let Some(nb) = session.notebooks.iter().find(|nb| nb.id == notebook) else {
             return fail("that notebook is not open");
         };
+        if session.loose.contains(notebook) {
+            return fail("a single page opened on its own has no sections; open its notebook folder to organize pages");
+        }
         let Some(root) = session.notebook_roots.get(notebook) else {
             return fail("this is a sample notebook; open or create a notebook folder first");
         };

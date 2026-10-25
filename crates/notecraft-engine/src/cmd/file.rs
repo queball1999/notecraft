@@ -1,7 +1,8 @@
-//! File commands: `file.new_notebook`, `file.open_notebook`, `file.open`, and
-//! `file.recent.clear`. Each open records the path in the recent list. Opening a notebook
-//! folder reads it from disk; the other commands, and a notebook path that does not exist,
-//! show the mock notebooks until the rest of Phase 1 lands.
+//! File commands: `file.new_notebook`, `file.open_notebook`, `file.open`,
+//! `file.recent.clear`, and `file.recent.remove`. Each open records the path in the recent
+//! list. Opening a notebook folder reads it from disk. `file.open` finds the notebook a page
+//! file belongs to and shows the page there, or shows the file on its own as a loose page
+//! (`session/loose.rs`). A path that does not exist is an error, never sample data.
 //!
 //! The `path` argument is optional in the schema so a ribbon button can send the command
 //! without one; the front end then asks with a file picker and sends it again with the path.
@@ -13,7 +14,7 @@ use serde_json::json;
 
 use super::{ids, CommandError, CommandId, CommandOutput, Map, Value};
 use crate::mock;
-use crate::open::{open_folder_for_navigation, NavOpened};
+use crate::open::{find_notebook_root, open_folder_for_navigation, NavOpened};
 use crate::recent::{RecentItem, RecentKind, MAX_PATH_CHARS};
 use crate::session::Session;
 
@@ -58,23 +59,9 @@ fn open(session: &mut Session, item: RecentItem) -> CommandOutput {
     CommandOutput { value }
 }
 
-fn open_kind(
-    id: CommandId,
-    kind: RecentKind,
-    session: &mut Session,
-    args: &Map<String, Value>,
-) -> Result<CommandOutput, CommandError> {
-    let path = path_arg(id, args)?;
-    let Some(item) = RecentItem::new(kind, path) else {
-        return Err(bad_path(
-            id,
-            &format!("path must be 1 to {MAX_PATH_CHARS} characters with no control characters"),
-        ));
-    };
-    if kind == RecentKind::Page && !is_page_file(&item.path) {
-        return Err(bad_path(id, "only .md and .notecraft files can be opened"));
-    }
-    Ok(open(session, item))
+/// The message for a path that no longer exists (a stale recent entry, a moved folder).
+fn not_found(what: &str, path: &str) -> String {
+    format!("the {what} was not found: {path}. It may have been moved, renamed, or deleted.")
 }
 
 /// `file.new_notebook { path }`: create a notebook in a folder and open it. The folder is made
@@ -111,9 +98,9 @@ pub(super) fn new_notebook(
 /// `file.open_notebook { path }`: open a notebook folder. A folder that exists is scanned
 /// and its sections and pages replace the mock notebooks; the output then also has the
 /// notebook `id` and, when the scan skipped something, a `warnings` list of plain text. A
-/// path that does not exist keeps the Phase 0 behavior (record it, show the mock notebooks if
-/// nothing is open) so a stale recent entry still opens something; a path that exists but is
-/// not a readable folder is `invalid_args`.
+/// path that does not exist is `invalid_args` with a message that says so (nothing is
+/// recorded, and no sample data is shown), as is a path that exists but is not a readable
+/// folder.
 pub(super) fn open_notebook(
     session: &mut Session,
     args: &Map<String, Value>,
@@ -128,34 +115,164 @@ pub(super) fn open_notebook(
     };
     let folder = Path::new(&item.path);
     if !folder.exists() {
-        tracing::warn!(path = %item.path, "notebook folder not found; showing the sample notebooks");
-        return Ok(open(session, item));
+        tracing::warn!(path = %item.path, "notebook folder not found");
+        return Err(bad_path(id, &not_found("notebook folder", &item.path)));
     }
-    let NavOpened { opened, titles } =
-        open_folder_for_navigation(folder).map_err(|err| bad_path(id, &err.to_string()))?;
+    let nav = open_folder_for_navigation(folder).map_err(|err| bad_path(id, &err.to_string()))?;
+    let notebook_id = nav.opened.notebook.id.clone();
+    let warnings = register_notebook(session, folder, nav);
     let mut fields = Map::new();
     fields.insert("kind".to_owned(), json!(item.kind.id()));
     fields.insert("path".to_owned(), json!(item.path));
-    fields.insert("id".to_owned(), json!(opened.notebook.id));
-    if !opened.warnings.is_empty() {
-        fields.insert("warnings".to_owned(), json!(opened.warnings));
+    fields.insert("id".to_owned(), json!(notebook_id));
+    if !warnings.is_empty() {
+        fields.insert("warnings".to_owned(), json!(warnings));
     }
-    let value = Value::Object(fields);
+    session.recents_mut().push(item);
+    session.mark_changed();
+    Ok(CommandOutput {
+        value: Value::Object(fields),
+    })
+}
+
+/// Show a scanned notebook (replacing the sample notebooks) and remember its folder. Returns
+/// the scan warnings.
+fn register_notebook(session: &mut Session, folder: &Path, nav: NavOpened) -> Vec<String> {
+    let NavOpened { opened, titles } = nav;
     let notebook_id = opened.notebook.id.clone();
     session.open_notebook(opened.notebook);
     session.set_notebook_root(&notebook_id, folder);
     session.remember_frontmatter_titles(&notebook_id, titles);
-    session.recents_mut().push(item);
-    session.mark_changed();
-    Ok(CommandOutput { value })
+    opened.warnings
 }
 
-/// `file.open { path }`: open a `.md` or `.notecraft` page file.
+/// The id a page file has inside the notebook folder `root` (`<notebook id>/<path>`).
+fn page_id_in(notebook: &str, root: &Path, file: &Path) -> Option<String> {
+    let rel = file.strip_prefix(root).ok()?;
+    let mut id = notebook.to_owned();
+    for part in rel.components() {
+        let std::path::Component::Normal(part) = part else {
+            return None;
+        };
+        id.push('/');
+        id.push_str(part.to_str()?);
+    }
+    Some(id)
+}
+
+/// What opening a page file showed: its notebook (open already or just opened) and page.
+struct InNotebook {
+    notebook: String,
+    page: String,
+    warnings: Vec<String>,
+}
+
+/// Show `file` as a page of the notebook folder `root`: switch to the notebook if it is open,
+/// otherwise open it. `None` when the notebook cannot be read or does not list the file as a
+/// page (a file directly in the notebook folder, or one the scan skipped); the caller then
+/// shows the file as a loose page, and nothing has changed.
+fn open_in_notebook(session: &mut Session, root: &Path, file: &Path) -> Option<InNotebook> {
+    if let Some(notebook) = session.notebook_id_for_root(root) {
+        let page = page_id_in(&notebook, root, file)?;
+        return session.select_page_by_id(&page).then_some(InNotebook {
+            notebook,
+            page,
+            warnings: Vec::new(),
+        });
+    }
+    let nav = open_folder_for_navigation(root).ok()?;
+    let notebook = nav.opened.notebook.id.clone();
+    let page = page_id_in(&notebook, root, file)?;
+    nav.opened.notebook.section_of_page(&page)?;
+    let warnings = register_notebook(session, root, nav);
+    session.select_page_by_id(&page);
+    Some(InNotebook {
+        notebook,
+        page,
+        warnings,
+    })
+}
+
+/// `file.open { path }`: open a `.md` or `.notecraft` page file. The nearest ancestor folder
+/// with a `.notecraft/` folder is its notebook: the notebook is opened (or switched to) and
+/// the page selected; the output has `notebook` and `page`, and `warnings` from a fresh scan.
+/// A file outside any notebook opens as a loose page (`loose: true`, with `page`), and no
+/// folder is created next to it. A file that does not exist is `invalid_args` with a message
+/// that says so; nothing is recorded and no sample data is shown.
 pub(super) fn open_file(
     session: &mut Session,
     args: &Map<String, Value>,
 ) -> Result<CommandOutput, CommandError> {
-    open_kind(ids::FILE_OPEN, RecentKind::Page, session, args)
+    let id = ids::FILE_OPEN;
+    let path = path_arg(id, args)?;
+    let Some(item) = RecentItem::new(RecentKind::Page, path) else {
+        return Err(bad_path(
+            id,
+            &format!("path must be 1 to {MAX_PATH_CHARS} characters with no control characters"),
+        ));
+    };
+    if !is_page_file(&item.path) {
+        return Err(bad_path(id, "only .md and .notecraft files can be opened"));
+    }
+    let given = Path::new(&item.path);
+    let file = std::path::absolute(given).unwrap_or_else(|_| given.to_path_buf());
+    if !file.exists() {
+        tracing::warn!(path = %item.path, "page file not found");
+        return Err(bad_path(id, &not_found("page file", &item.path)));
+    }
+    if !file.is_file() {
+        return Err(bad_path(
+            id,
+            "that path is a folder; use Open Notebook to open it",
+        ));
+    }
+    let mut fields = Map::new();
+    fields.insert("kind".to_owned(), json!(item.kind.id()));
+    fields.insert("path".to_owned(), json!(item.path));
+    let in_notebook =
+        find_notebook_root(&file).and_then(|root| open_in_notebook(session, &root, &file));
+    if let Some(found) = in_notebook {
+        fields.insert("notebook".to_owned(), json!(found.notebook));
+        fields.insert("page".to_owned(), json!(found.page));
+        if !found.warnings.is_empty() {
+            fields.insert("warnings".to_owned(), json!(found.warnings));
+        }
+    } else {
+        let Some(page) = session.open_loose_page(&file) else {
+            return Err(bad_path(id, "that file cannot be opened"));
+        };
+        fields.insert("loose".to_owned(), json!(true));
+        fields.insert("page".to_owned(), json!(page));
+    }
+    session.recents_mut().push(item);
+    session.mark_changed();
+    Ok(CommandOutput {
+        value: Value::Object(fields),
+    })
+}
+
+/// `file.recent.remove { path, kind? }`: drop a notebook or page from the recent list, as
+/// offered when its path no longer exists. The output has `removed` (whether anything went).
+pub(super) fn recent_remove(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let id = ids::FILE_RECENT_REMOVE;
+    let path = path_arg(id, args)?;
+    let kind = match args.get("kind").and_then(Value::as_str) {
+        None => None,
+        Some(text) => Some(
+            RecentKind::from_id(text)
+                .ok_or_else(|| bad_path(id, "kind must be notebook or page"))?,
+        ),
+    };
+    let removed = session.recents_mut().remove(kind, path.trim());
+    if removed {
+        session.mark_changed();
+    }
+    Ok(CommandOutput {
+        value: json!({ "removed": removed }),
+    })
 }
 
 /// `file.recent.clear`: empty the recent list.
@@ -275,23 +392,250 @@ mod tests {
     }
 
     #[test]
-    fn opening_a_notebook_records_it_and_shows_the_mock() {
+    fn a_missing_notebook_path_is_an_error_and_shows_no_sample_data() {
         let mut session = Session::new();
-        assert!(session.notebooks().is_empty());
-        let out = run(
+        let before = session.clone();
+        let out = Registry::builtin().run(
             &mut session,
             "file.open_notebook",
             json!({ "path": "C:\\Notes\\Work" }),
         );
+        let message = out.expect_err("missing").to_string();
+        assert!(message.contains("was not found"), "{message}");
+        assert!(message.contains("C:\\Notes\\Work"), "{message}");
+        assert_eq!(session, before, "no sample notebooks, no recent entry");
+        assert!(session.notebooks().is_empty());
+    }
+
+    /// A notebook folder: `.notecraft/`, a section with a page, and a group holding a section.
+    fn notebook_dir() -> tempfile::TempDir {
+        let dir = tempfile::TempDir::new().unwrap();
+        for file in [
+            "Work/Plan.md",
+            "Group/Inner/Deep.md",
+            "Group/Inner/Other.md",
+        ] {
+            let path = dir.path().join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, format!("# {file}\n")).unwrap();
+        }
+        std::fs::create_dir_all(dir.path().join(".notecraft")).unwrap();
+        std::fs::write(dir.path().join("Root.md"), "# Root\n").unwrap();
+        dir
+    }
+
+    fn text(path: &std::path::Path) -> String {
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn a_page_in_a_section_opens_its_notebook_and_selects_the_page() {
+        let dir = notebook_dir();
+        let file = text(&dir.path().join("Work/Plan.md"));
+        let mut session = Session::new();
+        session.set_notebooks(crate::mock::notebooks());
+        let out = run(&mut session, "file.open", json!({ "path": file })).unwrap();
+        assert_eq!(out["kind"], "page");
+        assert_eq!(out.get("loose"), None);
+        let notebook = session.current_notebook().unwrap();
         assert_eq!(
-            out,
-            Ok(json!({ "kind": "notebook", "path": "C:\\Notes\\Work" }))
+            session.notebooks().len(),
+            1,
+            "the sample notebooks are gone"
         );
-        assert_eq!(session.notebooks().len(), 2);
-        assert!(session.current_page().is_some());
+        assert_eq!(out["notebook"], notebook.id.as_str());
+        assert!(!session.is_loose_notebook(&notebook.id));
+        assert_eq!(session.current_section().unwrap().name, "Work");
+        assert_eq!(session.current_page().unwrap().title, "Plan");
+        assert_eq!(out["page"], session.current_page().unwrap().id.as_str());
+        session.load_current_page();
         assert_eq!(
-            recent(&session),
-            [(RecentKind::Notebook, "C:\\Notes\\Work".to_owned())]
+            session.current_page_source().unwrap().text,
+            "# Work/Plan.md\n"
+        );
+        assert_eq!(recent(&session), [(RecentKind::Page, file)]);
+    }
+
+    #[test]
+    fn a_page_in_a_section_group_selects_that_page_not_the_first() {
+        let dir = notebook_dir();
+        let file = text(&dir.path().join("Group/Inner/Other.md"));
+        let mut session = Session::new();
+        run(&mut session, "file.open", json!({ "path": file })).unwrap();
+        assert_eq!(session.current_section().unwrap().name, "Inner");
+        assert_eq!(session.current_page().unwrap().title, "Other");
+        assert!(!session.is_loose_notebook(&session.current_notebook().unwrap().id));
+    }
+
+    #[test]
+    fn a_page_of_an_open_notebook_switches_to_it_without_reading_it_again() {
+        let dir = notebook_dir();
+        let root = text(dir.path());
+        let mut session = Session::new();
+        run(&mut session, "file.open_notebook", json!({ "path": root })).unwrap();
+        let notebook = session.current_notebook().unwrap().id.clone();
+        let generation = session.tree_generation(&notebook);
+        let file = text(&dir.path().join("Group/Inner/Deep.md"));
+        let out = run(&mut session, "file.open", json!({ "path": file })).unwrap();
+        assert_eq!(out["notebook"], notebook.as_str());
+        assert_eq!(session.notebooks().len(), 1);
+        assert_eq!(session.tree_generation(&notebook), generation);
+        assert_eq!(session.current_page().unwrap().title, "Deep");
+    }
+
+    #[test]
+    fn a_page_in_another_open_notebook_is_found_among_several() {
+        let first = notebook_dir();
+        let second = notebook_dir();
+        let mut session = Session::new();
+        let first_root = text(first.path());
+        run(
+            &mut session,
+            "file.open_notebook",
+            json!({ "path": first_root }),
+        )
+        .unwrap();
+        let file = text(&second.path().join("Work/Plan.md"));
+        run(&mut session, "file.open", json!({ "path": file })).unwrap();
+        assert_eq!(session.notebooks().len(), 2);
+        let other = text(&first.path().join("Work/Plan.md"));
+        run(&mut session, "file.open", json!({ "path": other })).unwrap();
+        assert_eq!(session.notebooks().len(), 2, "switching adds nothing");
+        assert_eq!(
+            session.page_file_path(&session.selection().page.clone().unwrap()),
+            Some(first.path().join("Work/Plan.md"))
+        );
+    }
+
+    #[test]
+    fn a_file_outside_any_notebook_opens_as_a_loose_page_and_saves_in_place() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let file = dir.path().join("Loose note.md");
+        std::fs::write(&file, "# Loose\n").unwrap();
+        let mut session = Session::new();
+        session.set_notebooks(crate::mock::notebooks());
+        let out = run(&mut session, "file.open", json!({ "path": text(&file) })).unwrap();
+        assert_eq!(out["loose"], true);
+        let notebook = session.current_notebook().unwrap().clone();
+        assert!(session.is_loose_notebook(&notebook.id));
+        assert_eq!(
+            session.notebooks().len(),
+            1,
+            "the sample notebooks are gone"
+        );
+        assert_eq!(session.current_page().unwrap().title, "Loose note");
+        session.load_current_page();
+        let page = session.selection().page.clone().unwrap();
+        assert_eq!(session.current_page_source().unwrap().text, "# Loose\n");
+        assert!(session.page_is_editable(&page));
+        // Edit and save through the normal path: the one file changes.
+        session.set_page_source(&page, "# Loose\nmore\n");
+        session.mark_page_dirty(&page);
+        session.save_page(&page);
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "# Loose\nmore\n");
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, ["Loose note.md"], "no .notecraft folder, no extras");
+        assert_eq!(recent(&session), [(RecentKind::Page, text(&file))]);
+        // Not a notebook: nothing watches or indexes its folder, and it cannot be organized.
+        assert_eq!(session.notebook_roots().count(), 0);
+        assert_eq!(session.notebook_folders().count(), 0);
+        assert!(run(&mut session, "page.new", json!(null)).is_err());
+        // Opening it again shows the same page, not a second notebook.
+        run(&mut session, "file.open", json!({ "path": text(&file) })).unwrap();
+        assert_eq!(session.notebooks().len(), 1);
+    }
+
+    #[test]
+    fn a_file_in_the_notebook_folder_itself_opens_as_a_loose_page() {
+        let dir = notebook_dir();
+        let file = text(&dir.path().join("Root.md"));
+        let mut session = Session::new();
+        let out = run(&mut session, "file.open", json!({ "path": file })).unwrap();
+        assert_eq!(
+            out["loose"], true,
+            "it is not in any section of the notebook"
+        );
+        assert!(session.is_loose_notebook(&session.current_notebook().unwrap().id));
+        session.load_current_page();
+        assert_eq!(session.current_page_source().unwrap().text, "# Root\n");
+    }
+
+    #[test]
+    fn a_missing_page_file_is_an_error_and_shows_no_sample_data() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let file = text(&dir.path().join("gone.md"));
+        let mut session = Session::new();
+        let before = session.clone();
+        let message = Registry::builtin()
+            .run(&mut session, "file.open", json!({ "path": file }))
+            .expect_err("missing")
+            .to_string();
+        assert!(message.contains("was not found"), "{message}");
+        assert!(message.contains("gone.md"), "{message}");
+        assert_eq!(session, before);
+        // A folder with a page-like name is not a file either.
+        let folder = dir.path().join("dir.md");
+        std::fs::create_dir_all(&folder).unwrap();
+        assert_eq!(
+            run(&mut session, "file.open", json!({ "path": text(&folder) })),
+            Err("invalid_args")
+        );
+        assert_eq!(session, before);
+    }
+
+    #[test]
+    fn a_page_recent_reopens_and_a_stale_one_can_be_removed() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let file = dir.path().join("Recent.md");
+        std::fs::write(&file, "x").unwrap();
+        let mut first = Session::new();
+        run(&mut first, "file.open", json!({ "path": text(&file) })).unwrap();
+        // A new run restores the list, then reopens the newest entry.
+        let mut session = Session::new();
+        session.set_recents(first.recents().clone());
+        let item = session.recents().items()[0].clone();
+        run(&mut session, "file.open", json!({ "path": item.path })).unwrap();
+        assert_eq!(session.current_page().unwrap().title, "Recent");
+        // The file goes away: reopening fails, and the entry can be removed.
+        std::fs::remove_file(&file).unwrap();
+        let mut later = Session::new();
+        later.set_recents(first.recents().clone());
+        assert_eq!(
+            run(&mut later, "file.open", json!({ "path": item.path })),
+            Err("invalid_args")
+        );
+        assert!(later.notebooks().is_empty());
+        assert_eq!(
+            later.recents().items().len(),
+            1,
+            "removal is the user's call"
+        );
+        let out = run(
+            &mut later,
+            "file.recent.remove",
+            json!({ "path": item.path, "kind": "page" }),
+        )
+        .unwrap();
+        assert_eq!(out["removed"], true);
+        assert!(later.recents().is_empty());
+        let again = run(
+            &mut later,
+            "file.recent.remove",
+            json!({ "path": item.path }),
+        )
+        .unwrap();
+        assert_eq!(again["removed"], false);
+        assert_eq!(
+            run(
+                &mut later,
+                "file.recent.remove",
+                json!({ "path": "a", "kind": "folder" })
+            ),
+            Err("invalid_args")
         );
     }
 
@@ -398,23 +742,16 @@ mod tests {
     }
 
     #[test]
-    fn opening_again_keeps_the_selection() {
+    fn the_newest_open_is_first_in_the_recent_list() {
+        let dir = notebook_dir();
         let mut session = Session::new();
-        run(
-            &mut session,
-            "file.new_notebook",
-            json!({ "path": "/no-such-parent/a" }),
-        )
-        .unwrap();
-        run(&mut session, "nav.page.select", json!({ "id": "p-ideas" })).unwrap();
-        run(&mut session, "file.open", json!({ "path": "/b/Page.MD" })).unwrap();
-        assert_eq!(session.selection().page.as_deref(), Some("p-ideas"));
+        let root = text(dir.path());
+        let page = text(&dir.path().join("Work/Plan.md"));
+        run(&mut session, "file.open_notebook", json!({ "path": root })).unwrap();
+        run(&mut session, "file.open", json!({ "path": page })).unwrap();
         assert_eq!(
             recent(&session),
-            [
-                (RecentKind::Page, "/b/Page.MD".to_owned()),
-                (RecentKind::Notebook, "/no-such-parent/a".to_owned()),
-            ]
+            [(RecentKind::Page, page), (RecentKind::Notebook, root)]
         );
     }
 
@@ -450,12 +787,14 @@ mod tests {
             0,
             "clearing an empty list is not a change"
         );
-        run(&mut session, "file.open", json!({ "path": "a.notecraft" })).unwrap();
+        let dir = notebook_dir();
+        let root = text(dir.path());
+        run(&mut session, "file.open_notebook", json!({ "path": root })).unwrap();
         run(&mut session, "file.recent.clear", json!(null)).unwrap();
         assert!(session.recents().is_empty());
         assert_eq!(
             session.notebooks().len(),
-            2,
+            1,
             "clearing does not close anything"
         );
     }

@@ -249,7 +249,10 @@ impl Session {
 
     /// The folders of the notebooks read from disk.
     pub fn notebook_folders(&self) -> impl Iterator<Item = &Path> {
-        self.notebook_roots.values().map(PathBuf::as_path)
+        self.notebook_roots
+            .iter()
+            .filter(|(id, _)| !self.loose.contains(id.as_str()))
+            .map(|(_, root)| root.as_path())
     }
 
     // ----- dirty state -----

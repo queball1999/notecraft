@@ -114,6 +114,15 @@ impl Recents {
     pub fn clear(&mut self) {
         self.items.clear();
     }
+
+    /// Drop the entries for `path` (of `kind`, or of either kind when `None`). Returns
+    /// whether anything was removed.
+    pub fn remove(&mut self, kind: Option<RecentKind>, path: &str) -> bool {
+        let before = self.items.len();
+        self.items
+            .retain(|item| item.path != path || kind.is_some_and(|k| k != item.kind));
+        self.items.len() != before
+    }
 }
 
 #[cfg(test)]
