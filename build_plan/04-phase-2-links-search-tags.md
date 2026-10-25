@@ -1,6 +1,6 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-19. Change: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change.
 
 Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
 
@@ -183,6 +183,13 @@ Commits:
 
 PR title: `feat(ui): add find on page`.
 
+Notes (built 2026-10-24):
+
+- The matching is engine-level (`notecraft-engine/src/find.rs`): a case-insensitive search over the page's text units (one per paragraph, heading, table cell, or code block, in container order), bounded to 256 query characters, 10,000 matches, and 100,000 units. The canvas lays out the same units and a test checks that both lists are equal, so a match counted by a command is a match drawn on screen.
+- Commands: `edit.find` (opens the bar; was Coming Soon, `Ctrl+F`), `edit.find.set_query`, `edit.find.next` (`F3`), `edit.find.previous` (`Shift+F3`), `edit.find.close`. Enter and Shift+Enter in the bar, and Esc to close, are handled by the bar and dispatch the same commands. The bar state (query, current match, scroll and focus counters) lives in the session so it survives page changes.
+- Opening the bar drops the text caret, so no block is shown as raw markdown while searching. A block the user then clicks into shows raw and its matches are not highlighted until the caret leaves it (known limit).
+- Find on page has no ribbon button in OneNote, so none was added. Ctrl+E (search across notebooks) is PR 2.4.
+
 ## PR 2.11: command line search
 
 | | |
@@ -238,3 +245,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2026-10-15 | 0 | Re-estimated at the Phase 0 close: no actual Phase 0 hours were recorded and Phase 0 moved no scope into this phase, so the estimate is unchanged. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-10-19 | 1 | Entry criteria: v0.0.2 (not v0.1.0) is the Phase 1 alpha that must be published first. |
+| 2026-10-24 | 2 | PR 2.9 built: find on page (TX-11 scored D); notes added to the PR section. |
