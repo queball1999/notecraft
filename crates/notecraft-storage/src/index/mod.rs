@@ -5,6 +5,7 @@
 
 mod refresh;
 mod schema;
+mod search;
 mod worker;
 
 use std::path::Path;
@@ -15,6 +16,10 @@ use crate::notebook_dir::PageKind;
 
 pub use refresh::{IndexError, RefreshStats};
 pub use schema::SCHEMA_VERSION;
+pub use search::{
+    attachment_name, match_expression, AttachmentRow, PageBody, TextHit, TextScope, MARK_END,
+    MARK_START, MAX_HITS,
+};
 pub use worker::{refresh_or_rebuild, IndexWorker, WorkerReport};
 
 /// One section or group row, in sidebar order.
@@ -128,6 +133,9 @@ impl Index {
     fn init(mut conn: Connection) -> rusqlite::Result<Self> {
         // The index is a cache that can be rebuilt, so trade durability for speed.
         conn.pragma_update(None, "synchronous", "OFF")?;
+        // A search can open the file while the background refresh writes it; wait a moment
+        // instead of failing.
+        conn.busy_timeout(std::time::Duration::from_secs(2))?;
         schema::migrate(&mut conn)?;
         Ok(Self { conn })
     }

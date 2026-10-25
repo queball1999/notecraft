@@ -17,6 +17,7 @@ pub mod io;
 pub mod mock;
 pub mod open;
 pub mod recent;
+pub mod search;
 pub mod session;
 pub mod undo;
 pub mod view;
@@ -29,6 +30,10 @@ pub use ink::{
 };
 pub use notecraft_core::InkTexture;
 pub use notecraft_storage::RecoveryEntry;
+pub use search::{
+    AttachmentInfo, HitKind, SearchContext, SearchHit, SearchResults, SearchRoot, SearchScope,
+    SearchSort, SearchState,
+};
 pub use session::{
     AttachKind, Attached, ConvertOutcome, InsertError, PageNotice, PageSource, ReadPurpose,
     ReadRequest, RecoveryItem, SaveOutcome, SaveState, Selection, Session, TextCursor,

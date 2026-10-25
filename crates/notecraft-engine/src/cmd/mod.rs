@@ -20,6 +20,7 @@ mod layout;
 mod nav;
 mod page;
 mod registry;
+mod search;
 pub mod shortcuts;
 pub(crate) mod structure;
 #[cfg(test)]

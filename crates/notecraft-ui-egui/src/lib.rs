@@ -27,6 +27,7 @@ pub mod icons;
 pub mod nav;
 pub mod picker;
 pub mod ribbon;
+mod search_pane;
 pub mod shortcuts;
 pub mod start;
 pub mod status;
