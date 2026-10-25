@@ -13,5 +13,6 @@ workspace = true
 
 [dependencies]
 comrak.workspace = true
+latex-rust.workspace = true
 notecraft-core.workspace = true
 notecraft-model.workspace = true
