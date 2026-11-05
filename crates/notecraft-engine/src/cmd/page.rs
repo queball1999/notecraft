@@ -24,6 +24,7 @@ pub(super) fn convert_to_markdown(
             json!({ "converted": false, "needs_confirm": true, "warning": warning })
         }
         ConvertOutcome::Converted { new_id } => json!({ "converted": true, "page": new_id }),
+        ConvertOutcome::Failed { reason } => json!({ "converted": false, "error": reason }),
     };
     Ok(CommandOutput { value })
 }

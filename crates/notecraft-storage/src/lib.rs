@@ -45,6 +45,6 @@ pub use page_file::{
     write_page_text, PageEncoding, PageReadError, PageText, WriteOutcome, MAX_PAGE_BYTES,
     NOT_UTF8_NOTICE,
 };
-pub use page_kind::{change_page_kind, keep_unreadable_copy};
+pub use page_kind::{change_page_kind, keep_snapshot_before_convert, keep_unreadable_copy};
 pub use recovery::{Journal, RecoveryEntry};
 pub use section_toml::{PageListing, SectionConfig, SectionKind};

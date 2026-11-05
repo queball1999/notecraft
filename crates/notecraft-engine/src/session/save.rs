@@ -18,8 +18,8 @@ use notecraft_markdown::{apply_edits, remove_container_markers};
 use notecraft_model::SectionNode;
 use notecraft_model::{Container, ObjectKind, PlacedObject};
 use notecraft_storage::{
-    change_page_kind, keep_unreadable_copy, read_canvas, repair_canvas, strip_canvas_block,
-    write_canvas_all, CanvasContainer, PageKind,
+    change_page_kind, keep_snapshot_before_convert, keep_unreadable_copy, read_canvas,
+    repair_canvas, strip_canvas_block, write_canvas_all, CanvasContainer, PageKind,
 };
 
 use super::saving::{hash_text, SaveOutcome};
@@ -46,6 +46,8 @@ pub enum ConvertOutcome {
     NeedsConfirm { warning: String },
     /// The page is now a `.md` file with this page id.
     Converted { new_id: String },
+    /// The file could not be changed; the page stays as it was and a notice says why.
+    Failed { reason: String },
 }
 
 /// The warning shown before a page is converted to markdown.
@@ -335,6 +337,10 @@ impl Session {
         let markdown = apply_edits(&text, &remove_container_markers(&text, block_start))
             .unwrap_or_else(|_| text.clone());
         let markdown = strip_canvas_block(&markdown);
+        // Converting drops the canvas data for good, so keep the page as it was.
+        if let Err(err) = keep_snapshot_before_convert(&root, Path::new(&rel), &text) {
+            tracing::warn!(page = %page_id, "cannot keep a copy before converting: {err}");
+        }
         let old_path = root.join(&rel);
         match change_page_kind(&root, &rel, &markdown) {
             Ok(new_rel) => {
@@ -354,7 +360,20 @@ impl Session {
             }
             Err(err) => {
                 tracing::warn!(page = %page_id, "cannot convert page: {err}");
-                ConvertOutcome::NotApplicable
+                let reason = format!("Could not convert this page to markdown: {err}");
+                let text = match self.page_notices.remove(&page_id) {
+                    Some(old) => format!("{} {reason}", old.text),
+                    None => reason.clone(),
+                };
+                self.page_notices.insert(
+                    page_id,
+                    PageNotice {
+                        text,
+                        read_only: false,
+                    },
+                );
+                self.mark_changed();
+                ConvertOutcome::Failed { reason }
             }
         }
     }
@@ -412,6 +431,11 @@ impl Session {
             if owner == old {
                 *owner = new.to_owned();
             }
+        }
+        // A background index refresh begun before this saw the old file name; its result
+        // must be dropped, or it would reselect the section's first page.
+        if let Some((notebook, _, _)) = self.page_location(new) {
+            self.bump_tree_generation(&notebook);
         }
         self.saving.rekey(old, new);
         self.history.clear_page(old);
