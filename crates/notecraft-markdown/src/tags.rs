@@ -326,7 +326,7 @@ fn run_tokens(runs: &[Run]) -> Vec<Token> {
     let mut out = Vec::new();
     let mut prev: Option<char> = None;
     for (index, run) in runs.iter().enumerate() {
-        if run.code || run.image || run.link.is_some() {
+        if run.code || run.image || run.link.is_some() || run.math != crate::Math::None {
             prev = run.text.chars().next_back().or(prev);
             continue;
         }

@@ -56,6 +56,10 @@ pub fn show(
             cursor,
             preedit: &preedit,
             objects: session.page_objects(source.page_id),
+            tags: Some(super::tag_view::TagInput {
+                set: session.tags(),
+                items: &parsed.tagged,
+            }),
         };
         let mut loader = pictures::PictureLoader {
             cache: &mut cache,

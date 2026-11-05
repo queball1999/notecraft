@@ -20,6 +20,7 @@ pub(crate) mod paper;
 mod picture_ui;
 pub(crate) mod pictures;
 mod rawtext;
+mod tag_view;
 mod textures;
 mod title;
 mod widget;
@@ -42,6 +43,8 @@ pub(crate) struct Parsed {
     pub runs: Vec<notecraft_markdown::ContainerRun>,
     /// The page text without markdown syntax, for screen readers.
     pub plain: String,
+    /// The paragraphs with note tags or check boxes, for the tag icons.
+    pub tagged: Vec<notecraft_markdown::tags::TaggedItem>,
 }
 
 /// Canvas state kept between frames.
@@ -150,7 +153,13 @@ impl CanvasUi {
             let doc = notecraft_markdown::parse(source.visible_text());
             let runs = notecraft_markdown::split_containers(source.visible_text(), &doc);
             let plain = doc.plain_text();
-            let parsed = Parsed { doc, runs, plain };
+            let tagged = notecraft_markdown::tags::tagged_items(source.visible_text(), &doc);
+            let parsed = Parsed {
+                doc,
+                runs,
+                plain,
+                tagged,
+            };
             (
                 source.page_id.to_owned(),
                 source.revision,

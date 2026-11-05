@@ -49,6 +49,7 @@ fn lay(
             cursor,
             preedit: "",
             objects: &[],
+            tags: None,
         };
         out = Some(layout(painter, &input, zoom, &tokens, pictures));
     });

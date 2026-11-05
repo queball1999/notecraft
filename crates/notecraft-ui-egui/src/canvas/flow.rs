@@ -25,6 +25,7 @@ mod math;
 #[cfg(test)]
 mod math_tests;
 use super::rawtext::Raw;
+use super::tag_view::{self, Mark, TagInput};
 use super::PageToScreen;
 use crate::themes::{bold_family, mix, ThemeTokens};
 
@@ -44,6 +45,8 @@ const INDENT: f32 = 24.0;
 const MAX_ITEMS: usize = 40_000;
 /// Most table columns laid out.
 const MAX_COLUMNS: usize = 64;
+/// Space between note tag icons, in page units.
+const TAG_GAP: f32 = 3.0;
 
 /// A drawing item. Positions are in page units, except galleys, which are laid out at
 /// the zoom they were made for.
@@ -71,6 +74,11 @@ enum Item {
     Check {
         rect: Rect,
         checked: bool,
+    },
+    /// A note tag icon at the start of a paragraph.
+    Tag {
+        rect: Rect,
+        mark: Mark,
     },
     /// A picture, or the placeholder that stands in for one that cannot be shown.
     Picture {
@@ -154,6 +162,8 @@ pub(super) struct Input<'a> {
     pub preedit: &'a str,
     /// Pictures and files with a place of their own (docs/markdown.md section 3.4).
     pub objects: &'a [PlacedObject],
+    /// The note tag gallery and the tagged paragraphs of the page (PR 2.5).
+    pub tags: Option<TagInput<'a>>,
 }
 
 /// Where one container landed, in page units.
@@ -218,6 +228,10 @@ struct Layout<'a> {
     align: egui::Align,
     /// Inline formulas ready to draw, by source and text size.
     inline_math: math::InlineMap,
+    /// The note tag gallery and tagged paragraphs.
+    tags: Option<TagInput<'a>>,
+    /// How many lists the block being laid out is inside.
+    list_depth: usize,
 }
 
 /// Lay out the page's containers at `zoom` (1.0 is 100%). Containers without a position stack
@@ -256,6 +270,8 @@ pub(super) fn layout(
         pending_align: None,
         align: egui::Align::Min,
         inline_math: math::InlineMap::new(),
+        tags: input.tags,
+        list_depth: 0,
     };
     let mut y_flow = TOP;
     let mut bottom = TOP;
@@ -597,7 +613,7 @@ impl Layout<'_> {
                 let size = BODY_SIZE * heading_scale(*level);
                 *y += size * 0.35;
                 self.align = pending.unwrap_or(egui::Align::Min);
-                let h = self.text(runs, size, true, tokens.text, x, *y, width);
+                let h = self.tagged_text(block.span, runs, size, true, x, *y, width);
                 self.align = egui::Align::Min;
                 *y += h + size * 0.3;
             }
@@ -632,7 +648,7 @@ impl Layout<'_> {
             }
             BlockKind::Paragraph { runs } => {
                 self.align = pending.unwrap_or(egui::Align::Min);
-                let h = self.text(runs, BODY_SIZE, false, tokens.text, x, *y, width);
+                let h = self.tagged_text(block.span, runs, BODY_SIZE, false, x, *y, width);
                 self.align = egui::Align::Min;
                 *y += h + BODY_SIZE * 0.6;
             }
@@ -676,6 +692,47 @@ impl Layout<'_> {
                 *y += BODY_SIZE * 1.4;
             }
         }
+    }
+
+    /// Lay out a paragraph or heading and its note tags: the tag icons hang in the margin
+    /// before the text (inside a list, and when there is no margin, they come first on the
+    /// line and the text moves over). Returns the height in page units.
+    #[allow(clippy::too_many_arguments)]
+    fn tagged_text(
+        &mut self,
+        holder: Span,
+        runs: &[Run],
+        size: f32,
+        bold: bool,
+        x: f32,
+        y: f32,
+        width: f32,
+    ) -> f32 {
+        let (shown, marks) = tag_view::apply(self.tags, holder, runs);
+        let color = self.tokens.text;
+        if marks.is_empty() {
+            return self.text(&shown, size, bold, color, x, y, width);
+        }
+        let icon = BODY_SIZE * 1.05;
+        let step = icon + TAG_GAP;
+        let needed = marks.len() as f32 * step;
+        let hang = self.list_depth == 0 && x - needed >= 2.0;
+        let (icons_x, text_x, text_w) = if hang {
+            (x - needed, x, width)
+        } else {
+            (x, x + needed, (width - needed).max(40.0))
+        };
+        let line = size * 1.3;
+        let top = y + ((line - icon) / 2.0).max(0.0);
+        for (i, mark) in marks.iter().enumerate() {
+            let min = Pos2::new(icons_x + i as f32 * step, top);
+            self.items.push(Item::Tag {
+                rect: Rect::from_min_size(min, egui::vec2(icon, icon)),
+                mark: *mark,
+            });
+        }
+        self.text(&shown, size, bold, color, text_x, y, text_w)
+            .max(line)
     }
 
     /// A paragraph that is one link to a file in the notebook: an attachment object.
@@ -877,7 +934,9 @@ impl Layout<'_> {
                     radius: 2.2,
                 }),
             }
+            self.list_depth += 1;
             self.blocks(&item.blocks, x + INDENT + 4.0, width - INDENT - 4.0, y);
+            self.list_depth -= 1;
             if *y == top {
                 *y += line;
             }
@@ -1396,6 +1455,12 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                 let text_at = Pos2::new(icon.max.x + 8.0 * z, r.center().y - name.size().y / 2.0);
                 painter.galley(text_at, name.clone(), tokens.text);
             }
+            Item::Tag { rect, mark } => {
+                let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
+                if r.intersects(clip) {
+                    crate::icons::paint_tag(painter, r, mark.icon, rgb_color(mark.color));
+                }
+            }
             Item::Check { rect, checked } => {
                 let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
                 if !r.intersects(clip) {
@@ -1480,6 +1545,7 @@ mod tests {
             cursor,
             preedit: "",
             objects: &[],
+            tags: None,
         };
         layout(painter, &input, zoom, tokens, &mut NoPictures)
     }
@@ -1526,6 +1592,7 @@ mod tests {
                 cursor: None,
                 preedit: "",
                 objects,
+                tags: None,
             };
             if dragged {
                 layout(painter, &input, 1.0, &tokens, &mut Dragged)
@@ -1607,6 +1674,7 @@ mod tests {
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                tags: None,
             };
             layout(painter, &input, 1.0, &tokens, &mut Fixed).picture_hits
         });
@@ -1909,6 +1977,92 @@ In the second find container
         });
     }
 
+    /// Lay out `text` with the default tag gallery and the caret where `cursor` says.
+    fn lay_tagged(painter: &Painter, text: &str, cursor: Option<TextCursor>) -> Flow {
+        let doc = notecraft_markdown::parse(text);
+        let runs = notecraft_markdown::split_containers(text, &doc);
+        let geometry: Vec<Container> = runs.iter().map(|r| Container::flow(&r.id)).collect();
+        let set = notecraft_markdown::TagSet::default();
+        let items = notecraft_markdown::tags::tagged_items(text, &doc);
+        let input = Input {
+            text,
+            doc: &doc,
+            runs: &runs,
+            geometry: &geometry,
+            cursor,
+            preedit: "",
+            objects: &[],
+            tags: Some(TagInput {
+                set: &set,
+                items: &items,
+            }),
+        };
+        layout(painter, &input, 1.0, &tokens(), &mut NoPictures)
+    }
+
+    fn tag_icons(flow: &Flow) -> Vec<notecraft_markdown::TagIcon> {
+        flow.items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Tag { mark, .. } => Some(mark.icon),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn tagged_paragraphs_draw_icons_and_untagged_ones_do_not() {
+        let text =
+            "#important #question Call Ada\n\nPlain\n\n- #idea listed\n\n#highlight Marked\n";
+        with_painter(|painter| {
+            let flow = lay_tagged(painter, text, None);
+            use notecraft_markdown::TagIcon::{Bulb, Question, Star};
+            assert_eq!(tag_icons(&flow), [Star, Question, Bulb]);
+            // The first icons hang in the margin, left of the text column.
+            let first = flow
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    Item::Tag { rect, .. } => Some(*rect),
+                    _ => None,
+                })
+                .expect("icon");
+            assert!(first.max.x <= LEFT && first.min.x >= 2.0, "{first:?}");
+            // A list item keeps its icon inline, right of the bullet.
+            let rects: Vec<Rect> = flow
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Tag { rect, .. } => Some(*rect),
+                    _ => None,
+                })
+                .collect();
+            assert!(rects[2].min.x > LEFT, "{:?}", rects[2]);
+            // The tag names are not in the shown text.
+            let shown: String = flow
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Text { galley, .. } => Some(galley.job.text.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert!(!shown.contains('#'), "{shown}");
+            assert!(shown.contains("Call Ada") && shown.contains("Marked"));
+        });
+    }
+
+    #[test]
+    fn the_paragraph_with_the_caret_shows_its_tags_as_text() {
+        let text = "#important Call Ada\n\n#question Other\n";
+        with_painter(|painter| {
+            let flow = lay_tagged(painter, text, Some(TextCursor::caret(5)));
+            assert_eq!(flow.raws.len(), 1);
+            assert_eq!(flow.raws[0].text, "#important Call Ada");
+            assert_eq!(tag_icons(&flow), [notecraft_markdown::TagIcon::Question]);
+        });
+    }
+
     #[test]
     fn a_caret_on_a_new_blank_line_gets_its_own_raw_row() {
         let tokens = tokens();
@@ -1966,6 +2120,7 @@ In the second find container
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                tags: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             let rect = |i: usize| flow.containers.get(i).expect("box").rect;
@@ -1994,6 +2149,7 @@ In the second find container
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                tags: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             assert!(flow.width >= 3240.0, "width {}", flow.width);
@@ -2030,6 +2186,7 @@ In the second find container
                 cursor: Some(TextCursor::caret(1)),
                 preedit: "\u{4e2d}\u{6587}",
                 objects: &[],
+                tags: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             let raw = flow.raws.first().expect("raw");
