@@ -26,6 +26,8 @@ command_ids! {
     FILE_OPEN = "file.open";
     /// Remove every notebook and page from the recent list.
     FILE_RECENT_CLEAR = "file.recent.clear";
+    /// Remove one notebook or page from the recent list.
+    FILE_RECENT_REMOVE = "file.recent.remove";
     /// Show the open notebooks and where they are stored.
     FILE_INFO = "file.info";
     /// Rename the notebook, change its color, or show its folder.
@@ -82,6 +84,14 @@ command_ids! {
     EDIT_DELETE = "edit.delete";
     /// Find text on the current page.
     EDIT_FIND = "edit.find";
+    /// Change the text to find on the current page.
+    EDIT_FIND_SET_QUERY = "edit.find.set_query";
+    /// Go to the next match on the current page.
+    EDIT_FIND_NEXT = "edit.find.next";
+    /// Go to the previous match on the current page.
+    EDIT_FIND_PREVIOUS = "edit.find.previous";
+    /// Close the find bar.
+    EDIT_FIND_CLOSE = "edit.find.close";
 
     // Home tab: Basic Text group
     /// Set the font family of the selection.
@@ -134,8 +144,40 @@ command_ids! {
     TAG_REMOVE = "tag.remove";
     /// List every tagged note in the Tags Summary pane.
     TAG_FIND = "tag.find";
+    /// Choose where the Tags Summary looks (same scopes as search).
+    TAG_SUMMARY_SET_SCOPE = "tag.summary.set_scope";
+    /// Choose how the Tags Summary groups its items: tag name, section, page title, or date.
+    TAG_SUMMARY_SET_GROUP = "tag.summary.set_group";
+    /// Show only the unchecked items in the Tags Summary.
+    TAG_SUMMARY_SET_UNCHECKED = "tag.summary.set_unchecked";
+    /// Read the tags index again and refresh the Tags Summary.
+    TAG_SUMMARY_REFRESH = "tag.summary.refresh";
+    /// Show the page of a Tags Summary item with the caret at its paragraph.
+    TAG_SUMMARY_OPEN_ITEM = "tag.summary.open_item";
+    /// Write a Tags Summary page listing the items shown.
+    TAG_SUMMARY_CREATE_PAGE = "tag.summary.create_page";
+    /// Hide the Tags Summary pane.
+    TAG_SUMMARY_CLOSE = "tag.summary.close";
     /// Add, change, or reorder the note tags in the gallery.
     TAG_CUSTOMIZE = "tag.customize";
+    /// Add a custom note tag to the gallery.
+    TAG_CUSTOM_ADD = "tag.custom_add";
+    /// Rename a custom note tag or change its icon or colors.
+    TAG_CUSTOM_EDIT = "tag.custom_edit";
+    /// Remove a custom note tag from the gallery.
+    TAG_CUSTOM_DELETE = "tag.custom_delete";
+    /// Change the name, icon, or colors of any note tag, a default one included.
+    TAG_EDIT = "tag.edit";
+    /// Take a default note tag out of the gallery.
+    TAG_HIDE = "tag.hide";
+    /// Move a note tag up or down the gallery list.
+    TAG_MOVE = "tag.move";
+    /// Give a default note tag its built-in name, icon, and colors back.
+    TAG_RESET = "tag.reset";
+    /// Put the built-in tag list back: hidden tags return, defaults look as built.
+    TAG_RESET_ALL = "tag.reset_all";
+    /// Apply the note tag at a position of the gallery list (Ctrl+1 to Ctrl+9).
+    TAG_APPLY_NTH = "tag.apply_nth";
 
     // Home tab: Email and Meetings groups
     /// Send the current page as an email.
@@ -400,8 +442,38 @@ command_ids! {
     PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
     /// Replace a canvas block that did not parse with a fresh one that keeps what could be read.
     PAGE_REPAIR_CANVAS = "page.repair_canvas";
+    /// Rewrite a page that is not UTF-8 text as UTF-8, keeping a backup of the original bytes.
+    PAGE_CONVERT_ENCODING = "page.convert_encoding";
+
+    // Page links (Phase 2)
+    /// Go to the page a link points to; a link to a page that does not exist creates it.
+    LINK_FOLLOW = "link.follow";
+    /// Open the list of pages to link to, as typing double brackets does.
+    LINK_PICKER_OPEN = "link.picker.open";
+    /// Put a link to a page from the picker into the text.
+    LINK_PICKER_CHOOSE = "link.picker.choose";
+    /// Highlight another page in the picker.
+    LINK_PICKER_MOVE = "link.picker.move";
+    /// Close the picker without inserting a link.
+    LINK_PICKER_CLOSE = "link.picker.close";
+    /// Turn on or off rewriting page links when a page is renamed or moved in NoteCraft.
+    LINKS_UPDATE_ON_RENAME = "links.update_on_rename";
+    /// Rewrite the links to a page that was renamed outside NoteCraft.
+    LINKS_FIX_AFTER_RENAME = "links.fix_after_rename";
+    /// Close the offer to fix links after an outside rename without fixing them.
+    LINKS_FIX_DISMISS = "links.fix_dismiss";
 
     // Search (Phase 2)
-    /// Search every open notebook.
+    /// Show the search box, ready to type in.
+    SEARCH_OPEN = "search.open";
+    /// Show the search box and look in every open notebook.
     SEARCH_ALL = "search.all";
+    /// Search for text and show the results.
+    SEARCH_RUN = "search.run";
+    /// Choose where a search looks: this page, section, section group, notebook, or all notebooks.
+    SEARCH_SET_SCOPE = "search.set_scope";
+    /// Choose how search results are ordered.
+    SEARCH_SET_SORT = "search.set_sort";
+    /// Hide the search box and results.
+    SEARCH_CLOSE = "search.close";
 }

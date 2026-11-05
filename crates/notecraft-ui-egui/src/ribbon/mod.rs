@@ -94,6 +94,9 @@ pub struct Look<'a> {
     /// The page shown is a `.notecraft` page that can be converted to markdown; the File Info
     /// page then offers the Convert to Markdown button.
     pub can_convert: bool,
+    /// The note tags of the gallery in their order (default and custom, hidden ones left out):
+    /// the Tags gallery and its list are built from these.
+    pub tags: &'a [notecraft_markdown::TagDef],
 }
 
 /// One pen or highlighter of the Draw tab's list, as the ribbon draws it.

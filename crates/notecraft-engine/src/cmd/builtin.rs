@@ -3,11 +3,22 @@
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
 use super::page;
+use super::search;
 use super::{
-    attach, canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind,
-    ArgSpec, CommandId, CommandSpec, Handler,
+    attach, canvas, draw, edit, equation, file, find, format, ids, layout, links, nav, stamp,
+    structure, tag_summary, tags, text, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
+const FIND_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "query",
+    ArgKind::String,
+    "The text to find; omitted keeps the last one.",
+)];
+const FIND_QUERY_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "query",
+    ArgKind::String,
+    "The text to find (case-insensitive); empty clears it.",
+)];
 const SET_CARET_ARGS: &[ArgSpec] = &[
     ArgSpec::required("at", ArgKind::Integer, "Byte offset in the page text."),
     ArgSpec::optional("extend", ArgKind::Bool, "Extend the selection instead."),
@@ -75,6 +86,18 @@ const FILE_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     ArgKind::String,
     "A .md or .notecraft file; the app asks with a file picker when omitted.",
 )];
+const RECENT_REMOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "path",
+        ArgKind::String,
+        "The path of the recent entry to remove.",
+    ),
+    ArgSpec::optional(
+        "kind",
+        ArgKind::String,
+        "notebook or page; both entries with the path go when omitted.",
+    ),
+];
 const INSERT_PATH_ARGS: &[ArgSpec] = &[
     ArgSpec::optional(
         "path",
@@ -267,6 +290,48 @@ const TAG_ARGS: &[ArgSpec] = &[ArgSpec::required(
     ArgKind::String,
     "Tag id, for example todo, important, or question.",
 )];
+const TAG_ADD_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("name", ArgKind::String, "The tag name, 1 to 40 characters."),
+    ArgSpec::optional(
+        "icon",
+        ArgKind::String,
+        "Icon id, for example star or flag; dot when omitted.",
+    ),
+    ArgSpec::optional(
+        "font_color",
+        ArgKind::String,
+        "Text color as #RRGGBB, or none.",
+    ),
+    ArgSpec::optional(
+        "highlight",
+        ArgKind::String,
+        "Highlight color as #RRGGBB, or none.",
+    ),
+];
+const TAG_EDIT_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("tag", ArgKind::String, "Id of the custom tag."),
+    ArgSpec::optional("name", ArgKind::String, "The new name, 1 to 40 characters."),
+    ArgSpec::optional("icon", ArgKind::String, "The new icon id."),
+    ArgSpec::optional(
+        "font_color",
+        ArgKind::String,
+        "Text color as #RRGGBB, or none.",
+    ),
+    ArgSpec::optional(
+        "highlight",
+        ArgKind::String,
+        "Highlight color as #RRGGBB, or none.",
+    ),
+];
+const TAG_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("tag", ArgKind::String, "Id of the tag."),
+    ArgSpec::required("direction", ArgKind::String, "up or down."),
+];
+const TAG_NTH_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "number",
+    ArgKind::Integer,
+    "Position in the tag list, 1 to 9.",
+)];
 const TABLE_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("rows", ArgKind::Integer, "Number of rows."),
     ArgSpec::optional("columns", ArgKind::Integer, "Number of columns."),
@@ -276,6 +341,18 @@ const TEMPLATE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     ArgKind::String,
     "Template id; opens the template pane when omitted.",
 )];
+const EQUATION_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "latex",
+        ArgKind::String,
+        "The formula as LaTeX math, up to 4 KiB, with no unescaped dollar sign; the selection or a placeholder when omitted.",
+    ),
+    ArgSpec::optional(
+        "display",
+        ArgKind::Bool,
+        "Insert a display formula ($$...$$) instead of an inline one ($...$).",
+    ),
+];
 const SYMBOL_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "symbol",
     ArgKind::String,
@@ -394,6 +471,101 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     ArgKind::String,
     "Shape kind, for example line, arrow, rectangle, or ellipse.",
 )];
+const LINK_FOLLOW_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "target",
+        ArgKind::String,
+        "The text of the link: a page name or a Section/Page path.",
+    ),
+    ArgSpec::optional(
+        "create",
+        ArgKind::Bool,
+        "Create the page in the current section when none matches (default: true).",
+    ),
+];
+const LINK_PICKER_CHOOSE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "page",
+    ArgKind::String,
+    "The id of the page to link to; omitted uses the highlighted one.",
+)];
+const LINKS_UPDATE_ON_RENAME_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "enabled",
+    ArgKind::Bool,
+    "True or false; the setting is flipped when omitted.",
+)];
+const LINK_PICKER_MOVE_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "delta",
+    ArgKind::Integer,
+    "How many entries to move: 1 is down, -1 is up.",
+)];
+const SEARCH_RUN_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("query", ArgKind::String, "The words to look for."),
+    ArgSpec::optional(
+        "scope",
+        ArgKind::String,
+        "page, section, group, notebook, or all (default: the last scope used).",
+    ),
+    ArgSpec::optional(
+        "sort",
+        ArgKind::String,
+        "relevance, section, title, or modified (default: the last sort used).",
+    ),
+];
+const TAG_FIND_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "scope",
+        ArgKind::String,
+        "page, section, group, notebook, or all (default: the last scope used).",
+    ),
+    ArgSpec::optional(
+        "group",
+        ArgKind::String,
+        "tag, section, title, or date (default: the last grouping used).",
+    ),
+    ArgSpec::optional(
+        "only_unchecked",
+        ArgKind::Bool,
+        "True to hide checked To Do items.",
+    ),
+];
+const TAG_SUMMARY_GROUP_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "group",
+    ArgKind::String,
+    "tag, section, title, or date.",
+)];
+const TAG_SUMMARY_UNCHECKED_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "value",
+    ArgKind::Bool,
+    "True to show only unchecked items.",
+)];
+const TAG_SUMMARY_ITEM_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("page", ArgKind::String, "The id of the page."),
+    ArgSpec::required(
+        "at",
+        ArgKind::Integer,
+        "Byte offset of the paragraph in the page text.",
+    ),
+    ArgSpec::optional(
+        "tag",
+        ArgKind::String,
+        "The tag id, to find the paragraph again.",
+    ),
+    ArgSpec::optional(
+        "text",
+        ArgKind::String,
+        "The paragraph text, to find the paragraph again.",
+    ),
+];
+const SEARCH_SCOPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "scope",
+    ArgKind::String,
+    "page, section, group, notebook, or all.",
+)];
+const SEARCH_SORT_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "sort",
+    ArgKind::String,
+    "relevance, section, title, or modified.",
+)];
 const CONVERT_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "confirm",
     ArgKind::Bool,
@@ -465,6 +637,13 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Clear Recent",
         "Remove every notebook and page from the recent list.",
     )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_RECENT_REMOVE,
+        "Remove from Recent",
+        "Remove one notebook or page from the recent list.",
+    )
+    .args(RECENT_REMOVE_ARGS)
     .ready(),
     CommandSpec::new(
         ids::FILE_INFO,
@@ -609,7 +788,31 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Find on Page",
         "Find text on the current page.",
     )
-    .shortcut("Ctrl+F"),
+    .args(FIND_ARGS)
+    .shortcut("Ctrl+F")
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_SET_QUERY,
+        "Find Text",
+        "Change the text to find on the current page.",
+    )
+    .args(FIND_QUERY_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_NEXT,
+        "Find Next",
+        "Go to the next match on the current page.",
+    )
+    .shortcut("F3")
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_PREVIOUS,
+        "Find Previous",
+        "Go to the previous match on the current page.",
+    )
+    .shortcut("Shift+F3")
+    .ready(),
+    CommandSpec::new(ids::EDIT_FIND_CLOSE, "Close Find", "Close the find bar.").ready(),
     // Home tab: Basic Text group
     CommandSpec::new(
         ids::FORMAT_FONT_FAMILY,
@@ -759,14 +962,14 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Apply a note tag to the selected paragraph.",
     )
     .undoable()
-    .args(TAG_ARGS),
+    .args(TAG_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::TAG_TODO,
         "To Do Tag",
         "Add or check a To Do checkbox on the selected paragraph.",
     )
     .undoable()
-    .shortcut("Ctrl+1")
     .ready(),
     CommandSpec::new(
         ids::TAG_REMOVE,
@@ -774,17 +977,134 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Remove all note tags from the selected paragraph.",
     )
     .undoable()
-    .shortcut("Ctrl+0"),
+    .shortcut("Ctrl+0")
+    .ready(),
     CommandSpec::new(
         ids::TAG_FIND,
         "Find Tags",
         "List every tagged note in the Tags Summary pane.",
-    ),
+    )
+    .args(TAG_FIND_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_SET_SCOPE,
+        "Tags Summary Scope",
+        "Choose where the Tags Summary looks.",
+    )
+    .args(SEARCH_SCOPE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_SET_GROUP,
+        "Group Tags By",
+        "Choose how the Tags Summary groups its items.",
+    )
+    .args(TAG_SUMMARY_GROUP_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_SET_UNCHECKED,
+        "Show Only Unchecked Items",
+        "Hide checked To Do items in the Tags Summary.",
+    )
+    .args(TAG_SUMMARY_UNCHECKED_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_REFRESH,
+        "Refresh Results",
+        "Read the tags again and refresh the Tags Summary.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_OPEN_ITEM,
+        "Go to Tagged Item",
+        "Show the page of a tagged item with the caret at its paragraph.",
+    )
+    .args(TAG_SUMMARY_ITEM_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_CREATE_PAGE,
+        "Create Summary Page",
+        "Write a Tags Summary page in the current section.",
+    )
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_CLOSE,
+        "Close Tags Summary",
+        "Hide the Tags Summary pane.",
+    )
+    .ready(),
     CommandSpec::new(
         ids::TAG_CUSTOMIZE,
         "Customize Tags",
         "Add, change, or reorder the note tags in the gallery.",
-    ),
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_CUSTOM_ADD,
+        "Add Tag",
+        "Add a custom note tag to the gallery.",
+    )
+    .args(TAG_ADD_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_CUSTOM_EDIT,
+        "Modify Tag",
+        "Rename a custom note tag or change its icon or colors.",
+    )
+    .args(TAG_EDIT_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_CUSTOM_DELETE,
+        "Delete Tag",
+        "Remove a custom note tag from the gallery.",
+    )
+    .args(TAG_ARGS)
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_EDIT,
+        "Modify Tag",
+        "Change the name, icon, or colors of any note tag, a default one included.",
+    )
+    .args(TAG_EDIT_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_HIDE,
+        "Delete Tag from List",
+        "Take a default note tag out of the gallery. Text already tagged keeps its icon.",
+    )
+    .args(TAG_ARGS)
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_MOVE,
+        "Move Tag",
+        "Move a note tag up or down the gallery list, which sets Ctrl+1 to Ctrl+9.",
+    )
+    .args(TAG_MOVE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_RESET,
+        "Reset Tag",
+        "Give a default note tag its built-in name, icon, and colors back.",
+    )
+    .args(TAG_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_RESET_ALL,
+        "Reset Tags",
+        "Put the built-in tag list back: hidden tags return, defaults look as built.",
+    )
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_APPLY_NTH,
+        "Apply Numbered Tag",
+        "Apply the note tag at a position of the gallery list (Ctrl+1 to Ctrl+9).",
+    )
+    .undoable()
+    .args(TAG_NTH_ARGS)
+    .ready(),
     // Home tab: Email and Meetings groups
     CommandSpec::new(
         ids::EMAIL_PAGE,
@@ -888,17 +1208,20 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable(),
     CommandSpec::new(ids::INSERT_DATE, "Date", "Insert the current date.")
         .undoable()
-        .shortcut("Alt+Shift+D"),
+        .shortcut("Alt+Shift+D")
+        .ready(),
     CommandSpec::new(ids::INSERT_TIME, "Time", "Insert the current time.")
         .undoable()
-        .shortcut("Alt+Shift+T"),
+        .shortcut("Alt+Shift+T")
+        .ready(),
     CommandSpec::new(
         ids::INSERT_DATE_TIME,
         "Date & Time",
         "Insert the current date and time.",
     )
     .undoable()
-    .shortcut("Alt+Shift+F"),
+    .shortcut("Alt+Shift+F")
+    .ready(),
     CommandSpec::new(
         ids::INSERT_PAGE_TEMPLATE,
         "Page Templates",
@@ -907,8 +1230,10 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable()
     .args(TEMPLATE_ARGS),
     CommandSpec::new(ids::INSERT_EQUATION, "Equation", "Insert an equation.")
+        .args(EQUATION_ARGS)
         .undoable()
-        .shortcut("Alt+="),
+        .shortcut("Alt+=")
+        .ready(),
     CommandSpec::new(ids::INSERT_SYMBOL, "Symbol", "Insert a symbol.")
         .undoable()
         .args(SYMBOL_ARGS),
@@ -1555,7 +1880,108 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Replace the unreadable ink and layout data of the page with a fresh block that keeps what could be read. The old file is kept in the notebook history folder.",
     )
     .ready(),
-    CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
+    CommandSpec::new(
+        ids::PAGE_CONVERT_ENCODING,
+        "Convert to UTF-8",
+        "Rewrite a page that is not saved as UTF-8 text as UTF-8 so it can be edited. The original file is kept in the notebook history folder. Not undoable.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_FOLLOW,
+        "Open Linked Page",
+        "Go to the page a link points to. A link to a page that does not exist adds the page to the current section.",
+    )
+    .args(LINK_FOLLOW_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_PICKER_OPEN,
+        "Link to Page",
+        "Open the list of pages to link to, as typing double brackets does.",
+    )
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_PICKER_CHOOSE,
+        "Insert Page Link",
+        "Put a link to a page from the page list into the text.",
+    )
+    .args(LINK_PICKER_CHOOSE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_PICKER_MOVE,
+        "Move in Page List",
+        "Highlight another page in the page list.",
+    )
+    .args(LINK_PICKER_MOVE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_PICKER_CLOSE,
+        "Close Page List",
+        "Close the page list without inserting a link.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::LINKS_UPDATE_ON_RENAME,
+        "Update Links When Pages Are Renamed",
+        "Rewrite page links when a page is renamed or moved in NoteCraft so they keep working.",
+    )
+    .args(LINKS_UPDATE_ON_RENAME_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::LINKS_FIX_AFTER_RENAME,
+        "Update Links",
+        "Rewrite the links to a page that was renamed outside NoteCraft.",
+    )
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::LINKS_FIX_DISMISS,
+        "Not Now",
+        "Close the offer to update links after a rename made outside NoteCraft.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_OPEN,
+        "Search",
+        "Show the search box and results.",
+    )
+    .shortcut("Ctrl+E")
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_ALL,
+        "Search All Notebooks",
+        "Show the search box and look in every open notebook.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_RUN,
+        "Run Search",
+        "Search page titles and text and show the results.",
+    )
+    .args(SEARCH_RUN_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_SET_SCOPE,
+        "Search Scope",
+        "Choose where a search looks.",
+    )
+    .args(SEARCH_SCOPE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_SET_SORT,
+        "Sort Search Results",
+        "Choose how search results are ordered.",
+    )
+    .args(SEARCH_SORT_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_CLOSE,
+        "Close Search",
+        "Hide the search box and results.",
+    )
+    .ready(),
 ];
 
 /// The handler of every Ready command.
@@ -1564,6 +1990,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_OPEN_NOTEBOOK, file::open_notebook),
     (ids::FILE_OPEN, file::open_file),
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
+    (ids::FILE_RECENT_REMOVE, file::recent_remove),
     (ids::FILE_ABOUT, file::about),
     (ids::HELP_WHATS_NEW, file::whats_new),
     (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),
@@ -1602,6 +2029,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
     (ids::INSERT_PICTURE, attach::insert_picture),
+    (ids::INSERT_EQUATION, equation::insert_equation),
     (ids::INSERT_FILE_ATTACHMENT, attach::insert_file),
     (ids::EDIT_PASTE_PICTURE, attach::paste_picture),
     (ids::PICTURE_RESIZE, attach::resize_picture),
@@ -1612,6 +2040,9 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::TEXT_CLEAR_CARET, text::clear_caret),
     (ids::TEXT_MOVE, text::move_caret),
     (ids::TEXT_INSERT, text::insert),
+    (ids::INSERT_DATE, stamp::date),
+    (ids::INSERT_TIME, stamp::time),
+    (ids::INSERT_DATE_TIME, stamp::date_time),
     (ids::TEXT_DELETE, text::delete),
     (ids::TEXT_ENTER, text::enter),
     (ids::TEXT_TAB, text::tab),
@@ -1644,11 +2075,50 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FORMAT_ALIGN_RIGHT, format::align_right),
     (ids::STYLE_APPLY, format::style_apply),
     (ids::TAG_TODO, format::todo),
+    (ids::EDIT_FIND, find::open),
+    (ids::EDIT_FIND_SET_QUERY, find::set_query),
+    (ids::EDIT_FIND_NEXT, find::next),
+    (ids::EDIT_FIND_PREVIOUS, find::previous),
+    (ids::EDIT_FIND_CLOSE, find::close),
+    (ids::TAG_APPLY, tags::apply),
+    (ids::TAG_REMOVE, tags::remove),
+    (ids::TAG_CUSTOMIZE, tags::customize),
+    (ids::TAG_CUSTOM_ADD, tags::custom_add),
+    (ids::TAG_CUSTOM_EDIT, tags::custom_edit),
+    (ids::TAG_CUSTOM_DELETE, tags::custom_delete),
+    (ids::TAG_EDIT, tags::edit),
+    (ids::TAG_HIDE, tags::hide),
+    (ids::TAG_MOVE, tags::move_tag),
+    (ids::TAG_RESET, tags::reset),
+    (ids::TAG_RESET_ALL, tags::reset_all),
+    (ids::TAG_APPLY_NTH, tags::apply_nth),
     (ids::EDIT_UNDO, edit::undo),
     (ids::EDIT_REDO, edit::redo),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
+    (ids::LINK_FOLLOW, links::follow),
+    (ids::LINK_PICKER_OPEN, links::picker_open),
+    (ids::LINK_PICKER_CHOOSE, links::picker_choose),
+    (ids::LINK_PICKER_MOVE, links::picker_move),
+    (ids::LINK_PICKER_CLOSE, links::picker_close),
+    (ids::TAG_FIND, tag_summary::find),
+    (ids::TAG_SUMMARY_SET_SCOPE, tag_summary::set_scope),
+    (ids::TAG_SUMMARY_SET_GROUP, tag_summary::set_group),
+    (ids::TAG_SUMMARY_SET_UNCHECKED, tag_summary::set_unchecked),
+    (ids::TAG_SUMMARY_REFRESH, tag_summary::refresh),
+    (ids::TAG_SUMMARY_OPEN_ITEM, tag_summary::open_item),
+    (ids::TAG_SUMMARY_CREATE_PAGE, tag_summary::create_page),
+    (ids::TAG_SUMMARY_CLOSE, tag_summary::close),
+    (ids::LINKS_UPDATE_ON_RENAME, links::update_on_rename),
+    (ids::LINKS_FIX_AFTER_RENAME, links::fix_after_rename),
+    (ids::LINKS_FIX_DISMISS, links::fix_dismiss),
+    (ids::SEARCH_OPEN, search::open),
+    (ids::SEARCH_ALL, search::all),
+    (ids::SEARCH_RUN, search::run),
+    (ids::SEARCH_SET_SCOPE, search::set_scope),
+    (ids::SEARCH_SET_SORT, search::set_sort),
+    (ids::SEARCH_CLOSE, search::close),
     (ids::FILE_CLOSE_NOTEBOOK, structure::close_notebook),
     (ids::SECTION_NEW, structure::section_new),
     (ids::SECTION_GROUP_NEW, structure::section_group_new),
@@ -1672,6 +2142,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NOTEBOOK_SET_COLOR, structure::notebook_set_color),
     (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
     (ids::PAGE_REPAIR_CANVAS, page::repair_canvas),
+    (ids::PAGE_CONVERT_ENCODING, page::convert_to_utf8),
 ];
 
 /// The handler for `id`, if it has one.

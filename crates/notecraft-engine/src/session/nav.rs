@@ -101,6 +101,7 @@ impl Session {
     pub fn notebook_roots(&self) -> impl Iterator<Item = (&str, &std::path::Path)> {
         self.notebook_roots
             .iter()
+            .filter(|(id, _)| !self.loose.contains_key(id.as_str()))
             .map(|(id, path)| (id.as_str(), path.as_path()))
     }
 }

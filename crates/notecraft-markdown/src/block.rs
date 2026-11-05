@@ -51,11 +51,17 @@ pub struct Run {
     pub family: Option<String>,
     /// The link target, for text inside a link (or an image, whose alt text is shown).
     pub link: Option<String>,
+    /// The run is a page link (`[[Target]]` or `[[Target|text]]`): `text` is what shows and
+    /// this is the target as written (docs/markdown.md section 5.1).
+    pub page_link: Option<String>,
     /// The run is an image (`![alt](target)`): `text` is the alt text and `link` the target.
     pub image: bool,
     /// For an image: the display width the user chose, in page units (docs/markdown.md
     /// section 2.4). `None` shows the picture at its natural size.
     pub image_width: Option<u16>,
+    /// The run is a formula (`$...$` or `$$...$$`): `text` is the LaTeX source without the
+    /// dollar signs (docs/markdown.md section 3.2).
+    pub math: Math,
 }
 
 impl Run {
@@ -73,6 +79,7 @@ impl Run {
             || self.strike
             || self.code
             || self.image
+            || self.math != Math::None
             || self.underline
             || self.script != Script::None)
             && self.highlight.is_none()
@@ -80,7 +87,20 @@ impl Run {
             && self.size_pt.is_none()
             && self.family.is_none()
             && self.link.is_none()
+            && self.page_link.is_none()
     }
+}
+
+/// Whether a run is a formula, and how it is set.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Math {
+    /// Ordinary text.
+    #[default]
+    None,
+    /// `$...$`: set in the line of text.
+    Inline,
+    /// `$$...$$`: set on a line of its own.
+    Display,
 }
 
 /// Subscript or superscript.

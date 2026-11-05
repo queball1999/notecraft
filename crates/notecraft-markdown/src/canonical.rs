@@ -111,7 +111,12 @@ fn paragraph(text: &str) -> String {
         && t.get(digits..).is_some_and(|r| r.starts_with(['.', ')']))
         && t.get(digits + 1..)
             .is_some_and(|r| r.starts_with([' ', '\t']));
-    let marker = t.starts_with(['#', '>', '-', '+', '=', '|'])
+    // `#tag` at the start is a note tag, not a heading (a heading needs a space after `#`).
+    let tag = t
+        .strip_prefix('#')
+        .is_some_and(|r| crate::tags::name_at(r).is_some());
+    let marker = (t.starts_with('#') && !tag)
+        || t.starts_with(['>', '-', '+', '=', '|'])
         || t.starts_with("***")
         || t.starts_with("___")
         || t.starts_with("```")
@@ -244,6 +249,14 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
             }
             continue;
         }
+        if let Some(target) = &run.page_link {
+            out.push_str(&page_link_text(target, &run.text, in_cell));
+            continue;
+        }
+        if run.math != crate::block::Math::None {
+            out.push_str(&crate::math::wrap(&run.text, run.math));
+            continue;
+        }
         let mut text = if run.code {
             code_span(&run.text)
         } else {
@@ -265,6 +278,23 @@ fn inline(runs: &[Run], in_cell: bool) -> String {
         out.push_str(&text);
     }
     out
+}
+
+/// A page link run as `[[Target]]` or `[[Target|shown]]` (the pipe is `\|` inside a table cell).
+fn page_link_text(target: &str, shown: &str, in_cell: bool) -> String {
+    let bar = if in_cell { "\\|" } else { "|" };
+    let same = shown == target;
+    // Outside a table a literal pipe in the target is written `\|`.
+    let target = &if in_cell {
+        target.to_owned()
+    } else {
+        target.replace('|', "\\|")
+    };
+    if same {
+        format!("[[{target}]]")
+    } else {
+        format!("[[{target}{bar}{shown}]]")
+    }
 }
 
 /// Wrap `text` in the HTML tags and `==` that `run` needs beyond markdown emphasis.
@@ -310,10 +340,22 @@ fn escape(text: &str, in_cell: bool) -> String {
     let mut out = String::with_capacity(text.len());
     // `==` is highlight, so a run of equals signs in text is escaped.
     let has_pair = text.contains("==");
-    for c in text.chars() {
+    let mut prev: Option<char> = None;
+    let mut chars = text.char_indices();
+    while let Some((i, c)) = chars.next() {
+        // A note tag keeps its underscores (`#a_b`), so the page reads it back as a tag.
+        if c == '#' && prev.is_none_or(char::is_whitespace) {
+            if let Some((_, len)) = text.get(i + 1..).and_then(crate::tags::name_at) {
+                out.push_str(text.get(i..i + 1 + len).unwrap_or("#"));
+                chars.nth(len.saturating_sub(1));
+                prev = text.get(..i + 1 + len).and_then(|t| t.chars().next_back());
+                continue;
+            }
+        }
+        prev = Some(c);
         match c {
             '=' if has_pair => out.push_str("\\="),
-            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '~' => {
+            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '~' | '$' => {
                 out.push('\\');
                 out.push(c);
             }

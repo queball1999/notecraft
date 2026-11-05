@@ -157,7 +157,7 @@ impl Index {
         }
         let tx = self.conn.transaction()?;
         let stats = apply(&tx, &tree, root, known)?;
-        refresh_attachments(&tx, root)?;
+        refresh_attachments(&tx, root, &tree)?;
         tx.commit()?;
         Ok(stats)
     }
@@ -195,6 +195,7 @@ fn apply(
     for (path, old) in gone {
         tx.execute("DELETE FROM pages WHERE path = ?1", [&path])?;
         tx.execute("DELETE FROM links WHERE source_page = ?1", [&old.id])?;
+        tx.execute("DELETE FROM page_aliases WHERE page = ?1", [&old.id])?;
         tx.execute("DELETE FROM tags WHERE page = ?1", [&old.id])?;
         tx.execute("DELETE FROM attachment_refs WHERE page = ?1", [&old.id])?;
         tx.execute("DELETE FROM fts_pages WHERE page = ?1", [&old.id])?;
@@ -308,7 +309,8 @@ impl Walk<'_> {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?13)
              ON CONFLICT(path) DO UPDATE SET id = ?1, section = ?3, title = ?4, kind = ?5,
                 level = ?6, ord = ?7, modified = ?9, size = ?10, hash = ?11, collapsed = ?13,
-                fm_title = CASE WHEN ?12 THEN fm_title ELSE NULL END",
+                fm_title = CASE WHEN ?12 THEN fm_title ELSE NULL END,
+                fm_id = CASE WHEN ?12 THEN fm_id ELSE NULL END",
             params![
                 id,
                 page.rel_path,
@@ -329,6 +331,12 @@ impl Walk<'_> {
             None => self.stats.added.push(id),
             Some(_) if same_content => self.stats.unchanged += 1,
             Some(old) if old.id != id => {
+                self.tx
+                    .execute("DELETE FROM fts_pages WHERE page = ?1", [&old.id])?;
+                self.tx
+                    .execute("DELETE FROM links WHERE source_page = ?1", [&old.id])?;
+                self.tx
+                    .execute("DELETE FROM page_aliases WHERE page = ?1", [&old.id])?;
                 self.stats.removed.push(old.id);
                 self.stats.added.push(id);
             }
@@ -338,15 +346,47 @@ impl Walk<'_> {
     }
 }
 
-fn refresh_attachments(tx: &Transaction<'_>, root: &Path) -> Result<(), rusqlite::Error> {
+/// The folder path of every section, for finding their `attachments` folders.
+fn section_dirs(nodes: &[TreeNode], out: &mut Vec<String>) {
+    for node in nodes {
+        match node {
+            TreeNode::Section(section) => out.push(section.rel_path.clone()),
+            TreeNode::Group(group) => section_dirs(&group.children, out),
+        }
+    }
+}
+
+/// List the attachments of the notebook: the `attachments` folder of every section (where
+/// an insert copies files) and of the notebook folder itself. Each row records the section
+/// folder it belongs to (empty for the notebook folder).
+fn refresh_attachments(
+    tx: &Transaction<'_>,
+    root: &Path,
+    tree: &NotebookTree,
+) -> Result<(), rusqlite::Error> {
     tx.execute("DELETE FROM attachments", [])?;
     let mut count = 0;
-    let mut stack = vec![(
-        root.join(ATTACHMENTS_DIR_NAME),
-        ATTACHMENTS_DIR_NAME.to_owned(),
-        0,
-    )];
-    while let Some((dir, rel, depth)) = stack.pop() {
+    let mut owners = vec![String::new()];
+    section_dirs(&tree.nodes, &mut owners);
+    let mut stack: Vec<(std::path::PathBuf, String, usize, String)> = owners
+        .iter()
+        .rev()
+        .map(|owner| {
+            let (dir, rel) = if owner.is_empty() {
+                (
+                    root.join(ATTACHMENTS_DIR_NAME),
+                    ATTACHMENTS_DIR_NAME.to_owned(),
+                )
+            } else {
+                (
+                    root.join(owner).join(ATTACHMENTS_DIR_NAME),
+                    format!("{owner}/{ATTACHMENTS_DIR_NAME}"),
+                )
+            };
+            (dir, rel, 0, owner.clone())
+        })
+        .collect();
+    while let Some((dir, rel, depth, owner)) = stack.pop() {
         let Ok(read) = fs::read_dir(&dir) else {
             continue;
         };
@@ -358,14 +398,20 @@ fn refresh_attachments(tx: &Transaction<'_>, root: &Path) -> Result<(), rusqlite
             let child = format!("{rel}/{name}");
             if meta.is_dir() {
                 if depth + 1 < ATTACHMENT_DEPTH {
-                    stack.push((entry.path(), child, depth + 1));
+                    stack.push((entry.path(), child, depth + 1, owner.clone()));
                 }
             } else if meta.is_file() && count < MAX_ATTACHMENTS {
                 count += 1;
                 tx.execute(
-                    "INSERT OR REPLACE INTO attachments (path, size, mime, hash)
-                     VALUES (?1, ?2, ?3, NULL)",
-                    params![child, size_i64(meta.len()), mime_for(&name)],
+                    "INSERT OR REPLACE INTO attachments (path, size, mime, hash, section, modified)
+                     VALUES (?1, ?2, ?3, NULL, ?4, ?5)",
+                    params![
+                        child,
+                        size_i64(meta.len()),
+                        mime_for(&name),
+                        owner,
+                        millis(meta.modified())
+                    ],
                 )?;
             }
         }

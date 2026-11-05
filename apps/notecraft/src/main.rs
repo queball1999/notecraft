@@ -18,6 +18,7 @@
 )]
 
 mod args;
+mod clock;
 mod control;
 mod graphics;
 mod logging;
@@ -99,8 +100,12 @@ impl eframe::App for App {
         self.store.update(|p| p.colors.observe(colors));
         let tools = self.shell.pen_tools();
         self.store.update(|p| p.draw.observe(tools));
+        let tag_set = self.shell.tag_set();
+        self.store.update(|p| p.tags.observe(tag_set));
         let rules = self.shell.default_rule_lines();
         self.store.update(|p| p.draw.observe_rules(rules));
+        let update_links = self.shell.session().link_update_on_rename();
+        self.store.update(|p| p.links.observe(update_links));
 
         // Remember the window geometry; update() only marks the store dirty on a real change.
         let info = ctx.input(|i| i.viewport().clone());
@@ -134,7 +139,10 @@ impl eframe::App for App {
 
     fn on_exit(&mut self) {
         // Save every unsaved page before the settings and the process go.
-        self.shell.flush_unsaved();
+        if let Some(notice) = self.shell.flush_unsaved() {
+            // The window is closing, so there is no toast to show; the log says it.
+            tracing::warn!("{notice}");
+        }
         if let Some(control) = &self.control {
             control.shutdown();
         }
@@ -233,7 +241,9 @@ fn main() -> eframe::Result<()> {
     let recents = store.get().recent.recents();
     let recent_colors = store.get().colors.recent.clone();
     let pen_tools = store.get().draw.tools();
+    let tag_set = store.get().tags.tag_set();
     let default_rules = store.get().draw.default_rules().to_owned();
+    let update_links = store.get().links.update_on_rename;
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
         .with_app_id(APP_ID)
@@ -287,7 +297,10 @@ fn main() -> eframe::Result<()> {
             shell.set_recents(recents);
             shell.set_recent_colors(recent_colors);
             shell.set_pen_tools(pen_tools);
+            shell.set_tag_set(tag_set);
             shell.set_default_rule_lines(&default_rules);
+            shell.set_link_update_on_rename(update_links);
+            shell.set_clock(clock::local());
             // A path on the command line wins; if it cannot open (the shell toasts why), or
             // none was given, reopen what was open last. With nothing recent, the start page
             // shows.

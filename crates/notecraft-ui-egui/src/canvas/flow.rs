@@ -14,13 +14,18 @@ use notecraft_core::Vec2;
 use notecraft_engine::TextCursor;
 use notecraft_markdown::objects::{is_file_link, is_file_paragraph};
 use notecraft_markdown::{
-    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Run, Script, Span,
-    Table,
+    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, LinkIndex, ListKind, Math,
+    Resolved, Run, Script, Span, Table,
 };
 use notecraft_model::{Container, ObjectKind, PlacedObject};
 
 use super::pictures::{PictureSource, Shown};
+
+mod math;
+#[cfg(test)]
+mod math_tests;
 use super::rawtext::Raw;
+use super::tag_view::{self, Mark, TagInput};
 use super::PageToScreen;
 use crate::themes::{bold_family, mix, ThemeTokens};
 
@@ -40,6 +45,8 @@ const INDENT: f32 = 24.0;
 const MAX_ITEMS: usize = 40_000;
 /// Most table columns laid out.
 const MAX_COLUMNS: usize = 64;
+/// Space between note tag icons, in page units.
+const TAG_GAP: f32 = 3.0;
 
 /// A drawing item. Positions are in page units, except galleys, which are laid out at
 /// the zoom they were made for.
@@ -68,12 +75,22 @@ enum Item {
         rect: Rect,
         checked: bool,
     },
+    /// A note tag icon at the start of a paragraph.
+    Tag {
+        rect: Rect,
+        mark: Mark,
+    },
     /// A picture, or the placeholder that stands in for one that cannot be shown.
     Picture {
         rect: Rect,
         shown: Shown,
         /// Alt text (and the reason, for a placeholder).
         label: Arc<Galley>,
+    },
+    /// A typeset formula, drawn from its texture.
+    Math {
+        rect: Rect,
+        texture: egui::TextureId,
     },
     /// A file attachment: an icon with the file name.
     File {
@@ -82,6 +99,69 @@ enum Item {
         ext: String,
     },
 }
+
+/// One laid-out piece of page text that find on page searches: a paragraph, heading, table
+/// cell, or code block. `notecraft_engine::find::page_units` lists the same pieces in the same
+/// order.
+pub(super) struct Unit {
+    /// Top left corner in page units.
+    pub pos: Pos2,
+    pub galley: Arc<Galley>,
+    /// The page links in the piece of text.
+    pub links: Vec<LinkSpan>,
+}
+
+/// What a page link on the canvas points at (docs/markdown.md section 5.3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum LinkStatus {
+    /// Exactly one page.
+    Found,
+    /// More than one page; the labels are the candidates, closest first.
+    Ambiguous(Vec<String>),
+    /// No page. Clicking creates it.
+    Missing,
+}
+
+/// The pages page links resolve against, and the page the links are on.
+#[derive(Clone, Copy)]
+pub(super) struct LinkContext<'a> {
+    pub index: &'a LinkIndex,
+    /// Path of the page shown, from the notebook folder.
+    pub from: &'a str,
+}
+
+impl LinkContext<'_> {
+    pub(super) fn status(&self, target: &str) -> LinkStatus {
+        match self.index.resolve(target, self.from) {
+            Resolved::Page(_) => LinkStatus::Found,
+            Resolved::Ambiguous { candidates, .. } => {
+                LinkStatus::Ambiguous(candidates.iter().map(|p| p.stem().to_owned()).collect())
+            }
+            Resolved::Unresolved => LinkStatus::Missing,
+        }
+    }
+}
+
+/// A page link in a laid-out piece of text: where it is and what it points at.
+#[derive(Clone, Debug)]
+pub(super) struct LinkSpan {
+    /// The link target as written.
+    pub target: String,
+    pub status: LinkStatus,
+    /// The rectangles the link covers, one per row of text, in page units.
+    pub rects: Vec<Rect>,
+}
+
+/// A link run in a galley: its characters (a range of `char` positions) and what it is.
+struct LinkMark {
+    target: String,
+    status: LinkStatus,
+    from: usize,
+    to: usize,
+}
+
+/// A link run found while building a layout job: the job section that holds it.
+type SectionMark = (usize, String, LinkStatus);
 
 /// A file attachment on the page, for clicks and drags.
 #[derive(Clone, Debug, PartialEq)]
@@ -136,6 +216,10 @@ pub(super) struct Input<'a> {
     pub preedit: &'a str,
     /// Pictures and files with a place of their own (docs/markdown.md section 3.4).
     pub objects: &'a [PlacedObject],
+    /// The pages page links resolve against; `None` draws every link as found.
+    pub links: Option<LinkContext<'a>>,
+    /// The note tag gallery and the tagged paragraphs of the page (PR 2.5).
+    pub tags: Option<TagInput<'a>>,
 }
 
 /// Where one container landed, in page units.
@@ -167,6 +251,8 @@ pub(super) struct Flow {
     pub raws: Vec<Raw>,
     /// The caret, in page units, when it is in one of the raw regions.
     pub caret: Option<Rect>,
+    /// The text pieces find on page searches, in page order.
+    pub units: Vec<Unit>,
 }
 
 struct Layout<'a> {
@@ -191,10 +277,19 @@ struct Layout<'a> {
     blocks_out: Vec<BlockBox>,
     raws: Vec<Raw>,
     caret: Option<Rect>,
+    units: Vec<Unit>,
     /// An alignment comment was just read; it applies to the next paragraph or heading.
     pending_align: Option<egui::Align>,
     /// Alignment of the paragraph being laid out.
     align: egui::Align,
+    /// Inline formulas ready to draw, by source and text size.
+    inline_math: math::InlineMap,
+    /// The pages page links resolve against.
+    links: Option<LinkContext<'a>>,
+    /// The note tag gallery and tagged paragraphs.
+    tags: Option<TagInput<'a>>,
+    /// How many lists the block being laid out is inside.
+    list_depth: usize,
 }
 
 /// Lay out the page's containers at `zoom` (1.0 is 100%). Containers without a position stack
@@ -229,8 +324,13 @@ pub(super) fn layout(
         blocks_out: Vec::new(),
         raws: Vec::new(),
         caret: None,
+        units: Vec::new(),
         pending_align: None,
         align: egui::Align::Min,
+        inline_math: math::InlineMap::new(),
+        links: input.links,
+        tags: input.tags,
+        list_depth: 0,
     };
     let mut y_flow = TOP;
     let mut bottom = TOP;
@@ -276,6 +376,7 @@ pub(super) fn layout(
         blocks: ctx.blocks_out,
         raws: ctx.raws,
         caret: ctx.caret,
+        units: ctx.units,
     }
 }
 
@@ -544,7 +645,14 @@ impl Layout<'_> {
             bold: None,
         });
         self.raws.push(raw);
-        *y += height + BODY_SIZE * 0.6;
+        // While the caret is in a formula, a typeset preview of it sits below the source.
+        let preview = input
+            .cursor
+            .filter(|c| c.is_caret() && c.head >= region.start && c.head <= region.end)
+            .map_or(0.0, |c| {
+                self.live_preview(input.text, c.head, (x, width), (*y, *y + height))
+            });
+        *y += height + preview + BODY_SIZE * 0.6;
     }
 
     fn blocks(&mut self, blocks: &[Block], x: f32, width: f32, y: &mut f32) {
@@ -571,7 +679,7 @@ impl Layout<'_> {
                 let size = BODY_SIZE * heading_scale(*level);
                 *y += size * 0.35;
                 self.align = pending.unwrap_or(egui::Align::Min);
-                let h = self.text(runs, size, true, tokens.text, x, *y, width);
+                let h = self.tagged_text(block.span, runs, size, true, x, *y, width);
                 self.align = egui::Align::Min;
                 *y += h + size * 0.3;
             }
@@ -592,9 +700,21 @@ impl Layout<'_> {
                 }
                 self.paragraph_text(&mut pending, x, width, y);
             }
+            BlockKind::Paragraph { runs } if runs.iter().any(|r| r.math == Math::Display) => {
+                let mut pending: Vec<Run> = Vec::new();
+                for run in runs {
+                    if run.math != Math::Display {
+                        pending.push(run.clone());
+                        continue;
+                    }
+                    self.paragraph_text(&mut pending, x, width, y);
+                    self.display_math(run, x, width, y);
+                }
+                self.paragraph_text(&mut pending, x, width, y);
+            }
             BlockKind::Paragraph { runs } => {
                 self.align = pending.unwrap_or(egui::Align::Min);
-                let h = self.text(runs, BODY_SIZE, false, tokens.text, x, *y, width);
+                let h = self.tagged_text(block.span, runs, BODY_SIZE, false, x, *y, width);
                 self.align = egui::Align::Min;
                 *y += h + BODY_SIZE * 0.6;
             }
@@ -638,6 +758,47 @@ impl Layout<'_> {
                 *y += BODY_SIZE * 1.4;
             }
         }
+    }
+
+    /// Lay out a paragraph or heading and its note tags: the tag icons hang in the margin
+    /// before the text (inside a list, and when there is no margin, they come first on the
+    /// line and the text moves over). Returns the height in page units.
+    #[allow(clippy::too_many_arguments)]
+    fn tagged_text(
+        &mut self,
+        holder: Span,
+        runs: &[Run],
+        size: f32,
+        bold: bool,
+        x: f32,
+        y: f32,
+        width: f32,
+    ) -> f32 {
+        let (shown, marks) = tag_view::apply(self.tags, holder, runs);
+        let color = self.tokens.text;
+        if marks.is_empty() {
+            return self.text(&shown, size, bold, color, x, y, width);
+        }
+        let icon = BODY_SIZE * 1.05;
+        let step = icon + TAG_GAP;
+        let needed = marks.len() as f32 * step;
+        let hang = self.list_depth == 0 && x - needed >= 2.0;
+        let (icons_x, text_x, text_w) = if hang {
+            (x - needed, x, width)
+        } else {
+            (x, x + needed, (width - needed).max(40.0))
+        };
+        let line = size * 1.3;
+        let top = y + ((line - icon) / 2.0).max(0.0);
+        for (i, mark) in marks.iter().enumerate() {
+            let min = Pos2::new(icons_x + i as f32 * step, top);
+            self.items.push(Item::Tag {
+                rect: Rect::from_min_size(min, egui::vec2(icon, icon)),
+                mark: *mark,
+            });
+        }
+        self.text(&shown, size, bold, color, text_x, y, text_w)
+            .max(line)
     }
 
     /// A paragraph that is one link to a file in the notebook: an attachment object.
@@ -821,6 +982,7 @@ impl Layout<'_> {
                 None if matches!(kind, ListKind::Ordered(_)) => {
                     let number = u64::from(first_number).saturating_add(index as u64);
                     let label = vec![Run::plain(format!("{number}."))];
+                    let units = self.units.len();
                     self.text(
                         &label,
                         BODY_SIZE,
@@ -830,13 +992,17 @@ impl Layout<'_> {
                         top,
                         INDENT,
                     );
+                    // The number is not page text.
+                    self.units.truncate(units);
                 }
                 None => self.items.push(Item::Dot {
                     center: Pos2::new(marker_x + 5.0, top + line / 2.0),
                     radius: 2.2,
                 }),
             }
+            self.list_depth += 1;
             self.blocks(&item.blocks, x + INDENT + 4.0, width - INDENT - 4.0, y);
+            self.list_depth -= 1;
             if *y == top {
                 *y += line;
             }
@@ -866,6 +1032,11 @@ impl Layout<'_> {
         self.items.push(Item::Fill {
             rect: Rect::from_min_size(Pos2::new(x, top), egui::vec2(width, height + 2.0 * pad)),
             color: fill,
+        });
+        self.units.push(Unit {
+            pos: Pos2::new(x + pad, top + pad),
+            galley: galley.clone(),
+            links: Vec::new(),
         });
         self.items.push(Item::Text {
             pos: Pos2::new(x + pad, top + pad),
@@ -900,9 +1071,9 @@ impl Layout<'_> {
             let mut row_h = BODY_SIZE * 1.4;
             for (c, cell) in row.iter().take(columns).enumerate() {
                 let align = table.align.get(c).copied().unwrap_or_default();
-                let galley = self.cell(cell, is_header, col_w - 2.0 * pad);
+                let (galley, marks) = self.cell(cell, is_header, col_w - 2.0 * pad);
                 row_h = row_h.max(galley.size().y / self.zoom + 2.0 * pad);
-                cells.push((c, galley, align));
+                cells.push((c, galley, marks, align));
             }
             if is_header {
                 self.items.push(Item::Fill {
@@ -910,7 +1081,7 @@ impl Layout<'_> {
                     color: mix(self.tokens.canvas_bg, self.tokens.text, 0.07),
                 });
             }
-            for (c, galley, align) in cells {
+            for (c, galley, marks, align) in cells {
                 let gw = galley.size().x / self.zoom;
                 let room = (col_w - 2.0 * pad - gw).max(0.0);
                 let dx = match align {
@@ -920,6 +1091,12 @@ impl Layout<'_> {
                 };
                 let pos = Pos2::new(x + c as f32 * col_w + pad + dx, row_top + pad);
                 let bold = (is_header && !self.bold_face).then(|| galley.clone());
+                let links = self.link_spans(&galley, &marks, pos);
+                self.units.push(Unit {
+                    pos,
+                    galley: galley.clone(),
+                    links,
+                });
                 self.items.push(Item::Text { pos, galley, bold });
             }
             *y += row_h;
@@ -944,8 +1121,8 @@ impl Layout<'_> {
         }
     }
 
-    fn cell(&self, cell: &Cell, header: bool, width: f32) -> Arc<Galley> {
-        self.galley(&cell.runs, BODY_SIZE, header, self.tokens.text, width)
+    fn cell(&self, cell: &Cell, header: bool, width: f32) -> (Arc<Galley>, Vec<LinkMark>) {
+        self.galley_marked(&cell.runs, BODY_SIZE, header, self.tokens.text, width)
     }
 
     /// Lay out `runs` at (`x`, `y`) wrapped to `width`; returns the height in page units.
@@ -962,7 +1139,8 @@ impl Layout<'_> {
         if runs.is_empty() {
             return 0.0;
         }
-        let galley = self.galley(runs, size, bold, color, width);
+        self.prepare_inline_math(runs, size);
+        let (galley, marks) = self.galley_marked(runs, size, bold, color, width);
         let height = galley.size().y / self.zoom;
         let wants_ghost = runs.iter().any(|r| self.overstruck(r, bold));
         let ghost = wants_ghost.then(|| self.galley_bold_only(runs, size, bold, color, width));
@@ -972,6 +1150,13 @@ impl Layout<'_> {
             egui::Align::Center => x + width / 2.0,
             egui::Align::Max => x + width,
         };
+        let links = self.link_spans(&galley, &marks, Pos2::new(x, y));
+        self.units.push(Unit {
+            pos: Pos2::new(x, y),
+            galley: galley.clone(),
+            links,
+        });
+        self.place_inline_math(runs, size, &galley, Pos2::new(x, y));
         self.items.push(Item::Text {
             pos: Pos2::new(x, y),
             galley,
@@ -994,11 +1179,38 @@ impl Layout<'_> {
         color: Color32,
         width: f32,
         only_bold: bool,
-    ) -> LayoutJob {
+    ) -> (LayoutJob, Vec<SectionMark>) {
+        let mut marks = Vec::new();
         let mut job = LayoutJob::default();
         job.wrap.max_width = (width * self.zoom).max(1.0);
         job.halign = self.align;
         for run in runs {
+            if run.math == Math::Inline {
+                if let Some(ready) = self.inline_math.get(&(run.text.clone(), size.to_bits())) {
+                    // Room for the formula, drawn over the gap after layout.
+                    let wanted = (ready.ascent + ready.descent) * 1.1 * self.zoom;
+                    job.append(
+                        &math::PLACEHOLDER.to_string(),
+                        ready.width * self.zoom,
+                        TextFormat {
+                            font_id: FontId::new(size * self.zoom, FontFamily::Proportional),
+                            color: Color32::TRANSPARENT,
+                            line_height: (wanted > size * 1.3 * self.zoom).then_some(wanted),
+                            valign: egui::Align::Center,
+                            ..TextFormat::default()
+                        },
+                    );
+                    continue;
+                }
+            }
+            // A formula that is not drawn is shown as its source.
+            let source_run;
+            let run = if run.math == Math::None {
+                run
+            } else {
+                source_run = math::source_run(run);
+                &source_run
+            };
             let is_bold = self.overstruck(run, bold);
             let family = if run.code {
                 FontFamily::Monospace
@@ -1019,7 +1231,14 @@ impl Layout<'_> {
             if run.script != Script::None {
                 run_size *= 0.7;
             }
-            let mut text_color = if run.link.is_some() {
+            let status = run.page_link.as_deref().map(|target| {
+                self.links
+                    .map_or(LinkStatus::Found, |links| links.status(target))
+            });
+            let is_link = run.link.is_some() || status.is_some();
+            let mut text_color = if let Some(status) = &status {
+                link_color(status, self.tokens)
+            } else if is_link {
                 self.tokens.accent
             } else if let Some(rgb) = run.color {
                 rgb_color(rgb)
@@ -1029,12 +1248,17 @@ impl Layout<'_> {
             if only_bold && !is_bold {
                 text_color = Color32::TRANSPARENT;
             }
-            let underline =
-                if (run.link.is_some() || run.underline) && text_color != Color32::TRANSPARENT {
-                    Stroke::new(1.0, text_color)
-                } else {
-                    Stroke::NONE
-                };
+            // Ambiguous and missing links are underlined with dots or dashes when painted.
+            let drawn_apart =
+                matches!(status, Some(LinkStatus::Ambiguous(_) | LinkStatus::Missing));
+            let underline = if (is_link || run.underline)
+                && !(drawn_apart && !run.underline)
+                && text_color != Color32::TRANSPARENT
+            {
+                Stroke::new(1.0, text_color)
+            } else {
+                Stroke::NONE
+            };
             let strikethrough = if run.strike && text_color != Color32::TRANSPARENT {
                 Stroke::new(1.0, text_color)
             } else {
@@ -1050,6 +1274,11 @@ impl Layout<'_> {
             } else {
                 Color32::TRANSPARENT
             };
+            if let (Some(status), Some(target)) = (status, run.page_link.as_ref()) {
+                if !only_bold {
+                    marks.push((job.sections.len(), target.clone(), status));
+                }
+            }
             job.append(
                 &run.text,
                 0.0,
@@ -1065,7 +1294,46 @@ impl Layout<'_> {
                 },
             );
         }
-        job
+        (job, marks)
+    }
+
+    /// The galley for `runs`, and the page links in it.
+    fn galley_marked(
+        &self,
+        runs: &[Run],
+        size: f32,
+        bold: bool,
+        color: Color32,
+        width: f32,
+    ) -> (Arc<Galley>, Vec<LinkMark>) {
+        let (job, raw) = self.job(runs, size, bold, color, width, false);
+        // Link positions as character ranges, read before the job is consumed.
+        let chars = |end: usize| job.text.get(..end).map_or(0, |t| t.chars().count());
+        let marks: Vec<LinkMark> = raw
+            .into_iter()
+            .filter_map(|(section, target, status)| {
+                let range = job.sections.get(section)?.byte_range.clone();
+                Some(LinkMark {
+                    target,
+                    status,
+                    from: chars(range.start.0),
+                    to: chars(range.end.0),
+                })
+            })
+            .collect();
+        (self.painter.layout_job(job), marks)
+    }
+
+    /// Where each link of a galley placed at `pos` is, in page units.
+    fn link_spans(&self, galley: &Galley, marks: &[LinkMark], pos: Pos2) -> Vec<LinkSpan> {
+        marks
+            .iter()
+            .map(|mark| LinkSpan {
+                target: mark.target.clone(),
+                status: mark.status.clone(),
+                rects: galley_rects(galley, pos, self.zoom, mark.from, mark.to),
+            })
+            .collect()
     }
 
     fn galley(
@@ -1077,7 +1345,7 @@ impl Layout<'_> {
         width: f32,
     ) -> Arc<Galley> {
         self.painter
-            .layout_job(self.job(runs, size, bold, color, width, false))
+            .layout_job(self.job(runs, size, bold, color, width, false).0)
     }
 
     fn galley_bold_only(
@@ -1089,11 +1357,32 @@ impl Layout<'_> {
         width: f32,
     ) -> Arc<Galley> {
         self.painter
-            .layout_job(self.job(runs, size, bold, color, width, true))
+            .layout_job(self.job(runs, size, bold, color, width, true).0)
     }
 }
 
 impl Flow {
+    /// The matches of `query` in the page text, in page order. Each match is the rectangles
+    /// it covers (one per row of text it spans), in page units. Case-insensitive; at most
+    /// `notecraft_engine::find::MAX_MATCHES`.
+    pub(super) fn find_rects(&self, query: &str) -> Vec<Vec<Rect>> {
+        let query = notecraft_engine::find::clean_query(query);
+        let mut out: Vec<Vec<Rect>> = Vec::new();
+        for unit in &self.units {
+            let room = notecraft_engine::find::MAX_MATCHES.saturating_sub(out.len());
+            if room == 0 {
+                break;
+            }
+            let text = &unit.galley.job.text;
+            for range in notecraft_engine::find::find_ranges(text, &query, room) {
+                let from = text.get(..range.start).map_or(0, |t| t.chars().count());
+                let to = text.get(..range.end).map_or(from, |t| t.chars().count());
+                out.push(galley_rects(&unit.galley, unit.pos, self.zoom, from, to));
+            }
+        }
+        out
+    }
+
     /// The color of the text under page position `at`, or `None` when there is no text there.
     /// Text with no color of its own is drawn in `automatic`.
     pub(super) fn text_color_at(&self, at: Vec2, automatic: Color32) -> Option<Color32> {
@@ -1135,6 +1424,46 @@ impl Flow {
         }
         None
     }
+}
+
+/// The rectangles, in page units, of characters `from..to` of `galley`, which sits at `pos` and
+/// was laid out at `zoom`. One per row; an empty range gives none.
+fn galley_rects(galley: &Galley, pos: Pos2, zoom: f32, from: usize, to: usize) -> Vec<Rect> {
+    use egui::text::CCursor;
+    if to <= from {
+        return Vec::new();
+    }
+    let zoom = zoom.max(0.01);
+    let min = galley.layout_from_cursor(CCursor::new(from));
+    let max = galley.layout_from_cursor(CCursor::new(to));
+    let mut rects = Vec::new();
+    for row_index in min.row..=max.row {
+        let Some(placed) = galley.rows.get(row_index) else {
+            break;
+        };
+        let left = if row_index == min.row {
+            placed.x_offset(min.column)
+        } else {
+            0.0
+        };
+        let right = if row_index == max.row {
+            placed.x_offset(max.column)
+        } else {
+            placed.size.x
+        };
+        if right <= left {
+            continue;
+        }
+        let rect = Rect::from_min_max(
+            Pos2::new(placed.pos.x + left, placed.pos.y),
+            Pos2::new(placed.pos.x + right, placed.pos.y + placed.size.y),
+        );
+        rects.push(Rect::from_min_max(
+            pos + rect.min.to_vec2() / zoom,
+            pos + rect.max.to_vec2() / zoom,
+        ));
+    }
+    rects
 }
 
 /// Draw the laid-out page.
@@ -1204,6 +1533,13 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                     }
                 }
             }
+            Item::Math { rect, texture } => {
+                let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
+                if r.intersects(clip) {
+                    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+                    painter.image(*texture, r, uv, Color32::WHITE);
+                }
+            }
             Item::File { rect, name, ext } => {
                 let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
                 if !r.intersects(clip) {
@@ -1247,6 +1583,12 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                 let text_at = Pos2::new(icon.max.x + 8.0 * z, r.center().y - name.size().y / 2.0);
                 painter.galley(text_at, name.clone(), tokens.text);
             }
+            Item::Tag { rect, mark } => {
+                let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
+                if r.intersects(clip) {
+                    crate::icons::paint_tag(painter, r, mark.icon, rgb_color(mark.color));
+                }
+            }
             Item::Check { rect, checked } => {
                 let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
                 if !r.intersects(clip) {
@@ -1268,6 +1610,60 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                 }
             }
         }
+    }
+    paint_link_marks(painter, map, flow, tokens);
+}
+
+/// The color of a page link's text.
+fn link_color(status: &LinkStatus, tokens: &ThemeTokens) -> Color32 {
+    match status {
+        // A link to a page that does not exist yet reads a little quieter.
+        LinkStatus::Missing => mix(tokens.accent, tokens.text_muted, 0.4),
+        LinkStatus::Found | LinkStatus::Ambiguous(_) => tokens.accent,
+    }
+}
+
+/// Underline ambiguous links with dots and missing links with dashes. (A link to one page
+/// keeps the ordinary solid underline of its text.)
+fn paint_link_marks(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &ThemeTokens) {
+    let clip = painter.clip_rect();
+    let z = map.zoom.max(0.5);
+    for unit in &flow.units {
+        for link in &unit.links {
+            let (dash, gap) = match link.status {
+                LinkStatus::Found => continue,
+                LinkStatus::Ambiguous(_) => (1.2 * z, 2.4 * z),
+                LinkStatus::Missing => (5.0 * z, 3.0 * z),
+            };
+            let stroke = Stroke::new(1.0, link_color(&link.status, tokens));
+            for rect in &link.rects {
+                let r = Rect::from_min_max(
+                    map.pos(Vec2::new(rect.min.x, rect.min.y)),
+                    map.pos(Vec2::new(rect.max.x, rect.max.y)),
+                );
+                if !r.intersects(clip) {
+                    continue;
+                }
+                // Near the bottom of the row, where a text underline sits.
+                let y = r.max.y - r.height() * 0.14;
+                let mut x = r.min.x;
+                while x < r.max.x {
+                    let end = (x + dash).min(r.max.x);
+                    painter.line_segment([Pos2::new(x, y), Pos2::new(end, y)], stroke);
+                    x = end + gap;
+                }
+            }
+        }
+    }
+}
+
+impl Flow {
+    /// The page link under page position `at`, if there is one.
+    pub(super) fn link_at(&self, at: Pos2) -> Option<&LinkSpan> {
+        self.units
+            .iter()
+            .flat_map(|unit| unit.links.iter())
+            .find(|link| link.rects.iter().any(|r| r.contains(at)))
     }
 }
 
@@ -1331,6 +1727,8 @@ mod tests {
             cursor,
             preedit: "",
             objects: &[],
+            links: None,
+            tags: None,
         };
         layout(painter, &input, zoom, tokens, &mut NoPictures)
     }
@@ -1377,6 +1775,8 @@ mod tests {
                 cursor: None,
                 preedit: "",
                 objects,
+                links: None,
+                tags: None,
             };
             if dragged {
                 layout(painter, &input, 1.0, &tokens, &mut Dragged)
@@ -1458,6 +1858,8 @@ mod tests {
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                links: None,
+                tags: None,
             };
             layout(painter, &input, 1.0, &tokens, &mut Fixed).picture_hits
         });
@@ -1629,6 +2031,115 @@ mod tests {
         });
     }
 
+    const FIND_PAGE: &str = "# Find me
+
+1. first find
+2. second
+
+- bullet FIND
+
+> quoted find
+
+```
+code find
+```
+
+| a | Find |
+|---|---|
+| x | y find |
+
+<!-- notecraft:align=center -->
+Centered find
+
+Before ![find alt](a.png) after find
+
+[find.txt](files/find.txt)
+
+<!-- notecraft:container id=c1 -->
+In the second find container
+";
+
+    #[test]
+    fn the_laid_out_text_pieces_are_the_ones_the_engine_searches() {
+        let tokens = tokens();
+        with_painter(|painter| {
+            let flow = lay(painter, FIND_PAGE, 1.0, &tokens, None);
+            let doc = notecraft_markdown::parse(FIND_PAGE);
+            let runs = notecraft_markdown::split_containers(FIND_PAGE, &doc);
+            let units = notecraft_engine::find::page_units(&doc, &runs);
+            let laid: Vec<&str> = flow
+                .units
+                .iter()
+                .map(|u| u.galley.job.text.as_str())
+                .collect();
+            assert_eq!(laid, units, "layout and engine disagree");
+            for query in [
+                "find",
+                "FIND",
+                "e",
+                "x",
+                "nothing here",
+                "second find container",
+            ] {
+                let engine = notecraft_engine::find::find_in_units(&units, query).len();
+                assert_eq!(flow.find_rects(query).len(), engine, "{query}");
+            }
+            assert!(flow.find_rects("find").len() >= 9);
+            assert!(flow.find_rects("").is_empty());
+        });
+    }
+
+    #[test]
+    fn a_match_that_wraps_covers_one_rectangle_per_row() {
+        let tokens = tokens();
+        let text = "word ".repeat(200);
+        with_painter(|painter| {
+            let flow = lay(painter, &text, 1.0, &tokens, None);
+            // 200 characters: longer than a row, and under the query limit.
+            let whole = flow.find_rects(&"word ".repeat(40));
+            assert_eq!(whole.len(), 4);
+            let rects = whole.first().expect("a match");
+            assert!(rects.len() >= 2, "{rects:?}");
+            assert!(rects.iter().all(|r| r.width() > 0.0 && r.height() > 0.0));
+            let one = flow.find_rects("word");
+            assert_eq!(one.len(), 200);
+            // Matches go down the page in order.
+            let tops: Vec<f32> = one
+                .iter()
+                .filter_map(|m| m.first())
+                .map(|r| r.min.y)
+                .collect();
+            assert!(tops.windows(2).all(|w| w[0] <= w[1]));
+        });
+    }
+
+    #[test]
+    fn a_zoomed_page_gives_matches_in_page_units() {
+        let tokens = tokens();
+        with_painter(|painter| {
+            let at_100 = lay(
+                painter,
+                "Hello find here
+",
+                1.0,
+                &tokens,
+                None,
+            )
+            .find_rects("find");
+            let at_200 = lay(
+                painter,
+                "Hello find here
+",
+                2.0,
+                &tokens,
+                None,
+            )
+            .find_rects("find");
+            let (a, b) = (at_100[0][0], at_200[0][0]);
+            assert!((a.min.x - b.min.x).abs() < 1.5 && (a.width() - b.width()).abs() < 1.5);
+        });
+    }
+
     #[test]
     fn the_caret_block_is_shown_as_raw_markdown_and_the_rest_is_styled() {
         let tokens = tokens();
@@ -1648,6 +2159,93 @@ mod tests {
             let flow = lay(painter, text, 1.0, &tokens, None);
             assert!(flow.raws.is_empty() && flow.caret.is_none());
             assert_eq!(flow.blocks.len(), 3);
+        });
+    }
+
+    /// Lay out `text` with the default tag gallery and the caret where `cursor` says.
+    fn lay_tagged(painter: &Painter, text: &str, cursor: Option<TextCursor>) -> Flow {
+        let doc = notecraft_markdown::parse(text);
+        let runs = notecraft_markdown::split_containers(text, &doc);
+        let geometry: Vec<Container> = runs.iter().map(|r| Container::flow(&r.id)).collect();
+        let set = notecraft_markdown::TagSet::default();
+        let items = notecraft_markdown::tags::tagged_items(text, &doc);
+        let input = Input {
+            text,
+            doc: &doc,
+            runs: &runs,
+            geometry: &geometry,
+            cursor,
+            preedit: "",
+            objects: &[],
+            links: None,
+            tags: Some(TagInput {
+                set: &set,
+                items: &items,
+            }),
+        };
+        layout(painter, &input, 1.0, &tokens(), &mut NoPictures)
+    }
+
+    fn tag_icons(flow: &Flow) -> Vec<notecraft_markdown::TagIcon> {
+        flow.items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Tag { mark, .. } => Some(mark.icon),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn tagged_paragraphs_draw_icons_and_untagged_ones_do_not() {
+        let text =
+            "#important #question Call Ada\n\nPlain\n\n- #idea listed\n\n#highlight Marked\n";
+        with_painter(|painter| {
+            let flow = lay_tagged(painter, text, None);
+            use notecraft_markdown::TagIcon::{Bulb, Question, Star};
+            assert_eq!(tag_icons(&flow), [Star, Question, Bulb]);
+            // The first icons hang in the margin, left of the text column.
+            let first = flow
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    Item::Tag { rect, .. } => Some(*rect),
+                    _ => None,
+                })
+                .expect("icon");
+            assert!(first.max.x <= LEFT && first.min.x >= 2.0, "{first:?}");
+            // A list item keeps its icon inline, right of the bullet.
+            let rects: Vec<Rect> = flow
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Tag { rect, .. } => Some(*rect),
+                    _ => None,
+                })
+                .collect();
+            assert!(rects[2].min.x > LEFT, "{:?}", rects[2]);
+            // The tag names are not in the shown text.
+            let shown: String = flow
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Text { galley, .. } => Some(galley.job.text.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert!(!shown.contains('#'), "{shown}");
+            assert!(shown.contains("Call Ada") && shown.contains("Marked"));
+        });
+    }
+
+    #[test]
+    fn the_paragraph_with_the_caret_shows_its_tags_as_text() {
+        let text = "#important Call Ada\n\n#question Other\n";
+        with_painter(|painter| {
+            let flow = lay_tagged(painter, text, Some(TextCursor::caret(5)));
+            assert_eq!(flow.raws.len(), 1);
+            assert_eq!(flow.raws[0].text, "#important Call Ada");
+            assert_eq!(tag_icons(&flow), [notecraft_markdown::TagIcon::Question]);
         });
     }
 
@@ -1708,6 +2306,8 @@ mod tests {
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                links: None,
+                tags: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             let rect = |i: usize| flow.containers.get(i).expect("box").rect;
@@ -1736,6 +2336,8 @@ mod tests {
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                links: None,
+                tags: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             assert!(flow.width >= 3240.0, "width {}", flow.width);
@@ -1772,6 +2374,8 @@ mod tests {
                 cursor: Some(TextCursor::caret(1)),
                 preedit: "\u{4e2d}\u{6587}",
                 objects: &[],
+                links: None,
+                tags: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             let raw = flow.raws.first().expect("raw");
@@ -1894,6 +2498,103 @@ mod tests {
             assert_eq!(items.len(), 1);
             assert!(items[0].0);
             assert_eq!(items[0].1, vec![FontFamily::Monospace]);
+        });
+    }
+
+    /// Lay out `text` as the page at `from`, with page links resolved against `index`.
+    fn lay_links(painter: &Painter, text: &str, index: &LinkIndex, from: &str) -> Flow {
+        let tokens = tokens();
+        let doc = notecraft_markdown::parse(text);
+        let runs = notecraft_markdown::split_containers(text, &doc);
+        let geometry: Vec<Container> = runs.iter().map(|r| Container::flow(&r.id)).collect();
+        let input = Input {
+            text,
+            doc: &doc,
+            runs: &runs,
+            geometry: &geometry,
+            cursor: None,
+            preedit: "",
+            objects: &[],
+            links: Some(LinkContext { index, from }),
+            tags: None,
+        };
+        layout(painter, &input, 1.0, &tokens, &mut NoPictures)
+    }
+
+    fn link_pages() -> LinkIndex {
+        use notecraft_markdown::LinkPage;
+        LinkIndex::new(vec![
+            LinkPage::new("nb/S/A.md", "S/A.md"),
+            LinkPage::new("nb/S/Plan.md", "S/Plan.md"),
+            LinkPage::new("nb/S/Dup.md", "S/Dup.md"),
+            LinkPage::new("nb/T/Dup.md", "T/Dup.md"),
+        ])
+    }
+
+    fn link_statuses(flow: &Flow) -> Vec<(String, LinkStatus)> {
+        flow.units
+            .iter()
+            .flat_map(|unit| unit.links.iter())
+            .map(|link| (link.target.clone(), link.status.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn page_links_are_found_ambiguous_or_missing() {
+        let index = link_pages();
+        with_painter(|painter| {
+            let text = "[[Plan]] and [[Dup]] and [[Nope]] and [[Plan|shown]]\n";
+            let flow = lay_links(painter, text, &index, "Z/A.md");
+            assert_eq!(
+                link_statuses(&flow),
+                [
+                    ("Plan".to_owned(), LinkStatus::Found),
+                    (
+                        "Dup".to_owned(),
+                        LinkStatus::Ambiguous(vec!["S/Dup".to_owned(), "T/Dup".to_owned()])
+                    ),
+                    ("Nope".to_owned(), LinkStatus::Missing),
+                    ("Plan".to_owned(), LinkStatus::Found),
+                ]
+            );
+        });
+    }
+
+    #[test]
+    fn a_link_is_found_by_its_position_and_the_text_around_it_is_not() {
+        let index = link_pages();
+        with_painter(|painter| {
+            let flow = lay_links(painter, "Go to [[Nope]] now\n", &index, "S/A.md");
+            let at = super::super::links::first_link_point(&flow, "Nope").expect("a link");
+            let hit = flow.link_at(Pos2::new(at.x, at.y)).expect("hit");
+            assert_eq!(hit.target, "Nope");
+            assert_eq!(hit.status, LinkStatus::Missing);
+            // The word before the link, and the empty space below the text, are not links.
+            assert!(flow.link_at(Pos2::new(LEFT + 2.0, TOP + 8.0)).is_none());
+            assert!(flow.link_at(Pos2::new(LEFT + 2.0, TOP + 400.0)).is_none());
+        });
+    }
+
+    #[test]
+    fn links_in_table_cells_and_lists_are_found_too() {
+        let index = link_pages();
+        with_painter(|painter| {
+            let text = "- item [[Plan]]\n\n| a | b |\n|---|---|\n| [[Nope]] | x |\n";
+            let flow = lay_links(painter, text, &index, "S/A.md");
+            let targets: Vec<String> = link_statuses(&flow).into_iter().map(|(t, _)| t).collect();
+            assert_eq!(targets, ["Plan", "Nope"]);
+        });
+    }
+
+    #[test]
+    fn without_a_resolver_every_link_looks_found() {
+        let tokens = tokens();
+        with_painter(|painter| {
+            let flow = lay(painter, "[[Whatever]]\n", 1.0, &tokens, None);
+            assert_eq!(
+                link_statuses(&flow),
+                [("Whatever".to_owned(), LinkStatus::Found)]
+            );
         });
     }
 }

@@ -638,17 +638,14 @@ const STYLES: Group = Group {
     ))],
 };
 
+/// The Tags list. The tag entries here are only placeholders (the first three default tags):
+/// the gallery and every menu that shows this list build the real entries from the session's
+/// tags each frame (default and custom, renamed, hidden, and moved), then add Customize Tags
+/// and Remove Tag from below.
 const MORE_TAGS: &[Item] = &[
     Item::new("To Do", ids::TAG_APPLY).args(&[str_arg("tag", "todo")]),
     Item::new("Important", ids::TAG_APPLY).args(&[str_arg("tag", "important")]),
     Item::new("Question", ids::TAG_APPLY).args(&[str_arg("tag", "question")]),
-    Item::new("Remember for Later", ids::TAG_APPLY).args(&[str_arg("tag", "remember")]),
-    Item::new("Definition", ids::TAG_APPLY).args(&[str_arg("tag", "definition")]),
-    Item::new("Highlight", ids::TAG_APPLY).args(&[str_arg("tag", "highlight")]),
-    Item::new("Contact", ids::TAG_APPLY).args(&[str_arg("tag", "contact")]),
-    Item::new("Address", ids::TAG_APPLY).args(&[str_arg("tag", "address")]),
-    Item::new("Phone Number", ids::TAG_APPLY).args(&[str_arg("tag", "phone")]),
-    Item::new("Idea", ids::TAG_APPLY).args(&[str_arg("tag", "idea")]),
     Item::new("Customize Tags", ids::TAG_CUSTOMIZE),
     Item::new("Remove Tag", ids::TAG_REMOVE),
 ];
@@ -661,7 +658,7 @@ const TAGS: Group = Group {
             Button::large("Tags", Icon::Tag, ids::TAG_APPLY).dropdown(MORE_TAGS),
             2,
             160.0,
-            10,
+            3,
         )),
         Column::Large(Button::large("To Do Tag", Icon::TodoTag, ids::TAG_TODO)),
         Column::Large(Button::large("Find Tags", Icon::FindTags, ids::TAG_FIND)),

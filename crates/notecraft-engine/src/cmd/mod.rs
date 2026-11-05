@@ -7,18 +7,35 @@ mod builtin;
 mod canvas;
 mod draw;
 mod edit;
+mod equation;
+#[cfg(test)]
+mod equation_tests;
 mod file;
+mod find;
+#[cfg(test)]
+mod find_tests;
 mod format;
 #[cfg(test)]
 mod format_tests;
 mod guard;
 pub mod ids;
 mod layout;
+mod links;
+#[cfg(test)]
+mod links_tests;
 mod nav;
 mod page;
 mod registry;
+mod search;
 pub mod shortcuts;
+mod stamp;
 pub(crate) mod structure;
+mod tag_summary;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tag_summary_tests;
+mod tags;
+#[cfg(test)]
+mod tags_tests;
 #[cfg(test)]
 mod tests;
 mod text;

@@ -15,11 +15,14 @@ pub(crate) use ink::paint_pen_sample;
 #[cfg(test)]
 mod ink_tests;
 mod keymap;
+pub(crate) mod link_picker;
+mod links;
 mod multiply;
 pub(crate) mod paper;
 mod picture_ui;
 pub(crate) mod pictures;
 mod rawtext;
+mod tag_view;
 mod textures;
 mod title;
 mod widget;
@@ -42,6 +45,8 @@ pub(crate) struct Parsed {
     pub runs: Vec<notecraft_markdown::ContainerRun>,
     /// The page text without markdown syntax, for screen readers.
     pub plain: String,
+    /// The paragraphs with note tags or check boxes, for the tag icons.
+    pub tagged: Vec<notecraft_markdown::tags::TaggedItem>,
 }
 
 /// Canvas state kept between frames.
@@ -68,6 +73,10 @@ pub struct CanvasUi {
     /// Where the next inserted picture or file goes: the page and the page point of the last
     /// click on it (below the note container the click was in).
     insert_at: Option<(String, Vec2)>,
+    /// The find scroll request last followed (`FindState::scroll`).
+    seen_find_scroll: u64,
+    /// The pages page links resolve against, with the session fingerprint they were built for.
+    link_index: Option<(u64, std::sync::Arc<notecraft_markdown::LinkIndex>)>,
 }
 
 impl Default for CanvasUi {
@@ -83,6 +92,8 @@ impl Default for CanvasUi {
             title: None,
             last_map: None,
             insert_at: None,
+            seen_find_scroll: 0,
+            link_index: None,
         }
     }
 }
@@ -147,7 +158,13 @@ impl CanvasUi {
             let doc = notecraft_markdown::parse(source.visible_text());
             let runs = notecraft_markdown::split_containers(source.visible_text(), &doc);
             let plain = doc.plain_text();
-            let parsed = Parsed { doc, runs, plain };
+            let tagged = notecraft_markdown::tags::tagged_items(source.visible_text(), &doc);
+            let parsed = Parsed {
+                doc,
+                runs,
+                plain,
+                tagged,
+            };
             (
                 source.page_id.to_owned(),
                 source.revision,
@@ -155,6 +172,23 @@ impl CanvasUi {
             )
         });
         self.parsed.insert(entry).2.clone()
+    }
+
+    /// The resolver for page links in the notebook shown. Built again only when the session's
+    /// fingerprint of the notebook's pages changes.
+    fn link_index(
+        &mut self,
+        session: &notecraft_engine::Session,
+    ) -> std::sync::Arc<notecraft_markdown::LinkIndex> {
+        let fingerprint = session.link_fingerprint();
+        if let Some((seen, index)) = &self.link_index {
+            if *seen == fingerprint {
+                return index.clone();
+            }
+        }
+        let index = std::sync::Arc::new(session.link_index());
+        self.link_index = Some((fingerprint, index.clone()));
+        index
     }
 
     /// The plain text of the page shown, for screen readers.
@@ -179,6 +213,29 @@ impl CanvasUi {
                 .zoom_about(Vec2::ZERO, f32::from(percent) / 100.0);
             self.force_offset = true;
         }
+    }
+
+    /// Scroll so the page rectangle `target` is in view, if it is not already: centered
+    /// vertically, and moved sideways only when it is off to one side. `view` is the size of
+    /// the canvas in page units.
+    fn scroll_to(&mut self, target: egui::Rect, view: Vec2) {
+        const MARGIN: f32 = 24.0;
+        let origin = self.viewport.origin();
+        let inside = target.min.x >= origin.x + MARGIN
+            && target.max.x <= origin.x + view.x - MARGIN
+            && target.min.y >= origin.y + MARGIN
+            && target.max.y <= origin.y + view.y - MARGIN;
+        if inside {
+            return;
+        }
+        let y = (target.center().y - view.y / 2.0).max(0.0);
+        let x = if target.min.x < origin.x + MARGIN || target.max.x > origin.x + view.x - MARGIN {
+            (target.min.x - 2.0 * MARGIN).max(0.0)
+        } else {
+            origin.x
+        };
+        self.viewport.set_origin(Vec2::new(x, y));
+        self.force_offset = true;
     }
 
     /// Zoom by `factor` about `anchor` (canvas screen point), as Ctrl+wheel or a pinch does.

@@ -4,6 +4,7 @@
 //! the notebook pane, section tabs, and page list on mock notebooks; PR 0.7 adds the canvas.
 
 use notecraft_engine::cmd::{ids, CommandError, CommandId, CommandOutput, Map, Registry, Value};
+use notecraft_engine::recent::{RecentItem, RecentKind};
 use notecraft_engine::view::{RibbonLayout, RibbonShow};
 use notecraft_engine::Session;
 
@@ -19,7 +20,7 @@ use crate::ribbon::{self, Clicked, Ribbon};
 use crate::shortcuts::Shortcuts;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
-use crate::{bars, start, status};
+use crate::{bars, find_bar, start, status};
 /// Height of the status bar, in points.
 pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
@@ -34,6 +35,27 @@ const SPLITTERS: [(&str, &str); 2] = [
     ("notebooks", "Notebook pane width"),
     ("pages", "Page list width"),
 ];
+
+/// The toast for a page that could not be saved. The status bar shows it again for as long as
+/// the page stays unsaved.
+fn save_failed_text(reason: &str) -> String {
+    format!("Cannot save this page: {reason}. Your changes are kept, and NoteCraft will try again.")
+}
+
+/// What to tell the user at quit when `kept` pages could not be saved (they are in the
+/// recovery journal and are offered back at the next start).
+fn quit_notice(kept: usize) -> Option<String> {
+    match kept {
+        0 => None,
+        1 => Some(
+            "1 page could not be saved. It is kept for recovery the next time NoteCraft starts."
+                .to_owned(),
+        ),
+        n => Some(format!(
+            "{n} pages could not be saved. They are kept for recovery the next time NoteCraft starts."
+        )),
+    }
+}
 
 /// Give the panel resize handles a role and a name, and a focus ring. egui leaves them
 /// unlabeled and draws nothing when they have keyboard focus, yet they are stops in the Tab
@@ -87,6 +109,8 @@ pub struct AppShell {
     ribbon: Ribbon,
     nav: NavUi,
     canvas: CanvasUi,
+    /// The search box text and caret request (see `search_pane`).
+    search_ui: crate::search_pane::SearchUi,
     /// Asked for a path when a file command arrives without one.
     picker: Box<dyn FilePicker>,
     shortcuts: Shortcuts,
@@ -108,6 +132,9 @@ pub struct AppShell {
     about: AppInfo,
     /// The What's New dialog.
     whats_new: crate::whats_new::WhatsNew,
+    customize_tags: crate::customize_tags::CustomizeTags,
+    /// The dialog for a recent notebook or page that no longer exists.
+    missing_item: crate::missing_item::MissingItem,
     /// Text for the clipboard, put there on the next frame.
     pending_copy: Option<String>,
     /// The temporary file holding a clipboard picture while Paste as Picture runs.
@@ -153,6 +180,7 @@ impl AppShell {
             ribbon: Ribbon::new(),
             nav: NavUi::default(),
             canvas: CanvasUi::default(),
+            search_ui: crate::search_pane::SearchUi::default(),
             picker: Box::new(NoPicker),
             paste_temp: None,
             paste_seen: false,
@@ -166,6 +194,8 @@ impl AppShell {
             recent_colors: Vec::new(),
             about: AppInfo::default(),
             whats_new: crate::whats_new::WhatsNew::new(),
+            customize_tags: crate::customize_tags::CustomizeTags::new(),
+            missing_item: crate::missing_item::MissingItem::default(),
             pending_copy: None,
             #[cfg(test)]
             ran: Vec::new(),
@@ -181,10 +211,15 @@ impl AppShell {
     }
 
     /// Save every unsaved page now and journal what could not be saved. Call on quit.
-    pub fn flush_unsaved(&mut self) {
-        if let Some(io) = &mut self.io {
-            io.flush(&mut self.session);
-        }
+    /// Returns a notice naming the pages that stayed unsaved and were kept for recovery at the
+    /// next start, or `None` when everything was saved. The notice is also toasted, for a
+    /// quit the user can still see (a close request that does not end the window at once).
+    pub fn flush_unsaved(&mut self) -> Option<String> {
+        let io = self.io.as_mut()?;
+        let kept = io.flush(&mut self.session);
+        let notice = quit_notice(kept.len())?;
+        self.toasts.push(notice.clone());
+        Some(notice)
     }
 
     /// Show `info` on the About page (the app passes its build details).
@@ -221,6 +256,11 @@ impl AppShell {
         self.session.set_pen_tools(tools);
     }
 
+    /// Use `clock` for Insert > Date and Time (the app passes a local-time clock).
+    pub fn set_clock(&mut self, clock: notecraft_engine::stamp::Clock) {
+        self.session.set_clock(clock);
+    }
+
     /// Set the rule style new pages start with, by its `view.rule_lines` id (restoring saved
     /// settings). An unknown id means none.
     pub fn set_default_rule_lines(&mut self, id: &str) {
@@ -232,6 +272,26 @@ impl AppShell {
     /// Create Pages with Rule Lines is off).
     pub fn default_rule_lines(&self) -> &'static str {
         self.session.default_rule_lines().id()
+    }
+
+    /// Restore `links.update_on_rename` from the saved settings.
+    pub fn set_link_update_on_rename(&mut self, on: bool) {
+        self.session.set_link_update_on_rename(on);
+    }
+
+    /// The note tag gallery, for saving the custom tags in the settings.
+    pub fn tag_set(&self) -> &notecraft_markdown::TagSet {
+        self.session.tags()
+    }
+
+    /// Restore the saved note tag gallery.
+    pub fn set_tag_set(&mut self, tags: notecraft_markdown::TagSet) {
+        self.session.set_tags(tags);
+    }
+
+    /// Whether the Customize Tags dialog is open.
+    pub fn customize_tags_open(&self) -> bool {
+        self.customize_tags.is_open()
     }
 
     /// The Draw tab's pens and highlighters, for saving in the settings.
@@ -380,10 +440,12 @@ impl AppShell {
     /// file command without a path asks the picker first; canceling runs nothing. Returns
     /// whether the command ran.
     pub fn dispatch(&mut self, id: &str, args: Value) -> bool {
+        let missing = self.missing_recent(id, &args);
         match self.run_command(id, args) {
-            Some(Ok(_)) => {
+            Some(Ok(output)) => {
                 #[cfg(test)]
                 self.ran.push(id.to_owned());
+                self.toast_link_updates(id, &output);
                 true
             }
             None => false,
@@ -392,10 +454,55 @@ impl AppShell {
                     CommandError::ComingSoon { .. } => tracing::debug!("{err}"),
                     _ => tracing::warn!("{err}"),
                 }
-                self.toasts.push(toast::error_text(&self.registry, &err));
+                match missing {
+                    // A stale recent entry gets a dialog that offers to remove it.
+                    Some(item) => self.missing_item.open(item),
+                    None => self.toasts.push(toast::error_text(&self.registry, &err)),
+                }
                 false
             }
         }
+    }
+
+    /// Tell the user what a rename, move, or `links.fix_after_rename` did to page links, when
+    /// it did something or had to skip pages.
+    fn toast_link_updates(&mut self, id: &str, output: &CommandOutput) {
+        let message = if id == ids::LINKS_FIX_AFTER_RENAME.as_str() {
+            output
+                .value
+                .get("message")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        } else {
+            None
+        };
+        let message = message.or_else(|| {
+            self.session
+                .take_link_update_report()
+                .and_then(|report| report.message())
+        });
+        if let Some(text) = message {
+            self.toasts.push(text);
+        }
+    }
+
+    /// The recent entry a notebook or page open names when its path no longer exists.
+    fn missing_recent(&self, id: &str, args: &Value) -> Option<RecentItem> {
+        let kind = if id == ids::FILE_OPEN_NOTEBOOK.as_str() {
+            RecentKind::Notebook
+        } else if id == ids::FILE_OPEN.as_str() {
+            RecentKind::Page
+        } else {
+            return None;
+        };
+        let path = args.get("path")?.as_str()?.trim();
+        let listed = self
+            .session
+            .recents()
+            .items()
+            .iter()
+            .find(|item| item.kind == kind && item.path == path)?;
+        (!std::path::Path::new(path).exists()).then(|| listed.clone())
     }
 
     /// The one path every command takes, whether from the ribbon, a shortcut, or the control
@@ -430,6 +537,8 @@ impl AppShell {
                 self.ribbon.open_backstage_on(ids::FILE_ABOUT);
             } else if id == ids::HELP_WHATS_NEW.as_str() {
                 self.whats_new.open();
+            } else if id == ids::TAG_CUSTOMIZE.as_str() {
+                self.customize_tags.open();
             } else if id == ids::FILE_COPY_ABOUT_INFO.as_str() {
                 self.pending_copy = Some(self.about.plain_text());
                 self.toasts.push("Copied the version and build details.");
@@ -558,11 +667,17 @@ impl AppShell {
         if let Some(io) = &mut self.io {
             let focused = ctx.input(|i| i.viewport().focused.unwrap_or(true));
             if ctx.input(|i| i.viewport().close_requested()) {
-                io.flush(&mut self.session);
+                let kept = io.flush(&mut self.session);
+                if let Some(notice) = quit_notice(kept.len()) {
+                    self.toasts.push(notice);
+                }
             }
             let now = std::time::Instant::now();
             if let Some(wait) = io.pump(&mut self.session, now, focused) {
                 ctx.request_repaint_after(wait);
+            }
+            for (_page, reason) in io.take_new_save_failures() {
+                self.toasts.push(save_failed_text(&reason));
             }
         }
         // Ctrl+=, Ctrl+-, and Ctrl+0 belong to OneNote's shortcuts, not to egui's UI scaling.
@@ -636,6 +751,14 @@ impl AppShell {
         let tokens = self.tokens(ui.ctx());
         // First, so Esc closes the dialog before any shortcut sees it.
         self.whats_new.show(ui.ctx(), &tokens, &self.about.version);
+        let tag_clicks = self
+            .customize_tags
+            .show(ui.ctx(), &tokens, self.session.tags());
+        self.dispatch_all(tag_clicks);
+        let mut missing_clicks = Vec::new();
+        self.missing_item
+            .show(ui.ctx(), &tokens, &mut missing_clicks);
+        self.dispatch_all(missing_clicks);
         let pressed = self.shortcuts.pressed(ui.ctx());
         self.dispatch_all(pressed);
         self.insert_dropped_files(ui.ctx());
@@ -663,6 +786,7 @@ impl AppShell {
                 texture: tool.style.texture,
             })
             .collect();
+        let gallery_tags: Vec<notecraft_markdown::TagDef> = self.session.tags().all().to_vec();
         let look = ribbon::Look {
             tokens: &tokens,
             registry: &self.registry,
@@ -676,6 +800,7 @@ impl AppShell {
             can_undo: self.session.can_undo(),
             can_redo: self.session.can_redo(),
             can_convert: self.session.can_convert_to_markdown(),
+            tags: &gallery_tags,
         };
         if self.ribbon.backstage_open() {
             let clicked = self
@@ -748,6 +873,25 @@ impl AppShell {
             .show(ui, |ui| {
                 nav::page_list(ui, session, nav_ui, &tokens, &mut clicked)
             });
+        if session.search().open {
+            let search_ui = &mut self.search_ui;
+            egui::Panel::right("search")
+                .default_size(crate::search_pane::WIDTH)
+                .resizable(true)
+                .frame(panel.fill(tokens.sidebar_bg))
+                .show(ui, |ui| {
+                    crate::search_pane::show(ui, session, search_ui, &tokens, &mut clicked)
+                });
+        }
+        if session.tag_summary().open {
+            egui::Panel::right("tag_summary")
+                .default_size(crate::tag_summary_pane::WIDTH)
+                .resizable(true)
+                .frame(panel.fill(tokens.sidebar_bg))
+                .show(ui, |ui| {
+                    crate::tag_summary_pane::show(ui, session, &tokens, &mut clicked)
+                });
+        }
         let canvas_width = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
             .show(ui, |ui| {
@@ -762,12 +906,21 @@ impl AppShell {
                     egui::vec2(full.width(), bars::height(session)),
                 );
                 bars::show(ui, bar, session, &tokens, &mut clicked);
-                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, bar.max.y), full.max);
+                let find = egui::Rect::from_min_size(
+                    egui::pos2(full.min.x, bar.max.y),
+                    egui::vec2(full.width(), find_bar::height(session)),
+                );
+                find_bar::show(ui, find, session, &tokens, &mut clicked);
+                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, find.max.y), full.max);
                 canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
             })
             .inner;
         ui.scope_builder(egui::UiBuilder::new().max_rect(status_rect), |ui| {
-            status::show(ui, session, &tokens, &mut clicked);
+            let save_error = self
+                .io
+                .as_ref()
+                .and_then(|io| io.save_error(status::shown_page(session)?));
+            status::show(ui, session, save_error, &tokens, &mut clicked);
         });
         finish_splitters(ui, &tokens);
         // Like the OS dark mode, the canvas width is reported, not commanded.
@@ -1227,10 +1380,7 @@ mod tests {
         assert_eq!(last_ran(&harness).as_deref(), Some("style.apply"));
         harness.get_by_label("Important").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Tags")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
         // The separate large buttons stay beside the Tags gallery.
         let _ = harness.get_by_label("To Do Tag");
         let _ = harness.get_by_label("Find Tags");
@@ -1255,7 +1405,7 @@ mod tests {
         harness.get_by_label("Tags down").click();
         harness.run();
         let _ = harness.get_by_label("Question");
-        let _ = harness.get_by_label("Remember for Later");
+        let _ = harness.get_by_label("Remember for later");
         assert!(harness.query_by_label("Important").is_none());
         harness.get_by_label("Tags down").click();
         harness.get_by_label("Tags down").click();
@@ -1284,10 +1434,7 @@ mod tests {
         let _ = harness.get_by_label("Customize Tags");
         harness.get_by_label("Idea").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Tags")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
     }
 
     #[test]
@@ -1306,10 +1453,7 @@ mod tests {
         harness.run();
         harness.get_by_label("Idea").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Tags")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
     }
 
     #[test]
@@ -1324,12 +1468,9 @@ mod tests {
         // A button with a menu is a submenu here; egui adds an arrow to its name.
         harness.get_by_label("Tags \u{23F5}").click();
         harness.run();
-        harness.get_by_label("Remember for Later").click();
+        harness.get_by_label("Remember for later").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Tags")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
     }
 
     #[test]
@@ -1460,6 +1601,119 @@ mod tests {
         );
         let _ = harness.get_by_label("Interview notes");
         assert!(harness.state().toasts().is_empty());
+    }
+
+    /// A shell with a notebook folder open and its search index built: Work has Alpha (red
+    /// tent) and Beta, Home has Gamma (green tent and stove).
+    fn search_shell() -> (tempfile::TempDir, egui_kittest::Harness<'static, AppShell>) {
+        let dir = tempfile::TempDir::new().unwrap();
+        for (rel, text) in [
+            ("Work/Alpha.md", "the red tent"),
+            ("Work/Beta.md", "budget notes"),
+            ("Home/Gamma.md", "a green tent and stove"),
+        ] {
+            let path = dir.path().join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        notecraft_engine::search::refresh_search_index(dir.path()).unwrap();
+        let mut shell = AppShell::empty();
+        assert!(shell.open_path(dir.path()));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        (dir, harness)
+    }
+
+    fn page_id(shell: &AppShell, title: &str) -> String {
+        shell
+            .session()
+            .notebooks()
+            .iter()
+            .flat_map(|nb| nb.all_sections())
+            .flat_map(|s| s.pages.iter())
+            .find(|p| p.title == title)
+            .map(|p| p.id.clone())
+            .unwrap()
+    }
+
+    #[test]
+    fn ctrl_e_opens_the_search_pane_and_typing_lists_results() {
+        let (_dir, mut harness) = search_shell();
+        assert!(!harness.state().session().search().open);
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::E);
+        harness.run();
+        assert!(harness.state().session().search().open);
+        assert_eq!(last_ran(&harness).as_deref(), Some("search.open"));
+        // The box has the caret, so typing goes straight into it.
+        harness.event(egui::Event::Text("stove".to_owned()));
+        harness.run();
+        let results = harness.state().session().search().results.clone().unwrap();
+        assert_eq!(results.query, "stove");
+        assert_eq!(results.hits.len(), 1);
+        assert_eq!(results.hits[0].title, "Gamma");
+        assert!(harness.query_by_label("1 result").is_some());
+        // Narrowing the scope to a page that does not have the word finds nothing.
+        let alpha = page_id(harness.state(), "Alpha");
+        harness
+            .state_mut()
+            .dispatch("nav.page.select", serde_json::json!({ "id": alpha }));
+        harness
+            .state_mut()
+            .dispatch("search.set_scope", serde_json::json!({ "scope": "page" }));
+        harness.run();
+        let results = harness.state().session().search().results.clone().unwrap();
+        assert!(results.hits.is_empty());
+        assert!(harness.query_by_label("No results.").is_some());
+    }
+
+    #[test]
+    fn clicking_a_result_shows_that_page() {
+        let (_dir, mut harness) = search_shell();
+        let alpha = page_id(harness.state(), "Alpha");
+        harness
+            .state_mut()
+            .dispatch("nav.page.select", serde_json::json!({ "id": alpha }));
+        harness.state_mut().dispatch(
+            "search.run",
+            serde_json::json!({ "query": "tent", "sort": "title" }),
+        );
+        harness.run();
+        let titles: Vec<String> = harness
+            .state()
+            .session()
+            .search()
+            .results
+            .as_ref()
+            .unwrap()
+            .hits
+            .iter()
+            .map(|h| h.title.clone())
+            .collect();
+        assert_eq!(titles, ["Alpha", "Gamma"]);
+        // Gamma is in another section, so its label is only on the result row.
+        harness.get_by_label("Gamma").click();
+        harness.run();
+        let gamma = page_id(harness.state(), "Gamma");
+        assert_eq!(
+            harness.state().session().selection().page.as_deref(),
+            Some(gamma.as_str())
+        );
+    }
+
+    #[test]
+    fn escape_and_close_hide_the_search_pane() {
+        let (_dir, mut harness) = search_shell();
+        harness.state_mut().dispatch("search.open", Value::Null);
+        harness.run();
+        harness.run();
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert!(!harness.state().session().search().open);
+        harness.state_mut().dispatch("search.open", Value::Null);
+        harness.run();
+        harness.get_by_label("Close").click();
+        harness.run();
+        assert!(!harness.state().session().search().open);
     }
 
     #[test]
@@ -2330,14 +2584,26 @@ mod tests {
 
     #[test]
     fn open_notebook_asks_the_picker_and_opens() {
+        let (_dir, work, _plans) = work_and_plans();
+        let mut harness = harness(picking(Some(&work), None), WINDOW);
+        harness.run();
+        harness.get_by_label("Open Notebook").click();
+        harness.run();
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        assert_eq!(recent_paths(harness.state()), [work]);
+        let _ = harness.get_by_label("Canvas");
+        assert!(toasts(&harness).is_empty());
+    }
+
+    #[test]
+    fn open_notebook_with_a_missing_folder_shows_no_sample_notebooks() {
         let mut harness = harness(picking(Some("C:\\Notes\\Work"), None), WINDOW);
         harness.run();
         harness.get_by_label("Open Notebook").click();
         harness.run();
-        assert_eq!(harness.state().session().notebooks().len(), 2);
-        assert_eq!(recent_paths(harness.state()), ["C:\\Notes\\Work"]);
-        let _ = harness.get_by_label("Canvas");
-        assert!(toasts(&harness).is_empty());
+        assert!(harness.state().session().notebooks().is_empty());
+        assert!(recent_paths(harness.state()).is_empty());
+        assert_eq!(toasts(&harness).len(), 1);
     }
 
     fn sample_notebook_path() -> String {
@@ -2555,33 +2821,94 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         assert_eq!(toasts(&harness).len(), 1);
     }
 
+    /// A temp folder with a notebook folder `Work` (one section, one page) and a page file
+    /// `Plans.md` beside it. Returns the folder and the two paths.
+    fn work_and_plans() -> (tempfile::TempDir, String, String) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let work = dir.path().join("Work");
+        std::fs::create_dir_all(work.join("Sec")).unwrap();
+        std::fs::write(work.join("Sec").join("Note.md"), "x").unwrap();
+        let plans = dir.path().join("Plans.md");
+        std::fs::write(&plans, "# Plans\n").unwrap();
+        let text = |p: &std::path::Path| p.to_string_lossy().into_owned();
+        let (work, plans) = (text(&work), text(&plans));
+        (dir, work, plans)
+    }
+
     #[test]
     fn recent_rows_reopen_without_the_picker() {
+        let (_dir, work, plans) = work_and_plans();
         let mut shell = AppShell::empty();
         let recents = notecraft_engine::recent::Recents::from_items([
-            (
-                notecraft_engine::recent::RecentKind::Page,
-                "/n/Plans.md".to_owned(),
-            ),
-            (
-                notecraft_engine::recent::RecentKind::Notebook,
-                "/n/Work".to_owned(),
-            ),
+            (notecraft_engine::recent::RecentKind::Page, plans.clone()),
+            (notecraft_engine::recent::RecentKind::Notebook, work.clone()),
         ]);
         shell.set_recents(recents);
         let mut harness = harness(shell, WINDOW);
         harness.run();
         harness.get_by_label("Work").click();
         harness.run();
-        assert_eq!(harness.state().session().notebooks().len(), 2);
-        assert_eq!(recent_paths(harness.state()), ["/n/Work", "/n/Plans.md"]);
+        assert_eq!(harness.state().session().notebooks().len(), 1);
+        assert_eq!(recent_paths(harness.state()), [work, plans]);
+    }
+
+    #[test]
+    fn a_missing_recent_asks_to_remove_it_and_shows_no_sample_notebooks() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let gone = dir.path().join("Gone.md").to_string_lossy().into_owned();
+        let mut shell = AppShell::empty();
+        shell.set_recents(notecraft_engine::recent::Recents::from_items([(
+            notecraft_engine::recent::RecentKind::Page,
+            gone,
+        )]));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("Gone.md").click();
+        harness.run();
+        assert!(harness.state().session().notebooks().is_empty());
+        assert!(toasts(&harness).is_empty(), "the dialog replaces the toast");
+        let _ = harness.get_by_label_contains("was not found");
+        assert_eq!(
+            recent_paths(harness.state()).len(),
+            1,
+            "nothing is removed yet"
+        );
+        harness.get_by_label("Remove from Recent").click();
+        harness.run();
+        assert!(recent_paths(harness.state()).is_empty());
+        assert!(harness.state().session().notebooks().is_empty());
+        assert!(harness.query_by_label_contains("was not found").is_none());
+    }
+
+    #[test]
+    fn keeping_a_missing_recent_closes_the_dialog() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let gone = dir.path().join("Gone").to_string_lossy().into_owned();
+        let mut shell = AppShell::empty();
+        shell.set_recents(notecraft_engine::recent::Recents::from_items([(
+            notecraft_engine::recent::RecentKind::Notebook,
+            gone,
+        )]));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        harness.get_by_label("Gone").click();
+        harness.run();
+        let _ = harness.get_by_label_contains("notebook folder");
+        harness.get_by_label("Keep").click();
+        harness.run();
+        assert_eq!(recent_paths(harness.state()).len(), 1);
+        assert!(harness.query_by_label_contains("notebook folder").is_none());
     }
 
     #[test]
     fn backstage_open_page_lists_recents_and_opens_files() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let ideas = dir.path().join("Ideas.notecraft");
+        std::fs::write(&ideas, "x").unwrap();
+        let ideas = ideas.to_string_lossy().into_owned();
         let mut shell = AppShell::new().with_picker(Box::new(FakePicker {
             folder: None,
-            file: Some("/n/Ideas.notecraft".to_owned()),
+            file: Some(ideas.clone()),
         }));
         shell.set_recents(notecraft_engine::recent::Recents::from_items([(
             notecraft_engine::recent::RecentKind::Notebook,
@@ -2601,10 +2928,7 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
             !harness.state().ribbon().backstage_open(),
             "opening returns to the notes"
         );
-        assert_eq!(
-            recent_paths(harness.state()),
-            ["/n/Ideas.notecraft", "/n/Work"]
-        );
+        assert_eq!(recent_paths(harness.state()), [ideas.as_str(), "/n/Work"]);
 
         harness.get_by_label("File").click();
         harness.run();
@@ -2618,8 +2942,10 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
 
     #[test]
     fn backstage_new_page_asks_for_a_folder() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let fresh = dir.path().join("Fresh").to_string_lossy().into_owned();
         let shell = AppShell::new().with_picker(Box::new(FakePicker {
-            folder: Some("/n/Fresh".to_owned()),
+            folder: Some(fresh.clone()),
             file: None,
         }));
         let mut harness = harness(shell, WINDOW);
@@ -2634,27 +2960,27 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         );
         harness.get_by_label("Choose a Folder").click();
         harness.run();
-        assert_eq!(recent_paths(harness.state()), ["/n/Fresh"]);
+        assert_eq!(recent_paths(harness.state()), [fresh]);
         assert!(!harness.state().ribbon().backstage_open());
     }
 
     #[test]
     fn reopen_last_opens_the_newest_entry_without_reordering() {
+        let (_dir, work, plans) = work_and_plans();
         let mut shell = AppShell::empty();
         assert!(!shell.reopen_last(), "nothing to reopen");
         shell.set_recents(notecraft_engine::recent::Recents::from_items([
-            (
-                notecraft_engine::recent::RecentKind::Page,
-                "/n/Plans.md".to_owned(),
-            ),
-            (
-                notecraft_engine::recent::RecentKind::Notebook,
-                "/n/Work".to_owned(),
-            ),
+            (notecraft_engine::recent::RecentKind::Page, plans.clone()),
+            (notecraft_engine::recent::RecentKind::Notebook, work.clone()),
         ]));
         assert!(shell.reopen_last());
-        assert_eq!(shell.session().notebooks().len(), 2);
-        assert_eq!(recent_paths(&shell), ["/n/Plans.md", "/n/Work"]);
+        assert_eq!(shell.session().notebooks().len(), 1);
+        assert_eq!(
+            shell.session().current_page().map(|p| p.title.as_str()),
+            Some("Plans"),
+            "the page is shown, in a loose view"
+        );
+        assert_eq!(recent_paths(&shell), [plans, work]);
     }
 
     #[test]
@@ -2685,19 +3011,49 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
     }
 
     #[test]
+    fn open_path_shows_a_page_in_its_notebook_or_on_its_own() {
+        let (dir, _work, plans) = work_and_plans();
+        std::fs::create_dir_all(dir.path().join("Work").join(".notecraft")).unwrap();
+        let mut shell = AppShell::empty();
+        assert!(shell.open_path(&dir.path().join("Work").join("Sec").join("Note.md")));
+        let session = shell.session();
+        assert_eq!(
+            session.current_notebook().map(|n| n.name.as_str()),
+            Some("Work")
+        );
+        assert_eq!(
+            session.current_page().map(|p| p.title.as_str()),
+            Some("Note")
+        );
+        assert!(!session.is_loose_notebook(&session.current_notebook().unwrap().id));
+        // A file outside any notebook opens beside it as a loose page.
+        assert!(shell.open_path(std::path::Path::new(&plans)));
+        let session = shell.session();
+        assert_eq!(session.notebooks().len(), 2);
+        assert!(session.is_loose_notebook(&session.current_notebook().unwrap().id));
+        assert_eq!(
+            session.current_page().map(|p| p.title.as_str()),
+            Some("Plans")
+        );
+        assert!(shell.toasts().is_empty());
+    }
+
+    #[test]
     fn shortcuts_run_their_commands() {
         let mut harness = harness(AppShell::new(), WINDOW);
         harness.run();
         let command = egui::Modifiers::COMMAND;
         harness.key_press_modifiers(command, egui::Key::N);
         harness.run();
-        harness.key_press_modifiers(command, egui::Key::Num3);
-        harness.run();
         // Ctrl+N runs page.new, which a sample notebook refuses with a reason.
         let texts = toasts(&harness);
-        assert_eq!(texts.len(), 2, "{texts:?}");
+        assert_eq!(texts.len(), 1, "{texts:?}");
         assert!(texts[0].starts_with("Add Page: "), "{texts:?}");
-        assert_eq!(texts[1], "Coming Soon: Tags");
+        // Ctrl+3 runs tag.apply_nth, which does nothing without a caret and says nothing.
+        harness.key_press_modifiers(command, egui::Key::Num3);
+        harness.run();
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply_nth"));
+        assert_eq!(toasts(&harness).len(), 1);
 
         // Ctrl+Alt+= zooms in; the more specific chord wins over Ctrl+=.
         harness.key_press_modifiers(command | egui::Modifiers::ALT, egui::Key::Equals);
@@ -3122,8 +3478,8 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
             .session
             .note_outside_change(&dir.path().join("Notes/Only.md"));
         harness.run();
-        let _ = harness.get_by_label_contains("changed outside NoteCraft");
-        let _ = harness.get_by_label("Unsaved changes");
+        let _ = harness.get_by_label_contains("Your version is still open");
+        let _ = harness.get_by_label("Not saved: changed outside NoteCraft");
         harness.get_by_label("Use outside version").click();
         harness.run();
         assert_eq!(harness.state().session().page_text(&page), Some("theirs\n"));
@@ -3153,5 +3509,67 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         );
         assert!(harness.state().session().is_page_dirty(&page));
         assert!(harness.query_by_label("Restore").is_none());
+    }
+
+    #[test]
+    fn a_failed_save_raises_one_toast_and_shows_in_the_status_bar() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("Sec")).unwrap();
+        std::fs::write(dir.path().join("Sec/A.md"), "one\n").unwrap();
+        let io = notecraft_engine::io::SessionIo::new(None, || {})
+            .with_save_delays(std::time::Duration::ZERO, std::time::Duration::ZERO);
+        let mut shell = AppShell::new().with_io(io);
+        let opened = notecraft_engine::open::open_folder(dir.path()).unwrap();
+        let id = opened.notebook.id.clone();
+        shell.session.open_notebook(opened.notebook);
+        shell.session.set_notebook_root(&id, dir.path());
+        let mut harness = harness(shell, WINDOW);
+        let mut tries = 0;
+        while harness.state().session().current_page_source().is_none() {
+            tries += 1;
+            assert!(tries < 500, "the page never loaded");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            harness.run_steps(3);
+        }
+        let page = harness.state().session().selection().page.clone().unwrap();
+        // A folder takes the place of the page file, so the page cannot be written.
+        std::fs::remove_file(dir.path().join("Sec/A.md")).unwrap();
+        std::fs::create_dir(dir.path().join("Sec/A.md")).unwrap();
+        harness
+            .state_mut()
+            .session
+            .edit_page_text(&page, 0, 0, "mine ", false);
+        harness.run_steps(3);
+
+        let failures: Vec<String> = harness
+            .state()
+            .toasts()
+            .texts()
+            .filter(|t| t.starts_with("Cannot save this page"))
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert!(failures[0].is_ascii());
+        assert!(harness
+            .query_all_by_label_contains("Cannot save: ")
+            .next()
+            .is_some());
+        // A later failed retry is not a new failure, so no second toast piles up.
+        harness.run_steps(3);
+        let again = harness
+            .state()
+            .toasts()
+            .texts()
+            .filter(|t| t.starts_with("Cannot save this page"))
+            .count();
+        assert_eq!(again, 1);
+    }
+
+    #[test]
+    fn the_quit_notice_names_the_pages_kept_for_recovery() {
+        assert_eq!(quit_notice(0), None);
+        let one = quit_notice(1).unwrap_or_default();
+        assert!(one.contains("kept for recovery") && one.is_ascii());
+        assert!(quit_notice(3).unwrap_or_default().starts_with("3 pages"));
     }
 }

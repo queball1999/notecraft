@@ -1,6 +1,6 @@
 # Phase -1: scaffolding and CI/CD
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: reviewed at the Phase 0 close; no change.
+> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed at the Phase 0 close; no change.
 
 Goal: an empty but complete workspace. Every crate exists and builds, `cargo xtask ci` runs every gate, CI matches the related craft apps, and the release workflow can build packages from the `release` branch. No features.
 
@@ -427,3 +427,4 @@ Done once, right after section 0. Uses `gh` with admin rights.
 | 2026-10-14 | -1 | Phase closed; release workflow change and GitHub settings recorded. |
 | 2026-10-15 | 0 | Reviewed at the Phase 0 close; no content change. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
+| 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |

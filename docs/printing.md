@@ -1,6 +1,6 @@
 # Printing and PDF
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: project renamed to NoteCraft; earlier changes are in the revision history.
 
 NoteCraft prints the same way the other craft apps do: render to PDF, then hand the PDF to `craft-print`, which talks to the operating system. One renderer serves Print, Export to PDF, and `notecraft-cli render --format pdf`.
 
@@ -78,3 +78,4 @@ Full detail in build_plan/05-phase-3-polish-parity.md, PRs 3.6 to 3.8.
 | 2026-10-14 | -1 | Created. Pipeline, dialog, pagination, PDF content, Phase 3 steps. Same day: CLI print path moved to post-parity. |
 | 2026-10-14 | -1 | Renamed the project from QNote 2.0 to NoteCraft (`.qnote` pages are now `.notecraft`); stated that NoteCraft is related to, but independent of, the ArtCraft apps. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
+| 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |

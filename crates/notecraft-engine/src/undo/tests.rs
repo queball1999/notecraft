@@ -759,6 +759,13 @@ const UNDO_TESTED_ELSEWHERE: &[&str] = &[
     "picture.resize",
     "picture.move",
     "attachment.move",
+    // The page picker commands need the picker open first; cmd/links_tests.rs covers them.
+    "link.picker.open",
+    "link.picker.choose",
+    // The summary page needs Tags Summary results first; cmd/tag_summary_tests.rs covers it.
+    "tag.summary.create_page",
+    // Needs an offer from an outside rename first; session/rename_links_tests.rs covers it.
+    "links.fix_after_rename",
 ];
 
 /// How to run each Ready undoable command in a test. A PR that makes another command
@@ -775,6 +782,10 @@ const UNDO_CASES: &[(&str, &str)] = &[
     ("view.rule_line_color", r##"{ "color": "#9FB6CD" }"##),
     ("view.paper_size", r#"{ "size": "a4" }"#),
     ("text.insert", r#"{ "text": "X" }"#),
+    ("insert.equation", r#"{ "latex": "x^2" }"#),
+    ("insert.date", "{}"),
+    ("insert.time", "{}"),
+    ("insert.date_time", "{}"),
     ("text.delete", r#"{ "direction": "backward" }"#),
     ("text.enter", "{}"),
     ("text.tab", "{}"),
@@ -805,6 +816,9 @@ const UNDO_CASES: &[(&str, &str)] = &[
     ("format.align_right", "{}"),
     ("style.apply", r#"{ "style": "heading2" }"#),
     ("tag.todo", "{}"),
+    ("tag.apply", r#"{ "tag": "important" }"#),
+    ("tag.apply_nth", r#"{ "number": 2 }"#),
+    ("tag.remove", "{}"),
 ];
 
 /// Cases that need page text other than "one" for the command to change something.
@@ -812,6 +826,7 @@ const SOURCES: &[(&str, &str)] = &[
     ("format.outdent", "  - one"),
     ("format.indent", "- one"),
     ("format.clear", "**one**"),
+    ("tag.remove", "#important one"),
     (
         "format.align_left",
         "<!-- notecraft:align=center -->
@@ -843,6 +858,9 @@ const NEEDS_SELECTION: &[&str] = &[
     "format.align_right",
     "style.apply",
     "tag.todo",
+    "tag.apply",
+    "tag.apply_nth",
+    "tag.remove",
 ];
 
 type Document = (
@@ -1069,6 +1087,8 @@ fn reopening_a_notebook_folder_drops_stale_text_steps() {
 
     assert!(session.edit_page_text(&page, 0, 0, "x", false));
     assert!(session.can_undo());
+    // Saved, so the page is clean (an unsaved page keeps its text instead).
+    session.save_page(&page);
     // The folder is opened again with other text on disk: the page is read again.
     std::fs::write(dir.path().join("Sec/A.md"), "# Changed outside\n").unwrap();
     session.set_notebook_root(&id, dir.path());

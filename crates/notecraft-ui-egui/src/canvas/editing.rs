@@ -101,6 +101,8 @@ pub(super) struct Frame<'a> {
     pub tokens: &'a ThemeTokens,
     /// Space is held: the user is panning, not editing.
     pub panning: bool,
+    /// This frame's click followed a page link, so it does not place the caret.
+    pub link_click: bool,
 }
 
 fn command(id: CommandId, args: &[(&str, Value)]) -> Clicked {
@@ -425,6 +427,9 @@ fn pointer(
     if response.drag_stopped() && edit.drag == Some(Drag::Select) {
         edit.drag = None;
     }
+    if frame.link_click {
+        return;
+    }
     let click_at = response.interact_pointer_pos();
     let Some(at) = click_at.map(hit_at) else {
         return;
@@ -505,6 +510,8 @@ fn keyboard(
     if !typing {
         return;
     }
+    // While the page picker is open, Esc closes it instead of leaving the canvas.
+    let picker_open = frame.session.link_picker_view().is_some();
     // Tab and the arrows belong to the text, not to moving focus between widgets.
     ui.memory_mut(|memory| {
         memory.set_focus_lock_filter(
@@ -513,12 +520,12 @@ fn keyboard(
                 tab: true,
                 horizontal_arrows: true,
                 vertical_arrows: true,
-                escape: false,
+                escape: picker_open,
             },
         );
     });
     let events = ui.input(|input| input.events.clone());
-    for action in keymap::actions(&events) {
+    for action in keymap::actions(&events, picker_open) {
         match action {
             Action::Command(command) => {
                 edit.h_pos = None;

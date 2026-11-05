@@ -370,6 +370,25 @@ impl History {
         }
     }
 
+    /// The text of `page` changed around its recorded text edits (a save added frontmatter
+    /// lines, for example): move the offset of each by `shift` so Undo and Redo still find
+    /// the text they changed.
+    pub fn shift_text(&mut self, page: &str, shift: &dyn Fn(usize) -> usize) {
+        let stacks = self.pages.values_mut().chain(Some(&mut self.notebook));
+        for stack in stacks {
+            for list in [&mut stack.undo, &mut stack.redo] {
+                for entry in list.iter_mut() {
+                    if entry.ops.iter().any(|op| op.is_text_edit_of(page)) {
+                        let entry = Arc::make_mut(entry);
+                        for op in &mut entry.ops {
+                            op.shift_text(page, shift);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Forget the steps of one page, for example when its file was replaced by a newer
     /// version from disk and the steps no longer fit the text.
     pub fn clear_page(&mut self, page: &str) {
@@ -400,10 +419,21 @@ impl Session {
 
     /// Apply a transaction and record it as an undo step. If an operation cannot be applied
     /// (for example, it names a stroke that is not there), the ones already applied are
-    /// reversed, nothing is recorded, and this returns false.
+    /// reversed, nothing is recorded, and this returns false. A transaction that changes the
+    /// content of a read-only page (cut short, or not UTF-8 text) is refused the same way, so
+    /// no edit is shown that could never be saved.
     pub fn commit(&mut self, tx: Transaction) -> bool {
         if tx.ops.is_empty() {
             return true;
+        }
+        if let Some(page) = tx
+            .ops
+            .iter()
+            .filter_map(Op::content_page)
+            .find(|page| self.page_is_read_only(page))
+        {
+            tracing::info!(page = %page, "edit refused: the page is read-only");
+            return false;
         }
         if !ops::apply_all(self, tx.ops.iter()) {
             self.resync_dirty();

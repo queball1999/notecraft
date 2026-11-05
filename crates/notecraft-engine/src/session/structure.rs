@@ -144,6 +144,27 @@ impl Session {
                 *id = Some(new);
             }
         };
+        // Unsaved pages follow their file: the save state moves with the id, and the journal
+        // entry of the old path is dropped (the next journal pass writes the new one).
+        let moved_dirty: Vec<String> = self
+            .saving
+            .dirty
+            .iter()
+            .filter(|id| map(id.as_str()).is_some())
+            .cloned()
+            .collect();
+        for id in &moved_dirty {
+            if let Some(path) = self.page_file_path(id) {
+                self.saving.journal_clean.push(path);
+            }
+        }
+        self.saving.rekey_with(&map);
+        for mut request in std::mem::take(&mut self.saving.read_requests) {
+            if let Some(path) = self.page_file_path(&request.page_id) {
+                request.path = path;
+            }
+            self.saving.read_requests.push(request);
+        }
         rekey_map(&mut self.selection.section);
         rekey_map(&mut self.selection.page);
         rekey_keys(&mut self.page_sources, &map);
@@ -188,6 +209,9 @@ impl Session {
     ) -> Result<(), String> {
         if self.notebooks.iter().any(|nb| nb.id == id) {
             return Err("the notebook is already open".to_owned());
+        }
+        if self.is_loose_notebook(id) {
+            return self.relist_loose(id, root, index);
         }
         let opened = open_folder(root).map_err(|err| err.to_string())?;
         if opened.notebook.id != id {
@@ -393,6 +417,9 @@ impl Plan {
         let Some(nb) = session.notebooks.iter().find(|nb| nb.id == notebook) else {
             return fail("that notebook is not open");
         };
+        if session.loose.contains_key(notebook) {
+            return fail("a single page opened on its own has no sections; open its notebook folder to organize pages");
+        }
         let Some(root) = session.notebook_roots.get(notebook) else {
             return fail("this is a sample notebook; open or create a notebook folder first");
         };
@@ -559,6 +586,38 @@ impl Session {
         }
     }
 
+    /// Commit a step that renames or moves files (`renames`: old path to new path). Page
+    /// links that pointed into the renamed files are rewritten in the same step (see
+    /// `rename_links`), so one undo restores names and links. If the link edits cannot be
+    /// applied (a page changed while the step was built), the step is made without them and
+    /// the report says so.
+    fn commit_renaming(
+        &mut self,
+        plan: Plan,
+        label: &str,
+        renames: &[(String, String)],
+    ) -> Result<(), EditError> {
+        if let Some(fix) = self.link_fix(plan.id(), renames) {
+            if !fix.ops.is_empty() {
+                let mut ops = fix.ops;
+                ops.extend(plan.ops.iter().cloned());
+                let tx = ops
+                    .into_iter()
+                    .fold(Transaction::new(Scope::Notebook, label), Transaction::with);
+                if self.commit(tx) {
+                    self.link_update_report = Some(fix.report);
+                    return Ok(());
+                }
+                let mut report = fix.report;
+                report.failed = true;
+                self.link_update_report = Some(report);
+            } else {
+                self.link_update_report = Some(fix.report);
+            }
+        }
+        self.commit_plan(plan, label)
+    }
+
     fn page_parts(&self, page: &str) -> Result<(Plan, Section, usize), EditError> {
         let plan = Plan::owning(self, page)?;
         let Some(section) = plan.notebook.section_of_page(page) else {
@@ -576,6 +635,17 @@ impl Session {
     /// Add a page titled `title` (`Untitled Page` when none) at the end of `section`, show it,
     /// and return its id. One undo step.
     pub fn create_page(&mut self, section: &str, title: Option<&str>) -> Result<String, EditError> {
+        self.create_page_with(section, title, &|_| String::new())
+    }
+
+    /// Like [`Self::create_page`], with the page starting with the text `body` makes. `body`
+    /// is given the new page's path from the notebook folder. Still one undo step.
+    pub fn create_page_with(
+        &mut self,
+        section: &str,
+        title: Option<&str>,
+        body: &dyn Fn(&str) -> String,
+    ) -> Result<String, EditError> {
         let mut plan = Plan::owning(self, section)?;
         let Some(target) = plan.notebook.section(section).cloned() else {
             return fail("no section with that id");
@@ -594,7 +664,7 @@ impl Session {
             rule_lines: self.default_rule_lines(),
             ..crate::view::PageStyle::default()
         };
-        let start_text = super::page_style::text_with_style("", &start_style);
+        let start_text = super::page_style::text_with_style(&body(&rel), &start_style);
         plan.create(&rel, Content::Text(start_text));
         let mut pages = listings(&target);
         pages.push(PageListing {
@@ -646,13 +716,14 @@ impl Session {
             return Ok(page.to_owned());
         }
         plan.relocate(&join(&dir, &old_file), &join(&dir, &file));
+        let renames = [(join(&dir, &old_file), join(&dir, &file))];
         let mut pages = listings(&section);
         if let Some(entry) = pages.get_mut(index) {
             entry.file.clone_from(&file);
         }
         plan.page_order(&dir, pages);
         let id = format!("{}/{}", plan.id(), join(&dir, &file));
-        self.commit_plan(plan, "Rename page")?;
+        self.commit_renaming(plan, "Rename page", &renames)?;
         Ok(id)
     }
 
@@ -746,6 +817,7 @@ impl Session {
         let mut on_disk = names_on_disk(&plan.root.join(&to_dir));
         let mut moved = Vec::new();
         let mut renamed = Vec::new();
+        let mut renames = Vec::new();
         for (entry, old_id) in block.iter().zip(&moved_ids) {
             let file = entry.file.clone();
             let ext = file.rsplit_once('.').map_or("md", |(_, e)| e);
@@ -767,6 +839,7 @@ impl Session {
                 }
             }
             plan.relocate(&join(&from_dir, &file), &join(&to_dir, &new_file));
+            renames.push((join(&from_dir, &file), join(&to_dir, &new_file)));
             renamed.push((
                 old_id.clone(),
                 format!("{}/{}", plan.id(), join(&to_dir, &new_file)),
@@ -786,7 +859,7 @@ impl Session {
             .map(|(_, new)| new.clone())
             .unwrap_or_default();
         let shown = self.selection.page.clone();
-        self.commit_plan(plan, "Move page")?;
+        self.commit_renaming(plan, "Move page", &renames)?;
         if let Some((_, new)) = renamed.iter().find(|(old, _)| Some(old) == shown.as_ref()) {
             self.select_page_id(new);
         }
@@ -996,7 +1069,8 @@ impl Session {
         plan.relocate(&from, &to);
         plan.child_order(parent_rel.as_deref(), names);
         let new_id = format!("{}/{to}", plan.id());
-        self.commit_plan(plan, "Rename section")?;
+        let renames = [(from, to)];
+        self.commit_renaming(plan, "Rename section", &renames)?;
         Ok(new_id)
     }
 
@@ -1133,7 +1207,8 @@ impl Session {
         plan.child_order(from_parent.as_deref(), from_names);
         plan.child_order(to_parent.as_deref(), to_names);
         let new_id = format!("{}/{to}", plan.id());
-        self.commit_plan(plan, "Move section")?;
+        let renames = [(from, to)];
+        self.commit_renaming(plan, "Move section", &renames)?;
         Ok(new_id)
     }
 

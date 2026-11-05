@@ -2,11 +2,12 @@
 //! from the last session (restore or discard), and a page that changed outside NoteCraft
 //! while it had unsaved changes (keep mine or use the outside version). The buttons run
 //! commands (`file.restore_unsaved`, `file.discard_unsaved`, `file.keep_my_version`,
-//! `file.use_outside_version`); nothing here changes the session itself.
+//! `file.use_outside_version`), and links that can be updated after a rename made outside
+//! NoteCraft (`links.fix_after_rename`, `links.fix_dismiss`); nothing here changes the session itself.
 
 use egui::{Align, Layout, Rect, RichText, Ui};
 use notecraft_engine::cmd::{ids, CommandId, Value};
-use notecraft_engine::Session;
+use notecraft_engine::{PageEncoding, Session};
 
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
@@ -24,29 +25,39 @@ pub enum Bar {
     /// The ink and layout data of the page shown did not parse; the page is read-only until a
     /// fresh block replaces it (`page.repair_canvas`).
     CanvasUnreadable,
+    /// The page file is not UTF-8 text; it is read-only until converted (`page.convert_encoding`).
+    NotUtf8(PageEncoding),
+    /// A page was renamed outside NoteCraft and this many links to it can be updated
+    /// (`links.fix_after_rename`).
+    LinkRename(usize),
 }
 
-/// The bar to show now, if any. Recovery comes first.
-pub fn current(session: &Session) -> Option<Bar> {
+/// The bars to show now, top to bottom: the global recovery question first, then the shown
+/// page's own questions. A recovery question never hides a conflict.
+pub fn all(session: &Session) -> Vec<Bar> {
+    let mut bars = Vec::new();
     let pending = session.pending_recovery().len();
     if pending > 0 {
-        Some(Bar::Recovery(pending))
-    } else if session.current_conflict().is_some() {
-        Some(Bar::Conflict)
-    } else if session.can_repair_canvas() {
-        Some(Bar::CanvasUnreadable)
-    } else {
-        None
+        bars.push(Bar::Recovery(pending));
     }
+    if session.current_conflict().is_some() {
+        bars.push(Bar::Conflict);
+    }
+    if let Some(encoding) = session.current_page_legacy_encoding() {
+        bars.push(Bar::NotUtf8(encoding));
+    }
+    if session.can_repair_canvas() {
+        bars.push(Bar::CanvasUnreadable);
+    }
+    if let Some(offer) = session.link_fix_offer() {
+        bars.push(Bar::LinkRename(offer.links));
+    }
+    bars
 }
 
-/// The room the bar takes: its height, or 0 with no bar.
+/// The room the bars take: a row each, or 0 with none.
 pub fn height(session: &Session) -> f32 {
-    if current(session).is_some() {
-        BAR_HEIGHT
-    } else {
-        0.0
-    }
+    all(session).len() as f32 * BAR_HEIGHT
 }
 
 /// The bar's message.
@@ -61,8 +72,18 @@ pub fn message(bar: Bar) -> String {
         Bar::Conflict => {
             "This page was changed outside NoteCraft. Your version is still open.".to_owned()
         }
+        Bar::NotUtf8(encoding) => format!(
+            "This page is not saved as UTF-8 text. NoteCraft read it as {} and opened it read-only.",
+            encoding.label()
+        ),
         Bar::CanvasUnreadable => {
             "The ink and layout of this page could not be read, so it is read-only.".to_owned()
+        }
+        Bar::LinkRename(1) => {
+            "This page was renamed outside NoteCraft. Update 1 link to it?".to_owned()
+        }
+        Bar::LinkRename(n) => {
+            format!("This page was renamed outside NoteCraft. Update {n} links to it?")
         }
     }
 }
@@ -70,6 +91,11 @@ pub fn message(bar: Bar) -> String {
 fn buttons(bar: Bar) -> Vec<(&'static str, CommandId)> {
     match bar {
         Bar::CanvasUnreadable => vec![("Repair", ids::PAGE_REPAIR_CANVAS)],
+        Bar::LinkRename(_) => vec![
+            ("Update links", ids::LINKS_FIX_AFTER_RENAME),
+            ("Not now", ids::LINKS_FIX_DISMISS),
+        ],
+        Bar::NotUtf8(_) => vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)],
         Bar::Recovery(_) => vec![
             ("Restore", ids::FILE_RESTORE_UNSAVED),
             ("Discard", ids::FILE_DISCARD_UNSAVED),
@@ -81,7 +107,7 @@ fn buttons(bar: Bar) -> Vec<(&'static str, CommandId)> {
     }
 }
 
-/// Draw the bar in `rect` (as tall as [`height`]).
+/// Draw the bars in `rect` (as tall as [`height`]), one row each.
 pub fn show(
     ui: &mut Ui,
     rect: Rect,
@@ -89,9 +115,17 @@ pub fn show(
     tokens: &ThemeTokens,
     out: &mut Vec<Clicked>,
 ) {
-    let Some(bar) = current(session) else {
-        return;
-    };
+    for (row, bar) in all(session).into_iter().enumerate() {
+        let top = rect.min.y + row as f32 * BAR_HEIGHT;
+        let row_rect = Rect::from_min_size(
+            egui::pos2(rect.min.x, top),
+            egui::vec2(rect.width(), BAR_HEIGHT),
+        );
+        show_one(ui, row_rect, bar, tokens, out);
+    }
+}
+
+fn show_one(ui: &mut Ui, rect: Rect, bar: Bar, tokens: &ThemeTokens, out: &mut Vec<Clicked>) {
     ui.painter().rect_filled(rect, 0.0, tokens.badge_bg);
     ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
@@ -118,13 +152,13 @@ pub fn show(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
     fn no_bar_without_a_question() {
         let session = Session::new();
-        assert_eq!(current(&session), None);
+        assert!(all(&session).is_empty());
         assert_eq!(height(&session), 0.0);
     }
 
@@ -135,9 +169,70 @@ mod tests {
             Bar::Recovery(3),
             Bar::Conflict,
             Bar::CanvasUnreadable,
+            Bar::LinkRename(1),
+            Bar::LinkRename(4),
+            Bar::NotUtf8(PageEncoding::Windows1252),
+            Bar::NotUtf8(PageEncoding::Utf16Le),
         ] {
             assert!(message(bar).is_ascii());
         }
+    }
+
+    /// A session whose page `Sec/A.md` has a conflict, plus unsaved text offered from the
+    /// last session.
+    pub(crate) fn conflict_and_recovery() -> (tempfile::TempDir, Session) {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("Sec")).unwrap();
+        let file = dir.path().join("Sec/A.md");
+        std::fs::write(&file, "one\n").unwrap();
+        let mut session = Session::new();
+        let opened = notecraft_engine::open::open_folder(dir.path()).unwrap();
+        let id = opened.notebook.id.clone();
+        session.open_notebook(opened.notebook);
+        session.set_notebook_root(&id, dir.path());
+        session.load_current_page();
+        let page = session.selection().page.clone().unwrap();
+        session.edit_page_text(&page, 0, 0, "mine ", false);
+        std::fs::write(&file, "theirs\n").unwrap();
+        session.save_page(&page);
+        assert!(session.current_conflict().is_some());
+        session.offer_recovery(vec![notecraft_engine::RecoveryEntry {
+            path: file,
+            text: "from the last session\n".to_owned(),
+        }]);
+        assert_eq!(session.pending_recovery().len(), 1);
+        (dir, session)
+    }
+
+    #[test]
+    fn recovery_and_conflict_bars_stack() {
+        let (_dir, session) = conflict_and_recovery();
+        assert_eq!(all(&session), vec![Bar::Recovery(1), Bar::Conflict]);
+        assert_eq!(height(&session), 2.0 * BAR_HEIGHT);
+    }
+
+    #[test]
+    fn both_bars_are_drawn_with_their_buttons() {
+        use egui_kittest::kittest::Queryable;
+        let (_dir, session) = conflict_and_recovery();
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(900.0, 200.0))
+            .build_ui_state(
+                |ui, session: &mut Session| {
+                    let tokens = ThemeTokens::for_variant(session.view().theme_preset, false);
+                    let rect = Rect::from_min_size(
+                        ui.max_rect().min,
+                        egui::vec2(ui.max_rect().width(), height(session)),
+                    );
+                    show(ui, rect, session, &tokens, &mut Vec::new());
+                },
+                session,
+            );
+        harness.run();
+        let _ = harness.get_by_label(&message(Bar::Recovery(1)));
+        let _ = harness.get_by_label(&message(Bar::Conflict));
+        let _ = harness.get_by_label("Restore");
+        let _ = harness.get_by_label("Keep my version");
     }
 
     #[test]
@@ -157,9 +252,71 @@ mod tests {
         session.open_notebook(opened.notebook);
         session.set_notebook_root(&id, dir.path());
         session.load_current_page();
-        assert_eq!(current(&session), Some(Bar::CanvasUnreadable));
+        assert_eq!(all(&session), vec![Bar::CanvasUnreadable]);
         assert!(height(&session) > 0.0);
         let labels = buttons(Bar::CanvasUnreadable);
         assert_eq!(labels, vec![("Repair", ids::PAGE_REPAIR_CANVAS)]);
+    }
+
+    #[test]
+    fn the_link_rename_bar_comes_last_and_its_buttons_run_the_commands() {
+        use egui_kittest::kittest::Queryable;
+        let (_dir, mut session) = conflict_and_recovery();
+        session.offer_link_fix(notecraft_engine::LinkFixOffer {
+            notebook: "nb".to_owned(),
+            moves: vec![("Sec/Old.md".to_owned(), "Sec/New.md".to_owned())],
+            links: 3,
+        });
+        assert_eq!(
+            all(&session),
+            vec![Bar::Recovery(1), Bar::Conflict, Bar::LinkRename(3)]
+        );
+        assert_eq!(
+            message(Bar::LinkRename(3)),
+            "This page was renamed outside NoteCraft. Update 3 links to it?"
+        );
+        assert_eq!(
+            buttons(Bar::LinkRename(3)),
+            vec![
+                ("Update links", ids::LINKS_FIX_AFTER_RENAME),
+                ("Not now", ids::LINKS_FIX_DISMISS)
+            ]
+        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(900.0, 200.0))
+            .build_ui_state(
+                |ui, session: &mut Session| {
+                    let tokens = ThemeTokens::for_variant(session.view().theme_preset, false);
+                    let rect = Rect::from_min_size(
+                        ui.max_rect().min,
+                        egui::vec2(ui.max_rect().width(), height(session)),
+                    );
+                    show(ui, rect, session, &tokens, &mut Vec::new());
+                },
+                session,
+            );
+        harness.run();
+        let _ = harness.get_by_label(&message(Bar::LinkRename(3)));
+        let _ = harness.get_by_label("Update links");
+        let _ = harness.get_by_label("Not now");
+    }
+
+    #[test]
+    fn a_non_utf8_page_shows_the_convert_bar() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("Sec")).unwrap();
+        std::fs::write(dir.path().join("Sec/A.md"), b"caf\xe9\n").unwrap();
+        let mut session = Session::new();
+        let opened = notecraft_engine::open::open_folder(dir.path()).unwrap();
+        let id = opened.notebook.id.clone();
+        session.open_notebook(opened.notebook);
+        session.set_notebook_root(&id, dir.path());
+        session.load_current_page();
+        assert_eq!(all(&session), vec![Bar::NotUtf8(PageEncoding::Windows1252)]);
+        assert!(message(Bar::NotUtf8(PageEncoding::Windows1252)).contains("Windows-1252"));
+        assert_eq!(
+            buttons(Bar::NotUtf8(PageEncoding::Windows1252)),
+            vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)]
+        );
     }
 }

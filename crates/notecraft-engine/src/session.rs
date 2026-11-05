@@ -8,14 +8,22 @@ use std::path::{Path, PathBuf};
 use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
+mod encoding;
+mod links;
+mod loose;
 mod nav;
+mod page_ids;
 mod page_style;
+mod rename_links;
 mod save;
 mod saving;
+pub use encoding::Utf8Outcome;
+pub use rename_links::{LinkFixOffer, LinkUpdateReport};
 pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
 mod attach;
+mod find;
 mod objects;
 
 pub use attach::{AttachKind, Attached, InlineEdit, InsertError};
@@ -96,14 +104,34 @@ pub struct Session {
     page_notices: BTreeMap<String, PageNotice>,
     /// The folder of each notebook read from disk, by notebook id.
     notebook_roots: BTreeMap<String, PathBuf>,
+    /// The notebooks that are loose page views (see `loose`), by notebook id, with the id of
+    /// their one page; they are also in `notebook_roots`.
+    loose: BTreeMap<String, String>,
     recents: Recents,
     /// Notebooks changed on disk by a structure step that must be read again (see `structure`).
     dirty: std::collections::BTreeSet<String>,
     /// Frontmatter titles from the notebook index, by page id (see `nav`).
     frontmatter_titles: BTreeMap<String, String>,
+    /// Frontmatter aliases from the notebook index, by page id (see `links`).
+    link_aliases: BTreeMap<String, Vec<String>>,
+    /// The page picker opened by typing `[[` (see `links`).
+    link_picker: Option<crate::links::LinkPicker>,
+    /// `links.update_on_rename` is off (kept negated so the default is on; see
+    /// `rename_links`).
+    no_link_updates: bool,
+    /// What the last rename or move did to links, until a front end takes it.
+    link_update_report: Option<LinkUpdateReport>,
+    /// The offer to fix links after a rename made outside NoteCraft.
+    link_fix_offer: Option<LinkFixOffer>,
     /// Per notebook, goes up when the tree is read again; guards background index results.
     tree_generations: BTreeMap<String, u64>,
     ink: InkState,
+    /// The search box and its results (see `search`).
+    search: crate::search::SearchState,
+    /// The Tags Summary pane (see `tag_summary`).
+    tag_summary: crate::tag_summary::TagSummaryState,
+    /// The note tag gallery: the default tags and the custom ones (PR 2.5).
+    tags: notecraft_markdown::TagSet,
     /// The caret and selection of text editing, with the page they belong to.
     text_cursor: Option<(String, TextCursor)>,
     /// Container geometry by page id, then container id. A container missing here is in the
@@ -111,6 +139,12 @@ pub struct Session {
     containers: BTreeMap<String, BTreeMap<String, notecraft_model::Container>>,
     /// Pictures and file attachments with a place of their own, by page id (see `objects`).
     objects: BTreeMap<String, Vec<notecraft_model::PlacedObject>>,
+    /// The find bar: its query and which match is current (see [`crate::find`]).
+    find: crate::find::FindState,
+    /// Where Insert > Date and Time read the time (see `stamp`).
+    clock: crate::stamp::Clock,
+    /// Where new page ids come from (see `session/page_ids.rs`).
+    ids: crate::stamp::IdSource,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).
     saving: saving::SavingState,
@@ -119,6 +153,23 @@ pub struct Session {
 impl Session {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Use `clock` for the time Insert > Date and Time read. The default is UTC; the desktop
+    /// app installs a local-time clock, and tests install a fixed one.
+    pub fn set_clock(&mut self, clock: crate::stamp::Clock) {
+        self.clock = clock;
+    }
+
+    /// Use `ids` for the ids new `.notecraft` pages get on their first save. Tests install a
+    /// fixed source.
+    pub fn set_id_source(&mut self, ids: crate::stamp::IdSource) {
+        self.ids = ids;
+    }
+
+    /// The time now, from the session's clock.
+    pub fn now(&self) -> Option<crate::stamp::Stamp> {
+        self.clock.now()
     }
 
     /// Goes up by one every time a command changes the session.
@@ -202,16 +253,29 @@ impl Session {
             .filter(|id| id.starts_with(&prefix) && self.is_page_dirty(id))
             .cloned()
             .collect();
+        // A page whose save did not go through keeps its unsaved text: it is not read again.
+        let mut kept = std::collections::BTreeSet::new();
         for id in unsaved {
-            self.save_page(&id);
+            match self.save_page(&id) {
+                saving::SaveOutcome::Saved
+                | saving::SaveOutcome::Unchanged
+                | saving::SaveOutcome::NotDirty
+                | saving::SaveOutcome::NoFile
+                | saving::SaveOutcome::Promoted { .. } => {}
+                _ => {
+                    kept.insert(id);
+                }
+            }
         }
         self.notebook_roots
             .insert(notebook_id.to_owned(), folder.to_path_buf());
         self.bump_tree_generation(notebook_id);
         // Pages of a notebook that is opened again are read again.
-        self.page_sources.retain(|id, _| !id.starts_with(&prefix));
-        self.page_notices.retain(|id, _| !id.starts_with(&prefix));
-        self.saving.forget_notebook(&prefix);
+        self.page_sources
+            .retain(|id, _| !id.starts_with(&prefix) || kept.contains(id));
+        self.page_notices
+            .retain(|id, _| !id.starts_with(&prefix) || kept.contains(id));
+        self.saving.forget_notebook(&prefix, &kept);
     }
 
     /// Read the page shown now from disk if it comes from a notebook folder and has not been
@@ -260,10 +324,11 @@ impl Session {
         match result {
             Ok(page) => {
                 if let Some(text) = page.warning() {
-                    let read_only = page.truncated;
+                    let read_only = page.read_only();
                     self.page_notices
                         .insert(page_id.to_owned(), PageNotice { text, read_only });
                 }
+                self.note_encoding(page_id, page.encoding);
                 self.saving
                     .disk_hash
                     .insert(page_id.to_owned(), saving::hash_text(&page.text));
@@ -359,6 +424,24 @@ impl Session {
         })
     }
 
+    /// The search box, its scope and sort, and the last results.
+    pub fn search(&self) -> &crate::search::SearchState {
+        &self.search
+    }
+
+    pub(crate) fn search_mut(&mut self) -> &mut crate::search::SearchState {
+        &mut self.search
+    }
+
+    /// The Tags Summary pane: its scope, grouping, and the last results.
+    pub fn tag_summary(&self) -> &crate::tag_summary::TagSummaryState {
+        &self.tag_summary
+    }
+
+    pub(crate) fn tag_summary_mut(&mut self) -> &mut crate::tag_summary::TagSummaryState {
+        &mut self.tag_summary
+    }
+
     /// The active draw tool, the pen, and every page's strokes.
     pub fn ink(&self) -> &InkState {
         &self.ink
@@ -372,6 +455,20 @@ impl Session {
     /// settings.
     pub fn set_pen_tools(&mut self, tools: Vec<crate::ink::PenTool>) {
         self.ink.replace_tools(tools);
+    }
+
+    /// The note tag gallery: OneNote's default tags and the custom ones.
+    pub fn tags(&self) -> &notecraft_markdown::TagSet {
+        &self.tags
+    }
+
+    pub(crate) fn tags_mut(&mut self) -> &mut notecraft_markdown::TagSet {
+        &mut self.tags
+    }
+
+    /// Replace the gallery without a command, for restoring saved settings.
+    pub fn set_tags(&mut self, tags: notecraft_markdown::TagSet) {
+        self.tags = tags;
     }
 
     /// The strokes of the page shown now, if it has any.
@@ -500,16 +597,16 @@ mod page_load_tests {
     }
 
     #[test]
-    fn bad_bytes_show_text_with_a_warning_and_stay_editable() {
+    fn bad_bytes_show_decoded_text_with_a_notice_and_are_read_only() {
         let dir = notebook(&[("Sec/A.md", b"ok \xff")]);
         let mut session = open(&dir);
         session.load_current_page();
         assert_eq!(
             session.current_page_source().expect("text").text,
-            "ok \u{fffd}"
+            "ok \u{ff}"
         );
         let notice = session.current_page_notice().expect("notice");
-        assert!(!notice.read_only);
+        assert!(notice.read_only);
     }
 
     #[test]
@@ -528,3 +625,11 @@ mod page_load_tests {
 
 #[cfg(test)]
 mod saving_tests;
+
+#[cfg(test)]
+mod dirty_follows_tests;
+#[cfg(test)]
+mod encoding_tests;
+
+#[cfg(test)]
+mod rename_links_tests;

@@ -77,6 +77,22 @@ pub enum Op {
     Fs(FsOp),
 }
 
+impl Op {
+    /// The page whose content (text, ink, container places, objects, or style) this op
+    /// changes, or `None` for a structure change (moving a page, notebook files).
+    pub(crate) fn content_page(&self) -> Option<&str> {
+        match self {
+            Self::InsertStroke { page, .. }
+            | Self::DeleteStroke { page, .. }
+            | Self::ReplaceText { page, .. }
+            | Self::SetContainer { page, .. }
+            | Self::SetObjects { page, .. }
+            | Self::SetPageStyle { page, .. } => Some(page),
+            Self::MovePage { .. } | Self::Fs(_) => None,
+        }
+    }
+}
+
 /// A spot in a notebook's page lists.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Place {
@@ -223,6 +239,21 @@ impl Op {
                 to: from.clone(),
             },
             Op::Fs(op) => Op::Fs(op.inverse()),
+        }
+    }
+
+    /// True for a text edit of page `page_id`.
+    pub(crate) fn is_text_edit_of(&self, page_id: &str) -> bool {
+        matches!(self, Op::ReplaceText { page, .. } if page == page_id)
+    }
+
+    /// Move the text offset of a [`Op::ReplaceText`] on page `page_id` with `shift`, after a
+    /// save changed the page text around it.
+    pub(crate) fn shift_text(&mut self, page_id: &str, shift: &dyn Fn(usize) -> usize) {
+        if let Op::ReplaceText { page, at, .. } = self {
+            if page == page_id {
+                *at = shift(*at);
+            }
         }
     }
 

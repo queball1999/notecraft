@@ -17,16 +17,29 @@ mod attach_tests;
 pub mod bars;
 pub mod canvas;
 pub mod color;
+mod customize_tags;
+#[cfg(test)]
+mod customize_tags_tests;
 #[cfg(test)]
 mod draw_tab_tests;
+pub mod find_bar;
+#[cfg(test)]
+mod find_tests;
 pub mod font_list;
 pub mod icons;
+#[cfg(test)]
+mod link_tests;
+mod missing_item;
 pub mod nav;
 pub mod picker;
 pub mod ribbon;
+mod search_pane;
 pub mod shortcuts;
 pub mod start;
 pub mod status;
+mod tag_summary_pane;
+#[cfg(test)]
+mod tag_summary_tests;
 pub mod themes;
 pub mod toast;
 mod whats_new;

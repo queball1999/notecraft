@@ -121,7 +121,7 @@ fn highlight_and_color_marks() {
     assert_eq!(toggle("|hi|", Mark::Highlight), "==|hi|==");
     assert_eq!(
         run("|hi|", |c| set_mark(c, Mark::Highlight, Some("#00ff00"))),
-        "<mark style=\"background:#00FF00\">|hi|</mark>"
+        "<mark style=\"background-color: #00FF00\">|hi|</mark>"
     );
     assert_eq!(
         run("|hi|", |c| set_mark(c, Mark::Color, Some("#e53935"))),

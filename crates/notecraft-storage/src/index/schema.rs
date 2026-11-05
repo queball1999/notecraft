@@ -71,8 +71,52 @@ const V2: &str = "ALTER TABLE pages ADD COLUMN fm_title TEXT;";
 /// folder reader.
 const V3: &str = "ALTER TABLE pages ADD COLUMN collapsed INTEGER NOT NULL DEFAULT 0;";
 
+/// Version 4: the content hash a page's full-text row was built from, so a page whose file
+/// changed since is found by `pages_needing_text`. Null means no text is stored yet.
+const V4: &str = "ALTER TABLE pages ADD COLUMN text_hash INTEGER;";
+
+/// Version 5: the section folder an attachment belongs to (empty for the notebook folder)
+/// and its file modified time, so a search can limit attachments to a scope.
+const V5: &str = "
+ALTER TABLE attachments ADD COLUMN section TEXT NOT NULL DEFAULT '';
+ALTER TABLE attachments ADD COLUMN modified INTEGER NOT NULL DEFAULT 0;
+DELETE FROM attachments;
+";
+
+/// Version 6: page links (PR 2.2). `links_hash` is the content hash a page's `links` rows
+/// were built from, so a page whose file changed since is found by `pages_needing_links`
+/// (null means no link rows yet). `page_aliases` holds the frontmatter `aliases` of each page,
+/// which the last step of link resolution needs. The old link rows are dropped: nothing
+/// filled them before.
+const V6: &str = "
+ALTER TABLE pages ADD COLUMN links_hash INTEGER;
+CREATE TABLE page_aliases (
+    page  TEXT NOT NULL,
+    alias TEXT NOT NULL
+);
+CREATE INDEX page_aliases_by_page ON page_aliases (page);
+DELETE FROM links;
+";
+
+/// Version 7: what the tags table needs for note tags (docs/markdown.md section 4): the
+/// paragraph that holds a tag, its text, and whether a To Do is checked, plus the content
+/// hash the tags were read from, so the engine finds the pages whose tags are out of date.
+const V7: &str = "
+ALTER TABLE tags ADD COLUMN holder_start INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tags ADD COLUMN holder_end INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tags ADD COLUMN body TEXT NOT NULL DEFAULT '';
+ALTER TABLE tags ADD COLUMN checked INTEGER;
+CREATE INDEX tags_by_tag ON tags (tag);
+ALTER TABLE pages ADD COLUMN tags_hash INTEGER;
+";
+
+/// Version 8: the page id from a page's frontmatter (`notecraft.id`), read by the engine for
+/// pages that are new or changed, so a page that was renamed outside NoteCraft can be found
+/// again by id (PR 2.3). Null means the page has no id.
+const V8: &str = "ALTER TABLE pages ADD COLUMN fm_id TEXT;";
+
 /// Migrations in order. Index `n` upgrades version `n` to `n + 1`.
-pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3];
+pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
 
 /// The schema version this build writes.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;

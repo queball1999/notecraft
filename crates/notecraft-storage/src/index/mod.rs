@@ -3,8 +3,11 @@
 //! The index is a cache built from the files. Deleting it is always safe. It is native
 //! only: SQLite compiles from C, so this module is not built for `wasm32`.
 
+mod links;
 mod refresh;
 mod schema;
+mod search;
+mod tags;
 mod worker;
 
 use std::path::Path;
@@ -13,8 +16,14 @@ use rusqlite::{Connection, OpenFlags};
 
 use crate::notebook_dir::PageKind;
 
+pub use links::{LinkRow, PageLinks, StoredLink};
 pub use refresh::{IndexError, RefreshStats};
 pub use schema::SCHEMA_VERSION;
+pub use search::{
+    attachment_name, match_expression, AttachmentRow, PageBody, TextHit, TextScope, MARK_END,
+    MARK_START, MAX_HITS,
+};
+pub use tags::{TagRow, TagScope, TaggedRow, MAX_TAGGED_ROWS};
 pub use worker::{refresh_or_rebuild, IndexWorker, WorkerReport};
 
 /// One section or group row, in sidebar order.
@@ -60,7 +69,7 @@ pub struct Sidebar {
 }
 
 /// Remove the database and its sidecar files. Missing files are fine.
-fn delete_database_files(path: &Path) {
+pub fn delete_database_files(path: &Path) {
     let _ = std::fs::remove_file(path);
     for suffix in ["-wal", "-shm", "-journal"] {
         let mut name = path.as_os_str().to_owned();
@@ -128,6 +137,9 @@ impl Index {
     fn init(mut conn: Connection) -> rusqlite::Result<Self> {
         // The index is a cache that can be rebuilt, so trade durability for speed.
         conn.pragma_update(None, "synchronous", "OFF")?;
+        // A search can open the file while the background refresh writes it; wait a moment
+        // instead of failing.
+        conn.busy_timeout(std::time::Duration::from_secs(2))?;
         schema::migrate(&mut conn)?;
         Ok(Self { conn })
     }
@@ -151,6 +163,42 @@ impl Index {
             )?;
         }
         tx.commit()
+    }
+
+    /// Record the page ids (`notecraft.id`) read from frontmatter (`Some("")` means the page
+    /// has none). Unknown ids are ignored. One transaction.
+    pub fn set_frontmatter_ids(
+        &mut self,
+        ids: &[(String, Option<String>)],
+    ) -> rusqlite::Result<()> {
+        let tx = self.conn.transaction()?;
+        for (id, fm_id) in ids {
+            tx.execute(
+                "UPDATE pages SET fm_id = ?1 WHERE id = ?2",
+                rusqlite::params![fm_id, id],
+            )?;
+        }
+        tx.commit()
+    }
+
+    /// Pages whose frontmatter id was never read (new pages, changed pages, and every page
+    /// after the schema upgrade), as `(index id, path)`. A page read and found to have no id
+    /// is stored with an empty id, so it is not listed again.
+    pub fn pages_needing_fm_id(&self) -> rusqlite::Result<Vec<(String, String)>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT id, path FROM pages WHERE fm_id IS NULL")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect()
+    }
+
+    /// Every page that has a frontmatter id, as `(index id, path, frontmatter id)`.
+    pub fn frontmatter_ids(&self) -> rusqlite::Result<Vec<(String, String, String)>> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT id, path, fm_id FROM pages WHERE fm_id IS NOT NULL AND fm_id != ''",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        rows.collect()
     }
 
     /// The sections and pages for the sidebar, in order.

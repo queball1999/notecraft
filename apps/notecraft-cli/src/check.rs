@@ -7,18 +7,18 @@ use std::process::ExitCode;
 use notecraft_engine::cmd::Registry;
 use notecraft_engine::open::notebook_from_tree;
 use notecraft_engine::Session;
-use notecraft_markdown::{parse, Block, BlockKind, Run};
+use notecraft_markdown::{
+    page_links_of, parse, parse_frontmatter, Block, BlockKind, LinkIndex, LinkPage, Resolved, Run,
+};
 use notecraft_storage::{
-    find_canvas_block, read_canvas, read_page_file, PageReadError, WarningKind,
+    find_canvas_block, read_canvas, read_page_file, PageEncoding, PageReadError, WarningKind,
 };
 
-use crate::notebook::{self, resolve_page, Found, Notebook, PageInfo};
+use crate::notebook::{self, Notebook, PageInfo};
 use crate::{bad_args, code, fail, out, Globals};
 
-/// Most `[[...]]` links looked at on one page.
-const MAX_LINKS_PER_PAGE: usize = 10_000;
-/// Longest `[[...]]` target, in bytes.
-const MAX_TARGET_BYTES: usize = 256;
+/// Most of a page file read to find its frontmatter aliases.
+const ALIAS_READ_LIMIT: u64 = 64 * 1024;
 
 /// One thing wrong with the notebook.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,86 +40,23 @@ pub struct Report {
     pub warnings: Vec<String>,
 }
 
-/// The targets of the `[[Page]]` and `[[Page|shown text]]` links in `text`. A pipe written
-/// `\|` (the table-cell form) does not end the target.
-pub fn link_targets(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut rest = text;
-    while let Some(open) = rest.find("[[") {
-        if out.len() >= MAX_LINKS_PER_PAGE {
-            break;
-        }
-        let Some(after) = rest.get(open + 2..) else {
-            break;
-        };
-        // Only a short stretch after the opener is searched, so a page of openers is not
-        // quadratic.
-        let mut end = (MAX_TARGET_BYTES + 2).min(after.len());
-        while !after.is_char_boundary(end) {
-            end -= 1;
-        }
-        let window = after.get(..end).unwrap_or("");
-        let Some(close) = window.find("]]") else {
-            rest = after;
-            continue;
-        };
-        let inner = window.get(..close).unwrap_or("");
-        if inner.contains("[[") {
-            // A nested opener: the inner one is the link; start again just after this one.
-            rest = after;
-            continue;
-        }
-        if !inner.contains('\n') {
-            let target = target_of(inner);
-            if !target.is_empty() {
-                out.push(target);
-            }
-        }
-        rest = after.get(close + 2..).unwrap_or("");
-    }
-    out
-}
-
-fn target_of(inner: &str) -> String {
-    let mut target = String::new();
-    let mut chars = inner.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '\\' if chars.peek() == Some(&'|') => {
-                chars.next();
-                target.push('|');
-            }
-            '|' => break,
-            _ => target.push(c),
-        }
-    }
-    target.trim().to_owned()
-}
-
-/// What a page links to: the text of each block outside code (for `[[...]]` page links) and
-/// every markdown link or image target.
+/// Where a page links to besides other pages: every markdown link or image target.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Links {
-    pub texts: Vec<String>,
     pub targets: Vec<String>,
 }
 
 fn collect_runs(runs: &[Run], links: &mut Links) {
-    let mut text = String::new();
     for run in runs {
-        if !run.code {
-            text.push_str(&run.text);
-        }
         if let Some(target) = &run.link {
             if !links.targets.contains(target) {
                 links.targets.push(target.clone());
             }
         }
     }
-    links.texts.push(text);
 }
 
-/// Gather the links of `blocks` (Html and code blocks are skipped).
+/// Gather the file links of `blocks` (Html and code blocks are skipped).
 pub fn collect_links(blocks: &[Block], links: &mut Links) {
     for block in blocks {
         match &block.kind {
@@ -144,6 +81,29 @@ pub fn collect_links(blocks: &[Block], links: &mut Links) {
     }
 }
 
+/// The frontmatter `aliases` of the page file at `path` (none if it cannot be read).
+fn aliases_of(path: &std::path::Path) -> Vec<String> {
+    use std::io::Read;
+
+    let Ok(file) = std::fs::File::open(path) else {
+        return Vec::new();
+    };
+    let mut bytes = Vec::new();
+    if file.take(ALIAS_READ_LIMIT).read_to_end(&mut bytes).is_err() {
+        return Vec::new();
+    }
+    parse_frontmatter(&String::from_utf8_lossy(&bytes))
+        .map(|front| {
+            front
+                .aliases()
+                .into_iter()
+                .map(|alias| alias.trim().to_owned())
+                .filter(|alias| !alias.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Check every page of the notebook.
 pub fn check_notebook(notebook: &Notebook) -> Report {
     let mut report = Report::default();
@@ -166,10 +126,20 @@ pub fn check_notebook(notebook: &Notebook) -> Report {
 
     let pages = notebook.pages();
     report.pages = pages.len();
+    // Page links resolve the way the app resolves them (docs/markdown.md section 5.3).
+    let resolver = LinkIndex::new(
+        pages
+            .iter()
+            .map(|page| {
+                LinkPage::new(page.id.clone(), page.entry.rel_path.clone())
+                    .with_aliases(aliases_of(&notebook.root.join(&page.entry.rel_path)))
+            })
+            .collect::<Vec<_>>(),
+    );
     for page in &pages {
         check_page(
             notebook,
-            &pages,
+            &resolver,
             page,
             &registry,
             &mut session,
@@ -182,7 +152,7 @@ pub fn check_notebook(notebook: &Notebook) -> Report {
 
 fn check_page(
     notebook: &Notebook,
-    pages: &[PageInfo<'_>],
+    resolver: &LinkIndex,
     page: &PageInfo<'_>,
     registry: &Registry,
     session: &mut Session,
@@ -214,11 +184,8 @@ fn check_page(
             "the page is over the size limit".to_owned(),
         );
     }
-    if read.lossy {
-        problem(
-            "bad_text",
-            "the page has bytes that are not valid text".to_owned(),
-        );
+    if read.encoding != PageEncoding::Utf8 {
+        problem("bad_text", "the page is not saved as UTF-8".to_owned());
     }
     if let Some(issue) = read_canvas(&read.text).problem {
         problem("bad_canvas", issue.message());
@@ -231,27 +198,26 @@ fn check_page(
     let mut links = Links::default();
     collect_links(&parse(visible).blocks, &mut links);
 
-    // Page links, `[[target]]`.
+    // Page links, `[[target]]`: one answer per target and page.
     let mut seen = BTreeSet::new();
-    for text in &links.texts {
-        for target in link_targets(text) {
-            if !seen.insert(target.clone()) {
-                continue;
-            }
-            match resolve_page(pages, &target, Some(page.section)) {
-                Found::One(_) => {}
-                Found::None => problem(
-                    "broken_link",
-                    format!("the link [[{target}]] points at no page"),
-                ),
-                Found::Many(list) => {
-                    let names: Vec<&str> = list.iter().map(|p| p.entry.rel_path.as_str()).collect();
-                    warnings.push(format!(
-                        "{}: the link [[{target}]] matches more than one page: {}",
-                        page.entry.rel_path,
-                        names.join(", ")
-                    ));
-                }
+    for link in page_links_of(visible) {
+        if !seen.insert(link.target.clone()) {
+            continue;
+        }
+        let target = &link.target;
+        match resolver.resolve(target, &page.entry.rel_path) {
+            Resolved::Page(_) => {}
+            Resolved::Unresolved => problem(
+                "broken_link",
+                format!("the link [[{target}]] points at no page"),
+            ),
+            Resolved::Ambiguous { candidates, .. } => {
+                let names: Vec<&str> = candidates.iter().map(|p| p.path.as_str()).collect();
+                warnings.push(format!(
+                    "{}: the link [[{target}]] matches more than one page: {}",
+                    page.entry.rel_path,
+                    names.join(", ")
+                ));
             }
         }
     }
@@ -326,31 +292,5 @@ pub fn check(globals: &Globals, rest: &[String]) -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(code::ERROR)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn link_targets_follow_the_page_link_forms() {
-        assert_eq!(link_targets("See [[Plan]] now"), ["Plan"]);
-        assert_eq!(
-            link_targets("[[Plan|the plan]] and [[Journal/Monday]]"),
-            ["Plan", "Journal/Monday"]
-        );
-        assert_eq!(link_targets(r"[[A\|B|shown]]"), ["A|B"]);
-        assert_eq!(link_targets("[[ spaced ]]"), ["spaced"]);
-        assert!(link_targets("[[]] [[ ]] [[unclosed").is_empty());
-    }
-
-    #[test]
-    fn hostile_brackets_are_bounded() {
-        let text = "[[".repeat(50_000);
-        assert!(link_targets(&text).is_empty());
-        let many = "[[a]]".repeat(MAX_LINKS_PER_PAGE + 100);
-        assert_eq!(link_targets(&many).len(), MAX_LINKS_PER_PAGE);
-        assert_eq!(link_targets("[[[[x]]"), ["x"]);
     }
 }
