@@ -1069,6 +1069,8 @@ fn reopening_a_notebook_folder_drops_stale_text_steps() {
 
     assert!(session.edit_page_text(&page, 0, 0, "x", false));
     assert!(session.can_undo());
+    // Saved, so the page is clean (an unsaved page keeps its text instead).
+    session.save_page(&page);
     // The folder is opened again with other text on disk: the page is read again.
     std::fs::write(dir.path().join("Sec/A.md"), "# Changed outside\n").unwrap();
     session.set_notebook_root(&id, dir.path());

@@ -1555,6 +1555,12 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Replace the unreadable ink and layout data of the page with a fresh block that keeps what could be read. The old file is kept in the notebook history folder.",
     )
     .ready(),
+    CommandSpec::new(
+        ids::PAGE_CONVERT_ENCODING,
+        "Convert to UTF-8",
+        "Rewrite a page that is not saved as UTF-8 text as UTF-8 so it can be edited. The original file is kept in the notebook history folder. Not undoable.",
+    )
+    .ready(),
     CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
 ];
 
@@ -1672,6 +1678,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NOTEBOOK_SET_COLOR, structure::notebook_set_color),
     (ids::PAGE_CONVERT_TO_MARKDOWN, page::convert_to_markdown),
     (ids::PAGE_REPAIR_CANVAS, page::repair_canvas),
+    (ids::PAGE_CONVERT_ENCODING, page::convert_to_utf8),
 ];
 
 /// The handler for `id`, if it has one.

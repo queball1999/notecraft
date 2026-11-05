@@ -400,6 +400,8 @@ command_ids! {
     PAGE_CONVERT_TO_MARKDOWN = "page.convert_to_markdown";
     /// Replace a canvas block that did not parse with a fresh one that keeps what could be read.
     PAGE_REPAIR_CANVAS = "page.repair_canvas";
+    /// Rewrite a page that is not UTF-8 text as UTF-8, keeping a backup of the original bytes.
+    PAGE_CONVERT_ENCODING = "page.convert_encoding";
 
     // Search (Phase 2)
     /// Search every open notebook.

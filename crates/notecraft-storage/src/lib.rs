@@ -41,8 +41,9 @@ pub use notebook_dir::{
 };
 pub use notebook_toml::{NotebookConfig, ReadOutcome};
 pub use page_file::{
-    read_page_file, read_page_file_with, write_page_text, PageReadError, PageText, WriteOutcome,
-    MAX_PAGE_BYTES,
+    decode_page_bytes, keep_original_bytes, read_page_bytes, read_page_file, read_page_file_with,
+    write_page_text, PageEncoding, PageReadError, PageText, WriteOutcome, MAX_PAGE_BYTES,
+    NOT_UTF8_NOTICE,
 };
 pub use page_kind::{change_page_kind, keep_unreadable_copy};
 pub use recovery::{Journal, RecoveryEntry};

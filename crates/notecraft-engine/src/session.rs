@@ -8,10 +8,12 @@ use std::path::{Path, PathBuf};
 use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
+mod encoding;
 mod nav;
 mod page_style;
 mod save;
 mod saving;
+pub use encoding::Utf8Outcome;
 pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
@@ -202,16 +204,29 @@ impl Session {
             .filter(|id| id.starts_with(&prefix) && self.is_page_dirty(id))
             .cloned()
             .collect();
+        // A page whose save did not go through keeps its unsaved text: it is not read again.
+        let mut kept = std::collections::BTreeSet::new();
         for id in unsaved {
-            self.save_page(&id);
+            match self.save_page(&id) {
+                saving::SaveOutcome::Saved
+                | saving::SaveOutcome::Unchanged
+                | saving::SaveOutcome::NotDirty
+                | saving::SaveOutcome::NoFile
+                | saving::SaveOutcome::Promoted { .. } => {}
+                _ => {
+                    kept.insert(id);
+                }
+            }
         }
         self.notebook_roots
             .insert(notebook_id.to_owned(), folder.to_path_buf());
         self.bump_tree_generation(notebook_id);
         // Pages of a notebook that is opened again are read again.
-        self.page_sources.retain(|id, _| !id.starts_with(&prefix));
-        self.page_notices.retain(|id, _| !id.starts_with(&prefix));
-        self.saving.forget_notebook(&prefix);
+        self.page_sources
+            .retain(|id, _| !id.starts_with(&prefix) || kept.contains(id));
+        self.page_notices
+            .retain(|id, _| !id.starts_with(&prefix) || kept.contains(id));
+        self.saving.forget_notebook(&prefix, &kept);
     }
 
     /// Read the page shown now from disk if it comes from a notebook folder and has not been
@@ -260,10 +275,11 @@ impl Session {
         match result {
             Ok(page) => {
                 if let Some(text) = page.warning() {
-                    let read_only = page.truncated;
+                    let read_only = page.read_only();
                     self.page_notices
                         .insert(page_id.to_owned(), PageNotice { text, read_only });
                 }
+                self.note_encoding(page_id, page.encoding);
                 self.saving
                     .disk_hash
                     .insert(page_id.to_owned(), saving::hash_text(&page.text));
@@ -500,16 +516,16 @@ mod page_load_tests {
     }
 
     #[test]
-    fn bad_bytes_show_text_with_a_warning_and_stay_editable() {
+    fn bad_bytes_show_decoded_text_with_a_notice_and_are_read_only() {
         let dir = notebook(&[("Sec/A.md", b"ok \xff")]);
         let mut session = open(&dir);
         session.load_current_page();
         assert_eq!(
             session.current_page_source().expect("text").text,
-            "ok \u{fffd}"
+            "ok \u{ff}"
         );
         let notice = session.current_page_notice().expect("notice");
-        assert!(!notice.read_only);
+        assert!(notice.read_only);
     }
 
     #[test]
@@ -528,3 +544,8 @@ mod page_load_tests {
 
 #[cfg(test)]
 mod saving_tests;
+
+#[cfg(test)]
+mod dirty_follows_tests;
+#[cfg(test)]
+mod encoding_tests;

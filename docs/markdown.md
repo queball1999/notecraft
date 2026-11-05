@@ -14,6 +14,7 @@ Status: ink saving, container markers, and container positions are implemented (
 4. Lenient reading. Unknown frontmatter keys, unknown HTML, and malformed canvas data are kept or skipped, never fatal. A page NoteCraft cannot fully parse still opens as plain text.
 5. Bounded reading. Every parser caps file size, nesting depth, stroke count, and point count (limits in section 9).
 6. Crash-safe writing. Every write goes through `craft-atomic` (write to a temp file, flush, rename).
+7. Pages are UTF-8. NoteCraft writes UTF-8 only. A page file that is not valid UTF-8 is never rewritten by a normal save: it opens read-only, decoded for display, and a bar says so. UTF-16 (with a byte order mark, or text that is mostly ASCII with a NUL in every other byte) is decoded as UTF-16; any other invalid bytes are read as Windows-1252 (all 256 bytes map to a character, so nothing is lost). The command `page.convert_encoding` (Convert to UTF-8 on the bar) first keeps the original bytes as `.notecraft/history/<page path>/original-<hash>.bak` (hash of the bytes, so one copy per distinct file), then writes the same text as UTF-8 with its line endings, drops the byte order mark, and makes the page editable. It is not undoable, and it refuses (writes nothing) when the file no longer holds what the page shows. Read-only holds through reloads, outside edits, recovery restore, and saves: unsaved text is never written over a file that is not UTF-8.
 
 ## 2. Folder layout
 
@@ -319,6 +320,7 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | Limit | Default | On overflow |
 |---|---|---|
 | Page file size | 64 MiB | opened read-only as plain text |
+| Page encoding | UTF-8 | UTF-16 and Windows-1252 pages open read-only, decoded (section 1, rule 7) |
 | Frontmatter size | 64 KiB | frontmatter kept as text, keys ignored |
 | Canvas block size | 48 MiB | block preserved, page opens in flow layout |
 | Ink strokes per page | 100,000 | extra strokes kept in file, not drawn, warning shown |
@@ -361,3 +363,4 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-18 | 1 | Section 3.4: pictures and file attachments placed on the page are listed in the canvas block `images` and `files` lists (`src`, `nth`, `x`, `y`); the markdown stays in the page text; the width stays the section 2.4 comment; a `.md` page with one promotes to `.notecraft`. Shapes are not stored yet. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-10-18 | 1 | Section 2.5 (new): page style keys in the `notecraft:` frontmatter map: `paper` (blank, lined, grid, dotted), `paper_spacing`, `paper_size`, `rule_color`, and `color`; lenient reading, minimal-diff writing, a key is removed at its default. |
+| 2026-10-24 | 1 | Encoding safety (fix/encoding-safety): section 1 rule 7 and the section 9 limits row. A page that is not valid UTF-8 (UTF-16, Windows-1252) opens read-only, correctly decoded, and `page.convert_encoding` keeps a hashed backup of the original bytes, then rewrites it as UTF-8. Decision: a BOM-less UTF-16 guess needs 4 or more pairs with NULs in at least 30 percent of one byte position and none in the other. |

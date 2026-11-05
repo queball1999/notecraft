@@ -12,11 +12,13 @@
 //! without the user choosing which version to keep.
 
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::path::{Component, Path, PathBuf};
 
-use notecraft_storage::{read_page_file, write_page_text, PageReadError, PageText, WriteOutcome};
+use notecraft_storage::{
+    read_page_file, write_page_text, PageEncoding, PageReadError, PageText, WriteOutcome,
+};
 
 use super::Session;
 
@@ -97,47 +99,83 @@ pub(super) struct SavingState {
     pub disk_hash: BTreeMap<String, u64>,
     /// The outside version of a page that also has unsaved changes.
     pub conflicts: BTreeMap<String, String>,
+    /// Pages whose file is gone from where it was (moved, renamed, or deleted outside the
+    /// app). Such a page with unsaved text is also in `conflicts` (with no outside text).
+    pub gone: BTreeSet<String>,
+    /// How many times each page was written by this session.
+    pub save_seq: BTreeMap<String, u64>,
+    /// Per page, the save count when each outside read in flight was handed out, oldest first.
+    pub inflight: BTreeMap<String, VecDeque<u64>>,
     pub read_requests: Vec<ReadRequest>,
     pub recovery: Vec<RecoveryItem>,
     /// Page files whose journal entry is no longer needed.
     pub journal_clean: Vec<PathBuf>,
+    /// Pages whose file is not UTF-8 text: shown decoded, read-only, never written until
+    /// converted (`page.convert_encoding`).
+    pub legacy: BTreeMap<String, PageEncoding>,
 }
 
 impl SavingState {
     /// Page `old` is now page `new`: move its save state.
     pub(super) fn rekey(&mut self, old: &str, new: &str) {
-        if self.dirty.remove(old) {
-            self.dirty.insert(new.to_owned());
+        let (old, new) = (old.to_owned(), new.to_owned());
+        self.rekey_with(&move |id| (id == old).then(|| new.clone()));
+    }
+
+    /// Every id `map` renames takes its save state along (dirty mark, disk hash, conflict,
+    /// queued reads, pending recovery). Used when a file or folder moves.
+    pub(super) fn rekey_with(&mut self, map: &dyn Fn(&str) -> Option<String>) {
+        fn keys<V>(m: &mut BTreeMap<String, V>, map: &dyn Fn(&str) -> Option<String>) {
+            let moved: Vec<String> = m.keys().filter(|k| map(k).is_some()).cloned().collect();
+            for key in moved {
+                if let (Some(value), Some(new)) = (m.remove(&key), map(&key)) {
+                    m.insert(new, value);
+                }
+            }
         }
-        if self.loading.remove(old) {
-            self.loading.insert(new.to_owned());
+        fn set(s: &mut BTreeSet<String>, map: &dyn Fn(&str) -> Option<String>) {
+            let moved: Vec<String> = s.iter().filter(|k| map(k).is_some()).cloned().collect();
+            for key in moved {
+                s.remove(&key);
+                if let Some(new) = map(&key) {
+                    s.insert(new);
+                }
+            }
         }
-        if let Some(value) = self.disk_hash.remove(old) {
-            self.disk_hash.insert(new.to_owned(), value);
-        }
-        if let Some(value) = self.conflicts.remove(old) {
-            self.conflicts.insert(new.to_owned(), value);
-        }
+        set(&mut self.dirty, map);
+        set(&mut self.loading, map);
+        set(&mut self.gone, map);
+        keys(&mut self.disk_hash, map);
+        keys(&mut self.conflicts, map);
+        keys(&mut self.save_seq, map);
+        keys(&mut self.inflight, map);
+        keys(&mut self.legacy, map);
         for request in &mut self.read_requests {
-            if request.page_id == old {
-                request.page_id = new.to_owned();
+            if let Some(new) = map(&request.page_id) {
+                request.page_id = new;
             }
         }
         for item in &mut self.recovery {
-            if item.page_id == old {
-                item.page_id = new.to_owned();
+            if let Some(new) = map(&item.page_id) {
+                item.page_id = new;
             }
         }
     }
 
-    pub(super) fn forget_notebook(&mut self, prefix: &str) {
-        self.loading.retain(|id| !id.starts_with(prefix));
-        self.dirty.retain(|id| !id.starts_with(prefix));
-        self.disk_hash.retain(|id, _| !id.starts_with(prefix));
-        self.conflicts.retain(|id, _| !id.starts_with(prefix));
-        self.read_requests
-            .retain(|r| !r.page_id.starts_with(prefix));
-        self.recovery.retain(|r| !r.page_id.starts_with(prefix));
+    /// Drop the save state of the pages under `prefix`, except the ids in `keep` (pages
+    /// whose unsaved text is kept).
+    pub(super) fn forget_notebook(&mut self, prefix: &str, keep: &BTreeSet<String>) {
+        let drop = |id: &str| id.starts_with(prefix) && !keep.contains(id);
+        self.loading.retain(|id| !drop(id));
+        self.dirty.retain(|id| !drop(id));
+        self.gone.retain(|id| !drop(id));
+        self.disk_hash.retain(|id, _| !drop(id));
+        self.conflicts.retain(|id, _| !drop(id));
+        self.save_seq.retain(|id, _| !drop(id));
+        self.inflight.retain(|id, _| !drop(id));
+        self.legacy.retain(|id, _| !drop(id));
+        self.read_requests.retain(|r| !drop(&r.page_id));
+        self.recovery.retain(|r| !drop(&r.page_id));
     }
 }
 
@@ -158,7 +196,23 @@ impl Session {
 
     /// Reads waiting for the IO worker, oldest first.
     pub fn take_read_requests(&mut self) -> Vec<ReadRequest> {
-        std::mem::take(&mut self.saving.read_requests)
+        let requests = std::mem::take(&mut self.saving.read_requests);
+        for request in &requests {
+            if request.purpose == ReadPurpose::Outside {
+                let seq = self
+                    .saving
+                    .save_seq
+                    .get(&request.page_id)
+                    .copied()
+                    .unwrap_or(0);
+                self.saving
+                    .inflight
+                    .entry(request.page_id.clone())
+                    .or_default()
+                    .push_back(seq);
+            }
+        }
+        requests
     }
 
     pub(super) fn queue_read(&mut self, page_id: String, path: PathBuf, purpose: ReadPurpose) {
@@ -304,10 +358,22 @@ impl Session {
         std::mem::take(&mut self.saving.journal_clean)
     }
 
-    fn is_read_only(&self, page_id: &str) -> bool {
-        self.page_notices
-            .get(page_id)
-            .is_some_and(|notice| notice.read_only)
+    /// Note how page `page_id` was encoded when its file was read: anything but UTF-8 keeps the
+    /// page read-only, whatever its notice says.
+    pub(super) fn note_encoding(&mut self, page_id: &str, encoding: PageEncoding) {
+        if encoding == PageEncoding::Utf8 {
+            self.saving.legacy.remove(page_id);
+        } else {
+            self.saving.legacy.insert(page_id.to_owned(), encoding);
+        }
+    }
+
+    pub(super) fn is_read_only(&self, page_id: &str) -> bool {
+        self.saving.legacy.contains_key(page_id)
+            || self
+                .page_notices
+                .get(page_id)
+                .is_some_and(|notice| notice.read_only)
     }
 
     fn note_clean(&mut self, page_id: &str) {
@@ -349,6 +415,14 @@ impl Session {
         let promote = self.needs_promotion(page_id);
         match read_page_file(&path) {
             Ok(disk) => {
+                if disk.read_only() && !disk.truncated {
+                    // The file is not UTF-8 text (it changed since it was read): writing would
+                    // destroy its bytes. Only `page.convert_encoding` rewrites such a file.
+                    tracing::warn!(page = %page_id, "page file is not UTF-8; not saving over it");
+                    return SaveOutcome::Failed(
+                        "the page file is not UTF-8 text, so it was not overwritten".to_owned(),
+                    );
+                }
                 let known = self.saving.disk_hash.get(page_id).copied();
                 if known.is_some_and(|h| h != hash_text(&disk.text)) && disk.text != text {
                     tracing::info!(page = %page_id, "page changed on disk; not saving over it");
@@ -357,7 +431,13 @@ impl Session {
                     return SaveOutcome::Conflict;
                 }
             }
-            Err(PageReadError::NotFound) => {}
+            Err(PageReadError::NotFound) => {
+                if self.saving.disk_hash.contains_key(page_id) {
+                    // The file was there and is gone: never recreate it without asking.
+                    self.raise_gone(page_id);
+                    return SaveOutcome::Conflict;
+                }
+            }
             Err(err) => {
                 tracing::warn!(page = %page_id, "cannot check the page before saving: {err}");
                 return SaveOutcome::Failed("the page file cannot be read".to_owned());
@@ -372,6 +452,7 @@ impl Session {
                     .disk_hash
                     .insert(page_id.to_owned(), hash_text(&text));
                 self.saving.dirty.remove(page_id);
+                *self.saving.save_seq.entry(page_id.to_owned()).or_insert(0) += 1;
                 self.note_clean(page_id);
                 // The session text now carries the canvas block the file holds.
                 self.adopt_saved_text(page_id, text);
@@ -433,15 +514,43 @@ impl Session {
         page_id: &str,
         result: Result<PageText, PageReadError>,
     ) {
+        // A read handed out before this session last wrote the page may show an older
+        // version of our own write: ignore it (the write raised its own watcher event).
+        let requested_at = self
+            .saving
+            .inflight
+            .get_mut(page_id)
+            .and_then(VecDeque::pop_front);
+        let current = self.saving.save_seq.get(page_id).copied().unwrap_or(0);
+        let stale = requested_at.is_some_and(|seq| seq < current);
         let page = match result {
             Ok(page) => page,
             Err(err) => {
-                tracing::info!(page = %page_id, "page file not readable after a change: {err}");
+                if matches!(err, PageReadError::NotFound) && !stale {
+                    self.note_file_gone(page_id);
+                } else {
+                    tracing::info!(page = %page_id, "page file not readable after a change: {err}");
+                }
                 return;
             }
         };
-        if page.truncated || !self.page_sources.contains_key(page_id) {
+        if stale || page.truncated || !self.page_sources.contains_key(page_id) {
             return;
+        }
+        if self.saving.gone.remove(page_id) {
+            // The file is back.
+            if !self.saving.legacy.contains_key(page_id) {
+                self.page_notices.remove(page_id);
+            }
+            if self
+                .saving
+                .conflicts
+                .get(page_id)
+                .is_some_and(String::is_empty)
+            {
+                self.saving.conflicts.remove(page_id);
+            }
+            self.mark_changed();
         }
         let theirs = hash_text(&page.text);
         let known = self.saving.disk_hash.get(page_id).copied();
@@ -453,6 +562,12 @@ impl Session {
             return;
         }
         let dirty = self.saving.dirty.contains(page_id);
+        if dirty && page.encoding != PageEncoding::Utf8 {
+            // The save path refuses to write over a file that is not UTF-8, so the user's
+            // text stays unsaved (and journaled) rather than replacing the original bytes.
+            tracing::info!(page = %page_id, "page file is no longer UTF-8 text; keeping unsaved text");
+            return;
+        }
         let ours = match self.file_text(page_id) {
             Some(Ok(text)) => text,
             _ => self.page_text(page_id).unwrap_or_default().to_owned(),
@@ -477,18 +592,65 @@ impl Session {
         self.mark_changed();
     }
 
+    /// A watcher read found no file for page `page_id`. If the file really is gone (a read
+    /// handed out before a rename can name the old path), say so: a notice for a clean page,
+    /// the recreate-or-discard question for one with unsaved text.
+    fn note_file_gone(&mut self, page_id: &str) {
+        if !self.page_sources.contains_key(page_id) {
+            return;
+        }
+        let missing = match self.resolve_page_file(page_id) {
+            Resolved::File(path) => !path.exists(),
+            _ => false,
+        };
+        if !missing || !self.saving.disk_hash.contains_key(page_id) {
+            return;
+        }
+        if self.saving.dirty.contains(page_id) {
+            self.raise_gone(page_id);
+        } else if self.saving.gone.insert(page_id.to_owned()) {
+            self.set_gone_notice(page_id);
+            self.mark_changed();
+        }
+    }
+
+    fn set_gone_notice(&mut self, page_id: &str) {
+        if self.is_read_only(page_id) {
+            return;
+        }
+        self.page_notices.insert(
+            page_id.to_owned(),
+            super::PageNotice {
+                text: "This page's file was moved or deleted outside NoteCraft.".to_owned(),
+                read_only: false,
+            },
+        );
+    }
+
+    /// Ask what to do with unsaved text whose file is gone: the conflict flow with no outside
+    /// text. Keeping the text recreates the file on the next save; the outside version is
+    /// "no file", which drops the unsaved text.
+    fn raise_gone(&mut self, page_id: &str) {
+        tracing::info!(page = %page_id, "page file is gone; not recreating it silently");
+        self.saving.gone.insert(page_id.to_owned());
+        self.set_gone_notice(page_id);
+        self.saving.conflicts.entry(page_id.to_owned()).or_default();
+        self.mark_changed();
+    }
+
     /// Replace the text of a clean page with a newer version from disk. The undo steps of
     /// the page refer to the old text, so they are dropped (logged, no toast).
     fn reload_page(&mut self, page_id: &str, page: PageText) {
         tracing::info!(page = %page_id, "page changed outside NoteCraft; reloaded it");
         self.history.clear_page(page_id);
+        self.note_encoding(page_id, page.encoding);
         match page.warning() {
             Some(text) => {
                 self.page_notices.insert(
                     page_id.to_owned(),
                     super::PageNotice {
                         text,
-                        read_only: false,
+                        read_only: page.read_only(),
                     },
                 );
             }
@@ -517,6 +679,20 @@ impl Session {
         let Some(theirs) = self.saving.conflicts.remove(&id) else {
             return false;
         };
+        if self.saving.gone.remove(&id) {
+            // The file is gone. Keeping the text writes a new file on the next save;
+            // otherwise the unsaved text is dropped.
+            self.page_notices.remove(&id);
+            self.saving.disk_hash.remove(&id);
+            if keep_mine {
+                self.saving.dirty.insert(id);
+            } else {
+                self.saving.dirty.remove(&id);
+                self.note_clean(&id);
+            }
+            self.mark_changed();
+            return true;
+        }
         self.saving.disk_hash.insert(id.clone(), hash_text(&theirs));
         if keep_mine {
             self.saving.dirty.insert(id);
@@ -556,6 +732,11 @@ impl Session {
                     continue;
                 }
             };
+            if disk.encoding != PageEncoding::Utf8 {
+                // Restoring would write over a file that is not UTF-8 text: leave the entry.
+                tracing::warn!(page = %page_id, "recovery entry kept: the page file is not UTF-8");
+                continue;
+            }
             if disk.text == entry.text {
                 stale.push(entry.path);
                 continue;
