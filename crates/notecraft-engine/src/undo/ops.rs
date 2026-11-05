@@ -242,6 +242,21 @@ impl Op {
         }
     }
 
+    /// True for a text edit of page `page_id`.
+    pub(crate) fn is_text_edit_of(&self, page_id: &str) -> bool {
+        matches!(self, Op::ReplaceText { page, .. } if page == page_id)
+    }
+
+    /// Move the text offset of a [`Op::ReplaceText`] on page `page_id` with `shift`, after a
+    /// save changed the page text around it.
+    pub(crate) fn shift_text(&mut self, page_id: &str, shift: &dyn Fn(usize) -> usize) {
+        if let Op::ReplaceText { page, at, .. } = self {
+            if page == page_id {
+                *at = shift(*at);
+            }
+        }
+    }
+
     /// Point ids this operation names at their new values. `map` gives the new id for an old
     /// one, or `None` to keep it. Used when a rename or move changes the ids of pages.
     pub(crate) fn rekey(&mut self, map: &dyn Fn(&str) -> Option<String>) {

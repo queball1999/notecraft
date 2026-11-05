@@ -420,6 +420,7 @@ impl Session {
             return SaveOutcome::ReadOnly;
         };
         let promote = self.needs_promotion(page_id);
+        let mut disk_text = None;
         match read_page_file(&path) {
             Ok(disk) => {
                 if disk.read_only() && !disk.truncated {
@@ -437,6 +438,7 @@ impl Session {
                     self.mark_changed();
                     return SaveOutcome::Conflict;
                 }
+                disk_text = Some(disk.text);
             }
             Err(PageReadError::NotFound) => {
                 if self.saving.disk_hash.contains_key(page_id) {
@@ -450,6 +452,8 @@ impl Session {
                 return SaveOutcome::Failed("the page file cannot be read".to_owned());
             }
         }
+        // A `.notecraft` page gets its id and times here (a `.md` page stays as it is).
+        let text = self.stamped_text(page_id, text, promote, disk_text.as_deref());
         if promote {
             return self.promote_and_save(page_id, text);
         }

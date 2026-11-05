@@ -32,6 +32,15 @@ fn open(dir: &tempfile::TempDir) -> Session {
     session
 }
 
+/// A session that stamps nothing, for tests that compare the saved file with exact text (the
+/// id and times have their own tests in `page_ids_tests.rs`).
+fn open_unstamped(dir: &tempfile::TempDir) -> Session {
+    let mut session = open(dir);
+    session.set_clock(crate::stamp::Clock::new(|| None));
+    session.set_id_source(crate::stamp::IdSource::new(|_| None));
+    session
+}
+
 fn run(session: &mut Session, id: &str, args: serde_json::Value) -> serde_json::Value {
     let out = Registry::builtin().run(session, id, args).unwrap();
     out.value
@@ -103,7 +112,7 @@ fn a_page_whose_canvas_block_cannot_be_read_is_kept_and_not_saved_over() {
 #[test]
 fn ink_is_saved_with_a_minimal_diff_and_reloads() {
     let dir = notebook(&[("Sec/A.notecraft", BASIC)]);
-    let mut session = open(&dir);
+    let mut session = open_unstamped(&dir);
     let id = current_id(&session);
     assert_eq!(session.save_page(&id), SaveOutcome::NotDirty);
     draw(&mut session, json!([[5, 6, 0.5], [7, 8, 0.25]]));
@@ -135,7 +144,7 @@ fn ink_is_saved_with_a_minimal_diff_and_reloads() {
 #[test]
 fn a_markdown_page_with_ink_is_promoted_on_save() {
     let dir = notebook(&[("Sec/A.md", "# Hi\n"), ("Sec/B.md", "other\n")]);
-    let mut session = open(&dir);
+    let mut session = open_unstamped(&dir);
     let id = current_id(&session);
     assert!(id.ends_with("Sec/A.md"), "{id}");
     draw(&mut session, json!([[1, 2], [3, 4]]));
@@ -345,7 +354,7 @@ fn a_moved_and_resized_container_is_saved_and_reloads() {
 #[test]
 fn undoing_a_move_marks_the_page_dirty_and_saves_the_old_place() {
     let dir = notebook(&[("Sec/A.notecraft", BASIC)]);
-    let mut session = open(&dir);
+    let mut session = open_unstamped(&dir);
     let id = current_id(&session);
     run(
         &mut session,
@@ -414,7 +423,7 @@ fn convert_to_markdown_forgets_the_positions() {
 fn a_broken_canvas_block_can_be_repaired() {
     let text = "Words\n\n```notecraft-canvas\n{ \"ink\": [ \n```\n";
     let dir = notebook(&[("Sec/A.notecraft", text)]);
-    let mut session = open(&dir);
+    let mut session = open_unstamped(&dir);
     let id = current_id(&session);
     assert!(session.can_repair_canvas());
     assert!(session.current_page_notice().unwrap().read_only);
@@ -494,7 +503,7 @@ fn source(dir: &tempfile::TempDir, name: &str) -> String {
 #[test]
 fn a_picture_placed_at_a_point_promotes_a_markdown_page_and_reloads() {
     let dir = picture_notebook("Sec/A.md", "# Hi\n");
-    let mut session = open(&dir);
+    let mut session = open_unstamped(&dir);
     let id = current_id(&session);
     let out = run(
         &mut session,
