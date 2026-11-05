@@ -4,6 +4,7 @@
 //! never touches the page files. It takes plain inputs (folders, the current selection, a
 //! query), so the command line search (PR 2.11) calls the same [`search`] the app does.
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::cmp::Ordering;
 use std::path::PathBuf;
 
@@ -187,6 +188,7 @@ pub const MAX_RESULTS: usize = 500;
 /// The selection narrows the scopes: which notebook, section, and page "this" means.
 pub type SearchContext = Selection;
 
+#[cfg(not(target_arch = "wasm32"))]
 /// The folder path of a section id, given its notebook id.
 fn section_path<'a>(notebook: &str, section_id: &'a str) -> Option<&'a str> {
     section_id
@@ -217,6 +219,7 @@ pub fn split_marks(marked: &str) -> (String, Vec<(usize, usize)>) {
     (text, ranges)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn order(sort: SearchSort, a: &Sortable, b: &Sortable) -> Ordering {
     let by_rank = a.rank.partial_cmp(&b.rank).unwrap_or(Ordering::Equal);
     let by_title = a
@@ -242,6 +245,7 @@ fn order(sort: SearchSort, a: &Sortable, b: &Sortable) -> Ordering {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// The fields a sort reads.
 struct Sortable {
     notebook_at: usize,
@@ -252,6 +256,7 @@ struct Sortable {
     id: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl SearchHit {
     fn sortable(&self, notebook_at: usize) -> Sortable {
         Sortable {
