@@ -5,8 +5,8 @@
 use super::page;
 use super::search;
 use super::{
-    attach, canvas, draw, edit, equation, file, find, format, ids, layout, nav, structure, text,
-    theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
+    attach, canvas, draw, edit, equation, file, find, format, ids, layout, nav, structure, tags,
+    text, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
 const FIND_ARGS: &[ArgSpec] = &[ArgSpec::optional(
@@ -290,6 +290,39 @@ const TAG_ARGS: &[ArgSpec] = &[ArgSpec::required(
     ArgKind::String,
     "Tag id, for example todo, important, or question.",
 )];
+const TAG_ADD_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("name", ArgKind::String, "The tag name, 1 to 40 characters."),
+    ArgSpec::optional(
+        "icon",
+        ArgKind::String,
+        "Icon id, for example star or flag; dot when omitted.",
+    ),
+    ArgSpec::optional(
+        "font_color",
+        ArgKind::String,
+        "Text color as #RRGGBB, or none.",
+    ),
+    ArgSpec::optional(
+        "highlight",
+        ArgKind::String,
+        "Highlight color as #RRGGBB, or none.",
+    ),
+];
+const TAG_EDIT_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("tag", ArgKind::String, "Id of the custom tag."),
+    ArgSpec::optional("name", ArgKind::String, "The new name, 1 to 40 characters."),
+    ArgSpec::optional("icon", ArgKind::String, "The new icon id."),
+    ArgSpec::optional(
+        "font_color",
+        ArgKind::String,
+        "Text color as #RRGGBB, or none.",
+    ),
+    ArgSpec::optional(
+        "highlight",
+        ArgKind::String,
+        "Highlight color as #RRGGBB, or none.",
+    ),
+];
 const TABLE_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("rows", ArgKind::Integer, "Number of rows."),
     ArgSpec::optional("columns", ArgKind::Integer, "Number of columns."),
@@ -848,7 +881,8 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Apply a note tag to the selected paragraph.",
     )
     .undoable()
-    .args(TAG_ARGS),
+    .args(TAG_ARGS)
+    .ready(),
     CommandSpec::new(
         ids::TAG_TODO,
         "To Do Tag",
@@ -863,7 +897,8 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Remove all note tags from the selected paragraph.",
     )
     .undoable()
-    .shortcut("Ctrl+0"),
+    .shortcut("Ctrl+0")
+    .ready(),
     CommandSpec::new(
         ids::TAG_FIND,
         "Find Tags",
@@ -873,7 +908,30 @@ pub(super) static SPECS: &[CommandSpec] = &[
         ids::TAG_CUSTOMIZE,
         "Customize Tags",
         "Add, change, or reorder the note tags in the gallery.",
-    ),
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_CUSTOM_ADD,
+        "Add Tag",
+        "Add a custom note tag to the gallery.",
+    )
+    .args(TAG_ADD_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_CUSTOM_EDIT,
+        "Modify Tag",
+        "Rename a custom note tag or change its icon or colors.",
+    )
+    .args(TAG_EDIT_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_CUSTOM_DELETE,
+        "Delete Tag",
+        "Remove a custom note tag from the gallery.",
+    )
+    .args(TAG_ARGS)
+    .destructive()
+    .ready(),
     // Home tab: Email and Meetings groups
     CommandSpec::new(
         ids::EMAIL_PAGE,
@@ -1787,6 +1845,12 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::EDIT_FIND_NEXT, find::next),
     (ids::EDIT_FIND_PREVIOUS, find::previous),
     (ids::EDIT_FIND_CLOSE, find::close),
+    (ids::TAG_APPLY, tags::apply),
+    (ids::TAG_REMOVE, tags::remove),
+    (ids::TAG_CUSTOMIZE, tags::customize),
+    (ids::TAG_CUSTOM_ADD, tags::custom_add),
+    (ids::TAG_CUSTOM_EDIT, tags::custom_edit),
+    (ids::TAG_CUSTOM_DELETE, tags::custom_delete),
     (ids::EDIT_UNDO, edit::undo),
     (ids::EDIT_REDO, edit::redo),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
