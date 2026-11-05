@@ -570,6 +570,9 @@ pub(super) fn add_stroke(
     let Some(page) = session.selection().page.clone() else {
         return Ok(CommandOutput { value: Value::Null });
     };
+    if session.page_is_read_only(&page) {
+        return Err(invalid(id, "the page is read-only".to_owned()));
+    }
     // The highlighter's strokes are marked as such; anything else is drawn with the pen.
     let (tool, style) = if session.ink().tool() == DrawTool::Highlighter {
         (InkTool::Highlighter, session.ink().highlighter())

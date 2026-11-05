@@ -205,3 +205,45 @@ fn hostile_bytes_open_without_a_panic() {
         let _ = session.convert_current_page_to_utf8();
     }
 }
+
+#[test]
+fn ink_and_style_changes_are_refused_on_a_non_utf8_page() {
+    let dir = notebook(CP1252);
+    let mut session = open(&dir);
+    let id = page(&session);
+    let registry = Registry::builtin();
+    let refused = registry.run(
+        &mut session,
+        "ink.add_stroke",
+        json!({ "points": [[10.0, 10.0], [20.0, 20.0]] }),
+    );
+    assert!(format!("{refused:?}").contains("read-only"), "{refused:?}");
+    assert_eq!(session.ink().layer(&id).map_or(0, |layer| layer.len()), 0);
+    let style = crate::view::PageStyle::default();
+    let tx = crate::undo::Transaction::new(crate::undo::Scope::Page(id.clone()), "Style").with(
+        crate::undo::Op::SetPageStyle {
+            page: id.clone(),
+            before: style,
+            after: style,
+        },
+    );
+    assert!(!session.commit(tx));
+    assert!(!session.can_undo());
+    assert!(matches!(
+        session.save_page(&id),
+        SaveOutcome::NotDirty | SaveOutcome::ReadOnly
+    ));
+    assert_eq!(disk(&dir), CP1252);
+    // After converting, the same edits are allowed.
+    registry
+        .run(&mut session, "page.convert_encoding", json!({}))
+        .unwrap();
+    registry
+        .run(
+            &mut session,
+            "ink.add_stroke",
+            json!({ "points": [[10.0, 10.0], [20.0, 20.0]] }),
+        )
+        .unwrap();
+    assert_eq!(session.ink().layer(&id).map_or(0, |layer| layer.len()), 1);
+}

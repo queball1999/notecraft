@@ -400,10 +400,21 @@ impl Session {
 
     /// Apply a transaction and record it as an undo step. If an operation cannot be applied
     /// (for example, it names a stroke that is not there), the ones already applied are
-    /// reversed, nothing is recorded, and this returns false.
+    /// reversed, nothing is recorded, and this returns false. A transaction that changes the
+    /// content of a read-only page (cut short, or not UTF-8 text) is refused the same way, so
+    /// no edit is shown that could never be saved.
     pub fn commit(&mut self, tx: Transaction) -> bool {
         if tx.ops.is_empty() {
             return true;
+        }
+        if let Some(page) = tx
+            .ops
+            .iter()
+            .filter_map(Op::content_page)
+            .find(|page| self.page_is_read_only(page))
+        {
+            tracing::info!(page = %page, "edit refused: the page is read-only");
+            return false;
         }
         if !ops::apply_all(self, tx.ops.iter()) {
             self.resync_dirty();
