@@ -45,7 +45,7 @@ impl Style {
 
 /// The lines a block command changes: the touched lines that are text. A caret on an empty line
 /// still counts; a selection skips empty lines.
-fn targets(ctx: &Ctx<'_>) -> Vec<(Line, Prefix)> {
+pub(super) fn targets(ctx: &Ctx<'_>) -> Vec<(Line, Prefix)> {
     let text = ctx.text;
     let (lo, hi) = ctx.range();
     let ranges = fences(text, ctx.floor);
@@ -62,7 +62,7 @@ fn targets(ctx: &Ctx<'_>) -> Vec<(Line, Prefix)> {
         .collect()
 }
 
-fn finish(ctx: &Ctx<'_>, reps: Vec<Rep>) -> Option<FormatEdit> {
+pub(super) fn finish(ctx: &Ctx<'_>, reps: Vec<Rep>) -> Option<FormatEdit> {
     if reps.is_empty() {
         return None;
     }
@@ -184,7 +184,7 @@ fn code_block(ctx: &Ctx<'_>) -> Option<FormatEdit> {
 
 /// Where a line's list marker, quote, and indent start for removal: after the quote markers,
 /// or at the start of the line without any.
-fn removal_start(p: &Prefix) -> usize {
+pub(super) fn removal_start(p: &Prefix) -> usize {
     if p.quote_depth > 0 {
         p.quote_end
     } else {
