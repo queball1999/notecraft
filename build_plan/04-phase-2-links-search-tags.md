@@ -1,6 +1,6 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.5 landed notes; earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
 
 Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
 
@@ -116,6 +116,8 @@ Commits:
 5. `test(markdown): note tag round trip`
 
 PR title: `feat(ui): add OneNote note tags`.
+
+Notes (landed): Branch `feat/note-tags` was built on the phase branch. Commit list: `feat(markdown): parse note tags`, `test(markdown): note tag round trip`, `feat(storage): store note tags in the index and query them by scope`, `feat(engine): fill the note tag index from the refresh thread`, `feat(engine): add note tag commands and the tag gallery`, `feat(ui): draw original note tag icons`, `feat(ui): add tags gallery, tag shortcuts, and customize tags dialog` (the plan's commit 4 and the gallery commit were merged as the dialog and gallery share the app shell wiring; the command and index work are extra commits). Decisions: (1) Tags attach to the paragraph, heading, or list item that holds them; the scanner works on source text and skips code, HTML, links, and page links; the exact grammar is in docs/markdown.md section 4.2. (2) The existing command ids `tag.apply` (toggle, argument `tag`), `tag.remove`, and `tag.customize` were kept instead of renamed; `tag.custom_add`, `tag.custom_edit`, and `tag.custom_delete` are new. The Ctrl+1 to Ctrl+9 and Ctrl+0 bindings were already in the shortcut table and clash with nothing. (3) To Do stays the task list item through `tag.todo`/`tag.apply todo`. (4) Highlight-style tags (Remember for later, Definition, Highlight) paint the text and draw no icon. (5) Only custom tags can be renamed, deleted, or recolored; the default tags are fixed (checklist note). (6) Slugs for the tags the spec did not fix: website, password, critical, project-a, project-b, movie, book, music, source, blog, discuss-a, discuss-b, discuss-manager, email, meeting, callback, todo-1, todo-2, client. (7) The index tags table got schema version 6 (holder span, text, checked, and `pages.tags_hash`); `update_tag_index` in `crates/notecraft-engine/src/tags_index.rs` runs after `update_text_index` in the refresh thread, and `Index::tagged_items(TagScope, tags)` is the query PR 2.6 and PR 2.11 build on (storage had no TextScope to reuse for tags: a `TagScope` of notebook, folder (section or group), or page). Known limit: the canonical block serializer cannot tell `\#word` from a tag.
 
 ## PR 2.6: Find Tags summary
 
@@ -249,3 +251,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2026-10-19 | 1 | Entry criteria: v0.0.2 (not v0.1.0) is the Phase 1 alpha that must be published first. |
 | 2026-10-24 | 2 | PR 2.9 built: find on page (TX-11 scored D); notes added to the PR section. |
 | 2026-10-24 | 2 | PR 2.1 landed. Decisions: a link run is a `Run` with `page_link: Some(target)` and the shown text in `text`; a link whose display text equals its target is written back as `[[T]]`; a link never spans styled runs or a line break; the reader marks real links in a same-length copy of the source before inline parsing, so an escaped `[[x]]` stays plain text. Follow-up: the escaped pipe separates only in table cells |
+| 2026-11-05 | 2 | PR 2.5 landed: notes added (note tags, index, gallery, dialog). |
