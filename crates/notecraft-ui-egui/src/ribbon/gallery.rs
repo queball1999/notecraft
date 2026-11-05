@@ -13,7 +13,7 @@ use notecraft_engine::cmd::Status;
 
 use super::spec::{ArgValue, Gallery, GalleryKind, Item};
 use super::{button, keytips, menus, Clicked, KeyFrame, Look};
-use crate::icons::{self, Icon, IconColors};
+use crate::icons;
 
 /// Width of the arrow column.
 const ARROW_WIDTH: f32 = 16.0;
@@ -104,7 +104,13 @@ pub(super) fn show(
     Popup::menu(&more)
         .open_memory(toggle)
         .close_behavior(PopupCloseBehavior::CloseOnClick)
-        .show(|ui| menus::items(ui, gallery.items(), look, out));
+        .show(|ui| {
+            if gallery.kind == GalleryKind::Tags {
+                tag_menu(ui, gallery.items(), look, out);
+            } else {
+                menus::items(ui, gallery.items(), look, out);
+            }
+        });
     let _ = more.on_hover_text(format!("More {name}"));
 }
 
@@ -182,22 +188,88 @@ fn style_look(item: &Item) -> (f32, bool) {
     }
 }
 
-/// The icon in front of a tag entry.
-fn tag_icon(item: &Item) -> Icon {
-    let tag = item
-        .args
+/// The slug in a tag entry's `tag` argument.
+fn tag_slug(item: &Item) -> &'static str {
+    item.args
         .iter()
         .find(|arg| arg.name == "tag")
         .and_then(|arg| match arg.value {
             ArgValue::Str(s) => Some(s),
             _ => None,
         })
-        .unwrap_or("");
-    match tag {
-        "todo" => Icon::TodoTag,
-        "important" => Icon::Important,
-        "question" => Icon::Question,
-        _ => Icon::Tag,
+        .unwrap_or("")
+}
+
+/// The default tags, for their icons.
+fn default_tag(slug: &str) -> Option<&'static notecraft_markdown::TagDef> {
+    static TAGS: std::sync::OnceLock<Vec<notecraft_markdown::TagDef>> = std::sync::OnceLock::new();
+    TAGS.get_or_init(notecraft_markdown::default_tags)
+        .iter()
+        .find(|t| t.slug == slug)
+}
+
+/// Paint the icon of a default tag (or a plain dot for other entries) into `rect`.
+fn paint_tag_entry(painter: &egui::Painter, rect: Rect, item: &Item, fallback: Color32) {
+    match default_tag(tag_slug(item)) {
+        Some(def) => icons::paint_tag(painter, rect, def.icon, rgb(def.icon_color)),
+        None => icons::paint_tag(painter, rect, notecraft_markdown::TagIcon::Dot, fallback),
+    }
+}
+
+fn rgb(value: u32) -> Color32 {
+    Color32::from_rgb(
+        ((value >> 16) & 0xFF) as u8,
+        ((value >> 8) & 0xFF) as u8,
+        (value & 0xFF) as u8,
+    )
+}
+
+/// One row of the Tags list: an icon and a label. True when clicked.
+fn tag_row(ui: &mut Ui, label: &str, paint: impl FnOnce(&egui::Painter, Rect)) -> bool {
+    ui.horizontal(|ui| {
+        let (rect, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+        paint(ui.painter(), rect);
+        ui.add(egui::Button::new(label).frame(false)).clicked()
+    })
+    .inner
+}
+
+/// The Tags list: the default tags with their icons, the custom tags, then Customize Tags and
+/// Remove Tag.
+fn tag_menu(ui: &mut Ui, items: &'static [Item], look: Look<'_>, out: &mut Vec<Clicked>) {
+    ui.spacing_mut().item_spacing.y = 1.0;
+    let fallback = look.tokens.text;
+    for item in items
+        .iter()
+        .filter(|item| item.command == notecraft_engine::cmd::ids::TAG_APPLY)
+    {
+        if tag_row(ui, item.label, |p, r| paint_tag_entry(p, r, item, fallback)) {
+            out.push(Clicked::new(item.command, item.args));
+            ui.close();
+        }
+    }
+    if !look.custom_tags.is_empty() {
+        ui.separator();
+    }
+    for def in look.custom_tags {
+        let (icon, color) = (def.icon, rgb(def.icon_color));
+        if tag_row(ui, &def.name, |p, r| icons::paint_tag(p, r, icon, color)) {
+            out.push(Clicked {
+                command: notecraft_engine::cmd::ids::TAG_APPLY,
+                args: serde_json::json!({ "tag": def.slug }),
+            });
+            ui.close();
+        }
+    }
+    ui.separator();
+    for item in items
+        .iter()
+        .filter(|item| item.command != notecraft_engine::cmd::ids::TAG_APPLY)
+    {
+        if tag_row(ui, item.label, |_, _| {}) {
+            out.push(Clicked::new(item.command, item.args));
+            ui.close();
+        }
     }
 }
 
@@ -209,7 +281,7 @@ fn paint_entry(
     item: &Item,
     index: usize,
     color: Color32,
-    look: Look<'_>,
+    _look: Look<'_>,
 ) {
     let painter = ui.painter_at(rect);
     match kind {
@@ -233,11 +305,7 @@ fn paint_entry(
                 egui::pos2(rect.min.x + 6.0, rect.center().y - 8.0),
                 Vec2::splat(16.0),
             );
-            let colors = IconColors {
-                fg: color,
-                accent: look.tokens.accent,
-            };
-            icons::paint(&painter, icon, tag_icon(item), colors);
+            paint_tag_entry(&painter, icon, item, color);
             // The first nine tags have Ctrl+1 to Ctrl+9, as in OneNote.
             let text = if index < 9 {
                 format!("{} (Ctrl+{})", item.label, index + 1)

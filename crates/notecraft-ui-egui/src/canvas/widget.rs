@@ -69,6 +69,10 @@ pub fn show(
             preedit: &preedit,
             objects: session.page_objects(source.page_id),
             links: link_context,
+            tags: Some(super::tag_view::TagInput {
+                set: session.tags(),
+                items: &parsed.tagged,
+            }),
         };
         let mut loader = pictures::PictureLoader {
             cache: &mut cache,

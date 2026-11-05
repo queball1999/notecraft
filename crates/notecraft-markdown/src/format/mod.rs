@@ -18,6 +18,9 @@ mod lines;
 mod scan;
 mod state;
 #[cfg(test)]
+mod tag_tests;
+mod tags;
+#[cfg(test)]
 mod tests;
 
 use std::ops::Range;
@@ -28,6 +31,7 @@ pub use blocks::{
 pub use inline::{clear_formatting, set_mark, toggle_mark};
 pub use scan::{scan, SpanInfo};
 pub use state::{state_at, FormatState, ListState};
+pub use tags::{remove_tags, toggle_tag};
 
 /// One splice of the page text and the selection after it. The fields match the editor's own
 /// text edit type, so the engine can pass them on as they are.

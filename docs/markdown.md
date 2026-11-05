@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: section 5.2 and 5.3 as built in PR 2.2 (picker, step 4 also matches paths, creating a missing page); section 8 index schema version 6 (links_hash, page_aliases); earlier: section 3.2 spells out the colored highlight form; earlier: equations (section 3.2) and their limits (section 9) as built in PR 2.7; earlier: page style is saved in the `notecraft:` frontmatter map (new section 2.5: `paper`, `paper_spacing`, `paper_size`, `rule_color`, `color`); earlier: stage line: Phase 1 merged into main (#55); earlier: pictures and file attachments get positions in the canvas block (`images`, `files`, section 3.4); ink stroke `texture` key (textured pens and the pencil); earlier: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups); section 5.1 reader rules (PR 2.1).
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: note tags (section 4: the default gallery with slugs, the tag grammar, and index rows) as built in PR 2.5; earlier: section 5.2 and 5.3 as built in PR 2.2 (picker, step 4 also matches paths, creating a missing page); section 8 index schema version 6 (links_hash, page_aliases); earlier: section 3.2 spells out the colored highlight form; earlier: equations (section 3.2) and their limits (section 9) as built in PR 2.7; earlier: page style is saved in the `notecraft:` frontmatter map (new section 2.5: `paper`, `paper_spacing`, `paper_size`, `rule_color`, `color`); earlier: stage line: Phase 1 merged into main (#55); earlier: pictures and file attachments get positions in the canvas block (`images`, `files`, section 3.4); ink stroke `texture` key (textured pens and the pencil); earlier: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups); section 5.1 reader rules (PR 2.1).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -242,20 +242,65 @@ A `.md` page, or a `.notecraft` page with no positions, opens in flow layout: co
 
 ## 4. Note tags
 
-OneNote's note tags are stored as inline tags in the text, so they stay readable in any editor:
+OneNote's note tags are stored as inline tags in the text, so they stay readable in any editor. A tag belongs to the paragraph, heading, or list item that holds it (OneNote tags a paragraph). Applying a tag from the Tags gallery or with Ctrl+1 to Ctrl+9 puts `#slug ` at the start of the paragraph text, after any list marker, check box, heading marker, or quote prefix, and applying it again takes it away.
 
-| OneNote tag | Stored as | Shown as |
-|---|---|---|
-| To Do | `- [ ]` task list item (preferred) or `#todo` | checkbox |
-| Important | `#important` | star icon |
-| Question | `#question` | question mark icon |
-| Remember for later | `#remember` | highlight |
-| Definition | `#definition` | highlight |
-| Idea | `#idea` | lightbulb icon |
-| Contact, Address, Phone number | `#contact`, `#address`, `#phone` | icons |
-| Custom tags (Customize Tags dialog) | `#<name>` | the icon and colors chosen in settings |
+### 4.1 The default gallery
 
-Icons are original drawings (ATTRIBUTION.md). A frontmatter `tags:` list is preserved if present but has no UI before full parity (a page tag pane is a post-parity option).
+The first nine have the shortcuts Ctrl+1 to Ctrl+9, as in OneNote; Ctrl+0 removes all tags from the paragraph.
+
+| # | OneNote tag | Stored as | Shown as |
+|---|---|---|---|
+| 1 | To Do | `- [ ]` task list item (preferred) or `#todo` | check box |
+| 2 | Important | `#important` | star icon |
+| 3 | Question | `#question` | question mark icon |
+| 4 | Remember for later | `#remember` | highlight behind the text |
+| 5 | Definition | `#definition` | highlight behind the text |
+| 6 | Highlight | `#highlight` | highlight behind the text |
+| 7 | Contact | `#contact` | person icon |
+| 8 | Address | `#address` | map pin icon |
+| 9 | Phone number | `#phone` | telephone icon |
+|  | Web site to visit | `#website` | globe icon |
+|  | Idea | `#idea` | light bulb icon |
+|  | Password | `#password` | key icon |
+|  | Critical | `#critical` | exclamation mark icon |
+|  | Project A | `#project-a` | flag icon |
+|  | Project B | `#project-b` | flag icon |
+|  | Movie to see | `#movie` | film icon |
+|  | Book to read | `#book` | book icon |
+|  | Music to listen to | `#music` | music note icon |
+|  | Source for article | `#source` | quotation marks icon |
+|  | Remember for blog | `#blog` | pencil icon |
+|  | Discuss with Person A | `#discuss-a` | speech bubble icon |
+|  | Discuss with Person B | `#discuss-b` | speech bubble icon |
+|  | Discuss with manager | `#discuss-manager` | speech bubble icon |
+|  | Send in email | `#email` | envelope icon |
+|  | Schedule meeting | `#meeting` | calendar icon |
+|  | Call back | `#callback` | telephone with arrow icon |
+|  | To Do priority 1 | `#todo-1` | check box, red icon |
+|  | To Do priority 2 | `#todo-2` | check box, orange icon |
+|  | Client request | `#client` | briefcase icon |
+
+Remember for later, Definition, and Highlight are highlight-style: the paragraph text gets a highlight color (yellow, amber, or cyan) and no icon is drawn. The tag name is not shown on the canvas; the paragraph that holds the caret shows its raw markdown, tag names included. Icons are original drawings made in code (see ATTRIBUTION.md); they hang in the margin left of the paragraph, or come first on the line inside a list.
+
+Custom tags (Customize Tags dialog) are stored as `#<slug>`. The slug is made from the name when the tag is added (lowercase ASCII letters, digits, and single hyphens; `tag` when the name has none; a number is added if the slug is taken) and does not change when the tag is renamed, so pages keep their tags. A custom tag has a name (1 to 40 characters), one icon from the set of original icons, an optional font color, and an optional highlight color; at most 50. They are saved in `config.toml` under `[tags]`. Deleting a custom tag leaves the `#slug` text in pages; it then shows as plain text.
+
+### 4.2 The tag grammar
+
+- A tag is `#` followed by a name. The `#` is the first character of the paragraph text or comes right after whitespace. So `a#b`, `(#b)`, `*#b*`, `\#b`, and `http://x/#b` are not tags.
+- The name starts with an ASCII letter and goes on with ASCII letters, digits, `-`, and `_`, at most 64 bytes. Trailing `-` and `_` are not part of the name. Names compare ignoring case and are stored in lowercase in the index.
+- The name must end at the end of the text, at whitespace, or before one of `. , ; : ! ? ) ] } " ' * ~ <`. Any other next character (a non-ASCII letter, `/`, `#`, `@`) means the word is not a tag.
+- Nothing inside a code span, a code block, raw HTML or an HTML tag, an autolink (`<...>`), a link or image (`[text](target)`), or a page link (`[[...]]`) is a tag. Table cells are not tagged. A heading's leading `#` marks are not tags, because a name must start with a letter.
+- A word that looks like a tag but is not in the gallery stays plain text on the canvas and is still recorded in the index.
+- A task list item (`- [ ]` or `- [x]`) is a To Do tag on its paragraph; its check box is the tag. A paragraph with both a check box and `#todo` counts once.
+- An unknown or hostile input never fails the reader: scanning is bounded (64 tags per paragraph, 2 KiB look-ahead for code spans, tags, and links).
+
+A limit of the canonical serializer, used only when a whole block is rewritten from its parsed form: it cannot tell a literal `\#word` from a tag, so a rewritten block can turn an escaped `\#word` at the start of a word into a tag. Edits made with the formatting commands and typing change only the bytes touched.
+
+### 4.3 Tags in the index
+
+The index `tags` table (section 8) has one row per tag per paragraph: the page, the tag name, the byte span of `#name` (or of the `[ ]` box of a task item), the byte span of the paragraph, the paragraph text without tag names (at most 300 bytes), and for To Do whether it is checked. The engine fills it after each index refresh for pages that are new or changed (the page content hash is recorded when a page's tags are read), the same way search text is filled. `Index::tagged_items(scope, tags)` lists the tagged items in a section, a section group, a page, or the notebook, in notebook order.
+
+A frontmatter `tags:` list is preserved if present but has no UI before full parity (a page tag pane is a post-parity option).
 
 ## 5. Page links
 
@@ -388,3 +433,4 @@ Page links (schema version 6): a page's `links` rows (the link text and the byte
 | 2026-10-24 | 1 | Encoding safety (fix/encoding-safety): section 1 rule 7 and the section 9 limits row. A page that is not valid UTF-8 (UTF-16, Windows-1252) opens read-only, correctly decoded, and `page.convert_encoding` keeps a hashed backup of the original bytes, then rewrites it as UTF-8. Decision: a BOM-less UTF-16 guess needs 4 or more pairs with NULs in at least 30 percent of one byte position and none in the other. |
 | 2026-11-05 | 2 | Section 3.2: the `<mark>` highlight form spelled out (written form, lenient reading, limits). Stage line updated. |
 | 2026-11-05 | 2 | Sections 5.2, 5.3, and 8 as built in PR 2.2: the picker and its keys, how "closest" is measured, step 4 also matches paths, clicking a link follows it or creates the page, the `links` rows are filled by the refresh, and index schema version 6 adds `pages.links_hash` and `page_aliases`. |
+| 2026-11-05 | 2 | Section 4 rewritten (PR 2.5): the 29 default tags with slugs and shortcuts, the exact `#name` grammar, custom tags and settings, and the `tags` index rows. |

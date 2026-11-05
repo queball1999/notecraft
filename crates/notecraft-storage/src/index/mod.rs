@@ -7,6 +7,7 @@ mod links;
 mod refresh;
 mod schema;
 mod search;
+mod tags;
 mod worker;
 
 use std::path::Path;
@@ -22,6 +23,7 @@ pub use search::{
     attachment_name, match_expression, AttachmentRow, PageBody, TextHit, TextScope, MARK_END,
     MARK_START, MAX_HITS,
 };
+pub use tags::{TagRow, TagScope, TaggedRow, MAX_TAGGED_ROWS};
 pub use worker::{refresh_or_rebuild, IndexWorker, WorkerReport};
 
 /// One section or group row, in sidebar order.

@@ -118,6 +118,8 @@ pub struct Session {
     ink: InkState,
     /// The search box and its results (see `search`).
     search: crate::search::SearchState,
+    /// The note tag gallery: the default tags and the custom ones (PR 2.5).
+    tags: notecraft_markdown::TagSet,
     /// The caret and selection of text editing, with the page they belong to.
     text_cursor: Option<(String, TextCursor)>,
     /// Container geometry by page id, then container id. A container missing here is in the
@@ -424,6 +426,20 @@ impl Session {
     /// settings.
     pub fn set_pen_tools(&mut self, tools: Vec<crate::ink::PenTool>) {
         self.ink.replace_tools(tools);
+    }
+
+    /// The note tag gallery: OneNote's default tags and the custom ones.
+    pub fn tags(&self) -> &notecraft_markdown::TagSet {
+        &self.tags
+    }
+
+    pub(crate) fn tags_mut(&mut self) -> &mut notecraft_markdown::TagSet {
+        &mut self.tags
+    }
+
+    /// Replace the gallery without a command, for restoring saved settings.
+    pub fn set_tags(&mut self, tags: notecraft_markdown::TagSet) {
+        self.tags = tags;
     }
 
     /// The strokes of the page shown now, if it has any.

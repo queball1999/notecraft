@@ -68,7 +68,7 @@ fn format_ctx<'a>(ctx: &'a Ctx) -> fmt::Ctx<'a> {
 
 /// Run a formatting edit on the shown page. Nothing to do (no caret, nothing to change, or an
 /// edit the guards refuse) answers `{ applied: false }`.
-fn run_edit(
+pub(super) fn run_edit(
     session: &mut Session,
     f: impl FnOnce(&fmt::Ctx<'_>) -> Option<FormatEdit>,
 ) -> Result<CommandOutput, CommandError> {

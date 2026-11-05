@@ -132,6 +132,7 @@ pub struct AppShell {
     about: AppInfo,
     /// The What's New dialog.
     whats_new: crate::whats_new::WhatsNew,
+    customize_tags: crate::customize_tags::CustomizeTags,
     /// The dialog for a recent notebook or page that no longer exists.
     missing_item: crate::missing_item::MissingItem,
     /// Text for the clipboard, put there on the next frame.
@@ -193,6 +194,7 @@ impl AppShell {
             recent_colors: Vec::new(),
             about: AppInfo::default(),
             whats_new: crate::whats_new::WhatsNew::new(),
+            customize_tags: crate::customize_tags::CustomizeTags::new(),
             missing_item: crate::missing_item::MissingItem::default(),
             pending_copy: None,
             #[cfg(test)]
@@ -270,6 +272,21 @@ impl AppShell {
     /// Create Pages with Rule Lines is off).
     pub fn default_rule_lines(&self) -> &'static str {
         self.session.default_rule_lines().id()
+    }
+
+    /// The note tag gallery, for saving the custom tags in the settings.
+    pub fn tag_set(&self) -> &notecraft_markdown::TagSet {
+        self.session.tags()
+    }
+
+    /// Restore the saved note tag gallery.
+    pub fn set_tag_set(&mut self, tags: notecraft_markdown::TagSet) {
+        self.session.set_tags(tags);
+    }
+
+    /// Whether the Customize Tags dialog is open.
+    pub fn customize_tags_open(&self) -> bool {
+        self.customize_tags.is_open()
     }
 
     /// The Draw tab's pens and highlighters, for saving in the settings.
@@ -492,6 +509,8 @@ impl AppShell {
                 self.ribbon.open_backstage_on(ids::FILE_ABOUT);
             } else if id == ids::HELP_WHATS_NEW.as_str() {
                 self.whats_new.open();
+            } else if id == ids::TAG_CUSTOMIZE.as_str() {
+                self.customize_tags.open();
             } else if id == ids::FILE_COPY_ABOUT_INFO.as_str() {
                 self.pending_copy = Some(self.about.plain_text());
                 self.toasts.push("Copied the version and build details.");
@@ -704,6 +723,10 @@ impl AppShell {
         let tokens = self.tokens(ui.ctx());
         // First, so Esc closes the dialog before any shortcut sees it.
         self.whats_new.show(ui.ctx(), &tokens, &self.about.version);
+        let tag_clicks = self
+            .customize_tags
+            .show(ui.ctx(), &tokens, self.session.tags());
+        self.dispatch_all(tag_clicks);
         let mut missing_clicks = Vec::new();
         self.missing_item
             .show(ui.ctx(), &tokens, &mut missing_clicks);
@@ -735,6 +758,8 @@ impl AppShell {
                 texture: tool.style.texture,
             })
             .collect();
+        let custom_tags: Vec<notecraft_markdown::TagDef> =
+            self.session.tags().custom().cloned().collect();
         let look = ribbon::Look {
             tokens: &tokens,
             registry: &self.registry,
@@ -748,6 +773,7 @@ impl AppShell {
             can_undo: self.session.can_undo(),
             can_redo: self.session.can_redo(),
             can_convert: self.session.can_convert_to_markdown(),
+            custom_tags: &custom_tags,
         };
         if self.ribbon.backstage_open() {
             let clicked = self
@@ -1318,10 +1344,7 @@ mod tests {
         assert_eq!(last_ran(&harness).as_deref(), Some("style.apply"));
         harness.get_by_label("Important").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Tags")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
         // The separate large buttons stay beside the Tags gallery.
         let _ = harness.get_by_label("To Do Tag");
         let _ = harness.get_by_label("Find Tags");
@@ -1375,10 +1398,7 @@ mod tests {
         let _ = harness.get_by_label("Customize Tags");
         harness.get_by_label("Idea").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Tags")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
     }
 
     #[test]
@@ -1397,10 +1417,7 @@ mod tests {
         harness.run();
         harness.get_by_label("Idea").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Tags")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
     }
 
     #[test]
@@ -1417,10 +1434,7 @@ mod tests {
         harness.run();
         harness.get_by_label("Remember for Later").click();
         harness.run();
-        assert_eq!(
-            last_toast_text(&harness).as_deref(),
-            Some("Coming Soon: Tags")
-        );
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
     }
 
     #[test]
@@ -2995,13 +3009,15 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         let command = egui::Modifiers::COMMAND;
         harness.key_press_modifiers(command, egui::Key::N);
         harness.run();
-        harness.key_press_modifiers(command, egui::Key::Num3);
-        harness.run();
         // Ctrl+N runs page.new, which a sample notebook refuses with a reason.
         let texts = toasts(&harness);
-        assert_eq!(texts.len(), 2, "{texts:?}");
+        assert_eq!(texts.len(), 1, "{texts:?}");
         assert!(texts[0].starts_with("Add Page: "), "{texts:?}");
-        assert_eq!(texts[1], "Coming Soon: Tags");
+        // Ctrl+3 runs tag.apply, which does nothing without a caret and says nothing.
+        harness.key_press_modifiers(command, egui::Key::Num3);
+        harness.run();
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
+        assert_eq!(toasts(&harness).len(), 1);
 
         // Ctrl+Alt+= zooms in; the more specific chord wins over Ctrl+=.
         harness.key_press_modifiers(command | egui::Modifiers::ALT, egui::Key::Equals);

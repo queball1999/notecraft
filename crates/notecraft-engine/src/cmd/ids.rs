@@ -146,6 +146,12 @@ command_ids! {
     TAG_FIND = "tag.find";
     /// Add, change, or reorder the note tags in the gallery.
     TAG_CUSTOMIZE = "tag.customize";
+    /// Add a custom note tag to the gallery.
+    TAG_CUSTOM_ADD = "tag.custom_add";
+    /// Rename a custom note tag or change its icon or colors.
+    TAG_CUSTOM_EDIT = "tag.custom_edit";
+    /// Remove a custom note tag from the gallery.
+    TAG_CUSTOM_DELETE = "tag.custom_delete";
 
     // Home tab: Email and Meetings groups
     /// Send the current page as an email.

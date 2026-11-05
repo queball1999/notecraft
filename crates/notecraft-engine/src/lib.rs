@@ -23,6 +23,8 @@ pub mod recent;
 pub mod search;
 pub mod session;
 pub mod stamp;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod tags_index;
 pub mod undo;
 pub mod view;
 pub mod whats_new;

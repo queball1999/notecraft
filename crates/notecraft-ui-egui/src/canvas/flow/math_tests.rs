@@ -50,6 +50,7 @@ fn lay(
             preedit: "",
             objects: &[],
             links: None,
+            tags: None,
         };
         out = Some(layout(painter, &input, zoom, &tokens, pictures));
     });

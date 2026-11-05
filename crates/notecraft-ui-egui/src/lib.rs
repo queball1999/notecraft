@@ -17,6 +17,9 @@ mod attach_tests;
 pub mod bars;
 pub mod canvas;
 pub mod color;
+mod customize_tags;
+#[cfg(test)]
+mod customize_tags_tests;
 #[cfg(test)]
 mod draw_tab_tests;
 pub mod find_bar;

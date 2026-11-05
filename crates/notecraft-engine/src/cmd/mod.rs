@@ -30,6 +30,9 @@ mod search;
 pub mod shortcuts;
 mod stamp;
 pub(crate) mod structure;
+mod tags;
+#[cfg(test)]
+mod tags_tests;
 #[cfg(test)]
 mod tests;
 mod text;

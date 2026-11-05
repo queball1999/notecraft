@@ -51,6 +51,10 @@ mod parse;
 #[cfg(test)]
 mod parse_tests;
 mod style;
+mod tag_defs;
+pub mod tags;
+#[cfg(test)]
+mod tags_tests;
 
 pub use block::{
     Align, Block, BlockKind, Cell, ListItem, ListKind, Math, Run, Script, Span, Table,
@@ -68,6 +72,10 @@ pub use link_resolve::{fold as fold_link_text, LinkIndex, LinkPage, Resolved, MA
 pub use links::{find_page_links, page_links_of, PageLink, MAX_PAGE_LINKS};
 pub use parse::{parse_blocks, MAX_DEPTH, MAX_PARSE_BYTES};
 pub use style::{LineEnding, Style};
+pub use tag_defs::{
+    default_tags, shortcut_slugs, SavedTag, TagDef, TagError, TagIcon, TagSet, TagStyle,
+    DEFAULT_COUNT, MAX_CUSTOM_TAGS, MAX_TAG_NAME_CHARS,
+};
 
 /// Layer number, read by `cargo xtask layers`.
 pub const LAYER: u8 = 3;

@@ -812,6 +812,8 @@ const UNDO_CASES: &[(&str, &str)] = &[
     ("format.align_right", "{}"),
     ("style.apply", r#"{ "style": "heading2" }"#),
     ("tag.todo", "{}"),
+    ("tag.apply", r#"{ "tag": "important" }"#),
+    ("tag.remove", "{}"),
 ];
 
 /// Cases that need page text other than "one" for the command to change something.
@@ -819,6 +821,7 @@ const SOURCES: &[(&str, &str)] = &[
     ("format.outdent", "  - one"),
     ("format.indent", "- one"),
     ("format.clear", "**one**"),
+    ("tag.remove", "#important one"),
     (
         "format.align_left",
         "<!-- notecraft:align=center -->
@@ -850,6 +853,8 @@ const NEEDS_SELECTION: &[&str] = &[
     "format.align_right",
     "style.apply",
     "tag.todo",
+    "tag.apply",
+    "tag.remove",
 ];
 
 type Document = (

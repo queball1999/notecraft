@@ -10,6 +10,7 @@ mod help;
 mod home;
 mod insert;
 mod review;
+mod tags;
 mod view;
 
 /// Declares [`Icon`], [`Icon::ALL`], and the dispatch from each icon to its drawing.
@@ -183,6 +184,22 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, colors: IconColors) {
     draw(icon, &pen, colors);
 }
 
+/// Paint a note tag icon (docs/markdown.md section 4) into `rect` in `color`. Details are
+/// white. Empty or non-finite rectangles paint nothing.
+pub fn paint_tag(painter: &Painter, rect: Rect, icon: notecraft_markdown::TagIcon, color: Color32) {
+    let side = rect.width().min(rect.height());
+    if !side.is_finite() || side <= 0.0 {
+        return;
+    }
+    let pen = Pen {
+        painter,
+        rect: Rect::from_center_size(rect.center(), egui::vec2(side, side)),
+        unit: side / 16.0,
+        fg: color,
+    };
+    tags::draw(&pen, icon);
+}
+
 /// Which pen shape a Draw tab tool is drawn as.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ToolShape {
@@ -266,6 +283,22 @@ impl Pen<'_> {
     pub(super) fn circle(&self, x: f32, y: f32, r: f32) {
         self.painter
             .circle_stroke(self.at(x, y), r * self.unit, self.stroke(1.0, self.fg));
+    }
+
+    pub(super) fn dot_colored(&self, x: f32, y: f32, r: f32, color: Color32) {
+        self.painter
+            .circle_filled(self.at(x, y), r * self.unit, color);
+    }
+
+    /// Heavy text centered on (x, y) in `color`.
+    pub(super) fn text_colored(&self, x: f32, y: f32, text: &str, size: f32, color: Color32) {
+        let font = FontId::proportional(size * self.unit);
+        let pos = self.at(x, y);
+        self.painter
+            .text(pos, Align2::CENTER_CENTER, text, font.clone(), color);
+        let nudge = egui::vec2(0.6 * self.unit.max(1.0), 0.0);
+        self.painter
+            .text(pos + nudge, Align2::CENTER_CENTER, text, font, color);
     }
 
     pub(super) fn dot(&self, x: f32, y: f32, r: f32) {
@@ -358,6 +391,23 @@ mod tests {
                 paint(ui.painter(), Rect::ZERO, icon, colors);
                 let nan = Rect::from_min_size(Pos2::ZERO, egui::vec2(f32::NAN, 4.0));
                 paint(ui.painter(), nan, icon, colors);
+            }
+        });
+        output.textures_delta.clear();
+    }
+
+    #[test]
+    fn every_tag_icon_paints_at_both_sizes_and_tolerates_bad_rects() {
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            for icon in notecraft_markdown::TagIcon::ALL {
+                for side in [12.0, 16.0, 32.0] {
+                    let rect = Rect::from_min_size(Pos2::ZERO, egui::vec2(side, side));
+                    paint_tag(ui.painter(), rect, icon, Color32::RED);
+                }
+                paint_tag(ui.painter(), Rect::NOTHING, icon, Color32::RED);
+                let nan = Rect::from_min_size(Pos2::ZERO, egui::vec2(f32::NAN, 4.0));
+                paint_tag(ui.painter(), nan, icon, Color32::RED);
             }
         });
         output.textures_delta.clear();

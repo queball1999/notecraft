@@ -193,6 +193,10 @@ fn refresh(root: &Path) -> Result<Refreshed, String> {
         && report.stats.removed.is_empty());
     crate::link_index::update_link_index(root, &mut index, pages_changed)?;
     let aliases = crate::link_index::stored_aliases(&index)?;
+    // Note tags follow the same way (PR 2.5). A failure only leaves them out of date.
+    if let Err(err) = crate::tags_index::update_tag_index(root, &mut index) {
+        tracing::warn!("note tag index not updated: {err}");
+    }
     let header = read_notebook_header(root);
     Ok(Refreshed {
         notebook: notebook_from_sidebar(&header, &sidebar),

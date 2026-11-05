@@ -111,7 +111,12 @@ fn paragraph(text: &str) -> String {
         && t.get(digits..).is_some_and(|r| r.starts_with(['.', ')']))
         && t.get(digits + 1..)
             .is_some_and(|r| r.starts_with([' ', '\t']));
-    let marker = t.starts_with(['#', '>', '-', '+', '=', '|'])
+    // `#tag` at the start is a note tag, not a heading (a heading needs a space after `#`).
+    let tag = t
+        .strip_prefix('#')
+        .is_some_and(|r| crate::tags::name_at(r).is_some());
+    let marker = (t.starts_with('#') && !tag)
+        || t.starts_with(['>', '-', '+', '=', '|'])
         || t.starts_with("***")
         || t.starts_with("___")
         || t.starts_with("```")
@@ -335,7 +340,19 @@ fn escape(text: &str, in_cell: bool) -> String {
     let mut out = String::with_capacity(text.len());
     // `==` is highlight, so a run of equals signs in text is escaped.
     let has_pair = text.contains("==");
-    for c in text.chars() {
+    let mut prev: Option<char> = None;
+    let mut chars = text.char_indices();
+    while let Some((i, c)) = chars.next() {
+        // A note tag keeps its underscores (`#a_b`), so the page reads it back as a tag.
+        if c == '#' && prev.is_none_or(char::is_whitespace) {
+            if let Some((_, len)) = text.get(i + 1..).and_then(crate::tags::name_at) {
+                out.push_str(text.get(i..i + 1 + len).unwrap_or("#"));
+                chars.nth(len.saturating_sub(1));
+                prev = text.get(..i + 1 + len).and_then(|t| t.chars().next_back());
+                continue;
+            }
+        }
+        prev = Some(c);
         match c {
             '=' if has_pair => out.push_str("\\="),
             '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '~' | '$' => {

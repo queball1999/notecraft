@@ -6,6 +6,7 @@
 use notecraft_engine::recent::{RecentKind, Recents};
 use notecraft_engine::view::{RibbonLayout, RibbonShow};
 use notecraft_engine::{default_pen_tools, PenTool, MAX_PEN_TOOLS};
+use notecraft_markdown::{markup, SavedTag, TagSet};
 use notecraft_ui_egui::themes::{Mode, Preset};
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +24,7 @@ pub struct Prefs {
     pub recent: RecentPrefs,
     pub colors: ColorPrefs,
     pub draw: DrawPrefs,
+    pub tags: TagPrefs,
     pub whats_new: WhatsNewPrefs,
 }
 
@@ -177,6 +179,65 @@ impl DrawPrefs {
                     .collect(),
             )
         };
+    }
+}
+
+/// The custom note tags of the Customize Tags dialog. Icons and colors are strings, so an entry
+/// from a newer version that does not parse falls back (an unknown icon becomes the dot, a bad
+/// color is dropped) instead of failing the file; the engine drops entries with a bad slug or
+/// name.
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct TagPrefs {
+    pub custom: Vec<TagPref>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct TagPref {
+    /// What is stored after the `#`.
+    pub slug: String,
+    pub name: String,
+    pub icon: String,
+    /// `#RRGGBB`, or empty for none.
+    pub font_color: String,
+    pub highlight: String,
+}
+
+impl TagPrefs {
+    /// The default tags plus the saved custom tags.
+    pub fn tag_set(&self) -> TagSet {
+        let saved: Vec<SavedTag> = self
+            .custom
+            .iter()
+            .map(|t| SavedTag {
+                slug: t.slug.clone(),
+                name: t.name.clone(),
+                icon: t.icon.clone(),
+                font_color: markup::color_value(&t.font_color),
+                highlight: markup::color_value(&t.highlight),
+            })
+            .collect();
+        TagSet::from_saved(&saved)
+    }
+
+    /// Record the session's gallery; leaves the entries alone when nothing changed.
+    pub fn observe(&mut self, set: &TagSet) {
+        if self.tag_set() == *set {
+            return;
+        }
+        let color = |c: Option<u32>| c.map(markup::color_text).unwrap_or_default();
+        self.custom = set
+            .to_saved()
+            .into_iter()
+            .map(|t| TagPref {
+                slug: t.slug,
+                name: t.name,
+                icon: t.icon,
+                font_color: color(t.font_color),
+                highlight: color(t.highlight),
+            })
+            .collect();
     }
 }
 
@@ -446,6 +507,45 @@ mod tests {
         // An emptied list is kept as empty, not replaced by the defaults.
         prefs.observe(&[]);
         assert_eq!(prefs.tools(), Vec::new());
+    }
+
+    #[test]
+    fn custom_tags_are_saved_and_damaged_ones_dropped() {
+        let mut prefs = TagPrefs::default();
+        assert_eq!(prefs.tag_set(), TagSet::default());
+        let mut set = TagSet::default();
+        set.add_custom(
+            "Errand",
+            notecraft_markdown::TagIcon::Pin,
+            Some(0x112233),
+            None,
+        )
+        .unwrap();
+        prefs.observe(&set);
+        assert_eq!(prefs.custom.len(), 1);
+        assert_eq!(prefs.custom[0].font_color, "#112233");
+        assert_eq!(prefs.custom[0].highlight, "");
+        assert_eq!(prefs.tag_set(), set);
+        // Back to the defaults clears the list.
+        prefs.observe(&TagSet::default());
+        assert!(prefs.custom.is_empty());
+        // A hand-edited file: bad entries go, the rest stay, and the file still loads.
+        let text = r##"
+            [[custom]]
+            slug = "ok"
+            name = "Fine"
+            icon = "no-such-icon"
+            font_color = "red"
+            [[custom]]
+            slug = "9bad"
+            name = "Bad slug"
+        "##;
+        let loaded: TagPrefs = toml::from_str(text).unwrap_or_default();
+        let set = loaded.tag_set();
+        assert_eq!(set.custom_count(), 1);
+        let tag = set.get("ok").unwrap();
+        assert_eq!(tag.icon, notecraft_markdown::TagIcon::Dot);
+        assert_eq!(tag.font_color, None);
     }
 
     #[test]
