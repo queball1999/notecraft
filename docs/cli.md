@@ -1,6 +1,6 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (Phase 1). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: opening a page file shows it (fix/open-page-file): the notebook it belongs to, else a loose page view; a missing path is an error with an offer to drop the recent entry; earlier: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
+> Stage: pre-alpha (Phase 1). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: `search` and `index` landed (PR 2.11) and `check` resolves page links with the app's LinkIndex; earlier: opening a page file shows it (fix/open-page-file): the notebook it belongs to, else a loose page view; a missing path is an error with an offer to drop the recent entry; earlier: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 
@@ -39,8 +39,8 @@ notecraft [--help] [--version] [<notebook folder or page file>]
 | `notecraft-cli text <page>` | Print a page's plain text | Phase 1, PR 1.16 (landed) |
 | `notecraft-cli check` | Validate a notebook: unparseable pages, broken links, missing attachments | Phase 1, PR 1.16 (landed) |
 | `notecraft-cli run --page <page> --cmd <id> ...` | Run commands against a page of a notebook and save it | Phase 1, PR 1.16 (landed) |
-| `notecraft-cli search <query> [--tag <t>] [--limit <n>]` | Full-text search | Phase 2, PR 2.11 |
-| `notecraft-cli index [--rebuild]` | Update or rebuild `index.sqlite` | Phase 2, PR 2.11 |
+| `notecraft-cli search <query> [--tag <t>]... [--limit <n>] [--scope <s> --in <path>] [<folder>]` | Ranked full-text search, or tagged items | Phase 2, PR 2.11 (landed) |
+| `notecraft-cli index [--rebuild] [<folder>]` | Update or rebuild `index.sqlite` | Phase 2, PR 2.11 (landed) |
 | `notecraft-cli render <page> --format pdf\|html\|png [--out <file>]` | Render a page | Phase 3, PR 3.14 |
 | `notecraft-cli export <notebook> --format zip\|html\|pdf [--out <path>]` | Export a whole notebook | Phase 3, PR 3.14 |
 | `notecraft-cli print <page> [--printer <name>] [--copies <n>]` | Print through craft-print | Phase 3, PR 3.14 |
@@ -58,6 +58,25 @@ notecraft [--help] [--version] [<notebook folder or page file>]
 ```sh
 notecraft-cli run --sample --cmd 'view.zoom={"percent":150}' --cmd view.zoom_in
 ```
+
+### `search`
+
+`notecraft-cli search <query> [--tag <t>]... [--limit <n>] [--scope <s> --in <path>] [<notebook folder>]` calls the same `notecraft_engine::search::search` the desktop app uses, on the notebook's `.notecraft/index.sqlite`, which it brings up to date first (the same refresh as `index`). The notebook folder is the trailing argument or `--notebook`, not both.
+
+- Text output is two lines per hit: `<page path>  <title>`, then the snippet indented by four spaces. Hits are best match first. No hits prints `No matches.` (exit 0).
+- `--limit <n>` is 1 to 500 (the engine's `MAX_RESULTS`), default 20. When more matched, `truncated` is true in JSON and a note goes to stderr.
+- `--tag <t>` (repeatable, `#` optional, case-insensitive) keeps only pages that carry any of the note tags. Each JSON hit then has a `tags` list. Attachment hits are left out when `--tag` is used. The engine caps a search at 500 hits before the tag filter runs.
+- With `--tag` and an empty query (leave the query out when no notebook folder is given, or pass `""`), it lists the tagged items instead, in notebook order: `<path>  <title>  #<tag> [x] <text>`.
+- `--scope notebook` (default), `section`, `group`, or `page`, with `--in <path>`: a section folder path for `section` and `group` (`group` searches the section group that holds that section), a page id, path, or link target for `page`. A missing section is exit 3.
+- `--json` prints `{"ok", "query", "tags", "scope", "count", "truncated", "hits": [{"kind", "path", "page_id", "title", "section", "rank", "modified", "snippet", "highlights": [[start, end]], "tags"?}]}`. The tagged-item form has `items` instead of `hits`: `{"path", "page_id", "title", "section", "tag", "text", "checked", "modified"}`.
+
+### `index`
+
+`notecraft-cli index [--rebuild] [<notebook folder>]` runs the full index refresh plus the text, link, and tag passes the app runs. With `--rebuild` the index file is deleted first and everything is read again. It prints one line (`Updated|Rebuilt the index of <name>: N pages, N links (N unresolved), N tagged items in N tags.`); with `--json`: `{"ok", "rebuilt", "pages", "indexed_text", "links", "unresolved_links", "tagged_items", "tags"}`. The index is only a cache: deleting it loses nothing.
+
+### `check` and page links
+
+`check` resolves `[[links]]` with `notecraft_markdown::LinkIndex`, the resolver the app uses (path, then path from the linking page's folder, base name, case and Unicode folding, frontmatter aliases). A link that matches nothing is a `broken_link` problem (exit 1); a link that matches several pages is only a warning naming the candidates.
 
 `<page>` accepts a page id, a notebook-relative path, or a page link target.
 
@@ -94,3 +113,4 @@ notecraft-cli --notebook ~/Notes/Work run --page "Meeting notes" --cmd page.add_
 | 2026-10-15 | 0 | The CLI now follows the related craft apps (maintainer decision). `commands` and `run` landed (PR 0.13); `run --sample`, the `--cmd 'id={json}'` format, and the exit codes in use documented; the other subcommands scheduled in PR 1.16, 2.11, 3.14, and 3.15; only `mcp --connect` stays post-parity. |
 | 2026-10-17 | 1 | PR 1.16 landed: global options, `info`, `text`, `check`, and `run --page`; exit code 5 in use. |
 | 2026-10-24 | 1 | Desktop app arguments: a page file opens in its notebook, or as a loose page when it has none (fix/open-page-file). |
+| 2026-11-05 | 2 | PR 2.11 landed: `search` (ranked hits, `--tag`, `--limit`, `--scope`, `--json`) and `index [--rebuild]`; `check` resolves page links with `LinkIndex` (ambiguous is a warning, missing is a problem). No MCP server exists yet (PR 3.15), so search is not exposed there. |

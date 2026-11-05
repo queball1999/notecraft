@@ -646,18 +646,65 @@ fn percent_decode(text: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Bring the notebook index at `root` in line with the folder, text included, without the
-/// app running (the command line `index` and `search` call this). Returns the number of
-/// pages whose search text was built.
+/// What [`index_notebook`] left in the index.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn refresh_search_index(root: &std::path::Path) -> Result<usize, String> {
-    let (mut index, _) =
-        notecraft_storage::index::refresh_or_rebuild(root, &notecraft_storage::index_path(root))
-            .map_err(|err| err.to_string())?;
-    let count = update_text_index(root, &mut index)?;
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct IndexSummary {
+    /// Pages in the index.
+    pub pages: usize,
+    /// Pages whose search text was built in this run.
+    pub text_built: usize,
+    /// Page links stored.
+    pub links: usize,
+    /// Of those, links that point at no page.
+    pub unresolved_links: usize,
+    /// Tagged items (one per tag use) stored.
+    pub tagged_items: usize,
+    /// Different note tags in use.
+    pub tags: usize,
+    /// The index file was deleted and built again.
+    pub rebuilt: bool,
+}
+
+/// Bring the notebook index at `root` in line with the folder, with the text, link, and tag
+/// passes the app runs, without the app running (the command line `index` and `search` call
+/// this). With `rebuild` the index file is deleted first, so everything is read again.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn index_notebook(root: &std::path::Path, rebuild: bool) -> Result<IndexSummary, String> {
+    use notecraft_storage::index::TagScope;
+
+    let db = notecraft_storage::index_path(root);
+    if rebuild {
+        notecraft_storage::index::delete_database_files(&db);
+    }
+    let (mut index, report) =
+        notecraft_storage::index::refresh_or_rebuild(root, &db).map_err(|err| err.to_string())?;
+    let text_built = update_text_index(root, &mut index)?;
     // Page links (PR 2.2) are filled in the same pass, and resolved against all pages.
     crate::link_index::update_link_index(root, &mut index, true)?;
-    Ok(count)
+    // Note tags (PR 2.5) follow the same way.
+    crate::tags_index::update_tag_index(root, &mut index)?;
+    let pages = index.link_pages().map_err(|err| err.to_string())?.len();
+    let links = index.all_links().map_err(|err| err.to_string())?;
+    let counts = index
+        .tag_counts(&TagScope::Notebook)
+        .map_err(|err| err.to_string())?;
+    Ok(IndexSummary {
+        pages,
+        text_built,
+        links: links.len(),
+        unresolved_links: links.iter().filter(|l| l.resolved_page.is_none()).count(),
+        tagged_items: counts.iter().map(|(_, n)| n).sum(),
+        tags: counts.len(),
+        rebuilt: rebuild || report.rebuilt,
+    })
+}
+
+/// Bring the notebook index at `root` in line with the folder, text included, without the
+/// app running. Returns the number of pages whose search text was built.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn refresh_search_index(root: &std::path::Path) -> Result<usize, String> {
+    index_notebook(root, false).map(|summary| summary.text_built)
 }
 
 #[cfg(test)]

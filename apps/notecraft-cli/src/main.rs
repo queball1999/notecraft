@@ -1,8 +1,8 @@
 //! `notecraft-cli`: NoteCraft from the command line, as the related craft apps have one. It
 //! runs the same engine and command registry as the desktop app, without a window, for
 //! scripts, CI, and agents (docs/cli.md). The notebook subcommands (info, text, check, and run
-//! with --page) read notebooks through the storage layer and the engine; the others (render,
-//! export, search) arrive with the engine work they use.
+//! with --page, search, index) read notebooks through the storage layer and the engine; the
+//! others (render, export) arrive with the engine work they use.
 #![deny(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -17,9 +17,11 @@ use std::io::Write;
 use std::process::ExitCode;
 
 mod check;
+mod index;
 mod info;
 mod notebook;
 mod run_page;
+mod search;
 mod text;
 
 use notebook::Failure;
@@ -43,6 +45,12 @@ COMMANDS:
   notecraft-cli info                        notebook, section, and page counts and format version
   notecraft-cli text <page>                 print a page's plain text (id, path, or link target)
   notecraft-cli check                       find unreadable pages, broken links, missing files
+  notecraft-cli search <query> [--tag <t>]... [--limit <n>] [--scope <s> --in <path>] [<folder>]
+                                            ranked hits (page path, title, snippet); with
+                                            --tag only pages carrying that note tag; a bare
+                                            --tag and an empty query lists tagged items
+  notecraft-cli index [--rebuild] [<folder>]
+                                            update (or delete and rebuild) the search index
   notecraft-cli commands                    list every command: id, label, status, arguments
   notecraft-cli run --page <page> --cmd 'id={json}' [--cmd ...]
                                             run commands against a page of the notebook, then
@@ -60,7 +68,9 @@ EXIT CODES:
 ";
 
 /// The subcommands, in `USAGE` order.
-const SUBCOMMANDS: &[&str] = &["info", "text", "check", "commands", "run"];
+const SUBCOMMANDS: &[&str] = &[
+    "info", "text", "check", "search", "index", "commands", "run",
+];
 
 /// Longest `--cmd` value accepted, in bytes (Windows caps a whole command line near 32 KB).
 const MAX_CMD_BYTES: usize = 16 * 1024;
@@ -216,6 +226,8 @@ fn main() -> ExitCode {
         "info" => info::info(&globals, rest),
         "text" => text::text(&globals, rest),
         "check" => check::check(&globals, rest),
+        "search" => search::search_command(&globals, rest),
+        "index" => index::index(&globals, rest),
         "commands" => commands(&globals, rest),
         "run" => run(&globals, rest),
         other => bad_args(&format!("unknown command `{other}`")),

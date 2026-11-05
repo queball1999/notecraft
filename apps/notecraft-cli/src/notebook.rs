@@ -52,6 +52,22 @@ pub fn locate(explicit: Option<&str>) -> Result<PathBuf, Failure> {
     ))
 }
 
+/// The notebook folder for a subcommand that also takes it as a trailing argument: that
+/// argument or `--notebook`, not both.
+pub fn folder_arg(
+    global: Option<&str>,
+    positional: Option<&str>,
+) -> Result<Option<String>, Failure> {
+    match (global, positional) {
+        (Some(_), Some(_)) => Err(Failure::new(
+            code::BAD_ARGS,
+            "give the notebook folder once: either --notebook or the trailing argument",
+        )),
+        (Some(path), None) | (None, Some(path)) => Ok(Some(path.to_owned())),
+        (None, None) => Ok(None),
+    }
+}
+
 /// A notebook folder and what the folder reader found in it.
 pub struct Notebook {
     pub root: PathBuf,
