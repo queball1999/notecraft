@@ -110,8 +110,13 @@ CREATE INDEX tags_by_tag ON tags (tag);
 ALTER TABLE pages ADD COLUMN tags_hash INTEGER;
 ";
 
+/// Version 8: the page id from a page's frontmatter (`notecraft.id`), read by the engine for
+/// pages that are new or changed, so a page that was renamed outside NoteCraft can be found
+/// again by id (PR 2.3). Null means the page has no id.
+const V8: &str = "ALTER TABLE pages ADD COLUMN fm_id TEXT;";
+
 /// Migrations in order. Index `n` upgrades version `n` to `n + 1`.
-pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
+pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
 
 /// The schema version this build writes.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
