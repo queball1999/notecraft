@@ -58,6 +58,22 @@ impl Stamp {
         format!("{hour}:{:02} {half}", self.minute)
     }
 
+    /// `2026-11-05T15:07:00Z` or `2026-11-05T15:07:00-05:00`: RFC 3339 with the zone offset
+    /// (`Z` for 0) the stamp is in.
+    pub fn rfc3339(&self, offset_minutes: i16) -> String {
+        let zone = if offset_minutes == 0 {
+            "Z".to_owned()
+        } else {
+            let sign = if offset_minutes < 0 { '-' } else { '+' };
+            let abs = offset_minutes.unsigned_abs();
+            format!("{sign}{:02}:{:02}", abs / 60, abs % 60)
+        };
+        format!(
+            "{:04}-{:02}-{:02}T{:02}:{:02}:00{zone}",
+            self.year, self.month, self.day, self.hour, self.minute
+        )
+    }
+
     /// `11/5/2026 3:07 PM`: the date, a space, then the time.
     pub fn date_time(&self) -> String {
         format!("{} {}", self.date(), self.time())
@@ -88,14 +104,60 @@ impl Stamp {
     }
 }
 
+type ClockFn = Arc<dyn Fn() -> Option<Stamp> + Send + Sync>;
+type OffsetFn = Arc<dyn Fn() -> i16 + Send + Sync>;
+type IdFn = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
 /// Where the current time comes from. Cheap to clone.
 #[derive(Clone)]
-pub struct Clock(Arc<dyn Fn() -> Option<Stamp> + Send + Sync>);
+pub struct Clock {
+    now: ClockFn,
+    /// Minutes the clock's zone is ahead of UTC, read with each stamp so a daylight saving
+    /// change is followed. Page files record it (RFC 3339).
+    offset: OffsetFn,
+}
+
+/// An offset kept only when it is less than a day either way.
+fn sane_offset(minutes: i16) -> i16 {
+    if minutes.abs() < 24 * 60 {
+        minutes
+    } else {
+        0
+    }
+}
 
 impl Clock {
-    /// A clock that calls `now`. It returns `None` when the time is not available.
+    /// A clock that calls `now`, reading UTC. It returns `None` when the time is not
+    /// available. A clock that reads local time says so with [`Self::with_offset_minutes`].
     pub fn new(now: impl Fn() -> Option<Stamp> + Send + Sync + 'static) -> Self {
-        Self(Arc::new(now))
+        Self {
+            now: Arc::new(now),
+            offset: Arc::new(|| 0),
+        }
+    }
+
+    /// The same clock, saying its stamps are `minutes` ahead of UTC (negative when behind).
+    /// Values outside a day either way are ignored.
+    #[must_use]
+    pub fn with_offset_minutes(mut self, minutes: i16) -> Self {
+        if minutes.abs() < 24 * 60 {
+            self.offset = Arc::new(move || minutes);
+        }
+        self
+    }
+
+    /// The same clock, reading its offset from UTC from `offset` each time it is asked (the
+    /// desktop app reads the OS time zone, so a daylight saving change is followed). Values
+    /// outside a day either way count as 0.
+    #[must_use]
+    pub fn with_offset_fn(mut self, offset: impl Fn() -> i16 + Send + Sync + 'static) -> Self {
+        self.offset = Arc::new(move || sane_offset(offset()));
+        self
+    }
+
+    /// Minutes the stamps are ahead of UTC.
+    pub fn offset_minutes(&self) -> i16 {
+        (self.offset)()
     }
 
     /// A clock that always reads `stamp` (for tests).
@@ -111,7 +173,7 @@ impl Clock {
 
     /// The time now, if it can be read.
     pub fn now(&self) -> Option<Stamp> {
-        (self.0)()
+        (self.now)()
     }
 }
 
@@ -132,6 +194,83 @@ impl PartialEq for Clock {
     fn eq(&self, _: &Self) -> bool {
         true
     }
+}
+
+/// Where new page ids come from. Cheap to clone. A source may have no entropy to draw on (a
+/// browser build), then it gives none and pages are saved without an id.
+#[derive(Clone)]
+pub struct IdSource(IdFn);
+
+impl IdSource {
+    /// A source that calls `make` with the id of the page that needs an id.
+    pub fn new(make: impl Fn(&str) -> Option<String> + Send + Sync + 'static) -> Self {
+        Self(Arc::new(make))
+    }
+
+    /// Random ids from the standard library's per-process random keys and the system time.
+    pub fn random() -> Self {
+        Self::new(random_page_id)
+    }
+
+    /// A new id for the page `page`: `pg_` and 12 Crockford base32 characters.
+    pub fn next(&self, page: &str) -> Option<String> {
+        (self.0)(page)
+    }
+}
+
+impl Default for IdSource {
+    fn default() -> Self {
+        Self::random()
+    }
+}
+
+impl fmt::Debug for IdSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("IdSource")
+    }
+}
+
+/// Sources are behavior, not state.
+impl PartialEq for IdSource {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+const CROCKFORD: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/// `pg_` plus the low 60 bits of `bits` as 12 Crockford base32 characters.
+pub fn page_id_from_bits(bits: u64) -> String {
+    let mut out = String::from("pg_");
+    for i in (0..12).rev() {
+        let digit = usize::try_from((bits >> (i * 5)) & 31).unwrap_or(0);
+        out.push(char::from(CROCKFORD.get(digit).copied().unwrap_or(b'0')));
+    }
+    out
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn random_page_id(page: &str) -> Option<String> {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hash, Hasher};
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    let mut hasher = RandomState::new().build_hasher();
+    nanos.hash(&mut hasher);
+    COUNTER.fetch_add(1, Ordering::Relaxed).hash(&mut hasher);
+    page.hash(&mut hasher);
+    Some(page_id_from_bits(hasher.finish()))
+}
+
+/// A browser build has no entropy source here: no ids are made.
+#[cfg(target_arch = "wasm32")]
+fn random_page_id(_page: &str) -> Option<String> {
+    None
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -198,6 +337,34 @@ mod tests {
         assert_eq!(Stamp::new(2026, 1, 1, 24, 0), None);
         assert_eq!(Stamp::new(2026, 1, 1, 0, 60), None);
         assert_eq!(Stamp::new(-1, 1, 1, 0, 0), None);
+    }
+
+    #[test]
+    fn stamps_write_rfc_3339_with_their_offset() {
+        let s = stamp(2026, 11, 5, 15, 7);
+        assert_eq!(s.rfc3339(0), "2026-11-05T15:07:00Z");
+        assert_eq!(s.rfc3339(-300), "2026-11-05T15:07:00-05:00");
+        assert_eq!(s.rfc3339(330), "2026-11-05T15:07:00+05:30");
+        let clock = Clock::fixed(s).with_offset_minutes(-300);
+        assert_eq!(clock.offset_minutes(), -300);
+        assert_eq!(clock.with_offset_minutes(5_000).offset_minutes(), -300);
+    }
+
+    #[test]
+    fn page_ids_are_pg_and_twelve_crockford_characters() {
+        assert_eq!(page_id_from_bits(0), "pg_000000000000");
+        assert_eq!(page_id_from_bits(31), "pg_00000000000Z");
+        let id = IdSource::random().next("nb/Sec/A.notecraft");
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let id = id.expect("an id");
+            assert_eq!(id.len(), 15);
+            assert!(id.starts_with("pg_"));
+            assert!(id[3..].bytes().all(|b| CROCKFORD.contains(&b)));
+            assert_ne!(Some(id), IdSource::random().next("nb/Sec/A.notecraft"));
+        }
+        #[cfg(target_arch = "wasm32")]
+        assert_eq!(id, None);
     }
 
     #[test]

@@ -370,6 +370,25 @@ impl History {
         }
     }
 
+    /// The text of `page` changed around its recorded text edits (a save added frontmatter
+    /// lines, for example): move the offset of each by `shift` so Undo and Redo still find
+    /// the text they changed.
+    pub fn shift_text(&mut self, page: &str, shift: &dyn Fn(usize) -> usize) {
+        let stacks = self.pages.values_mut().chain(Some(&mut self.notebook));
+        for stack in stacks {
+            for list in [&mut stack.undo, &mut stack.redo] {
+                for entry in list.iter_mut() {
+                    if entry.ops.iter().any(|op| op.is_text_edit_of(page)) {
+                        let entry = Arc::make_mut(entry);
+                        for op in &mut entry.ops {
+                            op.shift_text(page, shift);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Forget the steps of one page, for example when its file was replaced by a newer
     /// version from disk and the steps no longer fit the text.
     pub fn clear_page(&mut self, page: &str) {

@@ -12,6 +12,7 @@ mod encoding;
 mod links;
 mod loose;
 mod nav;
+mod page_ids;
 mod page_style;
 mod rename_links;
 mod save;
@@ -142,6 +143,8 @@ pub struct Session {
     find: crate::find::FindState,
     /// Where Insert > Date and Time read the time (see `stamp`).
     clock: crate::stamp::Clock,
+    /// Where new page ids come from (see `session/page_ids.rs`).
+    ids: crate::stamp::IdSource,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).
     saving: saving::SavingState,
@@ -156,6 +159,12 @@ impl Session {
     /// app installs a local-time clock, and tests install a fixed one.
     pub fn set_clock(&mut self, clock: crate::stamp::Clock) {
         self.clock = clock;
+    }
+
+    /// Use `ids` for the ids new `.notecraft` pages get on their first save. Tests install a
+    /// fixed source.
+    pub fn set_id_source(&mut self, ids: crate::stamp::IdSource) {
+        self.ids = ids;
     }
 
     /// The time now, from the session's clock.

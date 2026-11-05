@@ -6,7 +6,13 @@ use notecraft_engine::stamp::{Clock, Stamp};
 
 /// A clock that reads the machine's local time.
 pub fn local() -> Clock {
-    Clock::new(|| stamp_of(&chrono::Local::now().naive_local()))
+    Clock::new(|| stamp_of(&chrono::Local::now().naive_local())).with_offset_fn(local_offset)
+}
+
+/// Minutes the OS time zone is ahead of UTC now.
+fn local_offset() -> i16 {
+    let seconds = chrono::Local::now().offset().local_minus_utc();
+    i16::try_from(seconds / 60).unwrap_or(0)
 }
 
 fn stamp_of(time: &NaiveDateTime) -> Option<Stamp> {
@@ -36,5 +42,11 @@ mod tests {
     #[test]
     fn the_local_clock_reads_a_time() {
         assert!(local().now().is_some());
+    }
+
+    #[test]
+    fn the_local_clock_reports_the_os_offset() {
+        let expected = chrono::Local::now().offset().local_minus_utc() / 60;
+        assert_eq!(i32::from(local().offset_minutes()), expected);
     }
 }

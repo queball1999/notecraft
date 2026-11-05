@@ -69,7 +69,7 @@ impl Session {
         Some((notebook.clone(), root.clone(), rel.to_owned()))
     }
 
-    fn kind_of_page(&self, page_id: &str) -> Option<PageKind> {
+    pub(super) fn kind_of_page(&self, page_id: &str) -> Option<PageKind> {
         let (_, _, rel) = self.page_location(page_id)?;
         kind_of(Path::new(&rel))
     }
@@ -260,6 +260,7 @@ impl Session {
     /// match it, unless it already does (so a plain markdown page keeps its revision).
     pub(super) fn adopt_saved_text(&mut self, page_id: &str, text: String) {
         if self.page_text(page_id) != Some(text.as_str()) {
+            self.follow_text_change(page_id, &text);
             self.set_page_source(page_id, text);
         }
     }

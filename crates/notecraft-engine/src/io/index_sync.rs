@@ -255,7 +255,10 @@ fn update_page_ids(
             .iter()
             .filter(|(id, _, other)| other == fm_id && !known.iter().any(|(k, _, _)| k == id))
             .collect();
-        let sole = now.iter().filter(|(_, _, other)| other == fm_id).count() == 1;
+        // An id shared by two pages (a page copied outside NoteCraft) pairs nothing: not when
+        // several pages held it before, and not when several hold it now.
+        let sole = now.iter().filter(|(_, _, other)| other == fm_id).count() == 1
+            && known.iter().filter(|(_, _, other)| other == fm_id).count() == 1;
         if let ([(_, new_path, _)], true) = (arrived.as_slice(), sole) {
             moves.push((old_path.clone(), new_path.clone()));
         }
@@ -398,6 +401,72 @@ mod tests {
         refresh(dir.path()).expect("refresh");
         write(dir.path(), "Sec/B.md", "---\nnotecraft:\n  id: pg_1\n---\n");
         assert!(refresh(dir.path()).expect("refresh").moves.is_empty());
+    }
+
+    #[test]
+    fn a_copy_that_is_then_renamed_or_removed_pairs_nothing() {
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        let text = "---\nnotecraft:\n  id: pg_1\n---\n";
+        write(dir.path(), "Sec/A.md", text);
+        write(dir.path(), "Sec/B.md", text);
+        refresh(dir.path()).expect("refresh");
+        // Both copies renamed at once, or one renamed while the other stays: no pairing.
+        std::fs::rename(dir.path().join("Sec/A.md"), dir.path().join("Sec/A2.md")).expect("rename");
+        assert!(refresh(dir.path()).expect("refresh").moves.is_empty());
+        std::fs::remove_file(dir.path().join("Sec/B.md")).expect("rm");
+        std::fs::rename(dir.path().join("Sec/A2.md"), dir.path().join("Sec/A3.md"))
+            .expect("rename");
+        write(dir.path(), "Sec/C.md", text);
+        assert!(refresh(dir.path()).expect("refresh").moves.is_empty());
+    }
+
+    #[test]
+    fn a_page_saved_by_notecraft_is_found_again_after_an_outside_rename() {
+        use crate::open::open_folder;
+        use crate::stamp::{Clock, Stamp};
+
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        write(dir.path(), "Sec/Plan.notecraft", "# Plan\n");
+        write(dir.path(), "Sec/Notes.md", "see [[Plan]] and [[Plan]]\n");
+        write(dir.path(), "Sec/Other.notecraft", "# Other\n");
+        let mut session = Session::new();
+        session.set_clock(Clock::fixed(Stamp::new(2026, 11, 5, 15, 7).expect("stamp")));
+        let opened = open_folder(dir.path()).expect("scan");
+        let nb = opened.notebook.id.clone();
+        session.open_notebook(opened.notebook);
+        session.set_notebook_root(&nb, dir.path());
+        let page = format!("{nb}/Sec/Plan.notecraft");
+        assert!(session.select_page_by_id(&page));
+        session.load_current_page();
+        assert!(session.edit_page_text(&page, 6, 0, "more\n", false));
+        assert_eq!(session.save_page(&page), crate::session::SaveOutcome::Saved);
+        let saved = std::fs::read_to_string(dir.path().join("Sec/Plan.notecraft")).expect("read");
+        assert!(saved.contains("  id: pg_"), "{saved}");
+        // Every page without an id is never paired.
+        refresh(dir.path()).expect("refresh");
+        std::fs::rename(
+            dir.path().join("Sec/Plan.notecraft"),
+            dir.path().join("Sec/Roadmap.notecraft"),
+        )
+        .expect("rename");
+        std::fs::rename(
+            dir.path().join("Sec/Other.notecraft"),
+            dir.path().join("Sec/Else.notecraft"),
+        )
+        .expect("rename");
+        let done = refresh(dir.path()).expect("refresh");
+        assert_eq!(
+            done.moves,
+            [(
+                "Sec/Plan.notecraft".to_owned(),
+                "Sec/Roadmap.notecraft".to_owned()
+            )]
+        );
+        // The offer reaches the session through the PR 2.3 path.
+        let opened = open_folder(dir.path()).expect("scan");
+        session.open_notebook(opened.notebook);
+        session.consider_outside_renames(&nb, done.moves);
+        assert_eq!(session.link_fix_offer().map(|o| o.links), Some(2));
     }
 
     #[test]
