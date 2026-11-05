@@ -645,7 +645,14 @@ impl Layout<'_> {
             bold: None,
         });
         self.raws.push(raw);
-        *y += height + BODY_SIZE * 0.6;
+        // While the caret is in a formula, a typeset preview of it sits below the source.
+        let preview = input
+            .cursor
+            .filter(|c| c.is_caret() && c.head >= region.start && c.head <= region.end)
+            .map_or(0.0, |c| {
+                self.live_preview(input.text, c.head, (x, width), (*y, *y + height))
+            });
+        *y += height + preview + BODY_SIZE * 0.6;
     }
 
     fn blocks(&mut self, blocks: &[Block], x: f32, width: f32, y: &mut f32) {

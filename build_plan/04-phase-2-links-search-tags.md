@@ -1,6 +1,6 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.5 landed notes; earlier: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.7 live equation preview notes; earlier: PR 2.5 landed notes; earlier: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
 
 Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
 
@@ -158,6 +158,8 @@ Commits:
 
 PR title: `feat(markdown): add equations`.
 
+Notes (landed): live preview (`feat/equation-preview`). While the caret (not a selection) is inside a formula, the block still shows its source, and a small card with the typeset formula is drawn right below the source block, with the text under it pushed down so nothing is covered. `notecraft_markdown::math::formula_at(text, offset)` finds the formula: it parses only the blank-line-bounded paragraph around the caret (at most 64 KiB, else no preview), takes the math runs in order, and matches them back to bytes, so code spans, code blocks, and escaped dollar signs never count; the caret counts from just after the opening dollar sign to just after the closing one. The preview uses the same typesetting path and limits as the page (4 KiB, depth 32, helper thread with a time limit) but its own one-entry cache keyed by the exact source and size (`PictureCache::preview`), so typing one character at a time never fills the 512-entry page cache or leaks textures; a source that does not typeset shows "Cannot show this formula: <reason>" in the card. The card sits below the whole source block, not below the formula's own line, because the source is one text galley and a card between its lines is not possible without splitting it; it goes above the block only when the page would end past 8192 units. Still open for TX-09: a hands-on look at the real window (the tests use stand-in textures).
+
 ## PR 2.8: highlight and date and time stamps
 
 | | |
@@ -258,3 +260,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2026-11-05 | 2 | PR 2.8 landed: Notes (landed) added to PR 2.8. |
 | 2026-11-05 | 2 | PR 2.2 built: link resolution, link styles, click to follow, the page picker, and the link index (LK-01 and LK-02 scored D); notes added to the PR section. |
 | 2026-11-05 | 2 | PR 2.5 landed: notes added (note tags, index, gallery, dialog). |
+| 2026-11-05 | 2 | PR 2.7 follow-up (feat/equation-preview): Notes (landed) added to PR 2.7 (live preview while a formula is edited). |
