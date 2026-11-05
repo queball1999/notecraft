@@ -2,7 +2,8 @@
 //! custom tags a person adds in the Customize Tags dialog (docs/markdown.md section 4).
 //!
 //! This is data only. The canvas draws each [`TagIcon`] in code; settings keep the custom
-//! tags (the front end app saves [`SavedTag`] values).
+//! tags and the changes to the default ones (the app saves a [`SavedTags`] value). A default
+//! tag keeps its slug whatever is changed, so the text in pages never changes.
 
 use crate::tags::is_valid_name;
 
@@ -195,7 +196,8 @@ pub struct TagDef {
     pub font_color: Option<u32>,
     /// Highlight color behind the tagged paragraph, as 0xRRGGBB.
     pub highlight: Option<u32>,
-    /// One of OneNote's default tags: it cannot be renamed or deleted.
+    /// One of OneNote's default tags: its slug is fixed. It can be restyled and hidden from the
+    /// gallery, but not deleted.
     pub builtin: bool,
 }
 
@@ -209,7 +211,39 @@ pub struct SavedTag {
     pub highlight: Option<u32>,
 }
 
-/// Why a custom tag change was refused.
+/// What a person changed about a default tag, as kept in settings. A field is `None` when the
+/// tag still has its built-in value, so a later change to a default still applies. The inner
+/// `Option` of a color is the color itself, `None` meaning no color.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SavedOverride {
+    pub slug: String,
+    pub name: Option<String>,
+    pub icon: Option<String>,
+    pub font_color: Option<Option<u32>>,
+    pub highlight: Option<Option<u32>>,
+}
+
+/// Everything about the gallery that settings keep: plain values, no checks.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SavedTags {
+    pub custom: Vec<SavedTag>,
+    /// Changes to default tags.
+    pub overrides: Vec<SavedOverride>,
+    /// Slugs of the tags shown, in order. Empty means the built-in order (the defaults, then the
+    /// custom tags).
+    pub order: Vec<String>,
+    /// Slugs of the default tags taken out of the gallery.
+    pub hidden: Vec<String>,
+}
+
+/// Which way a tag moves in the list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MoveDir {
+    Up,
+    Down,
+}
+
+/// Why a tag change was refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TagError {
     /// The name is empty or too long.
@@ -218,7 +252,7 @@ pub enum TagError {
     DuplicateName,
     /// There are already [`MAX_CUSTOM_TAGS`] custom tags.
     TooMany,
-    /// No custom tag has this slug (default tags cannot be changed).
+    /// No tag of the right kind has this slug.
     Unknown,
 }
 
@@ -228,7 +262,7 @@ impl std::fmt::Display for TagError {
             Self::BadName => "the tag name must be 1 to 40 characters",
             Self::DuplicateName => "another tag has this name",
             Self::TooMany => "there are too many custom tags",
-            Self::Unknown => "no custom tag has this id",
+            Self::Unknown => "no tag has this id",
         })
     }
 }
@@ -298,21 +332,31 @@ pub fn default_tags() -> Vec<TagDef> {
         .collect()
 }
 
-/// The slugs of the default tags with a Ctrl+number shortcut, in key order (Ctrl+1 first).
-pub fn shortcut_slugs() -> impl Iterator<Item = &'static str> {
-    DEFAULTS.iter().take(9).map(|d| d.0)
+/// The built-in look of the default tag `slug`.
+fn default_of(slug: &str) -> Option<TagDef> {
+    default_tags()
+        .into_iter()
+        .find(|t| t.slug.eq_ignore_ascii_case(slug.trim()))
 }
 
-/// All the tags: the defaults, then the custom ones.
+fn default_slugs() -> impl Iterator<Item = &'static str> + Clone {
+    DEFAULTS.iter().map(|d| d.0)
+}
+
+/// The tags: the ones in the gallery, in the order a person set (the first nine have
+/// Ctrl+1 to Ctrl+9), and the default tags taken out of the gallery. A hidden tag is still
+/// known, so text in pages that says `#slug` keeps its icon.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagSet {
     tags: Vec<TagDef>,
+    hidden: Vec<TagDef>,
 }
 
 impl Default for TagSet {
     fn default() -> Self {
         Self {
             tags: default_tags(),
+            hidden: Vec::new(),
         }
     }
 }
@@ -322,8 +366,41 @@ impl TagSet {
     /// a slug already in use) is dropped; an unknown icon becomes the dot.
     pub fn from_saved<'a>(saved: impl IntoIterator<Item = &'a SavedTag>) -> Self {
         let mut set = Self::default();
+        set.add_saved_custom(saved);
+        set
+    }
+
+    /// The gallery as settings keep it: changes to default tags, the custom tags, which
+    /// defaults are hidden, and the order. Every damaged entry is dropped on its own (a bad
+    /// field of a change is ignored, the rest of it applies).
+    pub fn restore(saved: &SavedTags) -> Self {
+        let mut set = Self::default();
+        for change in &saved.overrides {
+            set.apply_override(change);
+        }
+        set.add_saved_custom(&saved.custom);
+        for slug in &saved.hidden {
+            let slug = slug.trim().to_ascii_lowercase();
+            if let Some(i) = set.tags.iter().position(|t| t.builtin && t.slug == slug) {
+                let def = set.tags.remove(i);
+                set.hidden.push(def);
+            }
+        }
+        let mut ordered: Vec<TagDef> = Vec::with_capacity(set.tags.len());
+        for slug in &saved.order {
+            let slug = slug.trim().to_ascii_lowercase();
+            if let Some(i) = set.tags.iter().position(|t| t.slug == slug) {
+                ordered.push(set.tags.remove(i));
+            }
+        }
+        ordered.append(&mut set.tags);
+        set.tags = ordered;
+        set
+    }
+
+    fn add_saved_custom<'a>(&mut self, saved: impl IntoIterator<Item = &'a SavedTag>) {
         for tag in saved {
-            if set.custom_count() >= MAX_CUSTOM_TAGS {
+            if self.custom_count() >= MAX_CUSTOM_TAGS {
                 break;
             }
             let slug = tag.slug.trim().to_ascii_lowercase();
@@ -331,10 +408,10 @@ impl TagSet {
             let (Some(name), true) = (name, is_valid_name(&slug)) else {
                 continue;
             };
-            if set.get(&slug).is_some() || set.name_in_use(&name, None) {
+            if self.get(&slug).is_some() || self.name_in_use(&name, None) {
                 continue;
             }
-            set.tags.push(custom_def(
+            self.tags.push(custom_def(
                 slug,
                 name,
                 TagIcon::from_id(&tag.icon).unwrap_or(TagIcon::Dot),
@@ -342,7 +419,76 @@ impl TagSet {
                 tag.highlight,
             ));
         }
-        set
+    }
+
+    fn apply_override(&mut self, change: &SavedOverride) {
+        let slug = change.slug.trim().to_ascii_lowercase();
+        if !self.tags.iter().any(|t| t.builtin && t.slug == slug) {
+            return;
+        }
+        // Each field on its own: a refused name leaves the other fields to apply.
+        let name = change.name.as_deref().and_then(clean_name);
+        let name = name.filter(|n| !self.name_in_use(n, Some(&slug)));
+        let icon = change.icon.as_deref().and_then(TagIcon::from_id);
+        let _ = self.edit(
+            &slug,
+            name.as_deref(),
+            icon,
+            change.font_color,
+            change.highlight,
+        );
+    }
+
+    /// Everything settings keep: the custom tags, the changes to default tags (only the
+    /// fields that differ from the built-in value), the hidden defaults, and the order (only
+    /// when it is not the built-in one).
+    pub fn to_saved_all(&self) -> SavedTags {
+        let mut overrides = Vec::new();
+        for def in self.tags.iter().chain(&self.hidden).filter(|t| t.builtin) {
+            let Some(base) = default_of(&def.slug) else {
+                continue;
+            };
+            let change = SavedOverride {
+                slug: def.slug.clone(),
+                name: (def.name != base.name).then(|| def.name.clone()),
+                icon: (def.icon != base.icon).then(|| def.icon.id().to_owned()),
+                font_color: (def.font_color != base.font_color).then_some(def.font_color),
+                highlight: (def.highlight != base.highlight).then_some(def.highlight),
+            };
+            let none = SavedOverride {
+                slug: def.slug.clone(),
+                ..SavedOverride::default()
+            };
+            if change != none {
+                overrides.push(change);
+            }
+        }
+        let builtin_order: Vec<&str> = self
+            .tags
+            .iter()
+            .filter(|t| t.builtin)
+            .map(|t| t.slug.as_str())
+            .collect::<Vec<_>>();
+        let mut builtin_order = {
+            let mut v = builtin_order;
+            v.sort_by_key(|slug| default_slugs().position(|s| s == *slug));
+            v
+        };
+        builtin_order.extend(self.custom().map(|t| t.slug.as_str()));
+        let shown: Vec<&str> = self.tags.iter().map(|t| t.slug.as_str()).collect();
+        let order = if shown == builtin_order {
+            Vec::new()
+        } else {
+            shown.iter().map(|s| (*s).to_owned()).collect()
+        };
+        let mut hidden: Vec<String> = self.hidden.iter().map(|t| t.slug.clone()).collect();
+        hidden.sort_by_key(|slug| default_slugs().position(|s| s == slug));
+        SavedTags {
+            custom: self.to_saved(),
+            overrides,
+            order,
+            hidden,
+        }
     }
 
     /// The custom tags as they are saved.
@@ -358,9 +504,14 @@ impl TagSet {
             .collect()
     }
 
-    /// Every tag, defaults first.
+    /// The tags in the gallery, in order.
     pub fn all(&self) -> &[TagDef] {
         &self.tags
+    }
+
+    /// The default tags taken out of the gallery.
+    pub fn hidden(&self) -> &[TagDef] {
+        &self.hidden
     }
 
     /// The custom tags.
@@ -372,14 +523,15 @@ impl TagSet {
         self.custom().count()
     }
 
-    /// The tag stored as `#slug` (any case).
+    /// The tag stored as `#slug` (any case), hidden ones included.
     pub fn get(&self, slug: &str) -> Option<&TagDef> {
         self.tags
             .iter()
+            .chain(&self.hidden)
             .find(|t| t.slug.eq_ignore_ascii_case(slug.trim()))
     }
 
-    /// The tag at a Ctrl+number position (1 to 9).
+    /// The tag at a Ctrl+number position (1 to 9): the nth tag of the gallery.
     pub fn shortcut(&self, number: usize) -> Option<&TagDef> {
         number
             .checked_sub(1)
@@ -391,6 +543,7 @@ impl TagSet {
         let key = name_key(name);
         self.tags
             .iter()
+            .chain(&self.hidden)
             .any(|t| name_key(&t.name) == key && Some(t.slug.as_str()) != except)
     }
 
@@ -425,32 +578,43 @@ impl TagSet {
         font_color: Option<Option<u32>>,
         highlight: Option<Option<u32>>,
     ) -> Result<(), TagError> {
-        let Some(index) = self
-            .tags
-            .iter()
-            .position(|t| !t.builtin && t.slug.eq_ignore_ascii_case(slug.trim()))
-        else {
+        if self.get(slug).is_none_or(|t| t.builtin) {
+            return Err(TagError::Unknown);
+        }
+        self.edit(slug, name, icon, font_color, highlight)
+    }
+
+    /// Change any tag, a default one included: its name, icon, and colors (the slug never
+    /// changes). `None` leaves a field alone; `Some(None)` clears a color. A new icon brings
+    /// its own color; going back to a default tag's own icon brings back its built-in color.
+    pub fn edit(
+        &mut self,
+        slug: &str,
+        name: Option<&str>,
+        icon: Option<TagIcon>,
+        font_color: Option<Option<u32>>,
+        highlight: Option<Option<u32>>,
+    ) -> Result<(), TagError> {
+        let Some(found) = self.get(slug) else {
             return Err(TagError::Unknown);
         };
+        let key = found.slug.clone();
         let new_name = match name {
             Some(name) => {
                 let name = clean_name(name).ok_or(TagError::BadName)?;
-                if self.name_in_use(
-                    &name,
-                    Some(
-                        &self
-                            .tags
-                            .get(index)
-                            .map_or_else(String::new, |t| t.slug.clone()),
-                    ),
-                ) {
+                if self.name_in_use(&name, Some(&key)) {
                     return Err(TagError::DuplicateName);
                 }
                 Some(name)
             }
             None => None,
         };
-        let Some(tag) = self.tags.get_mut(index) else {
+        let Some(tag) = self
+            .tags
+            .iter_mut()
+            .chain(self.hidden.iter_mut())
+            .find(|t| t.slug == key)
+        else {
             return Err(TagError::Unknown);
         };
         if let Some(name) = new_name {
@@ -458,7 +622,10 @@ impl TagSet {
         }
         if let Some(icon) = icon {
             tag.icon = icon;
-            tag.icon_color = icon.color();
+            tag.icon_color = match default_of(&key) {
+                Some(base) if base.icon == icon => base.icon_color,
+                _ => icon.color(),
+            };
         }
         if let Some(color) = font_color {
             tag.font_color = color;
@@ -467,6 +634,91 @@ impl TagSet {
             tag.highlight = color;
         }
         Ok(())
+    }
+
+    /// Take a default tag out of the gallery and the Ctrl+number list. Text in pages that says
+    /// `#slug` keeps its icon, as in OneNote. Only [`TagSet::reset_all`] brings it back.
+    pub fn hide(&mut self, slug: &str) -> Result<(), TagError> {
+        let Some(i) = self
+            .tags
+            .iter()
+            .position(|t| t.builtin && t.slug.eq_ignore_ascii_case(slug.trim()))
+        else {
+            return Err(TagError::Unknown);
+        };
+        let def = self.tags.remove(i);
+        self.hidden.push(def);
+        Ok(())
+    }
+
+    /// Move a tag one place up or down the list. At the end of the list nothing changes.
+    pub fn move_tag(&mut self, slug: &str, dir: MoveDir) -> Result<(), TagError> {
+        let Some(i) = self
+            .tags
+            .iter()
+            .position(|t| t.slug.eq_ignore_ascii_case(slug.trim()))
+        else {
+            return Err(TagError::Unknown);
+        };
+        let j = match dir {
+            MoveDir::Up => i.checked_sub(1),
+            MoveDir::Down => Some(i + 1).filter(|&j| j < self.tags.len()),
+        };
+        if let Some(j) = j {
+            self.tags.swap(i, j);
+        }
+        Ok(())
+    }
+
+    /// Give a default tag its built-in name, icon, and colors back (it keeps its place).
+    pub fn reset_tag(&mut self, slug: &str) -> Result<(), TagError> {
+        let Some(base) = default_of(slug) else {
+            return Err(TagError::Unknown);
+        };
+        if self.get(&base.slug).is_none() {
+            return Err(TagError::Unknown);
+        }
+        if self.name_in_use(&base.name, Some(&base.slug)) {
+            return Err(TagError::DuplicateName);
+        }
+        let Some(tag) = self
+            .tags
+            .iter_mut()
+            .chain(self.hidden.iter_mut())
+            .find(|t| t.slug == base.slug)
+        else {
+            return Err(TagError::Unknown);
+        };
+        *tag = base;
+        Ok(())
+    }
+
+    /// Whether a default tag differs from its built-in look.
+    pub fn is_modified(&self, slug: &str) -> bool {
+        match (self.get(slug), default_of(slug)) {
+            (Some(now), Some(base)) => *now != base,
+            _ => false,
+        }
+    }
+
+    /// Put the built-in list back: every default tag is in the gallery in the built-in order
+    /// with its built-in look. Custom tags stay, after the defaults (one whose name a default
+    /// now has gets a number added to its name).
+    pub fn reset_all(&mut self) {
+        let custom: Vec<TagDef> = self.tags.drain(..).filter(|t| !t.builtin).collect();
+        self.hidden.clear();
+        self.tags = default_tags();
+        for mut tag in custom {
+            let base = tag.name.clone();
+            let mut n = 2;
+            while self.name_in_use(&tag.name, None) && n < 1000 {
+                let suffix = format!(" {n}");
+                let keep = MAX_TAG_NAME_CHARS.saturating_sub(suffix.chars().count());
+                tag.name = format!("{}{suffix}", base.chars().take(keep).collect::<String>());
+                n += 1;
+            }
+            self.tags.push(tag);
+        }
     }
 
     /// Delete a custom tag. Text in pages that says `#slug` stays; it is then an ordinary
@@ -764,5 +1016,153 @@ mod tests {
             assert_eq!(TagIcon::from_id(icon.id()), Some(icon));
         }
         assert_eq!(TagIcon::from_id("nope"), None);
+    }
+
+    #[test]
+    fn a_default_tag_keeps_its_slug_and_stores_only_what_differs() {
+        let mut set = TagSet::default();
+        assert_eq!(set.to_saved_all(), SavedTags::default());
+        set.edit(
+            "idea",
+            Some("Thought"),
+            Some(TagIcon::Heart),
+            None,
+            Some(Some(0x112233)),
+        )
+        .unwrap();
+        // Same icon again gives the built-in icon color back (a flag keeps its green).
+        set.edit("project-b", None, Some(TagIcon::Star), None, None)
+            .unwrap();
+        set.edit("project-b", None, Some(TagIcon::Flag), None, None)
+            .unwrap();
+        assert_eq!(set.get("project-b").map(|t| t.icon_color), Some(0x2E9B5E));
+        let saved = set.to_saved_all();
+        assert_eq!(saved.overrides.len(), 1, "{:?}", saved.overrides);
+        let change = &saved.overrides[0];
+        assert_eq!(change.slug, "idea");
+        assert_eq!(change.name.as_deref(), Some("Thought"));
+        assert_eq!(change.icon.as_deref(), Some("heart"));
+        assert_eq!(change.font_color, None);
+        assert_eq!(change.highlight, Some(Some(0x112233)));
+        assert!(saved.order.is_empty() && saved.hidden.is_empty());
+        assert_eq!(TagSet::restore(&saved), set);
+        assert!(set.is_modified("idea") && !set.is_modified("question"));
+        // A name another tag has is refused; so is a bad one.
+        assert_eq!(
+            set.edit("idea", Some("question"), None, None, None),
+            Err(TagError::DuplicateName)
+        );
+        assert_eq!(
+            set.edit("idea", Some(" "), None, None, None),
+            Err(TagError::BadName)
+        );
+        assert_eq!(
+            set.edit("nope", None, None, None, None),
+            Err(TagError::Unknown)
+        );
+    }
+
+    #[test]
+    fn hidden_and_ordered_tags_round_trip_and_hidden_ones_stay_known() {
+        let mut set = TagSet::default();
+        set.hide("todo").unwrap();
+        set.hide("idea").unwrap();
+        set.edit("idea", Some("Thought"), None, None, None).unwrap();
+        for _ in 0..4 {
+            set.move_tag("question", MoveDir::Down).unwrap();
+        }
+        let custom = set.add_custom("Errand", TagIcon::Pin, None, None).unwrap();
+        set.move_tag(&custom, MoveDir::Up).unwrap();
+        assert_eq!(set.get("todo").map(|t| t.name.as_str()), Some("To Do"));
+        assert_eq!(set.hide("errand"), Err(TagError::Unknown));
+        assert_eq!(set.shortcut(1).map(|t| t.slug.as_str()), Some("important"));
+        let saved = set.to_saved_all();
+        assert_eq!(saved.hidden, ["todo", "idea"]);
+        assert!(!saved.order.is_empty());
+        let back = TagSet::restore(&saved);
+        assert_eq!(back, set);
+        let shown: Vec<&str> = back.all().iter().map(|t| t.slug.as_str()).collect();
+        let was: Vec<&str> = set.all().iter().map(|t| t.slug.as_str()).collect();
+        assert_eq!(shown, was);
+        // The hidden tag name still counts, so no second "Thought".
+        let mut other = back.clone();
+        assert_eq!(
+            other.add_custom("Thought", TagIcon::Dot, None, None),
+            Err(TagError::DuplicateName)
+        );
+        // Reset puts everything back; custom tags stay, after the defaults.
+        other.reset_all();
+        assert!(other.hidden().is_empty());
+        assert_eq!(other.all().len(), 30);
+        assert_eq!(other.all().first().map(|t| t.slug.as_str()), Some("todo"));
+        assert_eq!(other.all().last().map(|t| t.slug.as_str()), Some("errand"));
+        assert_eq!(other.get("idea").map(|t| t.name.as_str()), Some("Idea"));
+        assert_eq!(other.to_saved_all().overrides, Vec::new());
+    }
+
+    #[test]
+    fn moving_stops_at_the_ends_and_shortcuts_follow_the_list() {
+        let mut set = TagSet::default();
+        set.move_tag("todo", MoveDir::Up).unwrap();
+        assert_eq!(set.shortcut(1).map(|t| t.slug.as_str()), Some("todo"));
+        set.move_tag("client", MoveDir::Down).unwrap();
+        assert_eq!(set.all().last().map(|t| t.slug.as_str()), Some("client"));
+        set.move_tag("phone", MoveDir::Down).unwrap();
+        assert_eq!(set.shortcut(9).map(|t| t.slug.as_str()), Some("website"));
+        assert_eq!(set.move_tag("nope", MoveDir::Up), Err(TagError::Unknown));
+    }
+
+    #[test]
+    fn damaged_saved_changes_are_dropped_one_by_one() {
+        let saved = SavedTags {
+            custom: vec![SavedTag {
+                slug: "errand".into(),
+                name: "Errand".into(),
+                icon: "pin".into(),
+                font_color: None,
+                highlight: None,
+            }],
+            overrides: vec![
+                SavedOverride {
+                    slug: "question".into(),
+                    name: Some("  ".into()),
+                    icon: Some("no-such-icon".into()),
+                    font_color: Some(Some(0xFF0000)),
+                    highlight: None,
+                },
+                SavedOverride {
+                    slug: "idea".into(),
+                    name: Some("Question".into()),
+                    ..SavedOverride::default()
+                },
+                SavedOverride {
+                    slug: "errand".into(),
+                    name: Some("Not a default".into()),
+                    ..SavedOverride::default()
+                },
+            ],
+            order: vec![
+                "errand".into(),
+                "errand".into(),
+                "gone".into(),
+                "todo".into(),
+            ],
+            hidden: vec!["important".into(), "errand".into(), "gone".into()],
+        };
+        let set = TagSet::restore(&saved);
+        assert_eq!(
+            set.get("question").and_then(|t| t.font_color),
+            Some(0xFF0000)
+        );
+        assert_eq!(
+            set.get("question").map(|t| (t.name.as_str(), t.icon)),
+            Some(("Question", TagIcon::Question))
+        );
+        assert_eq!(set.get("idea").map(|t| t.name.as_str()), Some("Idea"));
+        assert_eq!(set.get("errand").map(|t| t.name.as_str()), Some("Errand"));
+        assert_eq!(set.hidden().len(), 1);
+        let first: Vec<&str> = set.all().iter().take(3).map(|t| t.slug.as_str()).collect();
+        assert_eq!(first, ["errand", "todo", "question"]);
+        assert_eq!(set.all().len(), 29);
     }
 }

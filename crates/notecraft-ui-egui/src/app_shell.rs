@@ -786,8 +786,7 @@ impl AppShell {
                 texture: tool.style.texture,
             })
             .collect();
-        let custom_tags: Vec<notecraft_markdown::TagDef> =
-            self.session.tags().custom().cloned().collect();
+        let gallery_tags: Vec<notecraft_markdown::TagDef> = self.session.tags().all().to_vec();
         let look = ribbon::Look {
             tokens: &tokens,
             registry: &self.registry,
@@ -801,7 +800,7 @@ impl AppShell {
             can_undo: self.session.can_undo(),
             can_redo: self.session.can_redo(),
             can_convert: self.session.can_convert_to_markdown(),
-            custom_tags: &custom_tags,
+            tags: &gallery_tags,
         };
         if self.ribbon.backstage_open() {
             let clicked = self
@@ -1406,7 +1405,7 @@ mod tests {
         harness.get_by_label("Tags down").click();
         harness.run();
         let _ = harness.get_by_label("Question");
-        let _ = harness.get_by_label("Remember for Later");
+        let _ = harness.get_by_label("Remember for later");
         assert!(harness.query_by_label("Important").is_none());
         harness.get_by_label("Tags down").click();
         harness.get_by_label("Tags down").click();
@@ -1469,7 +1468,7 @@ mod tests {
         // A button with a menu is a submenu here; egui adds an arrow to its name.
         harness.get_by_label("Tags \u{23F5}").click();
         harness.run();
-        harness.get_by_label("Remember for Later").click();
+        harness.get_by_label("Remember for later").click();
         harness.run();
         assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
     }
@@ -3050,10 +3049,10 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         let texts = toasts(&harness);
         assert_eq!(texts.len(), 1, "{texts:?}");
         assert!(texts[0].starts_with("Add Page: "), "{texts:?}");
-        // Ctrl+3 runs tag.apply, which does nothing without a caret and says nothing.
+        // Ctrl+3 runs tag.apply_nth, which does nothing without a caret and says nothing.
         harness.key_press_modifiers(command, egui::Key::Num3);
         harness.run();
-        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply"));
+        assert_eq!(last_ran(&harness).as_deref(), Some("tag.apply_nth"));
         assert_eq!(toasts(&harness).len(), 1);
 
         // Ctrl+Alt+= zooms in; the more specific chord wins over Ctrl+=.

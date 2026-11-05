@@ -166,6 +166,18 @@ command_ids! {
     TAG_CUSTOM_EDIT = "tag.custom_edit";
     /// Remove a custom note tag from the gallery.
     TAG_CUSTOM_DELETE = "tag.custom_delete";
+    /// Change the name, icon, or colors of any note tag, a default one included.
+    TAG_EDIT = "tag.edit";
+    /// Take a default note tag out of the gallery.
+    TAG_HIDE = "tag.hide";
+    /// Move a note tag up or down the gallery list.
+    TAG_MOVE = "tag.move";
+    /// Give a default note tag its built-in name, icon, and colors back.
+    TAG_RESET = "tag.reset";
+    /// Put the built-in tag list back: hidden tags return, defaults look as built.
+    TAG_RESET_ALL = "tag.reset_all";
+    /// Apply the note tag at a position of the gallery list (Ctrl+1 to Ctrl+9).
+    TAG_APPLY_NTH = "tag.apply_nth";
 
     // Home tab: Email and Meetings groups
     /// Send the current page as an email.

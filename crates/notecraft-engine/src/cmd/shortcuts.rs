@@ -1,7 +1,7 @@
 //! The default shortcut map: OneNote's keyboard shortcuts, as key chords bound to commands.
 //!
 //! Most bindings come from each command's `default_shortcut`. Shortcuts that run a command
-//! with arguments (Ctrl+2 to Ctrl+9 apply note tags) are listed in [`WITH_ARGS`]. "Ctrl" means
+//! with arguments (Ctrl+1 to Ctrl+9 apply the first nine note tags of the list) are listed in [`WITH_ARGS`]. "Ctrl" means
 //! the platform command key: the front end maps it to Cmd on macOS.
 
 use serde_json::Value;
@@ -82,17 +82,18 @@ pub struct Binding {
     pub args: Value,
 }
 
-/// Shortcuts that pass arguments: OneNote's Ctrl+2 to Ctrl+9 note tags (Ctrl+1 is To Do,
-/// a command of its own). Tag ids match the ribbon's Tags gallery.
-pub const WITH_ARGS: [(&str, CommandId, &str, &str); 8] = [
-    ("Ctrl+2", ids::TAG_APPLY, "tag", "important"),
-    ("Ctrl+3", ids::TAG_APPLY, "tag", "question"),
-    ("Ctrl+4", ids::TAG_APPLY, "tag", "remember"),
-    ("Ctrl+5", ids::TAG_APPLY, "tag", "definition"),
-    ("Ctrl+6", ids::TAG_APPLY, "tag", "highlight"),
-    ("Ctrl+7", ids::TAG_APPLY, "tag", "contact"),
-    ("Ctrl+8", ids::TAG_APPLY, "tag", "address"),
-    ("Ctrl+9", ids::TAG_APPLY, "tag", "phone"),
+/// Shortcuts that pass arguments: OneNote's Ctrl+1 to Ctrl+9 apply the first nine tags of the
+/// Tags list, whatever the list holds now (by default Ctrl+1 is To Do).
+pub const WITH_ARGS: [(&str, CommandId, &str, i64); 9] = [
+    ("Ctrl+1", ids::TAG_APPLY_NTH, "number", 1),
+    ("Ctrl+2", ids::TAG_APPLY_NTH, "number", 2),
+    ("Ctrl+3", ids::TAG_APPLY_NTH, "number", 3),
+    ("Ctrl+4", ids::TAG_APPLY_NTH, "number", 4),
+    ("Ctrl+5", ids::TAG_APPLY_NTH, "number", 5),
+    ("Ctrl+6", ids::TAG_APPLY_NTH, "number", 6),
+    ("Ctrl+7", ids::TAG_APPLY_NTH, "number", 7),
+    ("Ctrl+8", ids::TAG_APPLY_NTH, "number", 8),
+    ("Ctrl+9", ids::TAG_APPLY_NTH, "number", 9),
 ];
 
 /// Second shortcuts for commands that already have a `default_shortcut`: Ctrl+Shift+Z also
@@ -199,8 +200,8 @@ mod tests {
             ("Ctrl+N", "page.new"),
             ("Ctrl+T", "section.new"),
             ("Ctrl+E", "search.open"),
-            ("Ctrl+1", "tag.todo"),
-            ("Ctrl+9", "tag.apply"),
+            ("Ctrl+1", "tag.apply_nth"),
+            ("Ctrl+9", "tag.apply_nth"),
             ("Ctrl+Alt+D", "view.dock"),
             ("Ctrl+F1", "view.ribbon.toggle"),
             ("Alt+Shift+D", "insert.date"),

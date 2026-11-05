@@ -197,6 +197,14 @@ pub(super) fn set_unchecked(
     })
 }
 
+/// Show the new tag names in a Tags Summary that is already on screen (after a tag was renamed
+/// or reset). The index keeps tag ids, so only the names change; the query runs again.
+pub(super) fn names_changed(session: &mut Session) {
+    if session.tag_summary().summary.is_some() {
+        rerun(session);
+    }
+}
+
 /// `tag.summary.refresh`: read the index again.
 pub(super) fn refresh(
     session: &mut Session,
