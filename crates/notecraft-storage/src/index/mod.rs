@@ -165,6 +165,42 @@ impl Index {
         tx.commit()
     }
 
+    /// Record the page ids (`notecraft.id`) read from frontmatter (`Some("")` means the page
+    /// has none). Unknown ids are ignored. One transaction.
+    pub fn set_frontmatter_ids(
+        &mut self,
+        ids: &[(String, Option<String>)],
+    ) -> rusqlite::Result<()> {
+        let tx = self.conn.transaction()?;
+        for (id, fm_id) in ids {
+            tx.execute(
+                "UPDATE pages SET fm_id = ?1 WHERE id = ?2",
+                rusqlite::params![fm_id, id],
+            )?;
+        }
+        tx.commit()
+    }
+
+    /// Pages whose frontmatter id was never read (new pages, changed pages, and every page
+    /// after the schema upgrade), as `(index id, path)`. A page read and found to have no id
+    /// is stored with an empty id, so it is not listed again.
+    pub fn pages_needing_fm_id(&self) -> rusqlite::Result<Vec<(String, String)>> {
+        let mut stmt = self
+            .conn
+            .prepare_cached("SELECT id, path FROM pages WHERE fm_id IS NULL")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect()
+    }
+
+    /// Every page that has a frontmatter id, as `(index id, path, frontmatter id)`.
+    pub fn frontmatter_ids(&self) -> rusqlite::Result<Vec<(String, String, String)>> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT id, path, fm_id FROM pages WHERE fm_id IS NOT NULL AND fm_id != ''",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+        rows.collect()
+    }
+
     /// The sections and pages for the sidebar, in order.
     pub fn sidebar(&self) -> rusqlite::Result<Sidebar> {
         let mut stmt = self

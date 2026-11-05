@@ -309,7 +309,8 @@ impl Walk<'_> {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?13)
              ON CONFLICT(path) DO UPDATE SET id = ?1, section = ?3, title = ?4, kind = ?5,
                 level = ?6, ord = ?7, modified = ?9, size = ?10, hash = ?11, collapsed = ?13,
-                fm_title = CASE WHEN ?12 THEN fm_title ELSE NULL END",
+                fm_title = CASE WHEN ?12 THEN fm_title ELSE NULL END,
+                fm_id = CASE WHEN ?12 THEN fm_id ELSE NULL END",
             params![
                 id,
                 page.rel_path,

@@ -25,7 +25,50 @@ pub struct Prefs {
     pub colors: ColorPrefs,
     pub draw: DrawPrefs,
     pub tags: TagPrefs,
+    pub links: LinkPrefs,
     pub whats_new: WhatsNewPrefs,
+}
+
+/// Page link settings. `update_on_rename` (default on) rewrites links when a page is renamed or
+/// moved in NoteCraft. A value of the wrong type is read as the default.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct LinkPrefs {
+    #[serde(deserialize_with = "lenient_true")]
+    pub update_on_rename: bool,
+}
+
+impl Default for LinkPrefs {
+    fn default() -> Self {
+        Self {
+            update_on_rename: true,
+        }
+    }
+}
+
+fn lenient_true<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Any {
+        Flag(bool),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Any::deserialize(deserializer)? {
+        Any::Flag(flag) => flag,
+        Any::Other(_) => true,
+    })
+}
+
+impl LinkPrefs {
+    /// Record the session's setting; leaves it alone when nothing changed.
+    pub fn observe(&mut self, on: bool) {
+        if self.update_on_rename != on {
+            self.update_on_rename = on;
+        }
+    }
 }
 
 /// Which version's What's New dialog the user has already been shown. Stored as text; a value

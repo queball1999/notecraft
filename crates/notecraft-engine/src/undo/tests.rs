@@ -764,6 +764,8 @@ const UNDO_TESTED_ELSEWHERE: &[&str] = &[
     "link.picker.choose",
     // The summary page needs Tags Summary results first; cmd/tag_summary_tests.rs covers it.
     "tag.summary.create_page",
+    // Needs an offer from an outside rename first; session/rename_links_tests.rs covers it.
+    "links.fix_after_rename",
 ];
 
 /// How to run each Ready undoable command in a test. A PR that makes another command
