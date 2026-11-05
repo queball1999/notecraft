@@ -1,5 +1,7 @@
 //! Tags Summary commands: scopes, grouping, opening an item, and the summary page.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use serde_json::{json, Value};
 
 use crate::cmd::Registry;
