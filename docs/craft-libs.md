@@ -1,6 +1,6 @@
 # Shared craft libraries
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: craft-atomic also writes the recovery journal (PR 1.7); craft-atomic adopted by notecraft-storage (PR 1.4).
+> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: craft-atomic also writes the recovery journal (PR 1.7); craft-atomic adopted by notecraft-storage (PR 1.4).
 
 NoteCraft uses the shared crates in [storytold/craft-libs](https://github.com/storytold/craft-libs) instead of writing its own versions. This doc says which ones, where, and how to update them. For each crate's API, read its docs at the pinned commit; this doc does not repeat them.
 
@@ -81,3 +81,4 @@ Do not fork the code into NoteCraft. Open an issue or PR on craft-libs, and if N
 | 2026-10-15 | 1 | craft-atomic adopted: `notecraft-storage::page_file` writes pages through it (PR 1.4). |
 | 2026-10-16 | 1 | craft-atomic also writes the recovery journal entries (PR 1.7); the journal lives in the folder craft-settings uses (`recovery/`). |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
+| 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |
