@@ -1,8 +1,8 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review and close notes in PR 2.10; earlier: page ids and times written on first save of a `.notecraft` page (feat/page-ids, LK-03 Missing narrowed); earlier: Customize Tags edits the default tags (rename, icon, colors), hides and resets them, and orders the list that sets Ctrl+1 to Ctrl+9 (LK-06); earlier: PR 2.6 decisions recorded; earlier: PR 2.3 notes (links through renames and moves); earlier: PR 2.6 Find Tags summary notes; earlier: PR 2.11 notes; earlier: PR 2.7 live equation preview notes; earlier: PR 2.5 landed notes; earlier: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 ships as v0.0.3, not v0.2.0 (maintainer decision); earlier: Phase 2 close review and close notes in PR 2.10; earlier: page ids and times written on first save of a `.notecraft` page (feat/page-ids, LK-03 Missing narrowed); earlier: Customize Tags edits the default tags (rename, icon, colors), hides and resets them, and orders the list that sets Ctrl+1 to Ctrl+9 (LK-06); earlier: PR 2.6 decisions recorded; earlier: PR 2.3 notes (links through renames and moves); earlier: PR 2.6 Find Tags summary notes; earlier: PR 2.11 notes; earlier: PR 2.7 live equation preview notes; earlier: PR 2.5 landed notes; earlier: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
 
-Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
+Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.0.3.
 
 Backlinks, the graph view, the command palette, and other features OneNote does not have are not in this plan. They are listed in docs/post-parity.md.
 
@@ -233,9 +233,9 @@ Notes (landed): Branch `feat/cli-search`. The two plan commits were merged into 
 
 ## PR 2.10: close Phase 2
 
-Follow 00-conventions.md section 6; release v0.2.0.
+Follow 00-conventions.md section 6; release v0.0.3.
 
-Notes (closed 2026-11-05): every PR of the phase (2.1 to 2.9, 2.11) and the follow-ups (equation live preview, editable default tags, page ids written on first save) are merged into `phase/2-links-search-tags`, together with the file safety branches (fix/dirty-follows-structure, fix/page-kind-safety, fix/open-page-file, fix/save-feedback, fix/encoding-safety, fix/read-only-edits, fix/journal-hardening, docs/file-safety-review). Exit criteria: TX-10, TX-11, TX-13, LK-01, LK-02, LK-05, and LK-08 are D; TX-09, LK-03, LK-06, and LK-07 are P with only a hand check left (docs/roadmap.md hands-on checklist steps 21 to 27, docs/gaps.md rank 26). Maintainer decision (2026-11-05): close the phase and release v0.2.0 before the hand checks. No PR moved to a later phase.
+Notes (closed 2026-11-05): every PR of the phase (2.1 to 2.9, 2.11) and the follow-ups (equation live preview, editable default tags, page ids written on first save) are merged into `phase/2-links-search-tags`, together with the file safety branches (fix/dirty-follows-structure, fix/page-kind-safety, fix/open-page-file, fix/save-feedback, fix/encoding-safety, fix/read-only-edits, fix/journal-hardening, docs/file-safety-review). Exit criteria: TX-10, TX-11, TX-13, LK-01, LK-02, LK-05, and LK-08 are D; TX-09, LK-03, LK-06, and LK-07 are P with only a hand check left (docs/roadmap.md hands-on checklist steps 21 to 27, docs/gaps.md rank 26). Maintainer decision (2026-11-05): close the phase and release v0.0.3 before the hand checks. No PR moved to a later phase.
 
 ## Estimate
 
@@ -250,14 +250,14 @@ Notes (closed 2026-11-05): every PR of the phase (2.1 to 2.9, 2.11) and the foll
 | 2.7 equations | 20-36 |
 | 2.8 highlight and timestamps | 6-10 |
 | 2.9 find on page | 8-14 |
-| 2.10 close and v0.2.0 | 4-8 |
+| 2.10 close and v0.0.3 | 4-8 |
 | 2.11 command line search | 4-8 |
 | Total | 134-230 |
 
 ## Exit criteria
 
 - Every row listed at the top scored D.
-- v0.2.0 published.
+- v0.0.3 published.
 
 ## Revision history
 
@@ -282,3 +282,4 @@ Notes (closed 2026-11-05): every PR of the phase (2.1 to 2.9, 2.11) and the foll
 | 2026-11-05 | 2 | PR 2.5 follow-up (feat/customize-default-tags): Notes (landed) added (default tags editable, hide and reset, ordering, tag.apply_nth). |
 | 2026-11-05 | 2 | PR 2.3 notes: page ids and times written on first save (feat/page-ids). |
 | 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |
+| 2026-11-05 | 2 | Version: Phase 2 ends with v0.0.3, not v0.2.0 (maintainer decision, 2026-11-05); every mention updated. |

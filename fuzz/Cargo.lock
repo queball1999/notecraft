@@ -348,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "notecraft-core"
-version = "0.2.0"
+version = "0.0.3"
 dependencies = [
  "serde",
 ]
@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "notecraft-markdown"
-version = "0.2.0"
+version = "0.0.3"
 dependencies = [
  "comrak",
  "latex-rust",
@@ -377,14 +377,14 @@ dependencies = [
 
 [[package]]
 name = "notecraft-model"
-version = "0.2.0"
+version = "0.0.3"
 dependencies = [
  "notecraft-core",
 ]
 
 [[package]]
 name = "notecraft-storage"
-version = "0.2.0"
+version = "0.0.3"
 dependencies = [
  "craft-atomic",
  "notecraft-core",

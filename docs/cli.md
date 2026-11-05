@@ -1,6 +1,6 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: `search` and `index` landed (PR 2.11) and `check` resolves page links with the app's LinkIndex; earlier: opening a page file shows it (fix/open-page-file): the notebook it belongs to, else a loose page view; a missing path is an error with an offer to drop the recent entry; earlier: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: `search` and `index` landed (PR 2.11) and `check` resolves page links with the app's LinkIndex; earlier: opening a page file shows it (fix/open-page-file): the notebook it belongs to, else a loose page view; a missing path is an error with an offer to drop the recent entry; earlier: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 

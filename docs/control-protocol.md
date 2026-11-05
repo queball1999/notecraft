@@ -1,6 +1,6 @@
 # Control channel protocol
 
-> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: the minimal subset (`auth`, `command.run`, `screenshot`, `wait.idle`) is implemented (PR 0.11); earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: the minimal subset (`auth`, `command.run`, `screenshot`, `wait.idle`) is implemented (PR 0.11); earlier changes are in the revision history.
 
 The control channel lets tests and scripts drive a running NoteCraft window: run commands, simulate input, read state, and take screenshots. It follows the same pattern as the other craft apps.
 

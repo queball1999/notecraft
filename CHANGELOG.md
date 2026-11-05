@@ -2,7 +2,7 @@
 
 All notable changes to NoteCraft are listed here. Versions follow [Semantic Versioning](https://semver.org/). Pre-1.0 releases may change anything.
 
-## 0.2.0 - 2026-11-05
+## 0.0.3 - 2026-11-05
 
 Release at the end of Phase 2: page links, search, and note tags, plus file safety work.
 

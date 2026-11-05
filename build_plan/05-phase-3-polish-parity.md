@@ -1,6 +1,6 @@
 # Phase 3: polish and parity
 
-> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: Phase 3 estimate 664-1,126 hours with OneNote import; OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: Phase 3 estimate 664-1,126 hours with OneNote import; OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
 
 
 Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, performance, and import of OneNote's own files (`.one`, `.onex`, `.onetoc2`, `.onepkg`). Ends with the v0.9.0 beta.
@@ -15,7 +15,7 @@ The full control channel, MCP server, full CLI, and plugins are not OneNote feat
 
 ## Entry criteria
 
-- Phase 2 closed; v0.2.0 published.
+- Phase 2 closed; v0.0.3 published.
 
 Parallel tracks: PRs 3.1 to 3.5 (canvas and structure) and 3.6 to 3.8 (export) touch different crates and can run at the same time on separate branches. PR 3.16 (OneNote reader) is a new crate and can run beside both.
 

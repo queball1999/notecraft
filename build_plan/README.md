@@ -1,6 +1,6 @@
 # Build plan
 
-> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: Phase 1 merged into main (#55), Phase 2 next; earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Phase 0 done, Phase 1 next; totals updated.
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: Phase 1 merged into main (#55), Phase 2 next; earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Phase 0 done, Phase 1 next; totals updated.
 
 
 This folder is the execution plan for NoteCraft. It is written so an agent or a new contributor can pick up any phase cold and know exactly which branch to create, which files to touch, which commits to make, and how to open each PR.
@@ -15,7 +15,7 @@ The spec is [SCRD.md](../SCRD.md). The rules are [AGENTS.md](../AGENTS.md). Prog
 | [01-phase-minus-1-scaffolding.md](01-phase-minus-1-scaffolding.md) | -1 | 55-98 | done 2026-10-14 |
 | [02-phase-0-ui-shell.md](02-phase-0-ui-shell.md) | 0 | 284-474 | done 2026-10-15 |
 | [03-phase-1-core-engine.md](03-phase-1-core-engine.md) | 1 | 456-776 | merged into main 2026-10-18 (#55); v0.0.2 released |
-| [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 134-230 | closed 2026-11-05 (v0.2.0; hand checks open) |
+| [04-phase-2-links-search-tags.md](04-phase-2-links-search-tags.md) | 2 | 134-230 | closed 2026-11-05 (v0.0.3; hand checks open) |
 | [05-phase-3-polish-parity.md](05-phase-3-polish-parity.md) | 3, plus beta-to-1.0 hardening | 664-1,126, plus 80-160 | next |
 | [06-phase-4-advanced.md](06-phase-4-advanced.md) | 4 | 508-952 | not started |
 
