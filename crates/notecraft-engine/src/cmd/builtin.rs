@@ -5,8 +5,8 @@
 use super::page;
 use super::search;
 use super::{
-    attach, canvas, draw, edit, equation, file, find, format, ids, layout, nav, structure, text,
-    theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
+    attach, canvas, draw, edit, equation, file, find, format, ids, layout, links, nav, structure,
+    text, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
 const FIND_ARGS: &[ArgSpec] = &[ArgSpec::optional(
@@ -428,6 +428,28 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "kind",
     ArgKind::String,
     "Shape kind, for example line, arrow, rectangle, or ellipse.",
+)];
+const LINK_FOLLOW_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "target",
+        ArgKind::String,
+        "The text of the link: a page name or a Section/Page path.",
+    ),
+    ArgSpec::optional(
+        "create",
+        ArgKind::Bool,
+        "Create the page in the current section when none matches (default: true).",
+    ),
+];
+const LINK_PICKER_CHOOSE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "page",
+    ArgKind::String,
+    "The id of the page to link to; omitted uses the highlighted one.",
+)];
+const LINK_PICKER_MOVE_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "delta",
+    ArgKind::Integer,
+    "How many entries to move: 1 is down, -1 is up.",
 )];
 const SEARCH_RUN_ARGS: &[ArgSpec] = &[
     ArgSpec::required("query", ArgKind::String, "The words to look for."),
@@ -1653,6 +1675,42 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .ready(),
     CommandSpec::new(
+        ids::LINK_FOLLOW,
+        "Open Linked Page",
+        "Go to the page a link points to. A link to a page that does not exist adds the page to the current section.",
+    )
+    .args(LINK_FOLLOW_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_PICKER_OPEN,
+        "Link to Page",
+        "Open the list of pages to link to, as typing double brackets does.",
+    )
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_PICKER_CHOOSE,
+        "Insert Page Link",
+        "Put a link to a page from the page list into the text.",
+    )
+    .args(LINK_PICKER_CHOOSE_ARGS)
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_PICKER_MOVE,
+        "Move in Page List",
+        "Highlight another page in the page list.",
+    )
+    .args(LINK_PICKER_MOVE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::LINK_PICKER_CLOSE,
+        "Close Page List",
+        "Close the page list without inserting a link.",
+    )
+    .ready(),
+    CommandSpec::new(
         ids::SEARCH_OPEN,
         "Search",
         "Show the search box and results.",
@@ -1792,6 +1850,11 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
+    (ids::LINK_FOLLOW, links::follow),
+    (ids::LINK_PICKER_OPEN, links::picker_open),
+    (ids::LINK_PICKER_CHOOSE, links::picker_choose),
+    (ids::LINK_PICKER_MOVE, links::picker_move),
+    (ids::LINK_PICKER_CLOSE, links::picker_close),
     (ids::SEARCH_OPEN, search::open),
     (ids::SEARCH_ALL, search::all),
     (ids::SEARCH_RUN, search::run),

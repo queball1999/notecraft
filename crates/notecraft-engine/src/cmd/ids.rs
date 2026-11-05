@@ -413,6 +413,18 @@ command_ids! {
     /// Rewrite a page that is not UTF-8 text as UTF-8, keeping a backup of the original bytes.
     PAGE_CONVERT_ENCODING = "page.convert_encoding";
 
+    // Page links (Phase 2)
+    /// Go to the page a link points to; a link to a page that does not exist creates it.
+    LINK_FOLLOW = "link.follow";
+    /// Open the list of pages to link to, as typing double brackets does.
+    LINK_PICKER_OPEN = "link.picker.open";
+    /// Put a link to a page from the picker into the text.
+    LINK_PICKER_CHOOSE = "link.picker.choose";
+    /// Highlight another page in the picker.
+    LINK_PICKER_MOVE = "link.picker.move";
+    /// Close the picker without inserting a link.
+    LINK_PICKER_CLOSE = "link.picker.close";
+
     // Search (Phase 2)
     /// Show the search box, ready to type in.
     SEARCH_OPEN = "search.open";

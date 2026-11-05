@@ -759,6 +759,9 @@ const UNDO_TESTED_ELSEWHERE: &[&str] = &[
     "picture.resize",
     "picture.move",
     "attachment.move",
+    // The page picker commands need the picker open first; cmd/links_tests.rs covers them.
+    "link.picker.open",
+    "link.picker.choose",
 ];
 
 /// How to run each Ready undoable command in a test. A PR that makes another command

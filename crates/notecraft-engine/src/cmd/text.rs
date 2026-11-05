@@ -114,7 +114,7 @@ impl Ctx {
     }
 
     /// Whether `at` is inside a fenced or indented code block (not on its first byte).
-    fn in_code(&self, at: usize) -> bool {
+    pub(super) fn in_code(&self, at: usize) -> bool {
         self.doc.blocks.iter().any(|block| {
             matches!(block.kind, BlockKind::Code { .. })
                 && block.span.start < at
@@ -343,6 +343,7 @@ pub(super) fn set_caret(
         cursor
     };
     session.set_text_cursor(&ctx.page, cursor);
+    session.close_link_picker();
     Ok(applied(true))
 }
 
@@ -361,6 +362,7 @@ pub(super) fn clear_caret(
         prune_left_container(session, &ctx, away);
     }
     session.clear_text_cursor();
+    session.close_link_picker();
     Ok(applied(true))
 }
 
@@ -473,7 +475,12 @@ pub(super) fn insert(
         return Ok(applied(false));
     };
     let typing = bool_arg(args, "typing") && ctx.cursor.is_caret();
-    Ok(applied(ctx.apply(session, edit, typing)))
+    let done = ctx.apply(session, edit, typing);
+    if done && inserted.ends_with('[') {
+        // Double brackets open the page picker (docs/markdown.md section 5.2).
+        super::links::after_insert(session);
+    }
+    Ok(applied(done))
 }
 
 /// `text.delete { direction, unit? }`: Backspace (`backward`) or Delete (`forward`) by a

@@ -28,6 +28,8 @@ const FRONTMATTER_READ_LIMIT: u64 = 64 * 1024;
 struct Refreshed {
     notebook: Option<Notebook>,
     titles: BTreeMap<String, String>,
+    /// Frontmatter aliases by page id, for resolving page links on the canvas.
+    aliases: BTreeMap<String, Vec<String>>,
 }
 
 /// One running refresh.
@@ -121,6 +123,7 @@ fn apply(session: &mut Session, slot: &mut Slot, job: Job, done: Refreshed) {
     if notebook.id != job.notebook_id {
         return;
     }
+    session.remember_link_aliases(&notebook.id, done.aliases);
     if !session.apply_index_refresh(job.generation, notebook, done.titles) {
         // The tree changed while the refresh ran, so go again.
         slot.stale = true;
@@ -183,10 +186,18 @@ fn refresh(root: &Path) -> Result<Refreshed, String> {
     }
     // Search text follows the same refresh: pages that are new or changed get their rows.
     crate::search::update_text_index(root, &mut index)?;
+    // Page links follow the same refresh. Links resolve against every page, so they are
+    // resolved again whenever a page was added, removed, renamed, or edited.
+    let pages_changed = !(report.stats.added.is_empty()
+        && report.stats.changed.is_empty()
+        && report.stats.removed.is_empty());
+    crate::link_index::update_link_index(root, &mut index, pages_changed)?;
+    let aliases = crate::link_index::stored_aliases(&index)?;
     let header = read_notebook_header(root);
     Ok(Refreshed {
         notebook: notebook_from_sidebar(&header, &sidebar),
         titles: titles_of(&sidebar),
+        aliases,
     })
 }
 

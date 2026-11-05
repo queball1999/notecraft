@@ -649,7 +649,10 @@ pub fn refresh_search_index(root: &std::path::Path) -> Result<usize, String> {
     let (mut index, _) =
         notecraft_storage::index::refresh_or_rebuild(root, &notecraft_storage::index_path(root))
             .map_err(|err| err.to_string())?;
-    update_text_index(root, &mut index)
+    let count = update_text_index(root, &mut index)?;
+    // Page links (PR 2.2) are filled in the same pass, and resolved against all pages.
+    crate::link_index::update_link_index(root, &mut index, true)?;
+    Ok(count)
 }
 
 #[cfg(test)]
