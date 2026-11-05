@@ -14,6 +14,7 @@ use notecraft_engine::cmd::Status;
 use super::spec::{ArgValue, Gallery, GalleryKind, Item};
 use super::{button, keytips, menus, Clicked, KeyFrame, Look};
 use crate::icons;
+use notecraft_markdown::TagDef;
 
 /// Width of the arrow column.
 const ARROW_WIDTH: f32 = 16.0;
@@ -24,6 +25,37 @@ const HEIGHT: f32 = ARROW_HEIGHT * 3.0;
 /// Space between the box and the arrows.
 const GAP: f32 = 2.0;
 
+/// One entry of a gallery: an item of the spec, or a tag of the gallery list (the Tags gallery
+/// is built from the session's tags each frame, so renamed, hidden, and moved tags show).
+#[derive(Clone, Copy)]
+enum Entry<'a> {
+    Item(&'static Item),
+    Tag(&'a TagDef),
+}
+
+impl Entry<'_> {
+    fn label(&self) -> &str {
+        match self {
+            Self::Item(item) => item.label,
+            Self::Tag(def) => &def.name,
+        }
+    }
+
+    fn clicked(&self) -> Clicked {
+        match self {
+            Self::Item(item) => Clicked::new(item.command, item.args),
+            Self::Tag(def) => apply_tag(def),
+        }
+    }
+}
+
+fn apply_tag(def: &TagDef) -> Clicked {
+    Clicked {
+        command: notecraft_engine::cmd::ids::TAG_APPLY,
+        args: serde_json::json!({ "tag": def.slug }),
+    }
+}
+
 /// Draw `gallery` and record a click on an entry or on an item of its More list.
 pub(super) fn show(
     ui: &mut Ui,
@@ -33,7 +65,11 @@ pub(super) fn show(
     out: &mut Vec<Clicked>,
 ) {
     let tokens = look.tokens;
-    let entries = gallery.entries();
+    let entries: Vec<Entry<'_>> = if gallery.kind == GalleryKind::Tags {
+        look.tags.iter().map(Entry::Tag).collect()
+    } else {
+        gallery.entries().iter().map(Entry::Item).collect()
+    };
     let visible = gallery.visible.clamp(1, entries.len().max(1));
     let last_first = entries.len().saturating_sub(visible);
     let state = Id::new(("ribbon_gallery", gallery.button.label));
@@ -66,15 +102,15 @@ pub(super) fn show(
         );
         let index = first + row;
         let response = place(ui, cell, |ui| {
-            IconButton::new(item.label, cell.size(), &style).show(ui, |ui, rect, color| {
-                paint_entry(ui, rect, gallery.kind, item, index, color, look);
+            IconButton::new(item.label(), cell.size(), &style).show(ui, |ui, rect, color| {
+                paint_entry(ui, rect, *item, index, color);
             })
         });
         let response = crate::a11y::plain_button(response);
         if response.clicked() {
-            out.push(Clicked::new(item.command, item.args));
+            out.push(item.clicked());
         }
-        let _ = response.on_hover_text(entry_tip(item, look));
+        let _ = response.on_hover_text(entry_tip(*item, look));
     }
 
     let arrows = rect.min.x + gallery.width + GAP;
@@ -154,9 +190,13 @@ fn arrow(ui: &mut Ui, cell: Rect, name: &str, kind: Arrow, look: Look<'_>) -> Re
 }
 
 /// The tooltip of an entry: its label and what its command does.
-fn entry_tip(item: &Item, look: Look<'_>) -> String {
-    let spec = look.registry.get(item.command.as_str());
-    let mut tip = item.label.to_owned();
+fn entry_tip(entry: Entry<'_>, look: Look<'_>) -> String {
+    let command = match entry {
+        Entry::Item(item) => item.command,
+        Entry::Tag(_) => notecraft_engine::cmd::ids::TAG_APPLY,
+    };
+    let spec = look.registry.get(command.as_str());
+    let mut tip = entry.label().to_owned();
     if let Some(spec) = spec {
         tip.push('\n');
         tip.push_str(spec.description);
@@ -188,34 +228,6 @@ fn style_look(item: &Item) -> (f32, bool) {
     }
 }
 
-/// The slug in a tag entry's `tag` argument.
-fn tag_slug(item: &Item) -> &'static str {
-    item.args
-        .iter()
-        .find(|arg| arg.name == "tag")
-        .and_then(|arg| match arg.value {
-            ArgValue::Str(s) => Some(s),
-            _ => None,
-        })
-        .unwrap_or("")
-}
-
-/// The default tags, for their icons.
-fn default_tag(slug: &str) -> Option<&'static notecraft_markdown::TagDef> {
-    static TAGS: std::sync::OnceLock<Vec<notecraft_markdown::TagDef>> = std::sync::OnceLock::new();
-    TAGS.get_or_init(notecraft_markdown::default_tags)
-        .iter()
-        .find(|t| t.slug == slug)
-}
-
-/// Paint the icon of a default tag (or a plain dot for other entries) into `rect`.
-fn paint_tag_entry(painter: &egui::Painter, rect: Rect, item: &Item, fallback: Color32) {
-    match default_tag(tag_slug(item)) {
-        Some(def) => icons::paint_tag(painter, rect, def.icon, rgb(def.icon_color)),
-        None => icons::paint_tag(painter, rect, notecraft_markdown::TagIcon::Dot, fallback),
-    }
-}
-
 fn rgb(value: u32) -> Color32 {
     Color32::from_rgb(
         ((value >> 16) & 0xFF) as u8,
@@ -234,33 +246,22 @@ fn tag_row(ui: &mut Ui, label: &str, paint: impl FnOnce(&egui::Painter, Rect)) -
     .inner
 }
 
-/// The Tags list: the default tags with their icons, the custom tags, then Customize Tags and
-/// Remove Tag.
-fn tag_menu(ui: &mut Ui, items: &'static [Item], look: Look<'_>, out: &mut Vec<Clicked>) {
+/// The Tags list: the tags of the gallery in their order, then Customize Tags and Remove Tag.
+/// Shared by the classic ribbon's More menu and the simplified ribbon's Tags button.
+pub(super) fn tag_menu(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<Clicked>) {
     ui.spacing_mut().item_spacing.y = 1.0;
-    let fallback = look.tokens.text;
-    for item in items
-        .iter()
-        .filter(|item| item.command == notecraft_engine::cmd::ids::TAG_APPLY)
-    {
-        if tag_row(ui, item.label, |p, r| paint_tag_entry(p, r, item, fallback)) {
-            out.push(Clicked::new(item.command, item.args));
-            ui.close();
-        }
-    }
-    if !look.custom_tags.is_empty() {
-        ui.separator();
-    }
-    for def in look.custom_tags {
-        let (icon, color) = (def.icon, rgb(def.icon_color));
-        if tag_row(ui, &def.name, |p, r| icons::paint_tag(p, r, icon, color)) {
-            out.push(Clicked {
-                command: notecraft_engine::cmd::ids::TAG_APPLY,
-                args: serde_json::json!({ "tag": def.slug }),
-            });
-            ui.close();
-        }
-    }
+    egui::ScrollArea::vertical()
+        .id_salt("tag_menu_list")
+        .max_height(420.0)
+        .show(ui, |ui| {
+            for def in look.tags {
+                let (icon, color) = (def.icon, rgb(def.icon_color));
+                if tag_row(ui, &def.name, |p, r| icons::paint_tag(p, r, icon, color)) {
+                    out.push(apply_tag(def));
+                    ui.close();
+                }
+            }
+        });
     ui.separator();
     for item in items
         .iter()
@@ -274,18 +275,10 @@ fn tag_menu(ui: &mut Ui, items: &'static [Item], look: Look<'_>, out: &mut Vec<C
 }
 
 /// Draw one entry inside its button.
-fn paint_entry(
-    ui: &Ui,
-    rect: Rect,
-    kind: GalleryKind,
-    item: &Item,
-    index: usize,
-    color: Color32,
-    _look: Look<'_>,
-) {
+fn paint_entry(ui: &Ui, rect: Rect, entry: Entry<'_>, index: usize, color: Color32) {
     let painter = ui.painter_at(rect);
-    match kind {
-        GalleryKind::Styles => {
+    match entry {
+        Entry::Item(item) => {
             let (size, heavy) = style_look(item);
             let font = FontId::proportional(size);
             let pos = egui::pos2(rect.min.x + 8.0, rect.center().y);
@@ -300,17 +293,17 @@ fn paint_entry(
                 );
             }
         }
-        GalleryKind::Tags => {
+        Entry::Tag(def) => {
             let icon = Rect::from_min_size(
                 egui::pos2(rect.min.x + 6.0, rect.center().y - 8.0),
                 Vec2::splat(16.0),
             );
-            paint_tag_entry(&painter, icon, item, color);
-            // The first nine tags have Ctrl+1 to Ctrl+9, as in OneNote.
+            icons::paint_tag(&painter, icon, def.icon, rgb(def.icon_color));
+            // The first nine tags of the list have Ctrl+1 to Ctrl+9, as in OneNote.
             let text = if index < 9 {
-                format!("{} (Ctrl+{})", item.label, index + 1)
+                format!("{} (Ctrl+{})", def.name, index + 1)
             } else {
-                item.label.to_owned()
+                def.name.clone()
             };
             painter.text(
                 egui::pos2(icon.max.x + 6.0, rect.center().y),

@@ -638,38 +638,14 @@ const STYLES: Group = Group {
     ))],
 };
 
-/// The default tags (`notecraft_markdown::default_tags`, same order and slugs), then the
-/// Customize Tags and Remove Tag entries.
+/// The Tags list. The tag entries here are only placeholders (the first three default tags):
+/// the gallery and every menu that shows this list build the real entries from the session's
+/// tags each frame (default and custom, renamed, hidden, and moved), then add Customize Tags
+/// and Remove Tag from below.
 const MORE_TAGS: &[Item] = &[
     Item::new("To Do", ids::TAG_APPLY).args(&[str_arg("tag", "todo")]),
     Item::new("Important", ids::TAG_APPLY).args(&[str_arg("tag", "important")]),
     Item::new("Question", ids::TAG_APPLY).args(&[str_arg("tag", "question")]),
-    Item::new("Remember for Later", ids::TAG_APPLY).args(&[str_arg("tag", "remember")]),
-    Item::new("Definition", ids::TAG_APPLY).args(&[str_arg("tag", "definition")]),
-    Item::new("Highlight", ids::TAG_APPLY).args(&[str_arg("tag", "highlight")]),
-    Item::new("Contact", ids::TAG_APPLY).args(&[str_arg("tag", "contact")]),
-    Item::new("Address", ids::TAG_APPLY).args(&[str_arg("tag", "address")]),
-    Item::new("Phone Number", ids::TAG_APPLY).args(&[str_arg("tag", "phone")]),
-    Item::new("Web Site to Visit", ids::TAG_APPLY).args(&[str_arg("tag", "website")]),
-    Item::new("Idea", ids::TAG_APPLY).args(&[str_arg("tag", "idea")]),
-    Item::new("Password", ids::TAG_APPLY).args(&[str_arg("tag", "password")]),
-    Item::new("Critical", ids::TAG_APPLY).args(&[str_arg("tag", "critical")]),
-    Item::new("Project A", ids::TAG_APPLY).args(&[str_arg("tag", "project-a")]),
-    Item::new("Project B", ids::TAG_APPLY).args(&[str_arg("tag", "project-b")]),
-    Item::new("Movie to See", ids::TAG_APPLY).args(&[str_arg("tag", "movie")]),
-    Item::new("Book to Read", ids::TAG_APPLY).args(&[str_arg("tag", "book")]),
-    Item::new("Music to Listen To", ids::TAG_APPLY).args(&[str_arg("tag", "music")]),
-    Item::new("Source for Article", ids::TAG_APPLY).args(&[str_arg("tag", "source")]),
-    Item::new("Remember for Blog", ids::TAG_APPLY).args(&[str_arg("tag", "blog")]),
-    Item::new("Discuss with Person A", ids::TAG_APPLY).args(&[str_arg("tag", "discuss-a")]),
-    Item::new("Discuss with Person B", ids::TAG_APPLY).args(&[str_arg("tag", "discuss-b")]),
-    Item::new("Discuss with Manager", ids::TAG_APPLY).args(&[str_arg("tag", "discuss-manager")]),
-    Item::new("Send in Email", ids::TAG_APPLY).args(&[str_arg("tag", "email")]),
-    Item::new("Schedule Meeting", ids::TAG_APPLY).args(&[str_arg("tag", "meeting")]),
-    Item::new("Call Back", ids::TAG_APPLY).args(&[str_arg("tag", "callback")]),
-    Item::new("To Do Priority 1", ids::TAG_APPLY).args(&[str_arg("tag", "todo-1")]),
-    Item::new("To Do Priority 2", ids::TAG_APPLY).args(&[str_arg("tag", "todo-2")]),
-    Item::new("Client Request", ids::TAG_APPLY).args(&[str_arg("tag", "client")]),
     Item::new("Customize Tags", ids::TAG_CUSTOMIZE),
     Item::new("Remove Tag", ids::TAG_REMOVE),
 ];
@@ -682,7 +658,7 @@ const TAGS: Group = Group {
             Button::large("Tags", Icon::Tag, ids::TAG_APPLY).dropdown(MORE_TAGS),
             2,
             160.0,
-            29,
+            3,
         )),
         Column::Large(Button::large("To Do Tag", Icon::TodoTag, ids::TAG_TODO)),
         Column::Large(Button::large("Find Tags", Icon::FindTags, ids::TAG_FIND)),

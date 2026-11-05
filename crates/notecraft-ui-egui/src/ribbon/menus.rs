@@ -196,6 +196,10 @@ pub(super) fn button_item(ui: &mut Ui, button: &Button, look: Look<'_>, out: &mu
 
 /// A plain list of items. Picking one closes the menu.
 pub(super) fn items(ui: &mut Ui, items: &[Item], look: Look<'_>, out: &mut Vec<Clicked>) {
+    // The Tags list is built from the session's tags, not from the spec's placeholder entries.
+    if items.iter().any(|item| item.command == ids::TAG_APPLY) {
+        return super::gallery::tag_menu(ui, items, look, out);
+    }
     ui.spacing_mut().item_spacing.y = 1.0;
     for item in items {
         let current = is_current_pen(item, look.pen);
