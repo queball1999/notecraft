@@ -307,14 +307,28 @@ pub enum WriteOutcome {
 
 /// Write `text` to the page file at `path` atomically. If the file already holds exactly
 /// these bytes it is left alone (no write, no new modified time).
+///
+/// The existing file is opened and read once, through one handle and at most one byte more
+/// than the new text, so there is no gap between a size check and a content check for the
+/// file to change in, and a huge existing file is never loaded whole.
 pub fn write_page_text(path: &Path, text: &str) -> io::Result<WriteOutcome> {
-    if let Ok(existing) = std::fs::read(path) {
-        if existing == text.as_bytes() {
-            return Ok(WriteOutcome::Unchanged);
-        }
+    if existing_matches(path, text.as_bytes()) {
+        return Ok(WriteOutcome::Unchanged);
     }
     craft_atomic::atomic_write(path, text.as_bytes())?;
     Ok(WriteOutcome::Written)
+}
+
+/// Whether the file at `path` holds exactly `wanted`. Any failure to read counts as "no".
+fn existing_matches(path: &Path, wanted: &[u8]) -> bool {
+    let Ok(file) = File::open(path) else {
+        return false;
+    };
+    let limit = u64::try_from(wanted.len())
+        .unwrap_or(u64::MAX)
+        .saturating_add(1);
+    let mut existing = Vec::with_capacity(wanted.len().saturating_add(1));
+    file.take(limit).read_to_end(&mut existing).is_ok() && existing == wanted
 }
 
 #[cfg(test)]
@@ -512,6 +526,27 @@ mod tests {
             .unwrap(),
             WriteOutcome::Unchanged
         );
+    }
+
+    #[test]
+    fn a_longer_or_shorter_existing_file_is_rewritten() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = write(&dir, "page.md", b"abcdef");
+        assert_eq!(
+            write_page_text(&path, "abc").unwrap(),
+            WriteOutcome::Written
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), b"abc");
+        assert_eq!(
+            write_page_text(&path, "abcdef").unwrap(),
+            WriteOutcome::Written
+        );
+        assert_eq!(
+            write_page_text(&path, "abcdef").unwrap(),
+            WriteOutcome::Unchanged
+        );
+        assert_eq!(write_page_text(&path, "").unwrap(), WriteOutcome::Written);
+        assert_eq!(write_page_text(&path, "").unwrap(), WriteOutcome::Unchanged);
     }
 
     #[test]

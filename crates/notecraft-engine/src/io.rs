@@ -303,6 +303,11 @@ impl SessionIo {
         let Some(journal) = &self.journal else {
             return;
         };
+        // Drop what can never be offered back (damaged files, duplicates) before reading.
+        let pruned = journal.prune();
+        if pruned > 0 {
+            tracing::info!(pruned, "pruned the recovery journal");
+        }
         let entries = journal.load_all();
         if entries.is_empty() {
             return;
