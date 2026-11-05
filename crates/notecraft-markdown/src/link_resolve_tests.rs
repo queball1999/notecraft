@@ -108,7 +108,10 @@ fn step_3_more_than_one_page_is_ambiguous_and_the_closest_wins() {
 fn ties_in_distance_break_by_path_length_then_name() {
     let idx = index(&["Z/Notes.md", "Y/Notes.md", "X/Notes.md", "Home/Main.md"]);
     let found = idx.resolve("Notes", "Home/Main.md");
-    assert_eq!(candidates(found), ["X/Notes.md", "Y/Notes.md", "Z/Notes.md"]);
+    assert_eq!(
+        candidates(found),
+        ["X/Notes.md", "Y/Notes.md", "Z/Notes.md"]
+    );
     // The order does not depend on the order the pages were listed in.
     let idx = index(&["X/Notes.md", "Z/Notes.md", "Y/Notes.md", "Home/Main.md"]);
     assert_eq!(
