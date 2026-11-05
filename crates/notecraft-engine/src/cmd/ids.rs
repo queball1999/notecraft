@@ -430,6 +430,12 @@ command_ids! {
     LINK_PICKER_MOVE = "link.picker.move";
     /// Close the picker without inserting a link.
     LINK_PICKER_CLOSE = "link.picker.close";
+    /// Turn on or off rewriting page links when a page is renamed or moved in NoteCraft.
+    LINKS_UPDATE_ON_RENAME = "links.update_on_rename";
+    /// Rewrite the links to a page that was renamed outside NoteCraft.
+    LINKS_FIX_AFTER_RENAME = "links.fix_after_rename";
+    /// Close the offer to fix links after an outside rename without fixing them.
+    LINKS_FIX_DISMISS = "links.fix_dismiss";
 
     // Search (Phase 2)
     /// Show the search box, ready to type in.

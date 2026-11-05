@@ -274,6 +274,11 @@ impl AppShell {
         self.session.default_rule_lines().id()
     }
 
+    /// Restore `links.update_on_rename` from the saved settings.
+    pub fn set_link_update_on_rename(&mut self, on: bool) {
+        self.session.set_link_update_on_rename(on);
+    }
+
     /// The note tag gallery, for saving the custom tags in the settings.
     pub fn tag_set(&self) -> &notecraft_markdown::TagSet {
         self.session.tags()
@@ -437,9 +442,10 @@ impl AppShell {
     pub fn dispatch(&mut self, id: &str, args: Value) -> bool {
         let missing = self.missing_recent(id, &args);
         match self.run_command(id, args) {
-            Some(Ok(_)) => {
+            Some(Ok(output)) => {
                 #[cfg(test)]
                 self.ran.push(id.to_owned());
+                self.toast_link_updates(id, &output);
                 true
             }
             None => false,
@@ -455,6 +461,28 @@ impl AppShell {
                 }
                 false
             }
+        }
+    }
+
+    /// Tell the user what a rename, move, or `links.fix_after_rename` did to page links, when
+    /// it did something or had to skip pages.
+    fn toast_link_updates(&mut self, id: &str, output: &CommandOutput) {
+        let message = if id == ids::LINKS_FIX_AFTER_RENAME.as_str() {
+            output
+                .value
+                .get("message")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        } else {
+            None
+        };
+        let message = message.or_else(|| {
+            self.session
+                .take_link_update_report()
+                .and_then(|report| report.message())
+        });
+        if let Some(text) = message {
+            self.toasts.push(text);
         }
     }
 

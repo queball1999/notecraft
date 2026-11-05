@@ -180,6 +180,52 @@ fn a_missing_page_named_by_a_path_is_made_from_the_last_part() {
 }
 
 #[test]
+fn a_missing_page_named_with_an_existing_section_is_made_in_that_section() {
+    let (dir, mut session, nb) = notebook();
+    show(&mut session, &nb, "Work/Plan.md");
+    let out = run(
+        &mut session,
+        "link.follow",
+        json!({ "target": "home/Packing list" }),
+    );
+    assert_eq!(out["created"], true);
+    assert!(dir.path().join("Home/Packing list.md").exists());
+    assert_eq!(current_path(&session), "Home/Packing list.md");
+}
+
+#[test]
+fn renaming_a_page_updates_links_and_the_setting_command_turns_it_off() {
+    let (dir, mut session2, nb2) = open(&[
+        ("Work/Plan.md", "work plan\n"),
+        ("Home/Todo.md", "see [[Work/Plan]]\n"),
+    ]);
+    run(
+        &mut session2,
+        "page.rename",
+        json!({ "id": format!("{nb2}/Work/Plan.md"), "name": "Roadmap" }),
+    );
+    let text = std::fs::read_to_string(dir.path().join("Home/Todo.md")).expect("read");
+    assert_eq!(text, "see [[Roadmap|Work/Plan]]\n");
+    let undone = run(&mut session2, "edit.undo", Value::Null);
+    assert_eq!(undone["label"], "Rename page");
+    // The page was opened meanwhile, so the undo edited its text; saving writes it.
+    session2.save_dirty();
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("Home/Todo.md")).expect("read"),
+        "see [[Work/Plan]]\n"
+    );
+    let out = run(&mut session2, "links.update_on_rename", json!({}));
+    assert_eq!(out["enabled"], false);
+    run(
+        &mut session2,
+        "page.rename",
+        json!({ "id": format!("{nb2}/Work/Plan.md"), "name": "Roadmap" }),
+    );
+    let text = std::fs::read_to_string(dir.path().join("Home/Todo.md")).expect("read");
+    assert_eq!(text, "see [[Work/Plan]]\n");
+}
+
+#[test]
 fn creating_the_page_is_one_undo_step() {
     let (dir, mut session, nb) = notebook();
     show(&mut session, &nb, "Work/Plan.md");

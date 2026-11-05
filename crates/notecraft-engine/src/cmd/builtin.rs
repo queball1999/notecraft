@@ -479,6 +479,11 @@ const LINK_PICKER_CHOOSE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     ArgKind::String,
     "The id of the page to link to; omitted uses the highlighted one.",
 )];
+const LINKS_UPDATE_ON_RENAME_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "enabled",
+    ArgKind::Bool,
+    "True or false; the setting is flipped when omitted.",
+)];
 const LINK_PICKER_MOVE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "delta",
     ArgKind::Integer,
@@ -1772,6 +1777,26 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .ready(),
     CommandSpec::new(
+        ids::LINKS_UPDATE_ON_RENAME,
+        "Update Links When Pages Are Renamed",
+        "Rewrite page links when a page is renamed or moved in NoteCraft so they keep working.",
+    )
+    .args(LINKS_UPDATE_ON_RENAME_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::LINKS_FIX_AFTER_RENAME,
+        "Update Links",
+        "Rewrite the links to a page that was renamed outside NoteCraft.",
+    )
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::LINKS_FIX_DISMISS,
+        "Not Now",
+        "Close the offer to update links after a rename made outside NoteCraft.",
+    )
+    .ready(),
+    CommandSpec::new(
         ids::SEARCH_OPEN,
         "Search",
         "Show the search box and results.",
@@ -1925,6 +1950,9 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::LINK_PICKER_CHOOSE, links::picker_choose),
     (ids::LINK_PICKER_MOVE, links::picker_move),
     (ids::LINK_PICKER_CLOSE, links::picker_close),
+    (ids::LINKS_UPDATE_ON_RENAME, links::update_on_rename),
+    (ids::LINKS_FIX_AFTER_RENAME, links::fix_after_rename),
+    (ids::LINKS_FIX_DISMISS, links::fix_dismiss),
     (ids::SEARCH_OPEN, search::open),
     (ids::SEARCH_ALL, search::all),
     (ids::SEARCH_RUN, search::run),

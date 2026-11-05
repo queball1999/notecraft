@@ -1,6 +1,6 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.7 live equation preview notes; earlier: PR 2.5 landed notes; earlier: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.3 notes (links through renames and moves); earlier: PR 2.7 live equation preview notes; earlier: PR 2.5 landed notes; earlier: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
 
 Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
 
@@ -76,6 +76,8 @@ Commits:
 3. `test(engine): link updates across sections with undo`
 
 PR title: `feat(engine): keep page links working through renames and moves`.
+
+Notes (landed): the planner is `notecraft-engine/src/link_rename.rs` (pure; shared by the app and the refresh thread), fed by `Session::link_fix`. It covers every link in the notebook, so the outgoing links of a moved page are kept too, and a rename that creates or removes a name clash changes the form of links to the page they meant. Edits are `FsOp::PatchText` (one per link) at the front of the rename's transaction, so patches use the old paths and one Ctrl+Z restores names and links; the rename never fails because of a stale page: if a patch cannot apply, the step is made without link edits and a toast says links were not updated. Open pages are patched in memory (dirty, saved by the normal path); closed pages on disk with a byte check. Read-only pages and pages in conflict are skipped and reported. Shown text: display text kept, plain-name links follow the new name, other links keep what they showed. Setting `links.update_on_rename` (command plus `[links]` in config.toml). Outside renames: schema 8 adds `pages.fm_id`; the refresh thread pairs a vanished page with the single new page that has the same `notecraft.id` and the session offers the fix only when links would break (counted from open text and files, so a rename NoteCraft already fixed offers nothing, while one made with the setting off does). Deviations and limits: (1) NoteCraft does not write `notecraft.id` yet (docs/markdown.md section 3.1), so only pages that already have an id are offered; writing ids on first save is a follow-up. (2) A rename seen in two separate refreshes (gone first, new page later) is not paired. (3) Planning reads every page file that is not open (links must be found), on the calling thread; large notebooks may pause briefly on a rename. (4) Page delete is not covered. (5) `link.follow` now creates `Page` in `Section` for `[[Section/Page]]` when that section exists (the 2.2 limit), else in the current section.
 
 ## PR 2.4: search
 
@@ -261,3 +263,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2026-11-05 | 2 | PR 2.2 built: link resolution, link styles, click to follow, the page picker, and the link index (LK-01 and LK-02 scored D); notes added to the PR section. |
 | 2026-11-05 | 2 | PR 2.5 landed: notes added (note tags, index, gallery, dialog). |
 | 2026-11-05 | 2 | PR 2.7 follow-up (feat/equation-preview): Notes (landed) added to PR 2.7 (live preview while a formula is edited). |
+| 2026-11-05 | 2 | PR 2.3 built: notes added (links through renames and moves, LK-03 scored P). |

@@ -2,7 +2,8 @@
 //! from the last session (restore or discard), and a page that changed outside NoteCraft
 //! while it had unsaved changes (keep mine or use the outside version). The buttons run
 //! commands (`file.restore_unsaved`, `file.discard_unsaved`, `file.keep_my_version`,
-//! `file.use_outside_version`); nothing here changes the session itself.
+//! `file.use_outside_version`), and links that can be updated after a rename made outside
+//! NoteCraft (`links.fix_after_rename`, `links.fix_dismiss`); nothing here changes the session itself.
 
 use egui::{Align, Layout, Rect, RichText, Ui};
 use notecraft_engine::cmd::{ids, CommandId, Value};
@@ -26,6 +27,9 @@ pub enum Bar {
     CanvasUnreadable,
     /// The page file is not UTF-8 text; it is read-only until converted (`page.convert_encoding`).
     NotUtf8(PageEncoding),
+    /// A page was renamed outside NoteCraft and this many links to it can be updated
+    /// (`links.fix_after_rename`).
+    LinkRename(usize),
 }
 
 /// The bars to show now, top to bottom: the global recovery question first, then the shown
@@ -44,6 +48,9 @@ pub fn all(session: &Session) -> Vec<Bar> {
     }
     if session.can_repair_canvas() {
         bars.push(Bar::CanvasUnreadable);
+    }
+    if let Some(offer) = session.link_fix_offer() {
+        bars.push(Bar::LinkRename(offer.links));
     }
     bars
 }
@@ -72,12 +79,22 @@ pub fn message(bar: Bar) -> String {
         Bar::CanvasUnreadable => {
             "The ink and layout of this page could not be read, so it is read-only.".to_owned()
         }
+        Bar::LinkRename(1) => {
+            "This page was renamed outside NoteCraft. Update 1 link to it?".to_owned()
+        }
+        Bar::LinkRename(n) => {
+            format!("This page was renamed outside NoteCraft. Update {n} links to it?")
+        }
     }
 }
 
 fn buttons(bar: Bar) -> Vec<(&'static str, CommandId)> {
     match bar {
         Bar::CanvasUnreadable => vec![("Repair", ids::PAGE_REPAIR_CANVAS)],
+        Bar::LinkRename(_) => vec![
+            ("Update links", ids::LINKS_FIX_AFTER_RENAME),
+            ("Not now", ids::LINKS_FIX_DISMISS),
+        ],
         Bar::NotUtf8(_) => vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)],
         Bar::Recovery(_) => vec![
             ("Restore", ids::FILE_RESTORE_UNSAVED),
@@ -152,6 +169,8 @@ pub(crate) mod tests {
             Bar::Recovery(3),
             Bar::Conflict,
             Bar::CanvasUnreadable,
+            Bar::LinkRename(1),
+            Bar::LinkRename(4),
             Bar::NotUtf8(PageEncoding::Windows1252),
             Bar::NotUtf8(PageEncoding::Utf16Le),
         ] {
@@ -237,6 +256,49 @@ pub(crate) mod tests {
         assert!(height(&session) > 0.0);
         let labels = buttons(Bar::CanvasUnreadable);
         assert_eq!(labels, vec![("Repair", ids::PAGE_REPAIR_CANVAS)]);
+    }
+
+    #[test]
+    fn the_link_rename_bar_comes_last_and_its_buttons_run_the_commands() {
+        use egui_kittest::kittest::Queryable;
+        let (_dir, mut session) = conflict_and_recovery();
+        session.offer_link_fix(notecraft_engine::LinkFixOffer {
+            notebook: "nb".to_owned(),
+            moves: vec![("Sec/Old.md".to_owned(), "Sec/New.md".to_owned())],
+            links: 3,
+        });
+        assert_eq!(
+            all(&session),
+            vec![Bar::Recovery(1), Bar::Conflict, Bar::LinkRename(3)]
+        );
+        assert_eq!(
+            message(Bar::LinkRename(3)),
+            "This page was renamed outside NoteCraft. Update 3 links to it?"
+        );
+        assert_eq!(
+            buttons(Bar::LinkRename(3)),
+            vec![
+                ("Update links", ids::LINKS_FIX_AFTER_RENAME),
+                ("Not now", ids::LINKS_FIX_DISMISS)
+            ]
+        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(900.0, 200.0))
+            .build_ui_state(
+                |ui, session: &mut Session| {
+                    let tokens = ThemeTokens::for_variant(session.view().theme_preset, false);
+                    let rect = Rect::from_min_size(
+                        ui.max_rect().min,
+                        egui::vec2(ui.max_rect().width(), height(session)),
+                    );
+                    show(ui, rect, session, &tokens, &mut Vec::new());
+                },
+                session,
+            );
+        harness.run();
+        let _ = harness.get_by_label(&message(Bar::LinkRename(3)));
+        let _ = harness.get_by_label("Update links");
+        let _ = harness.get_by_label("Not now");
     }
 
     #[test]

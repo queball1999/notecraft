@@ -37,6 +37,29 @@ fn page_name_of(target: &str) -> &str {
     }
 }
 
+/// The section a missing page named by `target` is created in: for `Section/Page`, the section
+/// `Section` of the notebook shown (the path from the notebook, or from any group, ignoring
+/// case) when there is one; otherwise `None` and the caller uses the current section.
+fn section_named_by(session: &Session, target: &str) -> Option<String> {
+    let folder = target.trim().rsplit_once('/')?.0.trim_matches('/');
+    if folder.is_empty() {
+        return None;
+    }
+    let wanted = notecraft_markdown::fold_link_text(folder);
+    let notebook = session.current_notebook()?;
+    notebook
+        .all_sections()
+        .into_iter()
+        .filter_map(|section| {
+            let path = crate::links::page_path(&notebook.id, &section.id)?;
+            let folded = notecraft_markdown::fold_link_text(path);
+            let hit = folded == wanted || folded.ends_with(&format!("/{wanted}"));
+            hit.then(|| (path.len(), section.id.clone()))
+        })
+        .min()
+        .map(|(_, id)| id)
+}
+
 /// Show page `id`, selecting its section and notebook too. `false` for an unknown page.
 fn show_page(session: &mut Session, id: &str) -> bool {
     let found = session.notebooks().iter().find_map(|nb| {
@@ -79,10 +102,8 @@ pub(super) fn follow(
     let (page, created) = match resolution.page.clone() {
         Some(page) => (Some(page), false),
         None if create => {
-            let section = session
-                .selection()
-                .section
-                .clone()
+            let section = section_named_by(session, target)
+                .or_else(|| session.selection().section.clone())
                 .ok_or_else(|| invalid(id, "no section is shown to add the page to"))?;
             let made = session
                 .create_page(&section, Some(page_name_of(target)))
@@ -229,4 +250,49 @@ pub(super) fn picker_close(
     _args: &Map<String, Value>,
 ) -> Result<CommandOutput, CommandError> {
     Ok(applied(session.close_link_picker()))
+}
+
+/// `links.update_on_rename { enabled? }`: rewrite page links when a page is renamed or moved
+/// (on by default). Flips the setting when `enabled` is omitted. A setting, not an undo step.
+pub(super) fn update_on_rename(
+    session: &mut Session,
+    args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let on = args
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(!session.link_update_on_rename());
+    session.set_link_update_on_rename(on);
+    Ok(CommandOutput {
+        value: json!({ "enabled": on }),
+    })
+}
+
+/// `links.fix_after_rename`: rewrite the links to pages renamed outside NoteCraft (the offer
+/// in the question bar), as one undo step. Returns `{ links, pages, skipped, unfixable }`;
+/// `links` is 0 when there was no offer.
+pub(super) fn fix_after_rename(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    let report = session.fix_links_after_rename().unwrap_or_default();
+    let message = report.message();
+    Ok(CommandOutput {
+        value: json!({
+            "links": report.links,
+            "pages": report.pages,
+            "skipped": report.skipped.len(),
+            "unfixable": report.unfixable,
+            "failed": report.failed,
+            "message": message,
+        }),
+    })
+}
+
+/// `links.fix_dismiss`: close the offer to fix links without fixing them.
+pub(super) fn fix_dismiss(
+    session: &mut Session,
+    _args: &Map<String, Value>,
+) -> Result<CommandOutput, CommandError> {
+    Ok(applied(session.dismiss_link_fix()))
 }
