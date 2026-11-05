@@ -1,6 +1,6 @@
 # OneNote parity assessment
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-18. Last updated: 2026-10-24. Change: Equations scored P (PR 2.7); earlier: rule lines, grid, and page color scored D (saved in the page frontmatter); earlier: rows re-scored and the Now column filled for the state after Phase 1 merged into main (#55); page color and rule lines are P (not saved to the page file yet); font, size, and color per run are D (`<span style>`); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.10: the pen and input rows are partial; PR 1.8: undo and redo is partial; Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Ink to Math stays not planned; PR 1.11: the highlighter and both erasers are partial; find on page scored D (PR 2.9).
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-18. Last updated: 2026-11-05. Change: text highlight color and date and time stamps scored D (PR 2.8); earlier: Equations scored P (PR 2.7); earlier: rule lines, grid, and page color scored D (saved in the page frontmatter); earlier: rows re-scored and the Now column filled for the state after Phase 1 merged into main (#55); page color and rule lines are P (not saved to the page file yet); font, size, and color per run are D (`<span style>`); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.10: the pen and input rows are partial; PR 1.8: undo and redo is partial; Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Ink to Math stays not planned; PR 1.11: the highlighter and both erasers are partial; find on page scored D (PR 2.9).
 
 
 Target: OneNote for Windows as shipped around 2020 (OneNote 2016 desktop and the Microsoft 365 app of that era), with theme presets for 2016, 2019, 2021, and Microsoft 365. NoteCraft matches OneNote's workflow and layout one to one. It differs on purpose in one place: storage. OneNote keeps notebooks in a binary format; NoteCraft keeps them as markdown folders (docs/markdown.md).
@@ -68,14 +68,14 @@ Shared work not tied to one area (file formats, command registry, localization, 
 |---|---|---|---|
 | Bold, italic, strikethrough | Markdown `**`, `*`, `~~` | 1 | D |
 | Underline | `<u>` HTML inside markdown | 1 | D |
-| Text highlight color | `==text==`, or `<mark>` for other colors | 1 (yellow), 2 (other colors) | P |
+| Text highlight color | `==text==`, or `<mark>` for other colors | 1 (yellow), 2 (other colors) | D |
 | Font, size, font color per run | One-property `<span style>` for color, size, and family (docs/markdown.md section 3.2) | 1 | D |
 | Bullets, numbering, indent | Markdown lists | 1 | D |
 | Styles (Heading 1 to 6, Quote, Code, Normal) | Markdown headings, blockquotes, code | 1 | D |
 | To Do checkbox | GFM task list | 1 | D |
 | Tables, insert and delete rows and columns, header row | GFM tables; table tools in Phase 3 | 1 (render), 3 (tools) | P |
 | Equations | LaTeX math | 2 | P |
-| Insert date, time, date and time | Same shortcuts (Alt+Shift+D, T, F) | 2 | M |
+| Insert date, time, date and time | Same shortcuts (Alt+Shift+D, T, F) | 2 | D |
 | Spell check | Spell check with suggestions | 3 | M |
 | Find on page (Ctrl+F) | Same | 2 | D |
 
@@ -183,3 +183,4 @@ Four presets, each in light and dark (docs/themes.md). Palettes are original col
 | 2026-10-18 | 1 | Rule lines and grid and Page color scored D: both are saved in the page frontmatter (docs/markdown.md section 2.5) and read back when the page opens. |
 | 2026-10-24 | 2 | PR 2.7: Equations scored P. |
 | 2026-10-24 | 2 | Find on page scored D (PR 2.9, TX-11). |
+| 2026-11-05 | 2 | Text highlight color and Insert date and time stamps scored D (PR 2.8). |

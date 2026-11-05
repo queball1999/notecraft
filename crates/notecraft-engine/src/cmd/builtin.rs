@@ -5,8 +5,8 @@
 use super::page;
 use super::search;
 use super::{
-    attach, canvas, draw, edit, equation, file, find, format, ids, layout, nav, structure, text,
-    theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
+    attach, canvas, draw, edit, equation, file, find, format, ids, layout, nav, stamp, structure,
+    text, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
 const FIND_ARGS: &[ArgSpec] = &[ArgSpec::optional(
@@ -977,17 +977,20 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable(),
     CommandSpec::new(ids::INSERT_DATE, "Date", "Insert the current date.")
         .undoable()
-        .shortcut("Alt+Shift+D"),
+        .shortcut("Alt+Shift+D")
+        .ready(),
     CommandSpec::new(ids::INSERT_TIME, "Time", "Insert the current time.")
         .undoable()
-        .shortcut("Alt+Shift+T"),
+        .shortcut("Alt+Shift+T")
+        .ready(),
     CommandSpec::new(
         ids::INSERT_DATE_TIME,
         "Date & Time",
         "Insert the current date and time.",
     )
     .undoable()
-    .shortcut("Alt+Shift+F"),
+    .shortcut("Alt+Shift+F")
+    .ready(),
     CommandSpec::new(
         ids::INSERT_PAGE_TEMPLATE,
         "Page Templates",
@@ -1750,6 +1753,9 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::TEXT_CLEAR_CARET, text::clear_caret),
     (ids::TEXT_MOVE, text::move_caret),
     (ids::TEXT_INSERT, text::insert),
+    (ids::INSERT_DATE, stamp::date),
+    (ids::INSERT_TIME, stamp::time),
+    (ids::INSERT_DATE_TIME, stamp::date_time),
     (ids::TEXT_DELETE, text::delete),
     (ids::TEXT_ENTER, text::enter),
     (ids::TEXT_TAB, text::tab),

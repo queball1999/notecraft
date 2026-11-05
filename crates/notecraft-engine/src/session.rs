@@ -122,6 +122,8 @@ pub struct Session {
     objects: BTreeMap<String, Vec<notecraft_model::PlacedObject>>,
     /// The find bar: its query and which match is current (see [`crate::find`]).
     find: crate::find::FindState,
+    /// Where Insert > Date and Time read the time (see `stamp`).
+    clock: crate::stamp::Clock,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).
     saving: saving::SavingState,
@@ -130,6 +132,17 @@ pub struct Session {
 impl Session {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Use `clock` for the time Insert > Date and Time read. The default is UTC; the desktop
+    /// app installs a local-time clock, and tests install a fixed one.
+    pub fn set_clock(&mut self, clock: crate::stamp::Clock) {
+        self.clock = clock;
+    }
+
+    /// The time now, from the session's clock.
+    pub fn now(&self) -> Option<crate::stamp::Stamp> {
+        self.clock.now()
     }
 
     /// Goes up by one every time a command changes the session.

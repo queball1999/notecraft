@@ -19,6 +19,7 @@ pub mod open;
 pub mod recent;
 pub mod search;
 pub mod session;
+pub mod stamp;
 pub mod undo;
 pub mod view;
 pub mod whats_new;

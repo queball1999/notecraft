@@ -1,6 +1,6 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
 
 Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
 
@@ -171,6 +171,8 @@ Commits:
 
 PR title: `feat(engine): add highlight and date and time stamps`.
 
+Notes (landed): PR 1.6 had already built `format.highlight` with a color argument, the split-button palette, and the canvas drawing, so this PR finished TX-10 by switching the written form to `<mark style="background-color: #RRGGBB">` (the old `background:` spelling still reads), making the style reading lenient and bounded (`!important`, shorthand words, `rgb()`; docs/markdown.md section 3.2), and adding the round trip and one-undo-step tests. TX-13 added `insert.date`, `insert.time`, and `insert.date_time` (their specs, shortcuts, and Insert tab buttons already existed as Coming Soon). Decisions: the format is US only (`11/5/2026`, `3:07 PM`) because reading the OS locale's patterns needs a locale database, and no pure-Rust, wasm-safe source exists that is worth a new dependency; the engine reads time through an injectable `Clock` (`notecraft_engine::stamp`, `Session::set_clock`), which defaults to UTC and returns nothing on wasm32 (the command then does nothing); the desktop app installs a local-time clock using `chrono` (default features off, `clock` only; three new small crates: chrono, iana-time-zone, iana-time-zone-haiku) because the OS time zone is not readable without it. The shortcuts clash with nothing in the default map (test `the_shortcuts_are_bound_once`). On Linux, desktops that switch keyboard layouts with Alt+Shift may take the chords first. The commit split is merged into one commit because the highlight work was a small remainder.
+
 ## PR 2.9: find on page
 
 | | |
@@ -249,3 +251,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2026-10-19 | 1 | Entry criteria: v0.0.2 (not v0.1.0) is the Phase 1 alpha that must be published first. |
 | 2026-10-24 | 2 | PR 2.9 built: find on page (TX-11 scored D); notes added to the PR section. |
 | 2026-10-24 | 2 | PR 2.1 landed. Decisions: a link run is a `Run` with `page_link: Some(target)` and the shown text in `text`; a link whose display text equals its target is written back as `[[T]]`; a link never spans styled runs or a line break; the reader marks real links in a same-length copy of the source before inline parsing, so an escaped `[[x]]` stays plain text. Follow-up: the escaped pipe separates only in table cells |
+| 2026-11-05 | 2 | PR 2.8 landed: Notes (landed) added to PR 2.8. |
