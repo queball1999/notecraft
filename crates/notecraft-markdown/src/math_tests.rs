@@ -113,3 +113,90 @@ fn a_formula_that_is_not_math_is_an_error_not_a_panic() {
         Err(MathError::Invalid(_))
     ));
 }
+
+mod formula_at_tests {
+    use crate::math::{formula_at, MAX_FORMULA_BYTES};
+
+    fn at(text: &str, marker: &str, extra: usize) -> Option<crate::math::FormulaAt> {
+        formula_at(text, text.find(marker)? + extra)
+    }
+
+    #[test]
+    fn the_caret_inside_an_inline_formula_finds_it() {
+        let text = "Area is $\\pi r^2$ here.\n";
+        let f = at(text, "r^2", 1).expect("formula");
+        assert_eq!(f.text, "\\pi r^2");
+        assert!(!f.display);
+        assert_eq!(&text[f.span.clone()], "$\\pi r^2$");
+        assert_eq!(&text[f.source.clone()], "\\pi r^2");
+    }
+
+    #[test]
+    fn the_edges_just_after_the_opening_and_closing_dollar_count() {
+        let text = "a $x$ b\n";
+        assert!(formula_at(text, 2).is_none(), "before the opening dollar");
+        assert!(formula_at(text, 3).is_some(), "after the opening dollar");
+        assert!(formula_at(text, 4).is_some(), "before the closing dollar");
+        assert!(formula_at(text, 5).is_some(), "after the closing dollar");
+        assert!(formula_at(text, 6).is_none(), "past it");
+    }
+
+    #[test]
+    fn a_display_formula_over_several_lines_is_found() {
+        let text = "intro\n\n$$\n\\frac{a}{b}\n$$\n\nafter $y$\n";
+        let f = at(text, "frac", 2).expect("formula");
+        assert!(f.display);
+        assert_eq!(&text[f.span], "$$\n\\frac{a}{b}\n$$");
+    }
+
+    #[test]
+    fn the_right_formula_of_two_in_a_paragraph() {
+        let text = "$a$ and $b$ and $c$\n";
+        assert_eq!(at(text, "b$", 1).expect("b").text, "b");
+        assert_eq!(at(text, "c$", 1).expect("c").text, "c");
+        assert_eq!(formula_at(text, 1).expect("a").text, "a");
+        assert!(at(text, " and $b", 2).is_none());
+    }
+
+    #[test]
+    fn formulas_in_lists_quotes_headings_and_tables_are_found() {
+        for text in [
+            "- item $q$ end\n",
+            "> quote $q$ end\n",
+            "# Head $q$ end\n",
+            "| a |\n|---|\n| $q$ |\n",
+        ] {
+            let f = at(text, "q$", 1).unwrap_or_else(|| panic!("no formula in {text:?}"));
+            assert_eq!(f.text, "q");
+        }
+    }
+
+    #[test]
+    fn no_formula_in_code_escapes_or_plain_text() {
+        assert!(at("```\n$x$\n```\n", "x", 1).is_none());
+        assert!(at("use `$x$` here\n", "x", 1).is_none());
+        assert!(at("cost \\$5 and \\$6\n", "5", 1).is_none());
+        assert!(formula_at("no math at all\n", 4).is_none());
+        assert!(formula_at("", 0).is_none());
+    }
+
+    #[test]
+    fn other_paragraphs_are_not_searched() {
+        let text = "one $a$\n\ntwo\n";
+        assert!(at(text, "two", 1).is_none());
+    }
+
+    #[test]
+    fn bad_offsets_and_hostile_text_do_not_panic() {
+        let text = "caf\u{e9} $x$\n";
+        for offset in 0..text.len() + 3 {
+            let _ = formula_at(text, offset);
+        }
+        let long = format!("${}$", "x".repeat(MAX_FORMULA_BYTES + 10));
+        assert!(formula_at(&long, 10).is_none());
+        let huge = "$a$ ".repeat(40_000);
+        assert!(formula_at(&huge, 10).is_none());
+        let deep = format!("${}x{}$", "{".repeat(500), "}".repeat(500));
+        let _ = formula_at(&deep, 5);
+    }
+}

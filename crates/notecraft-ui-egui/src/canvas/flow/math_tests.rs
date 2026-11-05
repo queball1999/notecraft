@@ -6,7 +6,7 @@ use notecraft_model::Container;
 
 use super::math::PLACEHOLDER;
 use super::{layout, Flow, Input, Item, COLUMN_WIDTH, LEFT};
-use crate::canvas::pictures::{MathKey, MathShown, NoPictures, PictureSource, Shown};
+use crate::canvas::pictures::{MathKey, MathPreview, MathShown, NoPictures, PictureSource, Shown};
 use crate::themes::{Preset, ThemeTokens};
 
 /// Every formula is 40 wide, 12 above the baseline and 4 below.
@@ -166,4 +166,160 @@ fn a_page_with_the_placeholder_character_draws_nothing_in_the_wrong_place() {
     let text = format!("one {PLACEHOLDER} two $x$ three\n");
     let flow = lay(&text, 1.0, None, &mut Formulas);
     assert!(maths(&flow).is_empty());
+}
+
+/// Previews are 60 wide and 20 high (12 above the baseline, 8 below), or an error.
+struct Previews {
+    error: Option<&'static str>,
+    asked: Vec<String>,
+}
+
+impl PictureSource for Previews {
+    fn picture(&mut self, _link: &str) -> Shown {
+        Shown::Failed("no pictures".to_owned())
+    }
+
+    fn math_preview(&mut self, key: &MathKey) -> MathPreview {
+        self.asked.push(key.src.clone());
+        match self.error {
+            Some(why) => MathPreview::Error(why.to_owned()),
+            None => MathPreview::Ready {
+                texture: TextureId::default(),
+                width: 60.0,
+                ascent: 12.0,
+                descent: 8.0,
+            },
+        }
+    }
+}
+
+fn previews() -> Previews {
+    Previews {
+        error: None,
+        asked: Vec::new(),
+    }
+}
+
+fn source_text(flow: &Flow) -> Option<(Pos2, f32)> {
+    flow.items.iter().find_map(|i| match i {
+        Item::Text { pos, galley, .. } if galley.text().contains('$') => {
+            Some((*pos, galley.size().y / flow.zoom))
+        }
+        _ => None,
+    })
+}
+
+fn bottom(flow: &Flow) -> f32 {
+    flow.containers
+        .iter()
+        .map(|c| c.rect.max.y)
+        .fold(0.0_f32, f32::max)
+}
+
+#[test]
+fn the_caret_in_a_formula_shows_a_preview_below_the_source() {
+    let text = "see $x^2$ here\n";
+    let caret = TextCursor::caret(text.find('^').expect("caret"));
+    let mut source = previews();
+    let flow = lay(text, 1.0, Some(caret), &mut source);
+    assert_eq!(source.asked, vec!["x^2".to_owned()]);
+    let rects = maths(&flow);
+    assert_eq!(rects.len(), 1, "only the preview is drawn");
+    let (pos, height) = source_text(&flow).expect("the source is shown");
+    assert!((rects[0].width() - 60.0).abs() < 0.01 && (rects[0].height() - 20.0).abs() < 0.01);
+    assert!(rects[0].min.y >= pos.y + height, "below the source line");
+    assert!(rects[0].min.x >= pos.x, "inside the column");
+    let cards = flow
+        .items
+        .iter()
+        .filter(|i| matches!(i, Item::Fill { .. }))
+        .count();
+    assert_eq!(cards, 1, "one card behind the formula");
+}
+
+#[test]
+fn the_preview_makes_room_so_the_text_below_is_not_covered() {
+    let text = "see $x^2$ here\n";
+    let caret = TextCursor::caret(text.find('^').expect("caret"));
+    let with = lay(text, 1.0, Some(caret), &mut previews());
+    let without = lay(text, 1.0, Some(caret), &mut Formulas);
+    assert!(bottom(&with) >= bottom(&without) + 20.0);
+}
+
+#[test]
+fn the_caret_outside_the_formula_in_the_same_block_has_no_preview() {
+    let text = "see $x^2$ here\n";
+    let caret = TextCursor::caret(text.find("here").expect("caret"));
+    let mut source = previews();
+    let flow = lay(text, 1.0, Some(caret), &mut source);
+    assert!(source.asked.is_empty());
+    assert!(maths(&flow).is_empty());
+}
+
+#[test]
+fn a_selection_shows_no_preview() {
+    let text = "see $x^2$ here\n";
+    let start = text.find('^').expect("caret");
+    let mut source = previews();
+    let selection = TextCursor {
+        anchor: start,
+        head: start + 2,
+    };
+    let flow = lay(text, 1.0, Some(selection), &mut source);
+    assert!(source.asked.is_empty());
+    assert!(maths(&flow).is_empty());
+}
+
+#[test]
+fn a_display_formula_previews_while_edited() {
+    let text = "$$\\frac{a}{b}$$\n";
+    let mut source = previews();
+    let flow = lay(text, 1.0, Some(TextCursor::caret(6)), &mut source);
+    assert_eq!(source.asked, vec!["\\frac{a}{b}".to_owned()]);
+    assert_eq!(maths(&flow).len(), 1);
+}
+
+#[test]
+fn a_formula_that_does_not_parse_shows_its_error_in_the_preview() {
+    let text = "see $\\frac{$ here\n";
+    let caret = TextCursor::caret(text.find("frac").expect("caret"));
+    let mut source = previews();
+    source.error = Some("not valid math");
+    let flow = lay(text, 1.0, Some(caret), &mut source);
+    assert!(maths(&flow).is_empty());
+    let texts = texts(&flow);
+    assert!(
+        texts
+            .iter()
+            .any(|t| t.contains("Cannot show this formula: not valid math")),
+        "{texts:?}"
+    );
+}
+
+#[test]
+fn a_formula_still_being_typeset_adds_no_card() {
+    struct Slow;
+    impl PictureSource for Slow {
+        fn picture(&mut self, _link: &str) -> Shown {
+            Shown::Loading
+        }
+        fn math_preview(&mut self, _key: &MathKey) -> MathPreview {
+            MathPreview::Loading
+        }
+    }
+    let text = "see $x$ here\n";
+    let flow = lay(text, 1.0, Some(TextCursor::caret(6)), &mut Slow);
+    assert!(maths(&flow).is_empty());
+    assert!(!flow.items.iter().any(|i| matches!(i, Item::Fill { .. })));
+}
+
+#[test]
+fn the_preview_goes_below_unless_the_page_has_no_room() {
+    use super::math::preview_top;
+    let (top, below) = preview_top(100.0, 120.0, 30.0, 8192.0);
+    assert!(below && top >= 120.0);
+    let (top, below) = preview_top(8000.0, 8180.0, 30.0, 8192.0);
+    assert!(!below && top + 30.0 <= 8000.0);
+    let (top, below) = preview_top(5.0, 20.0, 30.0, 40.0);
+    assert!(!below && top == 0.0);
 }

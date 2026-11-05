@@ -149,3 +149,130 @@ pub fn typeset(src: &str, display: bool, em_px: f32, rgb: u32) -> Result<Typeset
         depth_em: em(&tree.depth),
     })
 }
+
+/// Most bytes of text around the caret searched for a formula (a paragraph this long is not
+/// edited by hand; the live preview is skipped for it).
+const MAX_SEARCH_BYTES: usize = 64 * 1024;
+
+/// A formula found in the page text, for the live preview while it is edited.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FormulaAt {
+    /// The whole formula in the page text, dollar signs included.
+    pub span: std::ops::Range<usize>,
+    /// The LaTeX source in the page text, without the dollar signs.
+    pub source: std::ops::Range<usize>,
+    pub display: bool,
+    /// The LaTeX source.
+    pub text: String,
+}
+
+/// The formula the caret at byte `offset` of `text` is in, if any: from just after the opening
+/// dollar sign to just after the closing one. Only the paragraph around the caret is looked
+/// at, found by the same parser the canvas uses, so a formula in code or an escaped dollar
+/// sign is never reported. Never panics; `None` when `offset` is not on a character boundary.
+pub fn formula_at(text: &str, offset: usize) -> Option<FormulaAt> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return None;
+    }
+    let (lo, hi) = paragraph_around(text, offset)?;
+    let chunk = text.get(lo..hi)?;
+    if !chunk.contains('$') {
+        return None;
+    }
+    let doc = crate::parse(chunk);
+    let mut found = Vec::new();
+    collect(&doc.blocks, 0, &mut found);
+    let mut from = 0;
+    for (src, math) in found {
+        let wrapped = wrap(&src, math);
+        // The parser and the text can disagree (an escape it undid); stop rather than guess.
+        let rel = chunk.get(from..)?.find(&wrapped)?;
+        let start = lo + from + rel;
+        let end = start + wrapped.len();
+        from += rel + wrapped.len();
+        if offset > start && offset <= end {
+            let delim = if math == Math::Display { 2 } else { 1 };
+            return Some(FormulaAt {
+                span: start..end,
+                source: start + delim..end.saturating_sub(delim).max(start + delim),
+                display: math == Math::Display,
+                text: src,
+            });
+        }
+        if start >= offset {
+            return None;
+        }
+    }
+    None
+}
+
+/// The byte range of the run of non-blank lines that holds `offset`, or `None` when it is
+/// longer than [`MAX_SEARCH_BYTES`].
+fn paragraph_around(text: &str, offset: usize) -> Option<(usize, usize)> {
+    let blank = |line: &str| line.trim().is_empty();
+    let line_start = text
+        .get(..offset)
+        .map_or(0, |head| head.rfind('\n').map_or(0, |i| i + 1));
+    let mut lo = line_start;
+    while lo > 0 {
+        let before = text.get(..lo - 1)?;
+        let prev_start = before.rfind('\n').map_or(0, |i| i + 1);
+        if blank(text.get(prev_start..before.len())?) {
+            break;
+        }
+        lo = prev_start;
+        if line_start - lo > MAX_SEARCH_BYTES {
+            return None;
+        }
+    }
+    let mut hi = text.get(offset..).map_or(text.len(), |tail| {
+        tail.find('\n').map_or(text.len(), |i| offset + i)
+    });
+    while hi < text.len() {
+        let next_start = hi + 1;
+        let rest = text.get(next_start..)?;
+        let next_end = rest.find('\n').map_or(text.len(), |i| next_start + i);
+        if blank(text.get(next_start..next_end)?) {
+            break;
+        }
+        hi = next_end;
+        if hi - lo > MAX_SEARCH_BYTES {
+            return None;
+        }
+    }
+    (hi - lo <= MAX_SEARCH_BYTES).then_some((lo, hi))
+}
+
+fn push_math(out: &mut Vec<(String, Math)>, runs: &[Run]) {
+    out.extend(
+        runs.iter()
+            .filter(|r| r.math != Math::None)
+            .map(|r| (r.text.clone(), r.math)),
+    );
+}
+
+fn collect(blocks: &[crate::Block], depth: usize, out: &mut Vec<(String, Math)>) {
+    use crate::BlockKind;
+    if depth > crate::MAX_DEPTH {
+        return;
+    }
+    for block in blocks {
+        match &block.kind {
+            BlockKind::Heading { runs, .. } | BlockKind::Paragraph { runs } => {
+                push_math(out, runs);
+            }
+            BlockKind::Table(table) => {
+                for cell in table.header.iter().chain(table.rows.iter().flatten()) {
+                    push_math(out, &cell.runs);
+                }
+            }
+            BlockKind::Quote { blocks } => collect(blocks, depth + 1, out),
+            BlockKind::List { items, .. } => {
+                for item in items {
+                    collect(&item.blocks, depth + 1, out);
+                }
+            }
+            BlockKind::Code { .. } | BlockKind::Html { .. } | BlockKind::Rule => {}
+        }
+    }
+}

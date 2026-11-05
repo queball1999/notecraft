@@ -13,8 +13,8 @@ use egui::{Color32, Pos2, Rect, TextureId};
 use notecraft_markdown::math as source;
 use notecraft_markdown::{Math, Run};
 
-use super::super::pictures::{MathKey, MathShown};
-use super::{Item, Layout, BODY_SIZE};
+use super::super::pictures::{MathKey, MathPreview, MathShown};
+use super::{mix, Item, Layout, BODY_SIZE};
 
 /// The character that stands in for an inline formula in a text galley. A word joiner has no
 /// width and no look, and does not allow a line break.
@@ -49,7 +49,113 @@ pub(super) fn source_run(run: &Run) -> Run {
     }
 }
 
+/// Space between the source text and the live preview card, in page units.
+const PREVIEW_GAP: f32 = 4.0;
+/// Padding inside the preview card, in page units.
+const PREVIEW_PAD: f32 = 6.0;
+/// Size of the error line in the preview card, relative to the body text.
+const PREVIEW_ERROR_SCALE: f32 = 0.85;
+
+/// Where the top of a live preview of height `height` goes: just below the source (which ends
+/// at `bottom`), or above it (the source starts at `top`) when the page has no room left
+/// below, that is when the preview would end past `limit`. Never above the page top.
+pub(super) fn preview_top(top: f32, bottom: f32, height: f32, limit: f32) -> (f32, bool) {
+    let below = bottom + PREVIEW_GAP;
+    if below + height <= limit {
+        (below, true)
+    } else {
+        ((top - PREVIEW_GAP - height).max(0.0), false)
+    }
+}
+
 impl Layout<'_> {
+    /// The live preview of the formula the caret at `head` is in: a small card with the
+    /// typeset formula (or why it cannot be typeset) right below the source text, which
+    /// occupies `top..bottom` of the page column at `x` and `width`. Returns the height the
+    /// card takes below the source, to keep the text under it from being covered.
+    pub(super) fn live_preview(
+        &mut self,
+        text: &str,
+        head: usize,
+        column: (f32, f32),
+        source: (f32, f32),
+    ) -> f32 {
+        let (x, width) = column;
+        let (top, bottom) = source;
+        let Some(formula) = source::formula_at(text, head) else {
+            return 0.0;
+        };
+        let em = BODY_SIZE * DISPLAY_SCALE;
+        let key = self.math_key(&formula.text, formula.display, em);
+        let inner = (width - 2.0 * PREVIEW_PAD).max(1.0);
+        enum Body {
+            Formula(TextureId),
+            Error(std::sync::Arc<egui::Galley>),
+        }
+        let (body, w, h) = match self.pictures.math_preview(&key) {
+            MathPreview::Ready {
+                texture,
+                width: w,
+                ascent,
+                descent,
+            } => {
+                let fit = (inner / w.max(1.0)).min(1.0);
+                (Body::Formula(texture), w * fit, (ascent + descent) * fit)
+            }
+            MathPreview::Loading => return 0.0,
+            MathPreview::Error(why) => {
+                let size = BODY_SIZE * PREVIEW_ERROR_SCALE;
+                let galley = self.painter.layout(
+                    format!("Cannot show this formula: {why}"),
+                    egui::FontId::new(size * self.zoom, egui::FontFamily::Proportional),
+                    self.tokens.text_muted,
+                    inner * self.zoom,
+                );
+                let (w, h) = (galley.size().x / self.zoom, galley.size().y / self.zoom);
+                (Body::Error(galley), w, h)
+            }
+        };
+        let card_h = h + 2.0 * PREVIEW_PAD;
+        let card_w = (w + 2.0 * PREVIEW_PAD).min(width);
+        let (card_top, below) =
+            preview_top(top, bottom, card_h, notecraft_canvas::math::MAX_PAGE_UNITS);
+        let card = Rect::from_min_size(Pos2::new(x, card_top), egui::vec2(card_w, card_h));
+        self.items.push(Item::Fill {
+            rect: card,
+            color: mix(self.tokens.canvas_bg, self.tokens.text, 0.05),
+        });
+        let corners = [
+            card.left_top(),
+            card.right_top(),
+            card.right_bottom(),
+            card.left_bottom(),
+        ];
+        for (from, to) in corners.iter().zip(corners.iter().cycle().skip(1)) {
+            self.items.push(Item::Line {
+                from: *from,
+                to: *to,
+                color: self.tokens.border,
+            });
+        }
+        let inside = Pos2::new(card.min.x + PREVIEW_PAD, card.min.y + PREVIEW_PAD);
+        match body {
+            Body::Formula(texture) => self.items.push(Item::Math {
+                rect: Rect::from_min_size(inside, egui::vec2(w, h)),
+                texture,
+            }),
+            Body::Error(galley) => self.items.push(Item::Text {
+                pos: inside,
+                galley,
+                bold: None,
+            }),
+        }
+        if below {
+            PREVIEW_GAP + card_h
+        } else {
+            0.0
+        }
+    }
+
     fn math_key(&self, src: &str, display: bool, em: f32) -> MathKey {
         let ppp = self.painter.ctx().pixels_per_point();
         MathKey {
