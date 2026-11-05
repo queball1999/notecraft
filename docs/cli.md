@@ -1,6 +1,6 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (Phase 1). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: `search` and `index` landed (PR 2.11) and `check` resolves page links with the app's LinkIndex; earlier: opening a page file shows it (fix/open-page-file): the notebook it belongs to, else a loose page view; a missing path is an error with an offer to drop the recent entry; earlier: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
+> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: `search` and `index` landed (PR 2.11) and `check` resolves page links with the app's LinkIndex; earlier: opening a page file shows it (fix/open-page-file): the notebook it belongs to, else a loose page view; a missing path is an error with an offer to drop the recent entry; earlier: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 
@@ -114,3 +114,4 @@ notecraft-cli --notebook ~/Notes/Work run --page "Meeting notes" --cmd page.add_
 | 2026-10-17 | 1 | PR 1.16 landed: global options, `info`, `text`, `check`, and `run --page`; exit code 5 in use. |
 | 2026-10-24 | 1 | Desktop app arguments: a page file opens in its notebook, or as a loose page when it has none (fix/open-page-file). |
 | 2026-11-05 | 2 | PR 2.11 landed: `search` (ranked hits, `--tag`, `--limit`, `--scope`, `--json`) and `index [--rebuild]`; `check` resolves page links with `LinkIndex` (ambiguous is a warning, missing is a problem). No MCP server exists yet (PR 3.15), so search is not exposed there. |
+| 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |

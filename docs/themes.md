@@ -1,6 +1,6 @@
 # Themes
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: bold text is drawn with the OS bold face (feat/bold-face); earlier: stage line: Phase 1 merged into main (#55); earlier: new token canvas_margin_rule for the ruled-paper margin line.
+> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: bold text is drawn with the OS bold face (feat/bold-face); earlier: stage line: Phase 1 merged into main (#55); earlier: new token canvas_margin_rule for the ruled-paper margin line.
 
 NoteCraft ships four theme presets that evoke each era of OneNote, each in a light and a dark mode, for eight variants. Themes change colors, spacing, corner radius, and control style. They never change layout or behavior.
 
@@ -180,3 +180,4 @@ Every preset must pass WCAG AA (4.5:1) for `text` on `canvas_bg`, `ribbon_text` 
 | 2026-10-15 | 0 | `canvas_margin_rule` made stronger in every preset (light and dark) so the margin line reads clearly, after maintainer review. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-10-18 | 1 | Section 2 notes the OS bold face used for bold text (feat/bold-face). |
+| 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |

@@ -1,6 +1,6 @@
 # Installing NoteCraft
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: Linux troubleshooting entry for the software renderer (llvmpipe) and the automatic GL fallback; earlier: stage line: Phase 1 merged into main (#55); earlier: created; Linux install steps and a Flatpak troubleshooting entry.
+> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: Linux troubleshooting entry for the software renderer (llvmpipe) and the automatic GL fallback; earlier: stage line: Phase 1 merged into main (#55); earlier: created; Linux install steps and a Flatpak troubleshooting entry.
 
 Release builds are attached to each GitHub Release at https://github.com/queball1999/notecraft/releases, with a `SHA256SUMS.txt` file. In the names below, `<version>` is the release version and `<arch>` is `x86_64` or `aarch64`. The full artifact list is in [releasing.md](releasing.md) section 3.
 
@@ -48,3 +48,4 @@ Windows: run the `.msi`, or unzip the portable zip. macOS: open the `.dmg` and d
 | 2026-10-15 | 1 | Created. Linux install steps per artifact and a Flatpak "ldconfig failed, exit status 256" troubleshooting entry. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-10-18 | 1 | Linux troubleshooting entry: software renderer (llvmpipe), `flatpak update` for NVIDIA, the automatic GL fallback, and `WGPU_BACKEND`. |
+| 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |

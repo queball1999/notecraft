@@ -1,6 +1,6 @@
 # Conventions: branches, commits, PRs, reviews
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: stage line: Phase 1 merged into main (#55); earlier: reviewed at the Phase 0 close; no change.
+> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed at the Phase 0 close; no change.
 
 These conventions match the related craft apps, plus NoteCraft's plain-text rule. AGENTS.md section 9 is the short version.
 
@@ -177,3 +177,4 @@ PR bodies written for each phase file still apply; save them under `.git/PR_BODY
 | 2026-10-14 | -1 | Approval rule and gh workflow match the applied GitHub settings. |
 | 2026-10-15 | 0 | Reviewed at the Phase 0 close; no content change. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
+| 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |

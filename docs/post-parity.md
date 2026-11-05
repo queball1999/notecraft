@@ -1,6 +1,6 @@
 # Post-parity optional features
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: search `type:` words recorded as a kept extra (PR 2.4); earlier: stage line: Phase 1 merged into main (#55); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); review markup (comments, tracked changes) recorded from the WordCraft survey; Loose page view row notes watching and recovery; earlier: Loose page view recorded as a kept extra (maintainer decision, 2026-10-24).
+> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: search `type:` words recorded as a kept extra (PR 2.4); earlier: stage line: Phase 1 merged into main (#55); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); review markup (comments, tracked changes) recorded from the WordCraft survey; Loose page view row notes watching and recovery; earlier: Loose page view recorded as a kept extra (maintainer decision, 2026-10-24).
 
 
 The build plan covers OneNote parity only. Everything in this doc is something OneNote does not do. None of it is scheduled. Each item is optional and is considered only after full parity (v1.0.0 and the parity items in Phase 4) is reached, and only if users ask for it.
@@ -57,3 +57,4 @@ Hour ranges come from the PRs these features had in the build plan before it was
 | 2026-10-24 | 2 | Search `type:` words for attachments recorded as a kept extra (maintainer decision, PR 2.4). |
 | 2026-10-24 | 1 | Loose page view recorded as a kept extra (maintainer decision, 2026-10-24). |
 | 2026-10-25 | 1 | Loose page view: watched per file and offered crash recovery (fix/open-page-file). |
+| 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |
