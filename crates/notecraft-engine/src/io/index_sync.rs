@@ -183,6 +183,10 @@ fn refresh(root: &Path) -> Result<Refreshed, String> {
     }
     // Search text follows the same refresh: pages that are new or changed get their rows.
     crate::search::update_text_index(root, &mut index)?;
+    // Note tags follow the same way (PR 2.5). A failure only leaves them out of date.
+    if let Err(err) = crate::tags_index::update_tag_index(root, &mut index) {
+        tracing::warn!("note tag index not updated: {err}");
+    }
     let header = read_notebook_header(root);
     Ok(Refreshed {
         notebook: notebook_from_sidebar(&header, &sidebar),
