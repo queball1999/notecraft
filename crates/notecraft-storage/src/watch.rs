@@ -34,6 +34,36 @@ impl FolderWatcher {
         debounce: Duration,
         wake: impl Fn() + Send + 'static,
     ) -> notify::Result<Self> {
+        Self::start_with(root, RecursiveMode::Recursive, None, debounce, wake)
+    }
+
+    /// Watch the one file `file` (a loose page). Only its folder is watched, without
+    /// descending into subfolders, and only events for that file name are reported, so a
+    /// busy folder such as Downloads costs next to nothing.
+    pub fn start_file(
+        file: &Path,
+        debounce: Duration,
+        wake: impl Fn() + Send + 'static,
+    ) -> notify::Result<Self> {
+        let (Some(folder), Some(name)) = (file.parent(), file.file_name()) else {
+            return Err(notify::Error::generic("the file has no folder"));
+        };
+        Self::start_with(
+            folder,
+            RecursiveMode::NonRecursive,
+            Some(name.to_owned()),
+            debounce,
+            wake,
+        )
+    }
+
+    fn start_with(
+        root: &Path,
+        mode: RecursiveMode,
+        only: Option<std::ffi::OsString>,
+        debounce: Duration,
+        wake: impl Fn() + Send + 'static,
+    ) -> notify::Result<Self> {
         let (raw_tx, raw_rx) = mpsc::channel::<PathBuf>();
         let (batch_tx, batch_rx) = mpsc::channel::<Vec<PathBuf>>();
         let mut watcher =
@@ -43,12 +73,18 @@ impl FolderWatcher {
                         return;
                     }
                     for path in event.paths {
+                        if only
+                            .as_ref()
+                            .is_some_and(|name| path.file_name() != Some(name.as_os_str()))
+                        {
+                            continue;
+                        }
                         let _ = raw_tx.send(path);
                     }
                 }
                 Err(err) => tracing::warn!("file watcher error: {err}"),
             })?;
-        watcher.watch(root, RecursiveMode::Recursive)?;
+        watcher.watch(root, mode)?;
         std::thread::Builder::new()
             .name("notecraft-watch".to_owned())
             .spawn(move || debounce_loop(&raw_rx, &batch_tx, debounce, &wake))
@@ -114,6 +150,39 @@ fn debounce_loop(
 mod tests {
     use super::*;
     use std::time::Instant;
+
+    #[test]
+    fn a_file_watcher_reports_only_its_file_and_ignores_subfolders() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        let file = root.join("page.md");
+        std::fs::write(&file, "x").unwrap();
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        let watcher = FolderWatcher::start_file(&file, Duration::from_millis(100), || {}).unwrap();
+        std::fs::write(root.join("other.md"), "y").unwrap();
+        std::fs::write(root.join("sub").join("page.md"), "z").unwrap();
+        std::fs::write(&file, "changed").unwrap();
+        let start = Instant::now();
+        let mut seen = Vec::new();
+        while seen.is_empty() && start.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(50));
+            seen = watcher.poll();
+        }
+        std::thread::sleep(Duration::from_millis(300));
+        seen.extend(watcher.poll());
+        assert!(
+            seen.iter().any(|p| p.file_name() == file.file_name()),
+            "{seen:?}"
+        );
+        assert!(
+            seen.iter().all(|p| p.parent() == file.parent()),
+            "a file in a subfolder is not reported: {seen:?}"
+        );
+        assert!(
+            seen.iter().all(|p| p.file_name() == file.file_name()),
+            "{seen:?}"
+        );
+    }
 
     #[test]
     fn a_burst_of_writes_is_reported_after_the_quiet_time() {

@@ -12,6 +12,23 @@ use notecraft_storage::{
     scan_notebook, GroupEntry, NotebookTree, ScanError, SectionEntry, TreeNode,
 };
 
+/// Most folders walked up when looking for the notebook a page file belongs to.
+const MAX_WALK_UP: usize = 64;
+
+/// The notebook folder a page file belongs to: the nearest ancestor of `file` that has a
+/// `.notecraft/` folder, or `None` for a file outside any notebook. Only folders are
+/// looked at; nothing is created or read.
+pub fn find_notebook_root(file: &Path) -> Option<std::path::PathBuf> {
+    file.ancestors()
+        .skip(1)
+        .take(MAX_WALK_UP)
+        .find(|dir| {
+            dir.join(notecraft_storage::notebook_dir::NOTEBOOK_DIR_NAME)
+                .is_dir()
+        })
+        .map(Path::to_path_buf)
+}
+
 /// Notebook swatch when `notebook.toml` sets no color.
 pub const DEFAULT_NOTEBOOK_COLOR: u32 = 0x7E57C2;
 

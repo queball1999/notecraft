@@ -9,6 +9,7 @@ use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
 mod encoding;
+mod loose;
 mod nav;
 mod page_style;
 mod save;
@@ -98,6 +99,9 @@ pub struct Session {
     page_notices: BTreeMap<String, PageNotice>,
     /// The folder of each notebook read from disk, by notebook id.
     notebook_roots: BTreeMap<String, PathBuf>,
+    /// The notebooks that are loose page views (see `loose`), by notebook id, with the id of
+    /// their one page; they are also in `notebook_roots`.
+    loose: BTreeMap<String, String>,
     recents: Recents,
     /// Notebooks changed on disk by a structure step that must be read again (see `structure`).
     dirty: std::collections::BTreeSet<String>,

@@ -75,6 +75,18 @@ const FILE_PATH_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     ArgKind::String,
     "A .md or .notecraft file; the app asks with a file picker when omitted.",
 )];
+const RECENT_REMOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required(
+        "path",
+        ArgKind::String,
+        "The path of the recent entry to remove.",
+    ),
+    ArgSpec::optional(
+        "kind",
+        ArgKind::String,
+        "notebook or page; both entries with the path go when omitted.",
+    ),
+];
 const INSERT_PATH_ARGS: &[ArgSpec] = &[
     ArgSpec::optional(
         "path",
@@ -465,6 +477,13 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Clear Recent",
         "Remove every notebook and page from the recent list.",
     )
+    .ready(),
+    CommandSpec::new(
+        ids::FILE_RECENT_REMOVE,
+        "Remove from Recent",
+        "Remove one notebook or page from the recent list.",
+    )
+    .args(RECENT_REMOVE_ARGS)
     .ready(),
     CommandSpec::new(
         ids::FILE_INFO,
@@ -1570,6 +1589,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FILE_OPEN_NOTEBOOK, file::open_notebook),
     (ids::FILE_OPEN, file::open_file),
     (ids::FILE_RECENT_CLEAR, file::recent_clear),
+    (ids::FILE_RECENT_REMOVE, file::recent_remove),
     (ids::FILE_ABOUT, file::about),
     (ids::HELP_WHATS_NEW, file::whats_new),
     (ids::FILE_COPY_ABOUT_INFO, file::copy_about_info),

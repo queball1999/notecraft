@@ -1,6 +1,6 @@
 # notecraft-cli reference
 
-> Stage: pre-alpha (Phase 1). Last reviewed: 2026-10-15. Last updated: 2026-10-17. Change: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
+> Stage: pre-alpha (Phase 1). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: opening a page file shows it (fix/open-page-file): the notebook it belongs to, else a loose page view; a missing path is an error with an offer to drop the recent entry; earlier: PR 1.16 landed (info, text, check, run --page); the CLI follows the related craft apps; `commands` and `run` landed (PR 0.13); the other subcommands are scheduled in Phases 1 to 3; the desktop app's arguments are documented.
 
 `notecraft-cli` is the command-line companion to the desktop app. It runs the same engine without a window, so it is good for scripts, CI, and agents.
 
@@ -14,8 +14,8 @@ The desktop app takes a notebook or page to open, as OneNote opens a file handed
 notecraft [--help] [--version] [<notebook folder or page file>]
 ```
 
-- A folder opens as a notebook (`file.open_notebook`); a `.md` or `.notecraft` file opens as a page (`file.open`). A relative path resolves against the current directory.
-- With no path, or if the path cannot be opened (missing, wrong file type, or not valid UTF-8), the app starts anyway, shows an error toast for a bad path, and reopens the last recent item.
+- A folder opens as a notebook (`file.open_notebook`). A `.md` or `.notecraft` file opens as a page (`file.open`): the app looks for the notebook it belongs to (the nearest folder above the file that has a `.notecraft/` folder), opens that notebook (or switches to it if it is open already), and shows the page. A file outside any notebook opens on its own as a loose page: it is shown and editable and saves in place, with no notebook around it, and no `.notecraft/` folder is created next to it. A relative path resolves against the current directory.
+- With no path, or if the path cannot be opened (missing, wrong file type, or not valid UTF-8), the app starts anyway, shows an error toast for a bad path, and reopens the last recent item. A recent item whose notebook or file no longer exists shows a "Not Found" message with a choice to remove it from the recent list (`file.recent.remove`); sample notebooks are never shown in its place.
 - `--help` and `--version` print to stdout and exit 0. An unknown option or a second path prints the error and usage to stderr and exits 2. `--` ends the options.
 
 ## Global options
@@ -93,3 +93,4 @@ notecraft-cli --notebook ~/Notes/Work run --page "Meeting notes" --cmd page.add_
 | 2026-10-15 | 0 | Documented the desktop app's arguments: `notecraft [<notebook folder or page file>]`, `--help`, `--version`. |
 | 2026-10-15 | 0 | The CLI now follows the related craft apps (maintainer decision). `commands` and `run` landed (PR 0.13); `run --sample`, the `--cmd 'id={json}'` format, and the exit codes in use documented; the other subcommands scheduled in PR 1.16, 2.11, 3.14, and 3.15; only `mcp --connect` stays post-parity. |
 | 2026-10-17 | 1 | PR 1.16 landed: global options, `info`, `text`, `check`, and `run --page`; exit code 5 in use. |
+| 2026-10-24 | 1 | Desktop app arguments: a page file opens in its notebook, or as a loose page when it has none (fix/open-page-file). |

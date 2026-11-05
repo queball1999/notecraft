@@ -210,6 +210,9 @@ impl Session {
         if self.notebooks.iter().any(|nb| nb.id == id) {
             return Err("the notebook is already open".to_owned());
         }
+        if self.is_loose_notebook(id) {
+            return self.relist_loose(id, root, index);
+        }
         let opened = open_folder(root).map_err(|err| err.to_string())?;
         if opened.notebook.id != id {
             return Err("the folder holds a different notebook now".to_owned());
@@ -414,6 +417,9 @@ impl Plan {
         let Some(nb) = session.notebooks.iter().find(|nb| nb.id == notebook) else {
             return fail("that notebook is not open");
         };
+        if session.loose.contains_key(notebook) {
+            return fail("a single page opened on its own has no sections; open its notebook folder to organize pages");
+        }
         let Some(root) = session.notebook_roots.get(notebook) else {
             return fail("this is a sample notebook; open or create a notebook folder first");
         };

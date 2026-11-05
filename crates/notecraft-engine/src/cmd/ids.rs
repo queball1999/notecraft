@@ -26,6 +26,8 @@ command_ids! {
     FILE_OPEN = "file.open";
     /// Remove every notebook and page from the recent list.
     FILE_RECENT_CLEAR = "file.recent.clear";
+    /// Remove one notebook or page from the recent list.
+    FILE_RECENT_REMOVE = "file.recent.remove";
     /// Show the open notebooks and where they are stored.
     FILE_INFO = "file.info";
     /// Rename the notebook, change its color, or show its folder.

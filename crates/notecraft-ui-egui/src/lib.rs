@@ -21,6 +21,7 @@ pub mod color;
 mod draw_tab_tests;
 pub mod font_list;
 pub mod icons;
+mod missing_item;
 pub mod nav;
 pub mod picker;
 pub mod ribbon;
