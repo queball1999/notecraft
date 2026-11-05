@@ -6,7 +6,6 @@
 //! extended over a link, and a click in the block that holds the caret edits its raw text.
 
 use egui::{CursorIcon, Response};
-use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::{DrawTool, Session};
 
@@ -92,11 +91,11 @@ fn tip(response: &Response, target: &str, status: &LinkStatus) {
 
 /// Where the first link of `target` on the page is, in page units (tests).
 #[cfg(test)]
-pub(super) fn first_link_point(flow: &Flow, target: &str) -> Option<Vec2> {
+pub(super) fn first_link_point(flow: &Flow, target: &str) -> Option<notecraft_core::Vec2> {
     flow.units
         .iter()
         .flat_map(|unit| unit.links.iter())
         .find(|link| link.target == target)
         .and_then(|link| link.rects.first())
-        .map(|rect| Vec2::new(rect.center().x, rect.center().y))
+        .map(|rect| notecraft_core::Vec2::new(rect.center().x, rect.center().y))
 }

@@ -79,7 +79,7 @@ fn select(s: &mut Setup, path: &str) {
     let id = format!("{}/{path}", s.notebook);
     s.harness
         .state_mut()
-        .dispatch("nav.page.select", json!({ "id": id }).into());
+        .dispatch("nav.page.select", json!({ "id": id }));
     s.harness.run_steps(8);
 }
 

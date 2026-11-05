@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: equations (section 3.2) and their limits (section 9) as built in PR 2.7; earlier: page style is saved in the `notecraft:` frontmatter map (new section 2.5: `paper`, `paper_spacing`, `paper_size`, `rule_color`, `color`); earlier: stage line: Phase 1 merged into main (#55); earlier: pictures and file attachments get positions in the canvas block (`images`, `files`, section 3.4); ink stroke `texture` key (textured pens and the pencil); earlier: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups); section 5.1 reader rules (PR 2.1).
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: section 5.2 and 5.3 as built in PR 2.2 (picker, step 4 also matches paths, creating a missing page); section 8 index schema version 6 (links_hash, page_aliases); earlier: equations (section 3.2) and their limits (section 9) as built in PR 2.7; earlier: page style is saved in the `notecraft:` frontmatter map (new section 2.5: `paper`, `paper_spacing`, `paper_size`, `rule_color`, `color`); earlier: stage line: Phase 1 merged into main (#55); earlier: pictures and file attachments get positions in the canvas block (`images`, `files`, section 3.4); ink stroke `texture` key (textured pens and the pencil); earlier: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups); section 5.1 reader rules (PR 2.1).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -271,7 +271,9 @@ Inside a table cell the pipe must be escaped as `\|` (GFM rule), and there `\|` 
 
 ### 5.2 Writing links
 
-Typing `[[` opens a page picker. Choosing a page inserts `[[Name]]` using the shortest form that resolves uniquely. Pasting a `notecraft://` URL inside the same notebook offers to convert it to a page link.
+Typing `[[` opens a page picker. Choosing a page inserts `[[Name]]` using the shortest form that resolves uniquely: the base name when step 1 to 3 then reach exactly that page, else the path from the folder of the current page when that is enough, else the path from the notebook.
+
+The picker (PR 2.2) lists the other pages of the notebook, filtered by what is typed after the brackets (case and accents ignored; titles that start with the text first, then titles that contain it, then paths that contain it), at most 50. Up and Down move, Enter or Tab or a click inserts, Esc closes and keeps the typed text. Typing a `]`, `|`, `[`, or a line break, moving the caret out of the text after the brackets, or clicking elsewhere ends it. Choosing replaces the typed text (and a closing `]]` right after the caret) with the link as one undo step. `[[` inside code does not open it. Pasting a `notecraft://` URL inside the same notebook offers to convert it to a page link.
 
 ### 5.3 Resolution order
 
@@ -284,6 +286,13 @@ Given `[[target]]`, NoteCraft looks for, in order:
 5. a page whose frontmatter `aliases` contains `target`.
 
 If step 3, 4, or 5 finds more than one page, NoteCraft picks the one closest to the current page in the folder tree, marks the link as ambiguous (dotted underline), and lists all candidates on hover. If nothing matches, the link shows as unresolved (dashed); clicking it creates the page in the current section.
+
+As built (PR 2.2, `notecraft_markdown::LinkIndex`):
+
+- Steps 1 and 2 compare the exact text; step 3 compares the exact base name; step 5 compares an alias exactly. Step 4 compares the base name, the path from the notebook, and the path from the section, all after Unicode NFC normalization and lower casing, so `[[work/plan]]` finds `Work/Plan`. The first step that finds anything decides; a later step is not tried.
+- "Closest" is the number of folder steps between the folder of the page with the link and the folder of the candidate (up to the shared parent, then down). Ties go to the shorter path, then to the path in alphabetical order, so the answer never depends on listing order. At most 32 candidates are kept.
+- Clicking a link follows it (`link.follow`): a resolved link shows its page, in any section of the notebook; an ambiguous link shows the closest candidate; an unresolved link adds a page to the current section, named after the last part of the target (`[[Section/Page]]` creates `Page`), and shows it. The new page is one undo step, as with `page.new`.
+- A click on a link follows it only on a block that does not hold the caret (that block shows its source text). Shift+click is left to text selection. Ink tools draw instead of following.
 
 ### 5.4 Renames and moves
 
@@ -311,11 +320,14 @@ A cache built from the files. Deleting it is always safe. Tables (Phase 1 schema
 | `pages` | id, path, title, kind, created, modified, content hash |
 | `sections` | path, kind, color, order |
 | `links` | source page, target text, resolved page, byte range |
+| `page_aliases` | page, frontmatter alias (read for link resolution step 5) |
 | `tags` | page, note tag, byte range |
 | `attachments` | path, size, mime type, hash, referencing pages |
 | `fts_pages` | SQLite FTS5 full-text index over page text |
 
 On open, NoteCraft compares file modified times and sizes against the index, hashes the pages that differ (FNV-1a over the file, read up to the 64 MiB page limit), and reparses only what changed. The schema version is the SQLite `user_version` pragma. A database that is corrupt, not a database, or from a newer schema is deleted and rebuilt from the folder. The index is native only; the wasm32 build has no index. A notebook with 1,000 pages must list its sidebar in under 500 ms (SCRD section 11); the full reindex can finish in the background.
+
+Page links (schema version 6): a page's `links` rows (the link text and the byte range of the whole `[[...]]` in the file) and `page_aliases` rows are rebuilt when its content hash differs from the `links_hash` they were read from, in the same background refresh that rebuilds its search text, and the CLI `index` command does the same. The `resolved_page` of every link (the closest page, for an ambiguous link; empty when unresolved) is recomputed against all pages whenever a page was added, removed, renamed, moved, or edited, so a link resolves as soon as its page appears. NoteCraft's own saves skip the refresh as before unless the page's links, their positions, or its aliases changed. The canvas does not read these rows: it resolves the links of the page shown from the open notebook's tree (and the aliases the refresh last reported), so it is current while the user types.
 
 ## 9. Limits
 
@@ -372,3 +384,4 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-24 | 2 | Section 5.1: `\|` is the separator only inside table cells; an escaped opening bracket is plain text; a rewritten block drops a redundant shown text. |
 | 2026-10-24 | 2 | Sections 2.3 and 3.4: unreadable-block snapshots are named by content hash (`canvas-unreadable-<hash>.notecraft`) and written once; Convert to Markdown keeps a `before-convert-<hash>.notecraft` snapshot; a page change that meets a same-stem file gets a numbered name and a partial failure is rolled back. |
 | 2026-10-24 | 1 | Encoding safety (fix/encoding-safety): section 1 rule 7 and the section 9 limits row. A page that is not valid UTF-8 (UTF-16, Windows-1252) opens read-only, correctly decoded, and `page.convert_encoding` keeps a hashed backup of the original bytes, then rewrites it as UTF-8. Decision: a BOM-less UTF-16 guess needs 4 or more pairs with NULs in at least 30 percent of one byte position and none in the other. |
+| 2026-11-05 | 2 | Sections 5.2, 5.3, and 8 as built in PR 2.2: the picker and its keys, how "closest" is measured, step 4 also matches paths, clicking a link follows it or creates the page, the `links` rows are filled by the refresh, and index schema version 6 adds `pages.links_hash` and `page_aliases`. |

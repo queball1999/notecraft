@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
 use notecraft_markdown::{fold_link_text, LinkIndex, LinkPage};
-use notecraft_model::{Notebook, SectionNode};
+use notecraft_model::SectionNode;
 
 use super::Session;
 use crate::links::{
@@ -180,7 +180,7 @@ impl Session {
                 ));
             }
         };
-        list_pages(notebook, &notebook.sections, 0, &mut visit);
+        list_pages(&notebook.sections, 0, &mut visit);
         found.sort_by_key(|(rank, _)| *rank);
         found.truncate(MAX_PICKER_ENTRIES);
         let entries: Vec<PickerEntry> = found.into_iter().map(|(_, entry)| entry).collect();
@@ -193,12 +193,7 @@ impl Session {
     }
 }
 
-fn list_pages(
-    notebook: &Notebook,
-    nodes: &[SectionNode],
-    depth: usize,
-    visit: &mut dyn FnMut(&str, &str, &str),
-) {
+fn list_pages(nodes: &[SectionNode], depth: usize, visit: &mut dyn FnMut(&str, &str, &str)) {
     if depth > MAX_DEPTH {
         return;
     }
@@ -209,7 +204,7 @@ fn list_pages(
                     visit(&section.name, &page.id, page.display_title());
                 }
             }
-            SectionNode::Group(group) => list_pages(notebook, &group.children, depth + 1, visit),
+            SectionNode::Group(group) => list_pages(&group.children, depth + 1, visit),
         }
     }
 }
