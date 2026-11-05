@@ -815,6 +815,7 @@ const UNDO_CASES: &[(&str, &str)] = &[
     ("style.apply", r#"{ "style": "heading2" }"#),
     ("tag.todo", "{}"),
     ("tag.apply", r#"{ "tag": "important" }"#),
+    ("tag.apply_nth", r#"{ "number": 2 }"#),
     ("tag.remove", "{}"),
 ];
 
@@ -856,6 +857,7 @@ const NEEDS_SELECTION: &[&str] = &[
     "style.apply",
     "tag.todo",
     "tag.apply",
+    "tag.apply_nth",
     "tag.remove",
 ];
 

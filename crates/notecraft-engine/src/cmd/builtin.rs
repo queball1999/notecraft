@@ -323,6 +323,15 @@ const TAG_EDIT_ARGS: &[ArgSpec] = &[
         "Highlight color as #RRGGBB, or none.",
     ),
 ];
+const TAG_MOVE_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("tag", ArgKind::String, "Id of the tag."),
+    ArgSpec::required("direction", ArgKind::String, "up or down."),
+];
+const TAG_NTH_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "number",
+    ArgKind::Integer,
+    "Position in the tag list, 1 to 9.",
+)];
 const TABLE_ARGS: &[ArgSpec] = &[
     ArgSpec::optional("rows", ArgKind::Integer, "Number of rows."),
     ArgSpec::optional("columns", ArgKind::Integer, "Number of columns."),
@@ -956,7 +965,6 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Add or check a To Do checkbox on the selected paragraph.",
     )
     .undoable()
-    .shortcut("Ctrl+1")
     .ready(),
     CommandSpec::new(
         ids::TAG_REMOVE,
@@ -1047,6 +1055,50 @@ pub(super) static SPECS: &[CommandSpec] = &[
     )
     .args(TAG_ARGS)
     .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_EDIT,
+        "Modify Tag",
+        "Change the name, icon, or colors of any note tag, a default one included.",
+    )
+    .args(TAG_EDIT_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_HIDE,
+        "Delete Tag from List",
+        "Take a default note tag out of the gallery. Text already tagged keeps its icon.",
+    )
+    .args(TAG_ARGS)
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_MOVE,
+        "Move Tag",
+        "Move a note tag up or down the gallery list, which sets Ctrl+1 to Ctrl+9.",
+    )
+    .args(TAG_MOVE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_RESET,
+        "Reset Tag",
+        "Give a default note tag its built-in name, icon, and colors back.",
+    )
+    .args(TAG_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_RESET_ALL,
+        "Reset Tags",
+        "Put the built-in tag list back: hidden tags return, defaults look as built.",
+    )
+    .destructive()
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_APPLY_NTH,
+        "Apply Numbered Tag",
+        "Apply the note tag at a position of the gallery list (Ctrl+1 to Ctrl+9).",
+    )
+    .undoable()
+    .args(TAG_NTH_ARGS)
     .ready(),
     // Home tab: Email and Meetings groups
     CommandSpec::new(
@@ -2009,6 +2061,12 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::TAG_CUSTOM_ADD, tags::custom_add),
     (ids::TAG_CUSTOM_EDIT, tags::custom_edit),
     (ids::TAG_CUSTOM_DELETE, tags::custom_delete),
+    (ids::TAG_EDIT, tags::edit),
+    (ids::TAG_HIDE, tags::hide),
+    (ids::TAG_MOVE, tags::move_tag),
+    (ids::TAG_RESET, tags::reset),
+    (ids::TAG_RESET_ALL, tags::reset_all),
+    (ids::TAG_APPLY_NTH, tags::apply_nth),
     (ids::EDIT_UNDO, edit::undo),
     (ids::EDIT_REDO, edit::redo),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),

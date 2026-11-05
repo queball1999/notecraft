@@ -341,3 +341,30 @@ fn nothing_shown_makes_no_page_and_search_closes_the_pane() {
     run(&mut session, "tag.summary.close", json!({}));
     assert!(!session.tag_summary().open);
 }
+
+#[test]
+fn the_summary_uses_edited_names_for_default_tags_even_when_hidden() {
+    let (_dir, mut session) = session();
+    select(&mut session, "Grp/Alpha/Tasks.md");
+    run(&mut session, "tag.find", json!({ "scope": "all" }));
+    run(
+        &mut session,
+        "tag.edit",
+        json!({ "tag": "idea", "name": "Thought" }),
+    );
+    // The summary on screen is read again, so it shows the new name at once.
+    let summary = session.tag_summary().summary.clone().expect("summary");
+    let heads: Vec<&str> = summary.groups.iter().map(|g| g.label.as_str()).collect();
+    assert_eq!(heads, ["Question", "Thought", "To Do"]);
+    // A tag taken out of the gallery is still named, as its text is still tagged.
+    run(&mut session, "tag.hide", json!({ "tag": "question" }));
+    let found = run(&mut session, "tag.summary.refresh", Value::Null);
+    assert_eq!(
+        labels(&found),
+        named(&[("Question", 1), ("Thought", 2), ("To Do", 4)])
+    );
+    // Reset puts the built-in name back in the pane.
+    run(&mut session, "tag.reset", json!({ "tag": "idea" }));
+    let summary = session.tag_summary().summary.clone().expect("summary");
+    assert!(summary.groups.iter().any(|g| g.label == "Idea"));
+}
