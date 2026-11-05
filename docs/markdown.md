@@ -1,6 +1,6 @@
 # The NoteCraft file format: markdown and page links
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-18. Change: page style is saved in the `notecraft:` frontmatter map (new section 2.5: `paper`, `paper_spacing`, `paper_size`, `rule_color`, `color`); earlier: stage line: Phase 1 merged into main (#55); earlier: pictures and file attachments get positions in the canvas block (`images`, `files`, section 3.4); ink stroke `texture` key (textured pens and the pencil); earlier: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups).
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-10-24. Change: equations (section 3.2) and their limits (section 9) as built in PR 2.7; earlier: page style is saved in the `notecraft:` frontmatter map (new section 2.5: `paper`, `paper_spacing`, `paper_size`, `rule_color`, `color`); earlier: stage line: Phase 1 merged into main (#55); earlier: pictures and file attachments get positions in the canvas block (`images`, `files`, section 3.4); ink stroke `texture` key (textured pens and the pencil); earlier: index schema version 3 adds pages.collapsed; `collapsed` key in section page entries; earlier: PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); PR 1.9 landed (.notecraft pages and saving ink; one save path with auto-save); the folder reader (section 2) is implemented; file name rules in section 2.3 spelled out; reading implemented (PR 1.3); frontmatter limits and entry spans noted. PR 1.2: index refresh and rebuild rules (section 8); writing implemented (PR 1.4); trash layout (`origin.toml` per deleted item) and structure edits writing the order files (PR 1.13). PR 1.6: text formatting (bold, italic, strikethrough, underline, sub and superscript, headings, lists, indent, tasks, quote, code, alignment as commands; TX-02 to TX-06 scored D); Picture display width comment and SVG pictures (section 2.4); PR 1.5 text editing in containers (runs are a view over the section 3.3 markers); container positions written to the canvas block; repair of a block that did not parse (PR 1.9 follow-ups); section 5.1 reader rules (PR 2.1).
 
 This doc is the spec for how NoteCraft stores notebooks on disk and how pages link to each other. The design goal: a notebook is a plain folder of markdown that stays readable and editable in any text editor, while NoteCraft still keeps the freeform canvas, ink, and layout that make it feel like OneNote.
 
@@ -170,6 +170,8 @@ CommonMark plus these extensions:
 
 Footnotes, embeds, and heading links are not OneNote features and are not planned before full parity (post-parity.md). NoteCraft still preserves them as text if a page contains them.
 
+Equations are LaTeX math: `$x^2$` is set in the line of text, and `$$rac{a}{b}$$` is set on a line of its own (a formula may span lines between `$$` lines). A dollar sign that starts a number (`$5 and $10`) is not math, `\$` is a literal dollar sign, and `$` inside code spans and code blocks is plain text. A formula is kept as its source text; the canvas typesets it, and shows the source while the caret is in the block. A formula over 4 KiB, or nested deeper than 32 levels, is not typeset and stays visible as source text (section 9).
+
 Raw HTML is kept verbatim and shown as text in edit mode; it is never executed. NoteCraft parses with `comrak` behind its own wrapper in `notecraft-markdown`, so the parser can be swapped later without changing the format.
 
 ### 3.3 Note containers
@@ -265,7 +267,7 @@ OneNote lets you type `[[Page name]]` to link to a page (and creates the page if
 | `[[Page\|shown text]]` | link with different display text |
 | `[[Section/Page]]` | disambiguate by section path |
 
-Inside a table cell the pipe must be escaped as `\|` (GFM rule).
+Inside a table cell the pipe must be escaped as `\|` (GFM rule), and there `\|` separates the target from the shown text. Outside a table only a plain `|` separates them, and `\|` is a literal pipe in the target. An escaped opening bracket (`\[[x]]`) is plain text, never a link, so text that happens to read `[[x]]` survives a save and reopen. NoteCraft writes `[[Page|Page]]` as `[[Page]]` when it rewrites the block that holds it; blocks it does not rewrite keep their bytes (minimal-diff writes).
 
 ### 5.2 Writing links
 
@@ -328,6 +330,8 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | Markdown nesting depth | 64 | deeper content shown as plain text |
 | Folder depth | 8 | deeper folders ignored, warning shown |
 | Links per page | 10,000 | extra links not indexed |
+| Formula size | 4 KiB | not typeset, shown as source text |
+| Formula nesting depth | 32 | not typeset, shown as source text |
 
 ## 10. History and trash
 
@@ -363,5 +367,8 @@ On open, NoteCraft compares file modified times and sizes against the index, has
 | 2026-10-18 | 1 | Section 3.4: pictures and file attachments placed on the page are listed in the canvas block `images` and `files` lists (`src`, `nth`, `x`, `y`); the markdown stays in the page text; the width stays the section 2.4 comment; a `.md` page with one promotes to `.notecraft`. Shapes are not stored yet. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-10-18 | 1 | Section 2.5 (new): page style keys in the `notecraft:` frontmatter map: `paper` (blank, lined, grid, dotted), `paper_spacing`, `paper_size`, `rule_color`, and `color`; lenient reading, minimal-diff writing, a key is removed at its default. |
+| 2026-10-24 | 2 | Section 3.2 and section 9: equations (`$...$` and `$$...$$`) as built in PR 2.7, with the 4 KiB and 32-level formula limits. |
+| 2026-10-24 | 2 | Section 5.1 implemented (PR 2.1): the reader skips code spans, code blocks, and raw HTML, treats `\|` as the separator in table cells, ignores an escaped opening bracket, and reads at most 1,024 bytes between the brackets. |
+| 2026-10-24 | 2 | Section 5.1: `\|` is the separator only inside table cells; an escaped opening bracket is plain text; a rewritten block drops a redundant shown text. |
 | 2026-10-24 | 2 | Sections 2.3 and 3.4: unreadable-block snapshots are named by content hash (`canvas-unreadable-<hash>.notecraft`) and written once; Convert to Markdown keeps a `before-convert-<hash>.notecraft` snapshot; a page change that meets a same-stem file gets a numbered name and a partial failure is rolled back. |
 | 2026-10-24 | 1 | Encoding safety (fix/encoding-safety): section 1 rule 7 and the section 9 limits row. A page that is not valid UTF-8 (UTF-16, Windows-1252) opens read-only, correctly decoded, and `page.convert_encoding` keeps a hashed backup of the original bytes, then rewrites it as UTF-8. Decision: a BOM-less UTF-16 guess needs 4 or more pairs with NULs in at least 30 percent of one byte position and none in the other. |

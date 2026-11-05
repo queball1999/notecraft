@@ -3,11 +3,22 @@
 //! feature PR flips its command to Ready and adds its handler to [`HANDLERS`].
 
 use super::page;
+use super::search;
 use super::{
-    attach, canvas, draw, edit, file, format, ids, layout, nav, structure, text, theme, ArgKind,
-    ArgSpec, CommandId, CommandSpec, Handler,
+    attach, canvas, draw, edit, equation, file, find, format, ids, layout, nav, structure, text,
+    theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
+const FIND_ARGS: &[ArgSpec] = &[ArgSpec::optional(
+    "query",
+    ArgKind::String,
+    "The text to find; omitted keeps the last one.",
+)];
+const FIND_QUERY_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "query",
+    ArgKind::String,
+    "The text to find (case-insensitive); empty clears it.",
+)];
 const SET_CARET_ARGS: &[ArgSpec] = &[
     ArgSpec::required("at", ArgKind::Integer, "Byte offset in the page text."),
     ArgSpec::optional("extend", ArgKind::Bool, "Extend the selection instead."),
@@ -288,6 +299,18 @@ const TEMPLATE_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     ArgKind::String,
     "Template id; opens the template pane when omitted.",
 )];
+const EQUATION_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "latex",
+        ArgKind::String,
+        "The formula as LaTeX math, up to 4 KiB, with no unescaped dollar sign; the selection or a placeholder when omitted.",
+    ),
+    ArgSpec::optional(
+        "display",
+        ArgKind::Bool,
+        "Insert a display formula ($$...$$) instead of an inline one ($...$).",
+    ),
+];
 const SYMBOL_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "symbol",
     ArgKind::String,
@@ -405,6 +428,29 @@ const SHAPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "kind",
     ArgKind::String,
     "Shape kind, for example line, arrow, rectangle, or ellipse.",
+)];
+const SEARCH_RUN_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("query", ArgKind::String, "The words to look for."),
+    ArgSpec::optional(
+        "scope",
+        ArgKind::String,
+        "page, section, group, notebook, or all (default: the last scope used).",
+    ),
+    ArgSpec::optional(
+        "sort",
+        ArgKind::String,
+        "relevance, section, title, or modified (default: the last sort used).",
+    ),
+];
+const SEARCH_SCOPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "scope",
+    ArgKind::String,
+    "page, section, group, notebook, or all.",
+)];
+const SEARCH_SORT_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "sort",
+    ArgKind::String,
+    "relevance, section, title, or modified.",
 )];
 const CONVERT_ARGS: &[ArgSpec] = &[ArgSpec::optional(
     "confirm",
@@ -628,7 +674,31 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Find on Page",
         "Find text on the current page.",
     )
-    .shortcut("Ctrl+F"),
+    .args(FIND_ARGS)
+    .shortcut("Ctrl+F")
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_SET_QUERY,
+        "Find Text",
+        "Change the text to find on the current page.",
+    )
+    .args(FIND_QUERY_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_NEXT,
+        "Find Next",
+        "Go to the next match on the current page.",
+    )
+    .shortcut("F3")
+    .ready(),
+    CommandSpec::new(
+        ids::EDIT_FIND_PREVIOUS,
+        "Find Previous",
+        "Go to the previous match on the current page.",
+    )
+    .shortcut("Shift+F3")
+    .ready(),
+    CommandSpec::new(ids::EDIT_FIND_CLOSE, "Close Find", "Close the find bar.").ready(),
     // Home tab: Basic Text group
     CommandSpec::new(
         ids::FORMAT_FONT_FAMILY,
@@ -926,8 +996,10 @@ pub(super) static SPECS: &[CommandSpec] = &[
     .undoable()
     .args(TEMPLATE_ARGS),
     CommandSpec::new(ids::INSERT_EQUATION, "Equation", "Insert an equation.")
+        .args(EQUATION_ARGS)
         .undoable()
-        .shortcut("Alt+="),
+        .shortcut("Alt+=")
+        .ready(),
     CommandSpec::new(ids::INSERT_SYMBOL, "Symbol", "Insert a symbol.")
         .undoable()
         .args(SYMBOL_ARGS),
@@ -1580,7 +1652,46 @@ pub(super) static SPECS: &[CommandSpec] = &[
         "Rewrite a page that is not saved as UTF-8 text as UTF-8 so it can be edited. The original file is kept in the notebook history folder. Not undoable.",
     )
     .ready(),
-    CommandSpec::new(ids::SEARCH_ALL, "Search", "Search every open notebook.").shortcut("Ctrl+E"),
+    CommandSpec::new(
+        ids::SEARCH_OPEN,
+        "Search",
+        "Show the search box and results.",
+    )
+    .shortcut("Ctrl+E")
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_ALL,
+        "Search All Notebooks",
+        "Show the search box and look in every open notebook.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_RUN,
+        "Run Search",
+        "Search page titles and text and show the results.",
+    )
+    .args(SEARCH_RUN_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_SET_SCOPE,
+        "Search Scope",
+        "Choose where a search looks.",
+    )
+    .args(SEARCH_SCOPE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_SET_SORT,
+        "Sort Search Results",
+        "Choose how search results are ordered.",
+    )
+    .args(SEARCH_SORT_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::SEARCH_CLOSE,
+        "Close Search",
+        "Hide the search box and results.",
+    )
+    .ready(),
 ];
 
 /// The handler of every Ready command.
@@ -1628,6 +1739,7 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::DRAW_THICKNESS, draw::draw_thickness),
     (ids::INK_ADD_STROKE, draw::add_stroke),
     (ids::INSERT_PICTURE, attach::insert_picture),
+    (ids::INSERT_EQUATION, equation::insert_equation),
     (ids::INSERT_FILE_ATTACHMENT, attach::insert_file),
     (ids::EDIT_PASTE_PICTURE, attach::paste_picture),
     (ids::PICTURE_RESIZE, attach::resize_picture),
@@ -1670,11 +1782,22 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::FORMAT_ALIGN_RIGHT, format::align_right),
     (ids::STYLE_APPLY, format::style_apply),
     (ids::TAG_TODO, format::todo),
+    (ids::EDIT_FIND, find::open),
+    (ids::EDIT_FIND_SET_QUERY, find::set_query),
+    (ids::EDIT_FIND_NEXT, find::next),
+    (ids::EDIT_FIND_PREVIOUS, find::previous),
+    (ids::EDIT_FIND_CLOSE, find::close),
     (ids::EDIT_UNDO, edit::undo),
     (ids::EDIT_REDO, edit::redo),
     (ids::NAV_NOTEBOOK_SELECT, nav::notebook_select),
     (ids::NAV_SECTION_SELECT, nav::section_select),
     (ids::NAV_PAGE_SELECT, nav::page_select),
+    (ids::SEARCH_OPEN, search::open),
+    (ids::SEARCH_ALL, search::all),
+    (ids::SEARCH_RUN, search::run),
+    (ids::SEARCH_SET_SCOPE, search::set_scope),
+    (ids::SEARCH_SET_SORT, search::set_sort),
+    (ids::SEARCH_CLOSE, search::close),
     (ids::FILE_CLOSE_NOTEBOOK, structure::close_notebook),
     (ids::SECTION_NEW, structure::section_new),
     (ids::SECTION_GROUP_NEW, structure::section_group_new),

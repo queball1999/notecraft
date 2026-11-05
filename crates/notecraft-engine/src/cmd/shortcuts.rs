@@ -198,7 +198,7 @@ mod tests {
         for (text, id) in [
             ("Ctrl+N", "page.new"),
             ("Ctrl+T", "section.new"),
-            ("Ctrl+E", "search.all"),
+            ("Ctrl+E", "search.open"),
             ("Ctrl+1", "tag.todo"),
             ("Ctrl+9", "tag.apply"),
             ("Ctrl+Alt+D", "view.dock"),

@@ -181,6 +181,8 @@ fn refresh(root: &Path) -> Result<Refreshed, String> {
             .map_err(|err| err.to_string())?;
         sidebar = index.sidebar().map_err(|err| err.to_string())?;
     }
+    // Search text follows the same refresh: pages that are new or changed get their rows.
+    crate::search::update_text_index(root, &mut index)?;
     let header = read_notebook_header(root);
     Ok(Refreshed {
         notebook: notebook_from_sidebar(&header, &sidebar),
@@ -233,6 +235,35 @@ mod tests {
         // A second refresh keeps the title without reading the page again.
         let again = refresh(dir.path()).expect("refresh");
         assert_eq!(again.titles, done.titles);
+    }
+
+    #[test]
+    fn the_refresh_keeps_the_search_text_current() {
+        use notecraft_storage::index::{Index, TextScope};
+
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        write(
+            dir.path(),
+            "Sec/A.md",
+            "---\ntitle: Fancy Title\n---\n# Heading\nSome **bold** words\n",
+        );
+        refresh(dir.path()).expect("refresh");
+        let find = |text: &str| {
+            let index = Index::open(&index_path(dir.path())).expect("index");
+            index.search_text(text, TextScope::All, 10).expect("search")
+        };
+        // Markdown syntax and frontmatter keys are not searchable; the text and title are.
+        assert_eq!(find("bold").len(), 1);
+        assert_eq!(find("heading").len(), 1);
+        assert_eq!(find("fancy")[0].title, "Fancy Title");
+        assert!(find("**").is_empty());
+        write(dir.path(), "Sec/A.md", "now about kayaks and more text\n");
+        refresh(dir.path()).expect("refresh");
+        assert!(find("bold").is_empty());
+        assert_eq!(find("kayak").len(), 1);
+        std::fs::remove_file(dir.path().join("Sec/A.md")).expect("rm");
+        refresh(dir.path()).expect("refresh");
+        assert!(find("kayak").is_empty());
     }
 
     #[test]

@@ -32,16 +32,26 @@ mod frontmatter_tests;
 pub mod image;
 #[cfg(test)]
 mod image_tests;
+pub mod links;
+#[cfg(test)]
+mod links_tests;
 pub mod markup;
 #[cfg(test)]
 mod markup_tests;
+pub mod math;
+#[cfg(test)]
+mod math_hostile_tests;
+#[cfg(test)]
+mod math_tests;
 pub mod objects;
 mod parse;
 #[cfg(test)]
 mod parse_tests;
 mod style;
 
-pub use block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Script, Span, Table};
+pub use block::{
+    Align, Block, BlockKind, Cell, ListItem, ListKind, Math, Run, Script, Span, Table,
+};
 pub use canonical::{block_to_markdown, blocks_to_markdown, page_to_markdown, runs_to_markdown};
 pub use container::{
     fix_container_ids, fresh_container_id, is_valid_id, marker_line, read_containers,
@@ -51,6 +61,7 @@ pub use containers::{split_containers, ContainerRun};
 pub use document::{parse, Document};
 pub use edit::{apply_edits, Edit, EditError, Editor};
 pub use frontmatter::{parse as parse_frontmatter, Entry, Frontmatter, Value};
+pub use links::{find_page_links, PageLink};
 pub use parse::{parse_blocks, MAX_DEPTH, MAX_PARSE_BYTES};
 pub use style::{LineEnding, Style};
 

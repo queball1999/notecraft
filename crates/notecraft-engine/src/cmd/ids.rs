@@ -84,6 +84,14 @@ command_ids! {
     EDIT_DELETE = "edit.delete";
     /// Find text on the current page.
     EDIT_FIND = "edit.find";
+    /// Change the text to find on the current page.
+    EDIT_FIND_SET_QUERY = "edit.find.set_query";
+    /// Go to the next match on the current page.
+    EDIT_FIND_NEXT = "edit.find.next";
+    /// Go to the previous match on the current page.
+    EDIT_FIND_PREVIOUS = "edit.find.previous";
+    /// Close the find bar.
+    EDIT_FIND_CLOSE = "edit.find.close";
 
     // Home tab: Basic Text group
     /// Set the font family of the selection.
@@ -406,6 +414,16 @@ command_ids! {
     PAGE_CONVERT_ENCODING = "page.convert_encoding";
 
     // Search (Phase 2)
-    /// Search every open notebook.
+    /// Show the search box, ready to type in.
+    SEARCH_OPEN = "search.open";
+    /// Show the search box and look in every open notebook.
     SEARCH_ALL = "search.all";
+    /// Search for text and show the results.
+    SEARCH_RUN = "search.run";
+    /// Choose where a search looks: this page, section, section group, notebook, or all notebooks.
+    SEARCH_SET_SCOPE = "search.set_scope";
+    /// Choose how search results are ordered.
+    SEARCH_SET_SORT = "search.set_sort";
+    /// Hide the search box and results.
+    SEARCH_CLOSE = "search.close";
 }

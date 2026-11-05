@@ -107,7 +107,10 @@ pub struct Links {
 fn collect_runs(runs: &[Run], links: &mut Links) {
     let mut text = String::new();
     for run in runs {
-        if !run.code {
+        if let Some(target) = &run.page_link {
+            // The reader already split the link; put its target back for `link_targets`.
+            text.push_str(&format!("[[{target}]]"));
+        } else if !run.code {
             text.push_str(&run.text);
         }
         if let Some(target) = &run.link {

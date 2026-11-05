@@ -20,7 +20,7 @@ use crate::ribbon::{self, Clicked, Ribbon};
 use crate::shortcuts::Shortcuts;
 use crate::themes::{self, Mode, OsFonts, Preset, ThemeTokens};
 use crate::toast::{self, Toasts};
-use crate::{bars, start, status};
+use crate::{bars, find_bar, start, status};
 /// Height of the status bar, in points.
 pub const STATUS_HEIGHT: f32 = 24.0;
 /// Default width of the notebook and page panes, in points.
@@ -109,6 +109,8 @@ pub struct AppShell {
     ribbon: Ribbon,
     nav: NavUi,
     canvas: CanvasUi,
+    /// The search box text and caret request (see `search_pane`).
+    search_ui: crate::search_pane::SearchUi,
     /// Asked for a path when a file command arrives without one.
     picker: Box<dyn FilePicker>,
     shortcuts: Shortcuts,
@@ -177,6 +179,7 @@ impl AppShell {
             ribbon: Ribbon::new(),
             nav: NavUi::default(),
             canvas: CanvasUi::default(),
+            search_ui: crate::search_pane::SearchUi::default(),
             picker: Box::new(NoPicker),
             paste_temp: None,
             paste_seen: false,
@@ -812,6 +815,16 @@ impl AppShell {
             .show(ui, |ui| {
                 nav::page_list(ui, session, nav_ui, &tokens, &mut clicked)
             });
+        if session.search().open {
+            let search_ui = &mut self.search_ui;
+            egui::Panel::right("search")
+                .default_size(crate::search_pane::WIDTH)
+                .resizable(true)
+                .frame(panel.fill(tokens.sidebar_bg))
+                .show(ui, |ui| {
+                    crate::search_pane::show(ui, session, search_ui, &tokens, &mut clicked)
+                });
+        }
         let canvas_width = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
             .show(ui, |ui| {
@@ -826,7 +839,12 @@ impl AppShell {
                     egui::vec2(full.width(), bars::height(session)),
                 );
                 bars::show(ui, bar, session, &tokens, &mut clicked);
-                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, bar.max.y), full.max);
+                let find = egui::Rect::from_min_size(
+                    egui::pos2(full.min.x, bar.max.y),
+                    egui::vec2(full.width(), find_bar::height(session)),
+                );
+                find_bar::show(ui, find, session, &tokens, &mut clicked);
+                let page = egui::Rect::from_min_max(egui::pos2(full.min.x, find.max.y), full.max);
                 canvas::show(ui, page, session, canvas_ui, &tokens, &mut clicked)
             })
             .inner;
@@ -1528,6 +1546,119 @@ mod tests {
         );
         let _ = harness.get_by_label("Interview notes");
         assert!(harness.state().toasts().is_empty());
+    }
+
+    /// A shell with a notebook folder open and its search index built: Work has Alpha (red
+    /// tent) and Beta, Home has Gamma (green tent and stove).
+    fn search_shell() -> (tempfile::TempDir, egui_kittest::Harness<'static, AppShell>) {
+        let dir = tempfile::TempDir::new().unwrap();
+        for (rel, text) in [
+            ("Work/Alpha.md", "the red tent"),
+            ("Work/Beta.md", "budget notes"),
+            ("Home/Gamma.md", "a green tent and stove"),
+        ] {
+            let path = dir.path().join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        notecraft_engine::search::refresh_search_index(dir.path()).unwrap();
+        let mut shell = AppShell::empty();
+        assert!(shell.open_path(dir.path()));
+        let mut harness = harness(shell, WINDOW);
+        harness.run();
+        (dir, harness)
+    }
+
+    fn page_id(shell: &AppShell, title: &str) -> String {
+        shell
+            .session()
+            .notebooks()
+            .iter()
+            .flat_map(|nb| nb.all_sections())
+            .flat_map(|s| s.pages.iter())
+            .find(|p| p.title == title)
+            .map(|p| p.id.clone())
+            .unwrap()
+    }
+
+    #[test]
+    fn ctrl_e_opens_the_search_pane_and_typing_lists_results() {
+        let (_dir, mut harness) = search_shell();
+        assert!(!harness.state().session().search().open);
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::E);
+        harness.run();
+        assert!(harness.state().session().search().open);
+        assert_eq!(last_ran(&harness).as_deref(), Some("search.open"));
+        // The box has the caret, so typing goes straight into it.
+        harness.event(egui::Event::Text("stove".to_owned()));
+        harness.run();
+        let results = harness.state().session().search().results.clone().unwrap();
+        assert_eq!(results.query, "stove");
+        assert_eq!(results.hits.len(), 1);
+        assert_eq!(results.hits[0].title, "Gamma");
+        assert!(harness.query_by_label("1 result").is_some());
+        // Narrowing the scope to a page that does not have the word finds nothing.
+        let alpha = page_id(harness.state(), "Alpha");
+        harness
+            .state_mut()
+            .dispatch("nav.page.select", serde_json::json!({ "id": alpha }));
+        harness
+            .state_mut()
+            .dispatch("search.set_scope", serde_json::json!({ "scope": "page" }));
+        harness.run();
+        let results = harness.state().session().search().results.clone().unwrap();
+        assert!(results.hits.is_empty());
+        assert!(harness.query_by_label("No results.").is_some());
+    }
+
+    #[test]
+    fn clicking_a_result_shows_that_page() {
+        let (_dir, mut harness) = search_shell();
+        let alpha = page_id(harness.state(), "Alpha");
+        harness
+            .state_mut()
+            .dispatch("nav.page.select", serde_json::json!({ "id": alpha }));
+        harness.state_mut().dispatch(
+            "search.run",
+            serde_json::json!({ "query": "tent", "sort": "title" }),
+        );
+        harness.run();
+        let titles: Vec<String> = harness
+            .state()
+            .session()
+            .search()
+            .results
+            .as_ref()
+            .unwrap()
+            .hits
+            .iter()
+            .map(|h| h.title.clone())
+            .collect();
+        assert_eq!(titles, ["Alpha", "Gamma"]);
+        // Gamma is in another section, so its label is only on the result row.
+        harness.get_by_label("Gamma").click();
+        harness.run();
+        let gamma = page_id(harness.state(), "Gamma");
+        assert_eq!(
+            harness.state().session().selection().page.as_deref(),
+            Some(gamma.as_str())
+        );
+    }
+
+    #[test]
+    fn escape_and_close_hide_the_search_pane() {
+        let (_dir, mut harness) = search_shell();
+        harness.state_mut().dispatch("search.open", Value::Null);
+        harness.run();
+        harness.run();
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert!(!harness.state().session().search().open);
+        harness.state_mut().dispatch("search.open", Value::Null);
+        harness.run();
+        harness.get_by_label("Close").click();
+        harness.run();
+        assert!(!harness.state().session().search().open);
     }
 
     #[test]

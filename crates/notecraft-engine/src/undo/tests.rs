@@ -775,6 +775,7 @@ const UNDO_CASES: &[(&str, &str)] = &[
     ("view.rule_line_color", r##"{ "color": "#9FB6CD" }"##),
     ("view.paper_size", r#"{ "size": "a4" }"#),
     ("text.insert", r#"{ "text": "X" }"#),
+    ("insert.equation", r#"{ "latex": "x^2" }"#),
     ("text.delete", r#"{ "direction": "backward" }"#),
     ("text.enter", "{}"),
     ("text.tab", "{}"),

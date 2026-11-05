@@ -7,7 +7,13 @@ mod builtin;
 mod canvas;
 mod draw;
 mod edit;
+mod equation;
+#[cfg(test)]
+mod equation_tests;
 mod file;
+mod find;
+#[cfg(test)]
+mod find_tests;
 mod format;
 #[cfg(test)]
 mod format_tests;
@@ -17,6 +23,7 @@ mod layout;
 mod nav;
 mod page;
 mod registry;
+mod search;
 pub mod shortcuts;
 pub(crate) mod structure;
 #[cfg(test)]

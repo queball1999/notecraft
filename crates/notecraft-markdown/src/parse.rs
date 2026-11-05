@@ -4,7 +4,9 @@
 use comrak::nodes::{AstNode, ListType, NodeValue, Sourcepos, TableAlignment};
 use comrak::{parse_document, Arena, Options};
 
-use crate::block::{Align, Block, BlockKind, Cell, ListItem, ListKind, Run, Script, Span, Table};
+use crate::block::{
+    Align, Block, BlockKind, Cell, ListItem, ListKind, Math, Run, Script, Span, Table,
+};
 use crate::markup::{self, Mark, Tag};
 
 /// Deepest block nesting parsed into structure (docs/markdown.md section 9). Deeper content
@@ -22,6 +24,7 @@ fn options() -> Options<'static> {
     options.extension.tasklist = true;
     options.extension.autolink = true;
     options.extension.highlight = true;
+    options.extension.math_dollars = true;
     options
 }
 
@@ -94,6 +97,18 @@ impl<'a> Lines<'a> {
 /// Parse `text` into blocks. `base` is the offset of `text` within the whole page source, so
 /// the spans are page offsets (the frontmatter is cut off before the body is parsed).
 pub fn parse_blocks(text: &str, base: usize) -> Vec<Block> {
+    // Page links are marked in a copy of the same length, so escapes are still known when
+    // the inline text is split (see `links::mark`).
+    let marked = crate::links::mark(text);
+    parse_blocks_in(text, marked.as_deref().unwrap_or(text), base)
+}
+
+/// Like [`parse_blocks`], but with no page link marking.
+pub(crate) fn parse_blocks_plain(text: &str, base: usize) -> Vec<Block> {
+    parse_blocks_in(text, text, base)
+}
+
+fn parse_blocks_in(text: &str, marked: &str, base: usize) -> Vec<Block> {
     if text.len() > MAX_PARSE_BYTES {
         return vec![Block {
             span: Span::new(base, base + text.len()),
@@ -104,7 +119,7 @@ pub fn parse_blocks(text: &str, base: usize) -> Vec<Block> {
     }
     let lines = Lines::new(text, base);
     let arena = Arena::new();
-    let root = parse_document(&arena, text, &options());
+    let root = parse_document(&arena, marked, &options());
     blocks_of(root, &lines, 0)
 }
 
@@ -255,7 +270,7 @@ struct Style {
 fn runs_of<'a>(node: &'a AstNode<'a>) -> Vec<Run> {
     let mut runs = Vec::new();
     inline_children(node, &Style::default(), 0, &mut runs);
-    merge(runs)
+    crate::links::split_runs(merge(runs))
 }
 
 fn push(runs: &mut Vec<Run>, text: &str, style: &Style, code: bool) {
@@ -275,8 +290,10 @@ fn push(runs: &mut Vec<Run>, text: &str, style: &Style, code: bool) {
         size_pt: style.size_pt,
         family: style.family.clone(),
         link: style.link.clone(),
+        page_link: None,
         image: false,
         image_width: None,
+        math: Math::None,
     });
 }
 
@@ -340,6 +357,7 @@ fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs:
         match value {
             NodeValue::Text(t) => push(runs, &t, style, false),
             NodeValue::Code(c) => push(runs, &c.literal, style, true),
+            NodeValue::Math(m) => runs.push(crate::math::run_of(&m.literal, m.display_math)),
             NodeValue::HtmlInline(h) => match markup::parse_tag(&h) {
                 Some((tag, len)) if len == h.len() => apply_tag(&mut current, &mut open_spans, tag),
                 _ => push(runs, &h, style, false),
@@ -363,7 +381,7 @@ fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs:
                 ..style.clone()
             }),
             NodeValue::Link(link) => nested(Style {
-                link: Some(link.url),
+                link: Some(crate::links::restore(&link.url)),
                 ..style.clone()
             }),
             NodeValue::Image(link) => runs.push(Run {
@@ -378,9 +396,11 @@ fn inline_children<'a>(node: &'a AstNode<'a>, outer: &Style, depth: usize, runs:
                 color: style.color,
                 size_pt: style.size_pt,
                 family: style.family.clone(),
-                link: Some(link.url),
+                link: Some(crate::links::restore(&link.url)),
+                page_link: None,
                 image: true,
                 image_width: None,
+                math: Math::None,
             }),
             _ => nested(style.clone()),
         }
@@ -394,6 +414,8 @@ fn merge(runs: Vec<Run>) -> Vec<Run> {
         match out.last_mut() {
             Some(last)
                 if !last.image
+                    && last.math == Math::None
+                    && run.math == Math::None
                     && !run.image
                     && last.bold == run.bold
                     && last.italic == run.italic
@@ -405,7 +427,8 @@ fn merge(runs: Vec<Run>) -> Vec<Run> {
                     && last.color == run.color
                     && last.size_pt == run.size_pt
                     && last.family == run.family
-                    && last.link == run.link =>
+                    && last.link == run.link
+                    && last.page_link == run.page_link =>
             {
                 last.text.push_str(&run.text);
             }

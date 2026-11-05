@@ -19,12 +19,16 @@ pub mod canvas;
 pub mod color;
 #[cfg(test)]
 mod draw_tab_tests;
+pub mod find_bar;
+#[cfg(test)]
+mod find_tests;
 pub mod font_list;
 pub mod icons;
 mod missing_item;
 pub mod nav;
 pub mod picker;
 pub mod ribbon;
+mod search_pane;
 pub mod shortcuts;
 pub mod start;
 pub mod status;

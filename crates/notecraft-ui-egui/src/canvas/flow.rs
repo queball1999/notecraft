@@ -14,12 +14,16 @@ use notecraft_core::Vec2;
 use notecraft_engine::TextCursor;
 use notecraft_markdown::objects::{is_file_link, is_file_paragraph};
 use notecraft_markdown::{
-    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Run, Script, Span,
-    Table,
+    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Math, Run, Script,
+    Span, Table,
 };
 use notecraft_model::{Container, ObjectKind, PlacedObject};
 
 use super::pictures::{PictureSource, Shown};
+
+mod math;
+#[cfg(test)]
+mod math_tests;
 use super::rawtext::Raw;
 use super::PageToScreen;
 use crate::themes::{bold_family, mix, ThemeTokens};
@@ -75,12 +79,26 @@ enum Item {
         /// Alt text (and the reason, for a placeholder).
         label: Arc<Galley>,
     },
+    /// A typeset formula, drawn from its texture.
+    Math {
+        rect: Rect,
+        texture: egui::TextureId,
+    },
     /// A file attachment: an icon with the file name.
     File {
         rect: Rect,
         name: Arc<Galley>,
         ext: String,
     },
+}
+
+/// One laid-out piece of page text that find on page searches: a paragraph, heading, table
+/// cell, or code block. `notecraft_engine::find::page_units` lists the same pieces in the same
+/// order.
+pub(super) struct Unit {
+    /// Top left corner in page units.
+    pub pos: Pos2,
+    pub galley: Arc<Galley>,
 }
 
 /// A file attachment on the page, for clicks and drags.
@@ -167,6 +185,8 @@ pub(super) struct Flow {
     pub raws: Vec<Raw>,
     /// The caret, in page units, when it is in one of the raw regions.
     pub caret: Option<Rect>,
+    /// The text pieces find on page searches, in page order.
+    pub units: Vec<Unit>,
 }
 
 struct Layout<'a> {
@@ -191,10 +211,13 @@ struct Layout<'a> {
     blocks_out: Vec<BlockBox>,
     raws: Vec<Raw>,
     caret: Option<Rect>,
+    units: Vec<Unit>,
     /// An alignment comment was just read; it applies to the next paragraph or heading.
     pending_align: Option<egui::Align>,
     /// Alignment of the paragraph being laid out.
     align: egui::Align,
+    /// Inline formulas ready to draw, by source and text size.
+    inline_math: math::InlineMap,
 }
 
 /// Lay out the page's containers at `zoom` (1.0 is 100%). Containers without a position stack
@@ -229,8 +252,10 @@ pub(super) fn layout(
         blocks_out: Vec::new(),
         raws: Vec::new(),
         caret: None,
+        units: Vec::new(),
         pending_align: None,
         align: egui::Align::Min,
+        inline_math: math::InlineMap::new(),
     };
     let mut y_flow = TOP;
     let mut bottom = TOP;
@@ -276,6 +301,7 @@ pub(super) fn layout(
         blocks: ctx.blocks_out,
         raws: ctx.raws,
         caret: ctx.caret,
+        units: ctx.units,
     }
 }
 
@@ -592,6 +618,18 @@ impl Layout<'_> {
                 }
                 self.paragraph_text(&mut pending, x, width, y);
             }
+            BlockKind::Paragraph { runs } if runs.iter().any(|r| r.math == Math::Display) => {
+                let mut pending: Vec<Run> = Vec::new();
+                for run in runs {
+                    if run.math != Math::Display {
+                        pending.push(run.clone());
+                        continue;
+                    }
+                    self.paragraph_text(&mut pending, x, width, y);
+                    self.display_math(run, x, width, y);
+                }
+                self.paragraph_text(&mut pending, x, width, y);
+            }
             BlockKind::Paragraph { runs } => {
                 self.align = pending.unwrap_or(egui::Align::Min);
                 let h = self.text(runs, BODY_SIZE, false, tokens.text, x, *y, width);
@@ -821,6 +859,7 @@ impl Layout<'_> {
                 None if matches!(kind, ListKind::Ordered(_)) => {
                     let number = u64::from(first_number).saturating_add(index as u64);
                     let label = vec![Run::plain(format!("{number}."))];
+                    let units = self.units.len();
                     self.text(
                         &label,
                         BODY_SIZE,
@@ -830,6 +869,8 @@ impl Layout<'_> {
                         top,
                         INDENT,
                     );
+                    // The number is not page text.
+                    self.units.truncate(units);
                 }
                 None => self.items.push(Item::Dot {
                     center: Pos2::new(marker_x + 5.0, top + line / 2.0),
@@ -866,6 +907,10 @@ impl Layout<'_> {
         self.items.push(Item::Fill {
             rect: Rect::from_min_size(Pos2::new(x, top), egui::vec2(width, height + 2.0 * pad)),
             color: fill,
+        });
+        self.units.push(Unit {
+            pos: Pos2::new(x + pad, top + pad),
+            galley: galley.clone(),
         });
         self.items.push(Item::Text {
             pos: Pos2::new(x + pad, top + pad),
@@ -920,6 +965,10 @@ impl Layout<'_> {
                 };
                 let pos = Pos2::new(x + c as f32 * col_w + pad + dx, row_top + pad);
                 let bold = (is_header && !self.bold_face).then(|| galley.clone());
+                self.units.push(Unit {
+                    pos,
+                    galley: galley.clone(),
+                });
                 self.items.push(Item::Text { pos, galley, bold });
             }
             *y += row_h;
@@ -962,6 +1011,7 @@ impl Layout<'_> {
         if runs.is_empty() {
             return 0.0;
         }
+        self.prepare_inline_math(runs, size);
         let galley = self.galley(runs, size, bold, color, width);
         let height = galley.size().y / self.zoom;
         let wants_ghost = runs.iter().any(|r| self.overstruck(r, bold));
@@ -972,6 +1022,11 @@ impl Layout<'_> {
             egui::Align::Center => x + width / 2.0,
             egui::Align::Max => x + width,
         };
+        self.units.push(Unit {
+            pos: Pos2::new(x, y),
+            galley: galley.clone(),
+        });
+        self.place_inline_math(runs, size, &galley, Pos2::new(x, y));
         self.items.push(Item::Text {
             pos: Pos2::new(x, y),
             galley,
@@ -999,6 +1054,32 @@ impl Layout<'_> {
         job.wrap.max_width = (width * self.zoom).max(1.0);
         job.halign = self.align;
         for run in runs {
+            if run.math == Math::Inline {
+                if let Some(ready) = self.inline_math.get(&(run.text.clone(), size.to_bits())) {
+                    // Room for the formula, drawn over the gap after layout.
+                    let wanted = (ready.ascent + ready.descent) * 1.1 * self.zoom;
+                    job.append(
+                        &math::PLACEHOLDER.to_string(),
+                        ready.width * self.zoom,
+                        TextFormat {
+                            font_id: FontId::new(size * self.zoom, FontFamily::Proportional),
+                            color: Color32::TRANSPARENT,
+                            line_height: (wanted > size * 1.3 * self.zoom).then_some(wanted),
+                            valign: egui::Align::Center,
+                            ..TextFormat::default()
+                        },
+                    );
+                    continue;
+                }
+            }
+            // A formula that is not drawn is shown as its source.
+            let source_run;
+            let run = if run.math == Math::None {
+                run
+            } else {
+                source_run = math::source_run(run);
+                &source_run
+            };
             let is_bold = self.overstruck(run, bold);
             let family = if run.code {
                 FontFamily::Monospace
@@ -1019,7 +1100,8 @@ impl Layout<'_> {
             if run.script != Script::None {
                 run_size *= 0.7;
             }
-            let mut text_color = if run.link.is_some() {
+            let is_link = run.link.is_some() || run.page_link.is_some();
+            let mut text_color = if is_link {
                 self.tokens.accent
             } else if let Some(rgb) = run.color {
                 rgb_color(rgb)
@@ -1029,12 +1111,11 @@ impl Layout<'_> {
             if only_bold && !is_bold {
                 text_color = Color32::TRANSPARENT;
             }
-            let underline =
-                if (run.link.is_some() || run.underline) && text_color != Color32::TRANSPARENT {
-                    Stroke::new(1.0, text_color)
-                } else {
-                    Stroke::NONE
-                };
+            let underline = if (is_link || run.underline) && text_color != Color32::TRANSPARENT {
+                Stroke::new(1.0, text_color)
+            } else {
+                Stroke::NONE
+            };
             let strikethrough = if run.strike && text_color != Color32::TRANSPARENT {
                 Stroke::new(1.0, text_color)
             } else {
@@ -1094,6 +1175,27 @@ impl Layout<'_> {
 }
 
 impl Flow {
+    /// The matches of `query` in the page text, in page order. Each match is the rectangles
+    /// it covers (one per row of text it spans), in page units. Case-insensitive; at most
+    /// `notecraft_engine::find::MAX_MATCHES`.
+    pub(super) fn find_rects(&self, query: &str) -> Vec<Vec<Rect>> {
+        let query = notecraft_engine::find::clean_query(query);
+        let mut out: Vec<Vec<Rect>> = Vec::new();
+        for unit in &self.units {
+            let room = notecraft_engine::find::MAX_MATCHES.saturating_sub(out.len());
+            if room == 0 {
+                break;
+            }
+            let text = &unit.galley.job.text;
+            for range in notecraft_engine::find::find_ranges(text, &query, room) {
+                let from = text.get(..range.start).map_or(0, |t| t.chars().count());
+                let to = text.get(..range.end).map_or(from, |t| t.chars().count());
+                out.push(galley_rects(&unit.galley, unit.pos, self.zoom, from, to));
+            }
+        }
+        out
+    }
+
     /// The color of the text under page position `at`, or `None` when there is no text there.
     /// Text with no color of its own is drawn in `automatic`.
     pub(super) fn text_color_at(&self, at: Vec2, automatic: Color32) -> Option<Color32> {
@@ -1135,6 +1237,46 @@ impl Flow {
         }
         None
     }
+}
+
+/// The rectangles, in page units, of characters `from..to` of `galley`, which sits at `pos` and
+/// was laid out at `zoom`. One per row; an empty range gives none.
+fn galley_rects(galley: &Galley, pos: Pos2, zoom: f32, from: usize, to: usize) -> Vec<Rect> {
+    use egui::text::CCursor;
+    if to <= from {
+        return Vec::new();
+    }
+    let zoom = zoom.max(0.01);
+    let min = galley.layout_from_cursor(CCursor::new(from));
+    let max = galley.layout_from_cursor(CCursor::new(to));
+    let mut rects = Vec::new();
+    for row_index in min.row..=max.row {
+        let Some(placed) = galley.rows.get(row_index) else {
+            break;
+        };
+        let left = if row_index == min.row {
+            placed.x_offset(min.column)
+        } else {
+            0.0
+        };
+        let right = if row_index == max.row {
+            placed.x_offset(max.column)
+        } else {
+            placed.size.x
+        };
+        if right <= left {
+            continue;
+        }
+        let rect = Rect::from_min_max(
+            Pos2::new(placed.pos.x + left, placed.pos.y),
+            Pos2::new(placed.pos.x + right, placed.pos.y + placed.size.y),
+        );
+        rects.push(Rect::from_min_max(
+            pos + rect.min.to_vec2() / zoom,
+            pos + rect.max.to_vec2() / zoom,
+        ));
+    }
+    rects
 }
 
 /// Draw the laid-out page.
@@ -1202,6 +1344,13 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
                             tokens.text_muted,
                         );
                     }
+                }
+            }
+            Item::Math { rect, texture } => {
+                let r = Rect::from_min_max(to_screen(rect.min), to_screen(rect.max));
+                if r.intersects(clip) {
+                    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+                    painter.image(*texture, r, uv, Color32::WHITE);
                 }
             }
             Item::File { rect, name, ext } => {
@@ -1626,6 +1775,115 @@ mod tests {
                     }
                 }
             }
+        });
+    }
+
+    const FIND_PAGE: &str = "# Find me
+
+1. first find
+2. second
+
+- bullet FIND
+
+> quoted find
+
+```
+code find
+```
+
+| a | Find |
+|---|---|
+| x | y find |
+
+<!-- notecraft:align=center -->
+Centered find
+
+Before ![find alt](a.png) after find
+
+[find.txt](files/find.txt)
+
+<!-- notecraft:container id=c1 -->
+In the second find container
+";
+
+    #[test]
+    fn the_laid_out_text_pieces_are_the_ones_the_engine_searches() {
+        let tokens = tokens();
+        with_painter(|painter| {
+            let flow = lay(painter, FIND_PAGE, 1.0, &tokens, None);
+            let doc = notecraft_markdown::parse(FIND_PAGE);
+            let runs = notecraft_markdown::split_containers(FIND_PAGE, &doc);
+            let units = notecraft_engine::find::page_units(&doc, &runs);
+            let laid: Vec<&str> = flow
+                .units
+                .iter()
+                .map(|u| u.galley.job.text.as_str())
+                .collect();
+            assert_eq!(laid, units, "layout and engine disagree");
+            for query in [
+                "find",
+                "FIND",
+                "e",
+                "x",
+                "nothing here",
+                "second find container",
+            ] {
+                let engine = notecraft_engine::find::find_in_units(&units, query).len();
+                assert_eq!(flow.find_rects(query).len(), engine, "{query}");
+            }
+            assert!(flow.find_rects("find").len() >= 9);
+            assert!(flow.find_rects("").is_empty());
+        });
+    }
+
+    #[test]
+    fn a_match_that_wraps_covers_one_rectangle_per_row() {
+        let tokens = tokens();
+        let text = "word ".repeat(200);
+        with_painter(|painter| {
+            let flow = lay(painter, &text, 1.0, &tokens, None);
+            // 200 characters: longer than a row, and under the query limit.
+            let whole = flow.find_rects(&"word ".repeat(40));
+            assert_eq!(whole.len(), 4);
+            let rects = whole.first().expect("a match");
+            assert!(rects.len() >= 2, "{rects:?}");
+            assert!(rects.iter().all(|r| r.width() > 0.0 && r.height() > 0.0));
+            let one = flow.find_rects("word");
+            assert_eq!(one.len(), 200);
+            // Matches go down the page in order.
+            let tops: Vec<f32> = one
+                .iter()
+                .filter_map(|m| m.first())
+                .map(|r| r.min.y)
+                .collect();
+            assert!(tops.windows(2).all(|w| w[0] <= w[1]));
+        });
+    }
+
+    #[test]
+    fn a_zoomed_page_gives_matches_in_page_units() {
+        let tokens = tokens();
+        with_painter(|painter| {
+            let at_100 = lay(
+                painter,
+                "Hello find here
+",
+                1.0,
+                &tokens,
+                None,
+            )
+            .find_rects("find");
+            let at_200 = lay(
+                painter,
+                "Hello find here
+",
+                2.0,
+                &tokens,
+                None,
+            )
+            .find_rects("find");
+            let (a, b) = (at_100[0][0], at_200[0][0]);
+            assert!((a.min.x - b.min.x).abs() < 1.5 && (a.width() - b.width()).abs() < 1.5);
         });
     }
 

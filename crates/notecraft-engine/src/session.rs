@@ -19,6 +19,7 @@ pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
 mod attach;
+mod find;
 mod objects;
 
 pub use attach::{AttachKind, Attached, InlineEdit, InsertError};
@@ -110,6 +111,8 @@ pub struct Session {
     /// Per notebook, goes up when the tree is read again; guards background index results.
     tree_generations: BTreeMap<String, u64>,
     ink: InkState,
+    /// The search box and its results (see `search`).
+    search: crate::search::SearchState,
     /// The caret and selection of text editing, with the page they belong to.
     text_cursor: Option<(String, TextCursor)>,
     /// Container geometry by page id, then container id. A container missing here is in the
@@ -117,6 +120,8 @@ pub struct Session {
     containers: BTreeMap<String, BTreeMap<String, notecraft_model::Container>>,
     /// Pictures and file attachments with a place of their own, by page id (see `objects`).
     objects: BTreeMap<String, Vec<notecraft_model::PlacedObject>>,
+    /// The find bar: its query and which match is current (see [`crate::find`]).
+    find: crate::find::FindState,
     pub(crate) history: History,
     /// Saving, recovery, and outside-edit state (`saving.rs`).
     saving: saving::SavingState,
@@ -377,6 +382,15 @@ impl Session {
             revision: *rev,
             text,
         })
+    }
+
+    /// The search box, its scope and sort, and the last results.
+    pub fn search(&self) -> &crate::search::SearchState {
+        &self.search
+    }
+
+    pub(crate) fn search_mut(&mut self) -> &mut crate::search::SearchState {
+        &mut self.search
     }
 
     /// The active draw tool, the pen, and every page's strokes.
