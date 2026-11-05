@@ -73,6 +73,8 @@ arboard = { version = "3", default-features = false, features = ["image-data"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 # SVG pictures on the canvas. resvg is Apache-2.0 OR MIT, pure Rust; its rasterizer tiny-skia is BSD-3-Clause. Text, system fonts, and embedded raster images are off, so an SVG cannot read other files or scan the font folders.
 resvg = { version = "0.48", default-features = false }
+# Unicode NFC for case-insensitive page link matching (PR 2.2). MIT OR Apache-2.0; pure Rust, builds for wasm32. Already in the lockfile through the math stack.
+unicode-normalization = { version = "0.1", default-features = false, features = ["std"] }
 # Equation layout and drawing (PR 2.7): pure Rust TeX-style math layout with an embedded OpenType math font; MIT OR Apache-2.0. Depends only on ttf-parser. docs/architecture.md records the evaluation.
 latex-rust = "=2.1.1"
 # craft-libs: every crate from one pinned commit (docs/craft-libs.md section 5).

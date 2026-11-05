@@ -129,6 +129,19 @@ pub fn find_page_links(source: &str, base: usize) -> Vec<PageLink> {
     out
 }
 
+/// Most links read from one page (docs/markdown.md section 9); the rest are not indexed.
+pub const MAX_PAGE_LINKS: usize = 10_000;
+
+/// Every page link in a whole page file (frontmatter included), with spans that are offsets
+/// into `source`, and at most [`MAX_PAGE_LINKS`] of them. The frontmatter is not searched.
+pub fn page_links_of(source: &str) -> Vec<PageLink> {
+    let body_start = crate::frontmatter::parse(source).map_or(0, |front| front.span.end);
+    let body = source.get(body_start..).unwrap_or("");
+    let mut links = find_page_links(body, body_start);
+    links.truncate(MAX_PAGE_LINKS);
+    links
+}
+
 /// The link that starts at `at` (which holds `[[`), and the offset just past it. Spans in the
 /// result are offsets into `source`.
 fn link_at(source: &str, at: usize, in_table: bool) -> Option<(PageLink, usize)> {
