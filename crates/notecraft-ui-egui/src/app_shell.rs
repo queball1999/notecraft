@@ -856,6 +856,15 @@ impl AppShell {
                     crate::search_pane::show(ui, session, search_ui, &tokens, &mut clicked)
                 });
         }
+        if session.tag_summary().open {
+            egui::Panel::right("tag_summary")
+                .default_size(crate::tag_summary_pane::WIDTH)
+                .resizable(true)
+                .frame(panel.fill(tokens.sidebar_bg))
+                .show(ui, |ui| {
+                    crate::tag_summary_pane::show(ui, session, &tokens, &mut clicked)
+                });
+        }
         let canvas_width = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(tokens.canvas_bg))
             .show(ui, |ui| {

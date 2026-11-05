@@ -14,6 +14,7 @@ use crate::session::Session;
 const MAX_QUERY_CHARS: usize = 512;
 
 fn open_box(session: &mut Session) {
+    session.tag_summary_mut().open = false;
     let state = session.search_mut();
     state.open = true;
     state.open_serial = state.open_serial.wrapping_add(1);

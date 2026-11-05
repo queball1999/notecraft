@@ -6,7 +6,7 @@ use super::page;
 use super::search;
 use super::{
     attach, canvas, draw, edit, equation, file, find, format, ids, layout, links, nav, stamp,
-    structure, tags, text, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
+    structure, tag_summary, tags, text, theme, ArgKind, ArgSpec, CommandId, CommandSpec, Handler,
 };
 
 const FIND_ARGS: &[ArgSpec] = &[ArgSpec::optional(
@@ -497,6 +497,51 @@ const SEARCH_RUN_ARGS: &[ArgSpec] = &[
         "relevance, section, title, or modified (default: the last sort used).",
     ),
 ];
+const TAG_FIND_ARGS: &[ArgSpec] = &[
+    ArgSpec::optional(
+        "scope",
+        ArgKind::String,
+        "page, section, group, notebook, or all (default: the last scope used).",
+    ),
+    ArgSpec::optional(
+        "group",
+        ArgKind::String,
+        "tag, section, title, or date (default: the last grouping used).",
+    ),
+    ArgSpec::optional(
+        "only_unchecked",
+        ArgKind::Bool,
+        "True to hide checked To Do items.",
+    ),
+];
+const TAG_SUMMARY_GROUP_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "group",
+    ArgKind::String,
+    "tag, section, title, or date.",
+)];
+const TAG_SUMMARY_UNCHECKED_ARGS: &[ArgSpec] = &[ArgSpec::required(
+    "value",
+    ArgKind::Bool,
+    "True to show only unchecked items.",
+)];
+const TAG_SUMMARY_ITEM_ARGS: &[ArgSpec] = &[
+    ArgSpec::required("page", ArgKind::String, "The id of the page."),
+    ArgSpec::required(
+        "at",
+        ArgKind::Integer,
+        "Byte offset of the paragraph in the page text.",
+    ),
+    ArgSpec::optional(
+        "tag",
+        ArgKind::String,
+        "The tag id, to find the paragraph again.",
+    ),
+    ArgSpec::optional(
+        "text",
+        ArgKind::String,
+        "The paragraph text, to find the paragraph again.",
+    ),
+];
 const SEARCH_SCOPE_ARGS: &[ArgSpec] = &[ArgSpec::required(
     "scope",
     ArgKind::String,
@@ -925,7 +970,56 @@ pub(super) static SPECS: &[CommandSpec] = &[
         ids::TAG_FIND,
         "Find Tags",
         "List every tagged note in the Tags Summary pane.",
-    ),
+    )
+    .args(TAG_FIND_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_SET_SCOPE,
+        "Tags Summary Scope",
+        "Choose where the Tags Summary looks.",
+    )
+    .args(SEARCH_SCOPE_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_SET_GROUP,
+        "Group Tags By",
+        "Choose how the Tags Summary groups its items.",
+    )
+    .args(TAG_SUMMARY_GROUP_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_SET_UNCHECKED,
+        "Show Only Unchecked Items",
+        "Hide checked To Do items in the Tags Summary.",
+    )
+    .args(TAG_SUMMARY_UNCHECKED_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_REFRESH,
+        "Refresh Results",
+        "Read the tags again and refresh the Tags Summary.",
+    )
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_OPEN_ITEM,
+        "Go to Tagged Item",
+        "Show the page of a tagged item with the caret at its paragraph.",
+    )
+    .args(TAG_SUMMARY_ITEM_ARGS)
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_CREATE_PAGE,
+        "Create Summary Page",
+        "Write a Tags Summary page in the current section.",
+    )
+    .undoable()
+    .ready(),
+    CommandSpec::new(
+        ids::TAG_SUMMARY_CLOSE,
+        "Close Tags Summary",
+        "Hide the Tags Summary pane.",
+    )
+    .ready(),
     CommandSpec::new(
         ids::TAG_CUSTOMIZE,
         "Customize Tags",
@@ -1925,6 +2019,14 @@ static HANDLERS: &[(CommandId, Handler)] = &[
     (ids::LINK_PICKER_CHOOSE, links::picker_choose),
     (ids::LINK_PICKER_MOVE, links::picker_move),
     (ids::LINK_PICKER_CLOSE, links::picker_close),
+    (ids::TAG_FIND, tag_summary::find),
+    (ids::TAG_SUMMARY_SET_SCOPE, tag_summary::set_scope),
+    (ids::TAG_SUMMARY_SET_GROUP, tag_summary::set_group),
+    (ids::TAG_SUMMARY_SET_UNCHECKED, tag_summary::set_unchecked),
+    (ids::TAG_SUMMARY_REFRESH, tag_summary::refresh),
+    (ids::TAG_SUMMARY_OPEN_ITEM, tag_summary::open_item),
+    (ids::TAG_SUMMARY_CREATE_PAGE, tag_summary::create_page),
+    (ids::TAG_SUMMARY_CLOSE, tag_summary::close),
     (ids::SEARCH_OPEN, search::open),
     (ids::SEARCH_ALL, search::all),
     (ids::SEARCH_RUN, search::run),

@@ -30,6 +30,9 @@ mod search;
 pub mod shortcuts;
 mod stamp;
 pub(crate) mod structure;
+mod tag_summary;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tag_summary_tests;
 mod tags;
 #[cfg(test)]
 mod tags_tests;

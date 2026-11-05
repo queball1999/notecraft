@@ -762,6 +762,8 @@ const UNDO_TESTED_ELSEWHERE: &[&str] = &[
     // The page picker commands need the picker open first; cmd/links_tests.rs covers them.
     "link.picker.open",
     "link.picker.choose",
+    // The summary page needs Tags Summary results first; cmd/tag_summary_tests.rs covers it.
+    "tag.summary.create_page",
 ];
 
 /// How to run each Ready undoable command in a test. A PR that makes another command

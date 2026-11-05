@@ -37,6 +37,9 @@ mod search_pane;
 pub mod shortcuts;
 pub mod start;
 pub mod status;
+mod tag_summary_pane;
+#[cfg(test)]
+mod tag_summary_tests;
 pub mod themes;
 pub mod toast;
 mod whats_new;
