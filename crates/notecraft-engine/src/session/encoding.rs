@@ -34,6 +34,17 @@ impl Session {
             .is_some_and(|id| self.saving.legacy.contains_key(id) && self.page_text(id).is_some())
     }
 
+    /// How the page shown was decoded, when it is read-only only because its file is not
+    /// UTF-8 text (the bar names it, so the user can tell whether the guess was right before
+    /// converting).
+    pub fn current_page_legacy_encoding(&self) -> Option<PageEncoding> {
+        if !self.can_convert_to_utf8() {
+            return None;
+        }
+        let id = self.selection.page.as_deref()?;
+        self.saving.legacy.get(id).copied()
+    }
+
     /// `page.convert_encoding`: keep the original bytes of the page shown, rewrite its file as
     /// UTF-8 with the same text (line endings kept), and make the page editable. The file is
     /// read again first; if it no longer holds the text the page shows, nothing is written.

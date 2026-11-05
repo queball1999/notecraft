@@ -29,7 +29,7 @@ pub use ink::{
     MAX_PEN_POINTS, MAX_PEN_TOOLS, MIN_PEN_POINTS,
 };
 pub use notecraft_core::InkTexture;
-pub use notecraft_storage::{RecoveryEntry, NOT_UTF8_NOTICE};
+pub use notecraft_storage::{PageEncoding, RecoveryEntry, NOT_UTF8_NOTICE};
 pub use search::{
     AttachmentInfo, HitKind, SearchContext, SearchHit, SearchResults, SearchRoot, SearchScope,
     SearchSort, SearchState,

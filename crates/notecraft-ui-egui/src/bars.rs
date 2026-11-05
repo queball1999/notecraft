@@ -6,7 +6,7 @@
 
 use egui::{Align, Layout, Rect, RichText, Ui};
 use notecraft_engine::cmd::{ids, CommandId, Value};
-use notecraft_engine::Session;
+use notecraft_engine::{PageEncoding, Session};
 
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
@@ -25,7 +25,7 @@ pub enum Bar {
     /// fresh block replaces it (`page.repair_canvas`).
     CanvasUnreadable,
     /// The page file is not UTF-8 text; it is read-only until converted (`page.convert_encoding`).
-    NotUtf8,
+    NotUtf8(PageEncoding),
 }
 
 /// The bars to show now, top to bottom: the global recovery question first, then the shown
@@ -39,8 +39,8 @@ pub fn all(session: &Session) -> Vec<Bar> {
     if session.current_conflict().is_some() {
         bars.push(Bar::Conflict);
     }
-    if session.can_convert_to_utf8() {
-        bars.push(Bar::NotUtf8);
+    if let Some(encoding) = session.current_page_legacy_encoding() {
+        bars.push(Bar::NotUtf8(encoding));
     }
     if session.can_repair_canvas() {
         bars.push(Bar::CanvasUnreadable);
@@ -65,7 +65,10 @@ pub fn message(bar: Bar) -> String {
         Bar::Conflict => {
             "This page was changed outside NoteCraft. Your version is still open.".to_owned()
         }
-        Bar::NotUtf8 => notecraft_engine::NOT_UTF8_NOTICE.to_owned(),
+        Bar::NotUtf8(encoding) => format!(
+            "This page is not saved as UTF-8 text. NoteCraft read it as {} and opened it read-only.",
+            encoding.label()
+        ),
         Bar::CanvasUnreadable => {
             "The ink and layout of this page could not be read, so it is read-only.".to_owned()
         }
@@ -75,7 +78,7 @@ pub fn message(bar: Bar) -> String {
 fn buttons(bar: Bar) -> Vec<(&'static str, CommandId)> {
     match bar {
         Bar::CanvasUnreadable => vec![("Repair", ids::PAGE_REPAIR_CANVAS)],
-        Bar::NotUtf8 => vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)],
+        Bar::NotUtf8(_) => vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)],
         Bar::Recovery(_) => vec![
             ("Restore", ids::FILE_RESTORE_UNSAVED),
             ("Discard", ids::FILE_DISCARD_UNSAVED),
@@ -149,7 +152,8 @@ pub(crate) mod tests {
             Bar::Recovery(3),
             Bar::Conflict,
             Bar::CanvasUnreadable,
-            Bar::NotUtf8,
+            Bar::NotUtf8(PageEncoding::Windows1252),
+            Bar::NotUtf8(PageEncoding::Utf16Le),
         ] {
             assert!(message(bar).is_ascii());
         }
@@ -246,9 +250,10 @@ pub(crate) mod tests {
         session.open_notebook(opened.notebook);
         session.set_notebook_root(&id, dir.path());
         session.load_current_page();
-        assert_eq!(all(&session), vec![Bar::NotUtf8]);
+        assert_eq!(all(&session), vec![Bar::NotUtf8(PageEncoding::Windows1252)]);
+        assert!(message(Bar::NotUtf8(PageEncoding::Windows1252)).contains("Windows-1252"));
         assert_eq!(
-            buttons(Bar::NotUtf8),
+            buttons(Bar::NotUtf8(PageEncoding::Windows1252)),
             vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)]
         );
     }
