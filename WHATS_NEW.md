@@ -12,6 +12,34 @@ How to edit it at release time (docs/releasing.md section 2):
 - Plain ASCII and US English only (AGENTS.md section 2). Keep each line under 300
   characters, at most 40 lines per version, and at most 50 versions.
 
+## 0.2.0
+
+Link your pages, search everything, and tag your notes.
+
+### Links
+- Type [[ to pick a page and link to it. Click a link to go there.
+- A link to a page that does not exist yet creates it when you click it.
+- Rename or move a page and the links to it still work.
+
+### Search
+- Press Ctrl+E to search this page, section, section group, notebook, or all notebooks.
+- Search attachments by name or type, for example type:pdf.
+- Press Ctrl+F to find text on the page you are reading.
+
+### Tags
+- Tag a paragraph with Ctrl+1 to Ctrl+9, or from Home > Tags.
+- Customize Tags lets you rename, recolor, reorder, add, and hide tags.
+- Find Tags lists your tagged notes and can make a summary page.
+
+### Writing
+- Insert > Equation writes math, with a live preview while you type it.
+- Highlight text in any color.
+- Insert today's date or the time with Alt+Shift+D, Alt+Shift+T, or Alt+Shift+F.
+
+### Safety
+- Files saved in other text encodings open read-only, and can be converted safely.
+- If a page cannot be saved, NoteCraft tells you.
+
 ## 0.0.2
 
 NoteCraft now opens and saves real notebooks.
