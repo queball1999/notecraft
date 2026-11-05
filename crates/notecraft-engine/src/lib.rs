@@ -16,6 +16,7 @@ pub mod ink;
 pub mod io;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod link_index;
+pub mod link_rename;
 pub mod links;
 pub mod mock;
 pub mod open;
@@ -41,8 +42,9 @@ pub use search::{
     SearchSort, SearchState,
 };
 pub use session::{
-    AttachKind, Attached, ConvertOutcome, InsertError, PageNotice, PageSource, ReadPurpose,
-    ReadRequest, RecoveryItem, SaveOutcome, SaveState, Selection, Session, TextCursor, Utf8Outcome,
+    AttachKind, Attached, ConvertOutcome, InsertError, LinkFixOffer, LinkUpdateReport, PageNotice,
+    PageSource, ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState, Selection, Session,
+    TextCursor, Utf8Outcome,
 };
 pub use view::PageStyle;
 

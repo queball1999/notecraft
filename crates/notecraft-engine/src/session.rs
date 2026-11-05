@@ -13,9 +13,11 @@ mod links;
 mod loose;
 mod nav;
 mod page_style;
+mod rename_links;
 mod save;
 mod saving;
 pub use encoding::Utf8Outcome;
+pub use rename_links::{LinkFixOffer, LinkUpdateReport};
 pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
@@ -113,6 +115,13 @@ pub struct Session {
     link_aliases: BTreeMap<String, Vec<String>>,
     /// The page picker opened by typing `[[` (see `links`).
     link_picker: Option<crate::links::LinkPicker>,
+    /// `links.update_on_rename` is off (kept negated so the default is on; see
+    /// `rename_links`).
+    no_link_updates: bool,
+    /// What the last rename or move did to links, until a front end takes it.
+    link_update_report: Option<LinkUpdateReport>,
+    /// The offer to fix links after a rename made outside NoteCraft.
+    link_fix_offer: Option<LinkFixOffer>,
     /// Per notebook, goes up when the tree is read again; guards background index results.
     tree_generations: BTreeMap<String, u64>,
     ink: InkState,
@@ -601,3 +610,6 @@ mod saving_tests;
 mod dirty_follows_tests;
 #[cfg(test)]
 mod encoding_tests;
+
+#[cfg(test)]
+mod rename_links_tests;

@@ -23,6 +23,8 @@ pub struct PageLink {
     pub display: Option<String>,
     /// The pipe that separates target and display (`\|` in a table cell), if there is one.
     pub sep: Option<Span>,
+    /// The link sits in a table cell, where the separator is written `\|`.
+    pub in_table: bool,
 }
 
 impl PageLink {
@@ -161,6 +163,7 @@ fn link_at(source: &str, at: usize, in_table: bool) -> Option<(PageLink, usize)>
         sep: inner
             .sep
             .map(|(from, to)| Span::new(at + 2 + from, at + 2 + to)),
+        in_table,
     };
     Some((link, end))
 }

@@ -586,6 +586,38 @@ impl Session {
         }
     }
 
+    /// Commit a step that renames or moves files (`renames`: old path to new path). Page
+    /// links that pointed into the renamed files are rewritten in the same step (see
+    /// `rename_links`), so one undo restores names and links. If the link edits cannot be
+    /// applied (a page changed while the step was built), the step is made without them and
+    /// the report says so.
+    fn commit_renaming(
+        &mut self,
+        plan: Plan,
+        label: &str,
+        renames: &[(String, String)],
+    ) -> Result<(), EditError> {
+        if let Some(fix) = self.link_fix(plan.id(), renames) {
+            if !fix.ops.is_empty() {
+                let mut ops = fix.ops;
+                ops.extend(plan.ops.iter().cloned());
+                let tx = ops
+                    .into_iter()
+                    .fold(Transaction::new(Scope::Notebook, label), Transaction::with);
+                if self.commit(tx) {
+                    self.link_update_report = Some(fix.report);
+                    return Ok(());
+                }
+                let mut report = fix.report;
+                report.failed = true;
+                self.link_update_report = Some(report);
+            } else {
+                self.link_update_report = Some(fix.report);
+            }
+        }
+        self.commit_plan(plan, label)
+    }
+
     fn page_parts(&self, page: &str) -> Result<(Plan, Section, usize), EditError> {
         let plan = Plan::owning(self, page)?;
         let Some(section) = plan.notebook.section_of_page(page) else {
@@ -673,13 +705,14 @@ impl Session {
             return Ok(page.to_owned());
         }
         plan.relocate(&join(&dir, &old_file), &join(&dir, &file));
+        let renames = [(join(&dir, &old_file), join(&dir, &file))];
         let mut pages = listings(&section);
         if let Some(entry) = pages.get_mut(index) {
             entry.file.clone_from(&file);
         }
         plan.page_order(&dir, pages);
         let id = format!("{}/{}", plan.id(), join(&dir, &file));
-        self.commit_plan(plan, "Rename page")?;
+        self.commit_renaming(plan, "Rename page", &renames)?;
         Ok(id)
     }
 
@@ -773,6 +806,7 @@ impl Session {
         let mut on_disk = names_on_disk(&plan.root.join(&to_dir));
         let mut moved = Vec::new();
         let mut renamed = Vec::new();
+        let mut renames = Vec::new();
         for (entry, old_id) in block.iter().zip(&moved_ids) {
             let file = entry.file.clone();
             let ext = file.rsplit_once('.').map_or("md", |(_, e)| e);
@@ -794,6 +828,7 @@ impl Session {
                 }
             }
             plan.relocate(&join(&from_dir, &file), &join(&to_dir, &new_file));
+            renames.push((join(&from_dir, &file), join(&to_dir, &new_file)));
             renamed.push((
                 old_id.clone(),
                 format!("{}/{}", plan.id(), join(&to_dir, &new_file)),
@@ -813,7 +848,7 @@ impl Session {
             .map(|(_, new)| new.clone())
             .unwrap_or_default();
         let shown = self.selection.page.clone();
-        self.commit_plan(plan, "Move page")?;
+        self.commit_renaming(plan, "Move page", &renames)?;
         if let Some((_, new)) = renamed.iter().find(|(old, _)| Some(old) == shown.as_ref()) {
             self.select_page_id(new);
         }
@@ -1023,7 +1058,8 @@ impl Session {
         plan.relocate(&from, &to);
         plan.child_order(parent_rel.as_deref(), names);
         let new_id = format!("{}/{to}", plan.id());
-        self.commit_plan(plan, "Rename section")?;
+        let renames = [(from, to)];
+        self.commit_renaming(plan, "Rename section", &renames)?;
         Ok(new_id)
     }
 
@@ -1160,7 +1196,8 @@ impl Session {
         plan.child_order(from_parent.as_deref(), from_names);
         plan.child_order(to_parent.as_deref(), to_names);
         let new_id = format!("{}/{to}", plan.id());
-        self.commit_plan(plan, "Move section")?;
+        let renames = [(from, to)];
+        self.commit_renaming(plan, "Move section", &renames)?;
         Ok(new_id)
     }
 

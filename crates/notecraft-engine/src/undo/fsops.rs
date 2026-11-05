@@ -56,6 +56,17 @@ pub enum FsOp {
         before: Option<String>,
         after: Option<String>,
     },
+    /// Replace `removed` at byte offset `at` of the page file `rel` with `inserted`: one
+    /// changed link when a rename updates links (build_plan/04 PR 2.3). A page that is open
+    /// is edited in memory (and saved with the usual checks); any other page is rewritten on
+    /// disk, only if its text still holds `removed` there. Refused for a read-only page.
+    PatchText {
+        notebook: String,
+        rel: String,
+        at: usize,
+        removed: String,
+        inserted: String,
+    },
     /// Take a notebook out of the open list without touching its folder.
     Unlist {
         notebook: String,
@@ -98,6 +109,19 @@ impl FsOp {
                 rel: rel.clone(),
                 before: after.clone(),
                 after: before.clone(),
+            },
+            FsOp::PatchText {
+                notebook,
+                rel,
+                at,
+                removed,
+                inserted,
+            } => FsOp::PatchText {
+                notebook: notebook.clone(),
+                rel: rel.clone(),
+                at: *at,
+                removed: inserted.clone(),
+                inserted: removed.clone(),
             },
             FsOp::Unlist {
                 notebook,
@@ -145,6 +169,13 @@ impl FsOp {
                 let size = |text: &Option<String>| text.as_ref().map_or(0, String::len);
                 BASE + notebook.len() + rel.len() + size(before) + size(after)
             }
+            FsOp::PatchText {
+                notebook,
+                rel,
+                removed,
+                inserted,
+                ..
+            } => BASE + notebook.len() + rel.len() + removed.len() + inserted.len(),
             FsOp::Unlist { notebook, .. } | FsOp::Relist { notebook, .. } => BASE + notebook.len(),
         }
     }
@@ -166,6 +197,13 @@ impl FsOp {
                 after,
                 ..
             } => write(session, notebook, rel, after.as_deref()),
+            FsOp::PatchText {
+                notebook,
+                rel,
+                at,
+                removed,
+                inserted,
+            } => patch(session, notebook, rel, *at, removed, inserted),
             FsOp::Unlist {
                 notebook, index, ..
             } => session.unlist_notebook(notebook, *index),
@@ -262,6 +300,51 @@ fn write(
     if text.is_none() {
         remove_empty_trash_parent(&root, rel);
     }
+    Ok(())
+}
+
+/// `text` with `removed` at `at` replaced by `inserted`; `None` when the text there differs.
+fn spliced(text: &str, at: usize, removed: &str, inserted: &str) -> Option<String> {
+    let end = at.checked_add(removed.len())?;
+    if text.get(at..end) != Some(removed) {
+        return None;
+    }
+    let mut next = String::with_capacity(text.len() + inserted.len());
+    next.push_str(text.get(..at)?);
+    next.push_str(inserted);
+    next.push_str(text.get(end..)?);
+    Some(next)
+}
+
+fn patch(
+    session: &mut Session,
+    notebook: &str,
+    rel: &str,
+    at: usize,
+    removed: &str,
+    inserted: &str,
+) -> Result<(), String> {
+    let root = root_of(session, notebook)?;
+    let path = path_of(&root, rel)?;
+    let id = format!("{notebook}/{rel}");
+    if let Some(text) = session.page_text(&id) {
+        // An open page: edit its text; it saves like any other edit.
+        if session.page_is_read_only(&id) || session.page_has_conflict(&id) {
+            return Err(format!("{rel} cannot be changed now"));
+        }
+        let next = spliced(text, at, removed, inserted)
+            .ok_or_else(|| format!("{rel} changed; its link was not updated"))?;
+        session.replace_page_text(&id, next);
+        session.mark_page_dirty(&id);
+        return Ok(());
+    }
+    let page = notecraft_storage::read_page_file(&path).map_err(|err| err.to_string())?;
+    if page.read_only() {
+        return Err(format!("{rel} is read-only"));
+    }
+    let next = spliced(&page.text, at, removed, inserted)
+        .ok_or_else(|| format!("{rel} changed; its link was not updated"))?;
+    notecraft_storage::write_page_text(&path, &next).map_err(|err| err.to_string())?;
     Ok(())
 }
 

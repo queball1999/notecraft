@@ -762,6 +762,8 @@ const UNDO_TESTED_ELSEWHERE: &[&str] = &[
     // The page picker commands need the picker open first; cmd/links_tests.rs covers them.
     "link.picker.open",
     "link.picker.choose",
+    // Needs an offer from an outside rename first; session/rename_links_tests.rs covers it.
+    "links.fix_after_rename",
 ];
 
 /// How to run each Ready undoable command in a test. A PR that makes another command
