@@ -1,9 +1,9 @@
 # Phase 3: polish and parity
 
-> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: Phase 3 estimate 664-1,126 hours with OneNote import; OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: release numbering stays on 0.0.x until the plan is complete (v0.1.0; maintainer decision); earlier: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: Phase 3 estimate 664-1,126 hours with OneNote import; OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Phase 3 estimate 404-686 hours.
 
 
-Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, performance, and import of OneNote's own files (`.one`, `.onex`, `.onetoc2`, `.onepkg`). Ends with the v0.9.0 beta.
+Goal: close the gap to OneNote for everyday use. Shapes, ink to shape, selection tools, table editing, spell check, trash and page versions, templates, print and PDF, HTML export, copy link to page, new window, Quick Access Toolbar, touch, localization plumbing, performance, and import of OneNote's own files (`.one`, `.onex`, `.onetoc2`, `.onepkg`). Ends with the v0.0.4 beta.
 
 The full control channel, MCP server, full CLI, and plugins are not OneNote features and are not in this plan (docs/post-parity.md).
 
@@ -353,16 +353,16 @@ PR 3.16 can start as soon as Phase 3 opens; PR 3.17 lands after the PRs it maps 
 
 ## PR 3.13: close Phase 3 and ship the beta
 
-Follow 00-conventions.md section 6; release v0.9.0.
+Follow 00-conventions.md section 6; release v0.0.4.
 
-## Beta to 1.0 hardening
+## Beta hardening
 
-Not new features. Between v0.9.0 and v1.0.0, work only from docs/gaps.md: beta bug reports, crash reports, parity rows still at P, accessibility fixes, docs completeness. Use `fix/` and `docs/` branches off `main` (no phase branch). Release candidates `1.0.0-rc.n` from the `release` branch until a candidate has had two weeks with no new P1 bugs.
+Not new features. Between v0.0.4 and v0.0.5, work only from docs/gaps.md: beta bug reports, crash reports, parity rows still at P, accessibility fixes, docs completeness. Use `fix/` and `docs/` branches off `main` (no phase branch). Release candidates `0.0.5-rc.n` from the `release` branch until a candidate has had two weeks with no new P1 bugs.
 
 | | |
 |---|---|
 | Hours | 80-160 |
-| Ends with | v1.0.0 |
+| Ends with | v0.0.5 |
 
 ## Estimate
 
@@ -387,14 +387,14 @@ Not new features. Between v0.9.0 and v1.0.0, work only from docs/gaps.md: beta b
 | 3.17 OneNote import | 120-200 |
 | Total | 664-1,126 |
 
-Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
+Beta hardening (section above) adds 80-160 hours outside the phase.
 
 ## Exit criteria
 
 - Every row listed at the top scored D (AT-06 may stay P, see PR 3.8).
-- The beta is followed by the hardening work above, ending in v1.0.0.
+- The beta is followed by the hardening work above, ending in v0.0.5.
 - Overall parity about 70% (docs/target-app-parity.md).
-- v0.9.0 published.
+- v0.0.4 published.
 
 ## Revision history
 
@@ -409,3 +409,4 @@ Beta to 1.0 hardening (section above) adds 80-160 hours outside the phase.
 | 2026-10-16 | 1 | Added PR 3.16 (OneNote file reader) and PR 3.17 (OneNote import with full fidelity) for `.one`, `.onex`, `.onetoc2`, and `.onepkg`, moved up from Phase 4 by maintainer decision; Phase 3 estimate 664-1,126 hours (on top of Ink Replay). |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |
+| 2026-11-05 | 2 | Version numbering: v0.0.4 beta, v0.0.5 after beta hardening, 0.0.x through Phase 4, and v0.1.0 when the plan is complete (maintainer decision); replaces v0.9.0, v1.0.0, and 1.x. |

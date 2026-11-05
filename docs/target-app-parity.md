@@ -1,6 +1,6 @@
 # OneNote parity assessment
 
-> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: text highlight color and date and time stamps scored D (PR 2.8); earlier: Equations scored P (PR 2.7); earlier: rule lines, grid, and page color scored D (saved in the page frontmatter); earlier: rows re-scored and the Now column filled for the state after Phase 1 merged into main (#55); page color and rule lines are P (not saved to the page file yet); font, size, and color per run are D (`<span style>`); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.10: the pen and input rows are partial; PR 1.8: undo and redo is partial; Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Ink to Math stays not planned; PR 1.11: the highlighter and both erasers are partial; find on page scored D (PR 2.9).
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: release numbering stays on 0.0.x until the plan is complete (v0.1.0; maintainer decision); earlier: Phase 2 close review (stage line, review date); earlier: text highlight color and date and time stamps scored D (PR 2.8); earlier: Equations scored P (PR 2.7); earlier: rule lines, grid, and page color scored D (saved in the page frontmatter); earlier: rows re-scored and the Now column filled for the state after Phase 1 merged into main (#55); page color and rule lines are P (not saved to the page file yet); font, size, and color per run are D (`<span style>`); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 1.10: the pen and input rows are partial; PR 1.8: undo and redo is partial; Ink Replay scheduled in PR 3.2 (maintainer decision, 2026-10-15); Ink to Math stays not planned; PR 1.11: the highlighter and both erasers are partial; find on page scored D (PR 2.9).
 
 
 Target: OneNote for Windows as shipped around 2020 (OneNote 2016 desktop and the Microsoft 365 app of that era), with theme presets for 2016, 2019, 2021, and Microsoft 365. NoteCraft matches OneNote's workflow and layout one to one. It differs on purpose in one place: storage. OneNote keeps notebooks in a binary format; NoteCraft keeps them as markdown folders (docs/markdown.md).
@@ -13,7 +13,7 @@ Scores follow [parity-checklist.md](parity-checklist.md): D = done, P = partial,
 
 Hours are the sum of the build plan PRs mapped to each area (ROADMAP.md has the same numbers). "Full parity" includes Phase 4.
 
-| Area | Now | Alpha target | Beta target | 1.0 target | Hours to 1.0 | Hours to full parity |
+| Area | Now | Alpha target | Beta target | Hardened (v0.0.5) target | Hours to v0.0.5 | Hours to full parity |
 |---|---:|---:|---:|---:|---|---|
 | Canvas and freeform layout | 50% | 15% | 70% | 90% | 90-152 | 90-152 |
 | Ink and drawing | 25% | 10% | 65% | 85% | 154-262 | 294-518 |
@@ -26,7 +26,7 @@ Hours are the sum of the build plan PRs mapped to each area (ROADMAP.md has the 
 | Print and export | 0% | 0% | 70% | 90% | 88-153 | 88-153 |
 | Overall (user-facing areas) | about 45% | about 25% | about 70% | about 90% | 916-1,556 | 1,212-2,100 |
 
-Shared work not tied to one area (file formats, command registry, localization, performance and hardening, browser build, scaffolding) adds 363-646 hours to 1.0 and 711-1,330 hours to full parity. ROADMAP.md lists it by dimension.
+Shared work not tied to one area (file formats, command registry, localization, performance and hardening, browser build, scaffolding) adds 363-646 hours to v0.0.5 and 711-1,330 hours to full parity. ROADMAP.md lists it by dimension.
 
 ## 1. Canvas and freeform layout
 
@@ -60,7 +60,7 @@ Shared work not tied to one area (file formats, command registry, localization, 
 | Ink to Text (handwriting recognition) | On-device recognizer | 4 | M |
 | Search handwritten notes | Index recognized text | 4 | M |
 | Ink replay | Strokes replayed in drawing order with a transport bar | 3 | M |
-| Ink to Math | Not planned for 1.x | n/a | M |
+| Ink to Math | Not planned before v0.1.0 | n/a | M |
 
 ## 3. Text and formatting
 
@@ -185,3 +185,4 @@ Four presets, each in light and dark (docs/themes.md). Palettes are original col
 | 2026-10-24 | 2 | Find on page scored D (PR 2.9, TX-11). |
 | 2026-11-05 | 2 | Text highlight color and Insert date and time stamps scored D (PR 2.8). |
 | 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |
+| 2026-11-05 | 2 | Version numbering: v0.0.4 beta, v0.0.5 after beta hardening, 0.0.x through Phase 4, and v0.1.0 when the plan is complete (maintainer decision); replaces v0.9.0, v1.0.0, and 1.x. |

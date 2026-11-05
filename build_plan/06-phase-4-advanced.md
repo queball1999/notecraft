@@ -1,9 +1,9 @@
 # Phase 4: advanced (post-1.0)
 
-> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 4.1 note from the WordCraft ink survey; PR 4.5 finishes the `make server` placeholder in the new root Makefile.
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: release numbering stays on 0.0.x until the plan is complete (v0.1.0; maintainer decision); earlier: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: OneNote import of every OneNote file type (`.one`, `.onex`, `.onetoc2`, `.onepkg`) moved into Phase 3 with full fidelity (PR 3.16, 3.17; maintainer decision, 2026-10-16); PR 4.1 note from the WordCraft ink survey; PR 4.5 finishes the `make server` placeholder in the new root Makefile.
 
 
-Goal: the remaining OneNote features, which are large and independent of each other: handwriting recognition and ink search, the OneNote import of content that needs these features (the reader and full import are in Phase 3), a browser build (OneNote has a web version), sync research, docked window, right-to-left layout, translations, OCR (copy text from picture), audio and video recording, and password-protected sections. Together with v1.0.0 these complete full OneNote parity. Order by user demand.
+Goal: the remaining OneNote features, which are large and independent of each other: handwriting recognition and ink search, the OneNote import of content that needs these features (the reader and full import are in Phase 3), a browser build (OneNote has a web version), sync research, docked window, right-to-left layout, translations, OCR (copy text from picture), audio and video recording, and password-protected sections. Together with v0.0.5 these complete full OneNote parity, released as v0.1.0. Order by user demand.
 
 | | |
 |---|---|
@@ -13,7 +13,7 @@ Goal: the remaining OneNote features, which are large and independent of each ot
 
 ## Entry criteria
 
-- v1.0.0 published.
+- v0.0.5 published (beta hardening done).
 - Each PR below starts with a short design note in its PR body (or a doc in `docs/` for the larger ones) reviewed by the maintainer before code. These estimates are the least certain in the plan; re-estimate after each design note.
 
 ## PR 4.1: handwriting recognition
@@ -188,7 +188,7 @@ Commits:
 
 ## PR 4.12: close Phase 4
 
-Follow 00-conventions.md section 6 whenever the chosen subset is done; release as 1.x minor versions as items land.
+Follow 00-conventions.md section 6 whenever the chosen subset is done; release 0.0.x versions as items land, and v0.1.0 when the plan is complete (full OneNote parity; maintainer decision, 2026-11-05).
 
 ## Estimate
 
@@ -225,3 +225,4 @@ Follow 00-conventions.md section 6 whenever the chosen subset is done; release a
 | 2026-10-16 | 1 | OneNote reader and full import moved to Phase 3 (PR 3.16, 3.17) by maintainer decision; PR 4.3 now imports only content that needs Phase 4 features (24-44 hours); Phase 4 estimate 508-952 hours. |
 | 2026-10-18 | 1 | Stage line: Phase 1 merged into main (#55); the v0.0.2 alpha is next. |
 | 2026-11-05 | 2 | Phase 2 close: reviewed (Last reviewed bumped), stage line set to Phase 2 closed. |
+| 2026-11-05 | 2 | Version numbering: v0.0.4 beta, v0.0.5 after beta hardening, 0.0.x through Phase 4, and v0.1.0 when the plan is complete (maintainer decision); replaces v0.9.0, v1.0.0, and 1.x. |
