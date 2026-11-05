@@ -424,3 +424,34 @@ fn the_watcher_reloads_a_clean_page_and_flags_a_dirty_one() {
     assert_eq!(session.current_conflict(), Some("outside again\n"));
     assert_eq!(session.page_text(&id), Some("mine outside\n"));
 }
+
+#[test]
+fn opening_a_notebook_prunes_dead_journal_files_but_keeps_real_entries() {
+    let fx = Fixture::new("one\n");
+    let dir = fx.journal.path().join("recovery");
+    std::fs::create_dir_all(&dir).expect("mkdir");
+    std::fs::write(dir.join("junk.json"), b"{not json").expect("junk");
+    // A page whose file is gone keeps its entry (the "moved or deleted" question).
+    let gone = fx.notebook.path().join("Sec/Gone.md");
+    fx.journal().write(&gone, "unsaved\n").expect("journal");
+    // An old-style name for the real page, stored by path.
+    let stored = serde_json::json!({
+        "version": 1,
+        "path": fx.page_file().to_string_lossy(),
+        "text": "old style\n",
+    });
+    std::fs::write(dir.join("0123456789abcdef.json"), stored.to_string()).expect("old");
+    let mut session = fx.session();
+    let mut io = fx.io();
+    pump_until(&mut io, &mut session, "offer", |s| {
+        !s.pending_recovery().is_empty()
+    });
+    assert!(!dir.join("junk.json").exists());
+    assert_eq!(session.pending_recovery()[0].text, "old style\n");
+    assert!(fx.journal().load_all().iter().any(|e| e.path == gone));
+    // Discarding clears the old-style file by its stored path.
+    session.discard_recovery();
+    io.flush(&mut session);
+    assert!(!dir.join("0123456789abcdef.json").exists());
+    assert!(fx.journal().load_all().iter().any(|e| e.path == gone));
+}

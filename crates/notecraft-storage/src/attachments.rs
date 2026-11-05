@@ -235,6 +235,13 @@ fn fnv_update(hash: &mut u64, bytes: &[u8]) {
     }
 }
 
+/// FNV-1a (64 bits) over a byte slice. Stable across Rust releases, unlike `DefaultHasher`.
+pub(crate) fn fnv1a64(bytes: &[u8]) -> u64 {
+    let mut hash = FNV_OFFSET;
+    fnv_update(&mut hash, bytes);
+    hash
+}
+
 /// FNV-1a (64 bits) over a file, read in chunks.
 pub fn hash_file(path: &Path) -> io::Result<u64> {
     let mut file = File::open(path)?;
@@ -250,7 +257,7 @@ pub fn hash_file(path: &Path) -> io::Result<u64> {
 }
 
 /// Drop the `\\?\` prefix Windows adds to canonical paths, so links stay readable.
-fn strip_verbatim(path: &Path) -> PathBuf {
+pub(crate) fn strip_verbatim(path: &Path) -> PathBuf {
     let text = path.to_string_lossy();
     match text.strip_prefix(r"\\?\") {
         Some(rest) if !rest.starts_with("UNC") => PathBuf::from(rest),
