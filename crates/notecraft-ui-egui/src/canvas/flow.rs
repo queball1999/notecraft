@@ -14,8 +14,8 @@ use notecraft_core::Vec2;
 use notecraft_engine::TextCursor;
 use notecraft_markdown::objects::{is_file_link, is_file_paragraph};
 use notecraft_markdown::{
-    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, ListKind, Math, Run, Script,
-    Span, Table,
+    markup, Align, Block, BlockKind, Cell, ContainerRun, Document, LinkIndex, ListKind, Math,
+    Resolved, Run, Script, Span, Table,
 };
 use notecraft_model::{Container, ObjectKind, PlacedObject};
 
@@ -99,7 +99,61 @@ pub(super) struct Unit {
     /// Top left corner in page units.
     pub pos: Pos2,
     pub galley: Arc<Galley>,
+    /// The page links in the piece of text.
+    pub links: Vec<LinkSpan>,
 }
+
+/// What a page link on the canvas points at (docs/markdown.md section 5.3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum LinkStatus {
+    /// Exactly one page.
+    Found,
+    /// More than one page; the labels are the candidates, closest first.
+    Ambiguous(Vec<String>),
+    /// No page. Clicking creates it.
+    Missing,
+}
+
+/// The pages page links resolve against, and the page the links are on.
+#[derive(Clone, Copy)]
+pub(super) struct LinkContext<'a> {
+    pub index: &'a LinkIndex,
+    /// Path of the page shown, from the notebook folder.
+    pub from: &'a str,
+}
+
+impl LinkContext<'_> {
+    pub(super) fn status(&self, target: &str) -> LinkStatus {
+        match self.index.resolve(target, self.from) {
+            Resolved::Page(_) => LinkStatus::Found,
+            Resolved::Ambiguous { candidates, .. } => {
+                LinkStatus::Ambiguous(candidates.iter().map(|p| p.stem().to_owned()).collect())
+            }
+            Resolved::Unresolved => LinkStatus::Missing,
+        }
+    }
+}
+
+/// A page link in a laid-out piece of text: where it is and what it points at.
+#[derive(Clone, Debug)]
+pub(super) struct LinkSpan {
+    /// The link target as written.
+    pub target: String,
+    pub status: LinkStatus,
+    /// The rectangles the link covers, one per row of text, in page units.
+    pub rects: Vec<Rect>,
+}
+
+/// A link run in a galley: its characters (a range of `char` positions) and what it is.
+struct LinkMark {
+    target: String,
+    status: LinkStatus,
+    from: usize,
+    to: usize,
+}
+
+/// A link run found while building a layout job: the job section that holds it.
+type SectionMark = (usize, String, LinkStatus);
 
 /// A file attachment on the page, for clicks and drags.
 #[derive(Clone, Debug, PartialEq)]
@@ -154,6 +208,8 @@ pub(super) struct Input<'a> {
     pub preedit: &'a str,
     /// Pictures and files with a place of their own (docs/markdown.md section 3.4).
     pub objects: &'a [PlacedObject],
+    /// The pages page links resolve against; `None` draws every link as found.
+    pub links: Option<LinkContext<'a>>,
 }
 
 /// Where one container landed, in page units.
@@ -218,6 +274,8 @@ struct Layout<'a> {
     align: egui::Align,
     /// Inline formulas ready to draw, by source and text size.
     inline_math: math::InlineMap,
+    /// The pages page links resolve against.
+    links: Option<LinkContext<'a>>,
 }
 
 /// Lay out the page's containers at `zoom` (1.0 is 100%). Containers without a position stack
@@ -256,6 +314,7 @@ pub(super) fn layout(
         pending_align: None,
         align: egui::Align::Min,
         inline_math: math::InlineMap::new(),
+        links: input.links,
     };
     let mut y_flow = TOP;
     let mut bottom = TOP;
@@ -911,6 +970,7 @@ impl Layout<'_> {
         self.units.push(Unit {
             pos: Pos2::new(x + pad, top + pad),
             galley: galley.clone(),
+            links: Vec::new(),
         });
         self.items.push(Item::Text {
             pos: Pos2::new(x + pad, top + pad),
@@ -945,9 +1005,9 @@ impl Layout<'_> {
             let mut row_h = BODY_SIZE * 1.4;
             for (c, cell) in row.iter().take(columns).enumerate() {
                 let align = table.align.get(c).copied().unwrap_or_default();
-                let galley = self.cell(cell, is_header, col_w - 2.0 * pad);
+                let (galley, marks) = self.cell(cell, is_header, col_w - 2.0 * pad);
                 row_h = row_h.max(galley.size().y / self.zoom + 2.0 * pad);
-                cells.push((c, galley, align));
+                cells.push((c, galley, marks, align));
             }
             if is_header {
                 self.items.push(Item::Fill {
@@ -955,7 +1015,7 @@ impl Layout<'_> {
                     color: mix(self.tokens.canvas_bg, self.tokens.text, 0.07),
                 });
             }
-            for (c, galley, align) in cells {
+            for (c, galley, marks, align) in cells {
                 let gw = galley.size().x / self.zoom;
                 let room = (col_w - 2.0 * pad - gw).max(0.0);
                 let dx = match align {
@@ -965,9 +1025,11 @@ impl Layout<'_> {
                 };
                 let pos = Pos2::new(x + c as f32 * col_w + pad + dx, row_top + pad);
                 let bold = (is_header && !self.bold_face).then(|| galley.clone());
+                let links = self.link_spans(&galley, &marks, pos);
                 self.units.push(Unit {
                     pos,
                     galley: galley.clone(),
+                    links,
                 });
                 self.items.push(Item::Text { pos, galley, bold });
             }
@@ -993,8 +1055,8 @@ impl Layout<'_> {
         }
     }
 
-    fn cell(&self, cell: &Cell, header: bool, width: f32) -> Arc<Galley> {
-        self.galley(&cell.runs, BODY_SIZE, header, self.tokens.text, width)
+    fn cell(&self, cell: &Cell, header: bool, width: f32) -> (Arc<Galley>, Vec<LinkMark>) {
+        self.galley_marked(&cell.runs, BODY_SIZE, header, self.tokens.text, width)
     }
 
     /// Lay out `runs` at (`x`, `y`) wrapped to `width`; returns the height in page units.
@@ -1012,7 +1074,7 @@ impl Layout<'_> {
             return 0.0;
         }
         self.prepare_inline_math(runs, size);
-        let galley = self.galley(runs, size, bold, color, width);
+        let (galley, marks) = self.galley_marked(runs, size, bold, color, width);
         let height = galley.size().y / self.zoom;
         let wants_ghost = runs.iter().any(|r| self.overstruck(r, bold));
         let ghost = wants_ghost.then(|| self.galley_bold_only(runs, size, bold, color, width));
@@ -1022,9 +1084,11 @@ impl Layout<'_> {
             egui::Align::Center => x + width / 2.0,
             egui::Align::Max => x + width,
         };
+        let links = self.link_spans(&galley, &marks, Pos2::new(x, y));
         self.units.push(Unit {
             pos: Pos2::new(x, y),
             galley: galley.clone(),
+            links,
         });
         self.place_inline_math(runs, size, &galley, Pos2::new(x, y));
         self.items.push(Item::Text {
@@ -1049,7 +1113,8 @@ impl Layout<'_> {
         color: Color32,
         width: f32,
         only_bold: bool,
-    ) -> LayoutJob {
+    ) -> (LayoutJob, Vec<SectionMark>) {
+        let mut marks = Vec::new();
         let mut job = LayoutJob::default();
         job.wrap.max_width = (width * self.zoom).max(1.0);
         job.halign = self.align;
@@ -1100,8 +1165,14 @@ impl Layout<'_> {
             if run.script != Script::None {
                 run_size *= 0.7;
             }
-            let is_link = run.link.is_some() || run.page_link.is_some();
-            let mut text_color = if is_link {
+            let status = run.page_link.as_deref().map(|target| {
+                self.links
+                    .map_or(LinkStatus::Found, |links| links.status(target))
+            });
+            let is_link = run.link.is_some() || status.is_some();
+            let mut text_color = if let Some(status) = &status {
+                link_color(status, self.tokens)
+            } else if is_link {
                 self.tokens.accent
             } else if let Some(rgb) = run.color {
                 rgb_color(rgb)
@@ -1111,7 +1182,13 @@ impl Layout<'_> {
             if only_bold && !is_bold {
                 text_color = Color32::TRANSPARENT;
             }
-            let underline = if (is_link || run.underline) && text_color != Color32::TRANSPARENT {
+            // Ambiguous and missing links are underlined with dots or dashes when painted.
+            let drawn_apart =
+                matches!(status, Some(LinkStatus::Ambiguous(_) | LinkStatus::Missing));
+            let underline = if (is_link || run.underline)
+                && !(drawn_apart && !run.underline)
+                && text_color != Color32::TRANSPARENT
+            {
                 Stroke::new(1.0, text_color)
             } else {
                 Stroke::NONE
@@ -1131,6 +1208,11 @@ impl Layout<'_> {
             } else {
                 Color32::TRANSPARENT
             };
+            if let (Some(status), Some(target)) = (status, run.page_link.as_ref()) {
+                if !only_bold {
+                    marks.push((job.sections.len(), target.clone(), status));
+                }
+            }
             job.append(
                 &run.text,
                 0.0,
@@ -1146,7 +1228,46 @@ impl Layout<'_> {
                 },
             );
         }
-        job
+        (job, marks)
+    }
+
+    /// The galley for `runs`, and the page links in it.
+    fn galley_marked(
+        &self,
+        runs: &[Run],
+        size: f32,
+        bold: bool,
+        color: Color32,
+        width: f32,
+    ) -> (Arc<Galley>, Vec<LinkMark>) {
+        let (job, raw) = self.job(runs, size, bold, color, width, false);
+        // Link positions as character ranges, read before the job is consumed.
+        let chars = |end: usize| job.text.get(..end).map_or(0, |t| t.chars().count());
+        let marks: Vec<LinkMark> = raw
+            .into_iter()
+            .filter_map(|(section, target, status)| {
+                let range = job.sections.get(section)?.byte_range.clone();
+                Some(LinkMark {
+                    target,
+                    status,
+                    from: chars(range.start.0),
+                    to: chars(range.end.0),
+                })
+            })
+            .collect();
+        (self.painter.layout_job(job), marks)
+    }
+
+    /// Where each link of a galley placed at `pos` is, in page units.
+    fn link_spans(&self, galley: &Galley, marks: &[LinkMark], pos: Pos2) -> Vec<LinkSpan> {
+        marks
+            .iter()
+            .map(|mark| LinkSpan {
+                target: mark.target.clone(),
+                status: mark.status.clone(),
+                rects: galley_rects(galley, pos, self.zoom, mark.from, mark.to),
+            })
+            .collect()
     }
 
     fn galley(
@@ -1158,7 +1279,7 @@ impl Layout<'_> {
         width: f32,
     ) -> Arc<Galley> {
         self.painter
-            .layout_job(self.job(runs, size, bold, color, width, false))
+            .layout_job(self.job(runs, size, bold, color, width, false).0)
     }
 
     fn galley_bold_only(
@@ -1170,7 +1291,7 @@ impl Layout<'_> {
         width: f32,
     ) -> Arc<Galley> {
         self.painter
-            .layout_job(self.job(runs, size, bold, color, width, true))
+            .layout_job(self.job(runs, size, bold, color, width, true).0)
     }
 }
 
@@ -1418,6 +1539,60 @@ pub(super) fn paint(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &
             }
         }
     }
+    paint_link_marks(painter, map, flow, tokens);
+}
+
+/// The color of a page link's text.
+fn link_color(status: &LinkStatus, tokens: &ThemeTokens) -> Color32 {
+    match status {
+        // A link to a page that does not exist yet reads a little quieter.
+        LinkStatus::Missing => mix(tokens.accent, tokens.text_muted, 0.4),
+        LinkStatus::Found | LinkStatus::Ambiguous(_) => tokens.accent,
+    }
+}
+
+/// Underline ambiguous links with dots and missing links with dashes. (A link to one page
+/// keeps the ordinary solid underline of its text.)
+fn paint_link_marks(painter: &Painter, map: PageToScreen, flow: &Flow, tokens: &ThemeTokens) {
+    let clip = painter.clip_rect();
+    let z = map.zoom.max(0.5);
+    for unit in &flow.units {
+        for link in &unit.links {
+            let (dash, gap) = match link.status {
+                LinkStatus::Found => continue,
+                LinkStatus::Ambiguous(_) => (1.2 * z, 2.4 * z),
+                LinkStatus::Missing => (5.0 * z, 3.0 * z),
+            };
+            let stroke = Stroke::new(1.0, link_color(&link.status, tokens));
+            for rect in &link.rects {
+                let r = Rect::from_min_max(
+                    map.pos(Vec2::new(rect.min.x, rect.min.y)),
+                    map.pos(Vec2::new(rect.max.x, rect.max.y)),
+                );
+                if !r.intersects(clip) {
+                    continue;
+                }
+                // Near the bottom of the row, where a text underline sits.
+                let y = r.max.y - r.height() * 0.14;
+                let mut x = r.min.x;
+                while x < r.max.x {
+                    let end = (x + dash).min(r.max.x);
+                    painter.line_segment([Pos2::new(x, y), Pos2::new(end, y)], stroke);
+                    x = end + gap;
+                }
+            }
+        }
+    }
+}
+
+impl Flow {
+    /// The page link under page position `at`, if there is one.
+    pub(super) fn link_at(&self, at: Pos2) -> Option<&LinkSpan> {
+        self.units
+            .iter()
+            .flat_map(|unit| unit.links.iter())
+            .find(|link| link.rects.iter().any(|r| r.contains(at)))
+    }
 }
 
 /// 0xRRGGBB as an opaque color.
@@ -1480,6 +1655,7 @@ mod tests {
             cursor,
             preedit: "",
             objects: &[],
+            links: None,
         };
         layout(painter, &input, zoom, tokens, &mut NoPictures)
     }
@@ -1526,6 +1702,7 @@ mod tests {
                 cursor: None,
                 preedit: "",
                 objects,
+                links: None,
             };
             if dragged {
                 layout(painter, &input, 1.0, &tokens, &mut Dragged)
@@ -1607,6 +1784,7 @@ mod tests {
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                links: None,
             };
             layout(painter, &input, 1.0, &tokens, &mut Fixed).picture_hits
         });
@@ -1966,6 +2144,7 @@ In the second find container
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                links: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             let rect = |i: usize| flow.containers.get(i).expect("box").rect;
@@ -1994,6 +2173,7 @@ In the second find container
                 cursor: None,
                 preedit: "",
                 objects: &[],
+                links: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             assert!(flow.width >= 3240.0, "width {}", flow.width);
@@ -2030,6 +2210,7 @@ In the second find container
                 cursor: Some(TextCursor::caret(1)),
                 preedit: "\u{4e2d}\u{6587}",
                 objects: &[],
+                links: None,
             };
             let flow = layout(painter, &input, 1.0, &tokens, &mut NoPictures);
             let raw = flow.raws.first().expect("raw");
@@ -2152,6 +2333,102 @@ In the second find container
             assert_eq!(items.len(), 1);
             assert!(items[0].0);
             assert_eq!(items[0].1, vec![FontFamily::Monospace]);
+        });
+    }
+
+    /// Lay out `text` as the page at `from`, with page links resolved against `index`.
+    fn lay_links(painter: &Painter, text: &str, index: &LinkIndex, from: &str) -> Flow {
+        let tokens = tokens();
+        let doc = notecraft_markdown::parse(text);
+        let runs = notecraft_markdown::split_containers(text, &doc);
+        let geometry: Vec<Container> = runs.iter().map(|r| Container::flow(&r.id)).collect();
+        let input = Input {
+            text,
+            doc: &doc,
+            runs: &runs,
+            geometry: &geometry,
+            cursor: None,
+            preedit: "",
+            objects: &[],
+            links: Some(LinkContext { index, from }),
+        };
+        layout(painter, &input, 1.0, &tokens, &mut NoPictures)
+    }
+
+    fn link_pages() -> LinkIndex {
+        use notecraft_markdown::LinkPage;
+        LinkIndex::new(vec![
+            LinkPage::new("nb/S/A.md", "S/A.md"),
+            LinkPage::new("nb/S/Plan.md", "S/Plan.md"),
+            LinkPage::new("nb/S/Dup.md", "S/Dup.md"),
+            LinkPage::new("nb/T/Dup.md", "T/Dup.md"),
+        ])
+    }
+
+    fn link_statuses(flow: &Flow) -> Vec<(String, LinkStatus)> {
+        flow.units
+            .iter()
+            .flat_map(|unit| unit.links.iter())
+            .map(|link| (link.target.clone(), link.status.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn page_links_are_found_ambiguous_or_missing() {
+        let index = link_pages();
+        with_painter(|painter| {
+            let text = "[[Plan]] and [[Dup]] and [[Nope]] and [[Plan|shown]]\n";
+            let flow = lay_links(painter, text, &index, "Z/A.md");
+            assert_eq!(
+                link_statuses(&flow),
+                [
+                    ("Plan".to_owned(), LinkStatus::Found),
+                    (
+                        "Dup".to_owned(),
+                        LinkStatus::Ambiguous(vec!["S/Dup".to_owned(), "T/Dup".to_owned()])
+                    ),
+                    ("Nope".to_owned(), LinkStatus::Missing),
+                    ("Plan".to_owned(), LinkStatus::Found),
+                ]
+            );
+        });
+    }
+
+    #[test]
+    fn a_link_is_found_by_its_position_and_the_text_around_it_is_not() {
+        let index = link_pages();
+        with_painter(|painter| {
+            let flow = lay_links(painter, "Go to [[Nope]] now\n", &index, "S/A.md");
+            let at = super::super::links::first_link_point(&flow, "Nope").expect("a link");
+            let hit = flow.link_at(Pos2::new(at.x, at.y)).expect("hit");
+            assert_eq!(hit.target, "Nope");
+            assert_eq!(hit.status, LinkStatus::Missing);
+            // The word before the link, and the empty space below the text, are not links.
+            assert!(flow.link_at(Pos2::new(LEFT + 2.0, TOP + 8.0)).is_none());
+            assert!(flow.link_at(Pos2::new(LEFT + 2.0, TOP + 400.0)).is_none());
+        });
+    }
+
+    #[test]
+    fn links_in_table_cells_and_lists_are_found_too() {
+        let index = link_pages();
+        with_painter(|painter| {
+            let text = "- item [[Plan]]\n\n| a | b |\n|---|---|\n| [[Nope]] | x |\n";
+            let flow = lay_links(painter, text, &index, "S/A.md");
+            let targets: Vec<String> = link_statuses(&flow).into_iter().map(|(t, _)| t).collect();
+            assert_eq!(targets, ["Plan", "Nope"]);
+        });
+    }
+
+    #[test]
+    fn without_a_resolver_every_link_looks_found() {
+        let tokens = tokens();
+        with_painter(|painter| {
+            let flow = lay(painter, "[[Whatever]]\n", 1.0, &tokens, None);
+            assert_eq!(
+                link_statuses(&flow),
+                [("Whatever".to_owned(), LinkStatus::Found)]
+            );
         });
     }
 }

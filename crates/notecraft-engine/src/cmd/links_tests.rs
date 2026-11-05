@@ -258,6 +258,31 @@ fn typing_double_brackets_opens_the_picker_and_filters_as_you_type() {
 }
 
 #[test]
+fn a_longer_insert_with_double_brackets_opens_the_picker_too() {
+    let (_dir, mut session, nb) = notebook();
+    show(&mut session, &nb, "Work/Plan.md");
+    run(&mut session, "text.set_caret", json!({ "at": 0 }));
+    // An IME commit or a fast paste-like insert arrives as one piece of text.
+    run(&mut session, "text.insert", json!({ "text": "see [[Gro" }));
+    let view = session.link_picker_view().expect("picker");
+    assert_eq!(view.query, "Gro");
+    assert_eq!(view.entries.len(), 1);
+    // Brackets that are already finished do not open it.
+    run(&mut session, "link.picker.close", json!({}));
+    run(
+        &mut session,
+        "text.insert",
+        json!({ "text": " and [[Done]]" }),
+    );
+    assert!(session.link_picker_view().is_none());
+    // A second bracket typed next to an earlier one does.
+    run(&mut session, "text.insert", json!({ "text": " [" }));
+    assert!(session.link_picker_view().is_none());
+    run(&mut session, "text.insert", json!({ "text": "[" }));
+    assert!(session.link_picker_view().is_some());
+}
+
+#[test]
 fn matches_start_with_titles_that_begin_like_the_text() {
     let (_dir, mut session, nb) = open(&[
         ("S/Main.md", "\n"),

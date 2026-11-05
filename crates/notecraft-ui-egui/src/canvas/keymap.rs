@@ -53,6 +53,21 @@ fn movement(motion: &str, extend: bool) -> Action {
     )
 }
 
+/// The keys of the page picker while it is open: they move in the list, choose, or close it
+/// instead of editing the text.
+fn picker_key(key: Key, modifiers: Modifiers) -> Option<Action> {
+    if modifiers.command || modifiers.alt {
+        return None;
+    }
+    Some(match key {
+        Key::Enter | Key::Tab => command(ids::LINK_PICKER_CHOOSE, &[]),
+        Key::Escape => command(ids::LINK_PICKER_CLOSE, &[]),
+        Key::ArrowDown => command(ids::LINK_PICKER_MOVE, &[("delta", Value::from(1))]),
+        Key::ArrowUp => command(ids::LINK_PICKER_MOVE, &[("delta", Value::from(-1))]),
+        _ => return None,
+    })
+}
+
 fn key_action(key: Key, modifiers: Modifiers) -> Option<Action> {
     let shift = modifiers.shift;
     let word = word_modifier(modifiers);
@@ -96,8 +111,9 @@ fn delete(direction: &str, word: bool) -> Action {
     )
 }
 
-/// The actions for this frame's input events, in order.
-pub(super) fn actions(events: &[Event]) -> Vec<Action> {
+/// The actions for this frame's input events, in order. While the page picker is open
+/// (`picker_open`), its keys come first.
+pub(super) fn actions(events: &[Event], picker_open: bool) -> Vec<Action> {
     let mut out = Vec::new();
     for event in events {
         match event {
@@ -131,7 +147,12 @@ pub(super) fn actions(events: &[Event]) -> Vec<Action> {
                 pressed: true,
                 modifiers,
                 ..
-            } => out.extend(key_action(*key, *modifiers)),
+            } => out.extend(
+                picker_open
+                    .then(|| picker_key(*key, *modifiers))
+                    .flatten()
+                    .or_else(|| key_action(*key, *modifiers)),
+            ),
             _ => {}
         }
     }
@@ -153,7 +174,7 @@ mod tests {
     }
 
     fn only(events: &[Event]) -> Action {
-        let mut found = actions(events);
+        let mut found = actions(events, false);
         assert_eq!(found.len(), 1, "{found:?}");
         found.remove(0)
     }
@@ -172,7 +193,7 @@ mod tests {
         assert_eq!(id, "text.insert");
         assert_eq!(args["text"], "ab");
         assert_eq!(args["typing"], true);
-        assert!(actions(&[Event::Text("\r".to_owned())]).is_empty());
+        assert!(actions(&[Event::Text("\r".to_owned())], false).is_empty());
     }
 
     #[test]
@@ -259,7 +280,7 @@ mod tests {
                 extend: false
             }
         );
-        assert!(actions(&[key(Key::F5, Modifiers::NONE)]).is_empty());
+        assert!(actions(&[key(Key::F5, Modifiers::NONE)], false).is_empty());
     }
 
     #[test]
@@ -275,13 +296,16 @@ mod tests {
 
     #[test]
     fn ime_composition_previews_then_commits_as_one_insert() {
-        let steps = actions(&[
-            Event::Ime(ImeEvent::Preedit {
-                text: "ni".to_owned(),
-                active_range_chars: None,
-            }),
-            Event::Ime(ImeEvent::Commit("\u{4f60}".to_owned())),
-        ]);
+        let steps = actions(
+            &[
+                Event::Ime(ImeEvent::Preedit {
+                    text: "ni".to_owned(),
+                    active_range_chars: None,
+                }),
+                Event::Ime(ImeEvent::Commit("\u{4f60}".to_owned())),
+            ],
+            false,
+        );
         assert_eq!(steps.len(), 3);
         assert_eq!(steps.first(), Some(&Action::Preedit("ni".to_owned())));
         assert_eq!(steps.get(1), Some(&Action::Preedit(String::new())));
@@ -292,7 +316,7 @@ mod tests {
         );
         // An empty commit only ends the composition.
         assert_eq!(
-            actions(&[Event::Ime(ImeEvent::Commit(String::new()))]),
+            actions(&[Event::Ime(ImeEvent::Commit(String::new()))], false),
             vec![Action::Preedit(String::new())]
         );
     }
@@ -306,6 +330,37 @@ mod tests {
             repeat: false,
             modifiers: Modifiers::NONE,
         };
-        assert!(actions(&[release]).is_empty());
+        assert!(actions(&[release], false).is_empty());
+    }
+
+    #[test]
+    fn the_page_picker_takes_its_keys_while_open() {
+        let none = Modifiers::NONE;
+        let cases = [
+            (Key::Enter, "link.picker.choose"),
+            (Key::Tab, "link.picker.choose"),
+            (Key::Escape, "link.picker.close"),
+            (Key::ArrowDown, "link.picker.move"),
+            (Key::ArrowUp, "link.picker.move"),
+        ];
+        for (k, id) in cases {
+            let found = actions(&[key(k, none)], true);
+            assert_eq!(found.len(), 1, "{k:?}");
+            assert_eq!(id_and_args(&found[0]).0, id, "{k:?}");
+        }
+        let down = actions(&[key(Key::ArrowDown, none)], true);
+        assert_eq!(id_and_args(&down[0]).1["delta"], 1);
+        let up = actions(&[key(Key::ArrowUp, none)], true);
+        assert_eq!(id_and_args(&up[0]).1["delta"], -1);
+        // Closed, the same keys edit the text as before.
+        let closed = actions(&[key(Key::Enter, none)], false);
+        assert_eq!(id_and_args(&closed[0]).0, "text.enter");
+        let closed = actions(&[key(Key::ArrowDown, none)], false);
+        assert!(matches!(closed[0], Action::Vertical { .. }));
+        // Other keys still reach the text while it is open, and so does typing.
+        let left = actions(&[key(Key::ArrowLeft, none)], true);
+        assert_eq!(id_and_args(&left[0]).0, "text.move");
+        let typed = actions(&[Event::Text("a".to_owned())], true);
+        assert_eq!(id_and_args(&typed[0]).0, "text.insert");
     }
 }

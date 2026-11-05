@@ -476,9 +476,9 @@ pub(super) fn insert(
     };
     let typing = bool_arg(args, "typing") && ctx.cursor.is_caret();
     let done = ctx.apply(session, edit, typing);
-    if done && inserted.ends_with('[') {
+    if done && inserted.contains('[') {
         // Double brackets open the page picker (docs/markdown.md section 5.2).
-        super::links::after_insert(session);
+        super::links::after_insert(session, inserted.len());
     }
     Ok(applied(done))
 }

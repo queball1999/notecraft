@@ -105,20 +105,27 @@ pub(super) fn follow(
     })
 }
 
-/// After text was typed with `text.insert`: open the picker if the caret now follows `[[`
-/// (not inside a code block, and not when text was selected or the page cannot be edited).
-pub(super) fn after_insert(session: &mut Session) {
+/// After `inserted` was typed with `text.insert`: open the picker if the text just before the
+/// caret holds `[[` that the typing completed or came after (not inside a code block, and not
+/// when text is selected). A single keystroke is the usual case; a longer insert (an IME
+/// commit) is looked through as a whole.
+pub(super) fn after_insert(session: &mut Session, inserted_len: usize) {
     let Some(ctx) = Ctx::new(session) else {
         return;
     };
     let head = ctx.cursor.head;
-    if !ctx.cursor.is_caret() || head < 2 || ctx.text.get(head - 2..head) != Some("[[") {
+    if !ctx.cursor.is_caret() || ctx.in_code(head) {
         return;
     }
-    if ctx.in_code(head) {
-        return;
+    // One byte more than the insert, so a `[` typed after a `[` is seen.
+    let mut from = head.saturating_sub(inserted_len + 1);
+    while !ctx.text.is_char_boundary(from) {
+        from += 1;
     }
-    session.open_link_picker(&ctx.page, head);
+    let Some(found) = ctx.text.get(from..head).and_then(|t| t.rfind("[[")) else {
+        return;
+    };
+    session.open_link_picker(&ctx.page, from + found + 2);
 }
 
 /// `link.picker.open`: open the page picker at the caret. When the text before the caret is not
