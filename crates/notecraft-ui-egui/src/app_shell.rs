@@ -35,6 +35,27 @@ const SPLITTERS: [(&str, &str); 2] = [
     ("pages", "Page list width"),
 ];
 
+/// The toast for a page that could not be saved. The status bar shows it again for as long as
+/// the page stays unsaved.
+fn save_failed_text(reason: &str) -> String {
+    format!("Cannot save this page: {reason}. Your changes are kept, and NoteCraft will try again.")
+}
+
+/// What to tell the user at quit when `kept` pages could not be saved (they are in the
+/// recovery journal and are offered back at the next start).
+fn quit_notice(kept: usize) -> Option<String> {
+    match kept {
+        0 => None,
+        1 => Some(
+            "1 page could not be saved. It is kept for recovery the next time NoteCraft starts."
+                .to_owned(),
+        ),
+        n => Some(format!(
+            "{n} pages could not be saved. They are kept for recovery the next time NoteCraft starts."
+        )),
+    }
+}
+
 /// Give the panel resize handles a role and a name, and a focus ring. egui leaves them
 /// unlabeled and draws nothing when they have keyboard focus, yet they are stops in the Tab
 /// order, so a screen reader would announce nothing and a keyboard user would lose the focus.
@@ -181,10 +202,15 @@ impl AppShell {
     }
 
     /// Save every unsaved page now and journal what could not be saved. Call on quit.
-    pub fn flush_unsaved(&mut self) {
-        if let Some(io) = &mut self.io {
-            io.flush(&mut self.session);
-        }
+    /// Returns a notice naming the pages that stayed unsaved and were kept for recovery at the
+    /// next start, or `None` when everything was saved. The notice is also toasted, for a
+    /// quit the user can still see (a close request that does not end the window at once).
+    pub fn flush_unsaved(&mut self) -> Option<String> {
+        let io = self.io.as_mut()?;
+        let kept = io.flush(&mut self.session);
+        let notice = quit_notice(kept.len())?;
+        self.toasts.push(notice.clone());
+        Some(notice)
     }
 
     /// Show `info` on the About page (the app passes its build details).
@@ -558,11 +584,17 @@ impl AppShell {
         if let Some(io) = &mut self.io {
             let focused = ctx.input(|i| i.viewport().focused.unwrap_or(true));
             if ctx.input(|i| i.viewport().close_requested()) {
-                io.flush(&mut self.session);
+                let kept = io.flush(&mut self.session);
+                if let Some(notice) = quit_notice(kept.len()) {
+                    self.toasts.push(notice);
+                }
             }
             let now = std::time::Instant::now();
             if let Some(wait) = io.pump(&mut self.session, now, focused) {
                 ctx.request_repaint_after(wait);
+            }
+            for (_page, reason) in io.take_new_save_failures() {
+                self.toasts.push(save_failed_text(&reason));
             }
         }
         // Ctrl+=, Ctrl+-, and Ctrl+0 belong to OneNote's shortcuts, not to egui's UI scaling.
@@ -767,7 +799,11 @@ impl AppShell {
             })
             .inner;
         ui.scope_builder(egui::UiBuilder::new().max_rect(status_rect), |ui| {
-            status::show(ui, session, &tokens, &mut clicked);
+            let save_error = self
+                .io
+                .as_ref()
+                .and_then(|io| io.save_error(status::shown_page(session)?));
+            status::show(ui, session, save_error, &tokens, &mut clicked);
         });
         finish_splitters(ui, &tokens);
         // Like the OS dark mode, the canvas width is reported, not commanded.
@@ -3122,8 +3158,8 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
             .session
             .note_outside_change(&dir.path().join("Notes/Only.md"));
         harness.run();
-        let _ = harness.get_by_label_contains("changed outside NoteCraft");
-        let _ = harness.get_by_label("Unsaved changes");
+        let _ = harness.get_by_label_contains("Your version is still open");
+        let _ = harness.get_by_label("Not saved: changed outside NoteCraft");
         harness.get_by_label("Use outside version").click();
         harness.run();
         assert_eq!(harness.state().session().page_text(&page), Some("theirs\n"));
@@ -3153,5 +3189,67 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
         );
         assert!(harness.state().session().is_page_dirty(&page));
         assert!(harness.query_by_label("Restore").is_none());
+    }
+
+    #[test]
+    fn a_failed_save_raises_one_toast_and_shows_in_the_status_bar() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("Sec")).unwrap();
+        std::fs::write(dir.path().join("Sec/A.md"), "one\n").unwrap();
+        let io = notecraft_engine::io::SessionIo::new(None, || {})
+            .with_save_delays(std::time::Duration::ZERO, std::time::Duration::ZERO);
+        let mut shell = AppShell::new().with_io(io);
+        let opened = notecraft_engine::open::open_folder(dir.path()).unwrap();
+        let id = opened.notebook.id.clone();
+        shell.session.open_notebook(opened.notebook);
+        shell.session.set_notebook_root(&id, dir.path());
+        let mut harness = harness(shell, WINDOW);
+        let mut tries = 0;
+        while harness.state().session().current_page_source().is_none() {
+            tries += 1;
+            assert!(tries < 500, "the page never loaded");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            harness.run_steps(3);
+        }
+        let page = harness.state().session().selection().page.clone().unwrap();
+        // The section folder is replaced by a file, so the page cannot be written.
+        std::fs::remove_dir_all(dir.path().join("Sec")).unwrap();
+        std::fs::write(dir.path().join("Sec"), "in the way").unwrap();
+        harness
+            .state_mut()
+            .session
+            .edit_page_text(&page, 0, 0, "mine ", false);
+        harness.run_steps(3);
+
+        let failures: Vec<String> = harness
+            .state()
+            .toasts()
+            .texts()
+            .filter(|t| t.starts_with("Cannot save this page"))
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert!(failures[0].is_ascii());
+        assert!(harness
+            .query_all_by_label_contains("Cannot save: ")
+            .next()
+            .is_some());
+        // A later failed retry is not a new failure, so no second toast piles up.
+        harness.run_steps(3);
+        let again = harness
+            .state()
+            .toasts()
+            .texts()
+            .filter(|t| t.starts_with("Cannot save this page"))
+            .count();
+        assert_eq!(again, 1);
+    }
+
+    #[test]
+    fn the_quit_notice_names_the_pages_kept_for_recovery() {
+        assert_eq!(quit_notice(0), None);
+        let one = quit_notice(1).unwrap_or_default();
+        assert!(one.contains("kept for recovery") && one.is_ascii());
+        assert!(quit_notice(3).unwrap_or_default().starts_with("3 pages"));
     }
 }

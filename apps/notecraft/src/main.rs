@@ -134,7 +134,10 @@ impl eframe::App for App {
 
     fn on_exit(&mut self) {
         // Save every unsaved page before the settings and the process go.
-        self.shell.flush_unsaved();
+        if let Some(notice) = self.shell.flush_unsaved() {
+            // The window is closing, so there is no toast to show; the log says it.
+            tracing::warn!("{notice}");
+        }
         if let Some(control) = &self.control {
             control.shutdown();
         }

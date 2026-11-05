@@ -234,7 +234,8 @@ fn recovery_after_a_crash_brings_the_strokes_back() {
         let nb = opened.notebook.id.clone();
         session.open_notebook(opened.notebook);
         session.set_notebook_root(&nb, dir.path());
-        let mut io = io_for(&journal);
+        let mut io =
+            io_for(&journal).with_save_delays(Duration::from_secs(3600), Duration::from_secs(3600));
         pump_until(&mut io, &mut session, |s| s.current_page_source().is_some());
         draw(&mut session, json!([[1, 2], [3, 4]]));
         let now = Instant::now();

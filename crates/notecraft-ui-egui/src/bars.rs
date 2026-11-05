@@ -28,29 +28,29 @@ pub enum Bar {
     NotUtf8,
 }
 
-/// The bar to show now, if any. Recovery comes first.
-pub fn current(session: &Session) -> Option<Bar> {
+/// The bars to show now, top to bottom: the global recovery question first, then the shown
+/// page's own questions. A recovery question never hides a conflict.
+pub fn all(session: &Session) -> Vec<Bar> {
+    let mut bars = Vec::new();
     let pending = session.pending_recovery().len();
     if pending > 0 {
-        Some(Bar::Recovery(pending))
-    } else if session.current_conflict().is_some() {
-        Some(Bar::Conflict)
-    } else if session.can_convert_to_utf8() {
-        Some(Bar::NotUtf8)
-    } else if session.can_repair_canvas() {
-        Some(Bar::CanvasUnreadable)
-    } else {
-        None
+        bars.push(Bar::Recovery(pending));
     }
+    if session.current_conflict().is_some() {
+        bars.push(Bar::Conflict);
+    }
+    if session.can_convert_to_utf8() {
+        bars.push(Bar::NotUtf8);
+    }
+    if session.can_repair_canvas() {
+        bars.push(Bar::CanvasUnreadable);
+    }
+    bars
 }
 
-/// The room the bar takes: its height, or 0 with no bar.
+/// The room the bars take: a row each, or 0 with none.
 pub fn height(session: &Session) -> f32 {
-    if current(session).is_some() {
-        BAR_HEIGHT
-    } else {
-        0.0
-    }
+    all(session).len() as f32 * BAR_HEIGHT
 }
 
 /// The bar's message.
@@ -87,7 +87,7 @@ fn buttons(bar: Bar) -> Vec<(&'static str, CommandId)> {
     }
 }
 
-/// Draw the bar in `rect` (as tall as [`height`]).
+/// Draw the bars in `rect` (as tall as [`height`]), one row each.
 pub fn show(
     ui: &mut Ui,
     rect: Rect,
@@ -95,9 +95,17 @@ pub fn show(
     tokens: &ThemeTokens,
     out: &mut Vec<Clicked>,
 ) {
-    let Some(bar) = current(session) else {
-        return;
-    };
+    for (row, bar) in all(session).into_iter().enumerate() {
+        let top = rect.min.y + row as f32 * BAR_HEIGHT;
+        let row_rect = Rect::from_min_size(
+            egui::pos2(rect.min.x, top),
+            egui::vec2(rect.width(), BAR_HEIGHT),
+        );
+        show_one(ui, row_rect, bar, tokens, out);
+    }
+}
+
+fn show_one(ui: &mut Ui, rect: Rect, bar: Bar, tokens: &ThemeTokens, out: &mut Vec<Clicked>) {
     ui.painter().rect_filled(rect, 0.0, tokens.badge_bg);
     ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
@@ -124,13 +132,13 @@ pub fn show(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
     fn no_bar_without_a_question() {
         let session = Session::new();
-        assert_eq!(current(&session), None);
+        assert!(all(&session).is_empty());
         assert_eq!(height(&session), 0.0);
     }
 
@@ -145,6 +153,63 @@ mod tests {
         ] {
             assert!(message(bar).is_ascii());
         }
+    }
+
+    /// A session whose page `Sec/A.md` has a conflict, plus unsaved text offered from the
+    /// last session.
+    pub(crate) fn conflict_and_recovery() -> (tempfile::TempDir, Session) {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("Sec")).unwrap();
+        let file = dir.path().join("Sec/A.md");
+        std::fs::write(&file, "one\n").unwrap();
+        let mut session = Session::new();
+        let opened = notecraft_engine::open::open_folder(dir.path()).unwrap();
+        let id = opened.notebook.id.clone();
+        session.open_notebook(opened.notebook);
+        session.set_notebook_root(&id, dir.path());
+        session.load_current_page();
+        let page = session.selection().page.clone().unwrap();
+        session.edit_page_text(&page, 0, 0, "mine ", false);
+        std::fs::write(&file, "theirs\n").unwrap();
+        session.save_page(&page);
+        assert!(session.current_conflict().is_some());
+        session.offer_recovery(vec![notecraft_engine::RecoveryEntry {
+            path: file,
+            text: "from the last session\n".to_owned(),
+        }]);
+        assert_eq!(session.pending_recovery().len(), 1);
+        (dir, session)
+    }
+
+    #[test]
+    fn recovery_and_conflict_bars_stack() {
+        let (_dir, session) = conflict_and_recovery();
+        assert_eq!(all(&session), vec![Bar::Recovery(1), Bar::Conflict]);
+        assert_eq!(height(&session), 2.0 * BAR_HEIGHT);
+    }
+
+    #[test]
+    fn both_bars_are_drawn_with_their_buttons() {
+        use egui_kittest::kittest::Queryable;
+        let (_dir, session) = conflict_and_recovery();
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(900.0, 200.0))
+            .build_ui_state(
+                |ui, session: &mut Session| {
+                    let tokens = ThemeTokens::for_variant(session.view().theme_preset, false);
+                    let rect = Rect::from_min_size(
+                        ui.max_rect().min,
+                        egui::vec2(ui.max_rect().width(), height(session)),
+                    );
+                    show(ui, rect, session, &tokens, &mut Vec::new());
+                },
+                session,
+            );
+        harness.run();
+        let _ = harness.get_by_label(&message(Bar::Recovery(1)));
+        let _ = harness.get_by_label(&message(Bar::Conflict));
+        let _ = harness.get_by_label("Restore");
+        let _ = harness.get_by_label("Keep my version");
     }
 
     #[test]
@@ -164,7 +229,7 @@ mod tests {
         session.open_notebook(opened.notebook);
         session.set_notebook_root(&id, dir.path());
         session.load_current_page();
-        assert_eq!(current(&session), Some(Bar::CanvasUnreadable));
+        assert_eq!(all(&session), vec![Bar::CanvasUnreadable]);
         assert!(height(&session) > 0.0);
         let labels = buttons(Bar::CanvasUnreadable);
         assert_eq!(labels, vec![("Repair", ids::PAGE_REPAIR_CANVAS)]);
@@ -181,7 +246,7 @@ mod tests {
         session.open_notebook(opened.notebook);
         session.set_notebook_root(&id, dir.path());
         session.load_current_page();
-        assert_eq!(current(&session), Some(Bar::NotUtf8));
+        assert_eq!(all(&session), vec![Bar::NotUtf8]);
         assert_eq!(
             buttons(Bar::NotUtf8),
             vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)]
