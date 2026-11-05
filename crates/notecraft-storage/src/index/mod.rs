@@ -69,7 +69,7 @@ pub struct Sidebar {
 }
 
 /// Remove the database and its sidecar files. Missing files are fine.
-fn delete_database_files(path: &Path) {
+pub fn delete_database_files(path: &Path) {
     let _ = std::fs::remove_file(path);
     for suffix in ["-wal", "-shm", "-journal"] {
         let mut name = path.as_os_str().to_owned();

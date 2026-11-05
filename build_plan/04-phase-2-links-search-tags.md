@@ -1,6 +1,6 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.7 live equation preview notes; earlier: PR 2.5 landed notes; earlier: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.11 notes; earlier: PR 2.7 live equation preview notes; earlier: PR 2.5 landed notes; earlier: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
 
 Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
 
@@ -219,6 +219,8 @@ PR title: `feat(cli): add search and index`.
 
 This PR is part of the command line decision of 2026-10-15 (docs/cli.md). It can land at any point after PR 2.5 and before PR 2.10.
 
+Notes (landed): Branch `feat/cli-search`. The two plan commits were merged into one engine and CLI change set. Decisions: (1) `notecraft_engine::search::index_notebook(root, rebuild)` runs the refresh plus the text, link, and tag passes and returns an `IndexSummary`; `refresh_search_index` now calls it, so it also fills the tag table. `delete_database_files` in storage became public for the rebuild. (2) `search` refreshes the index first, so it never needs a separate `index` run; if the refresh fails but an index exists, it warns and searches what is there. (3) `--tag` matches any of the given tags and filters the engine's ranked pages (the engine caps at 500 hits before the filter); with no query it lists the items from `Index::tagged_items`. (4) `--scope` needs `--in`; `group` takes a section path, as in the app. (5) The notebook folder is a trailing argument or `--notebook`, not both. (6) The CLI has no MCP server yet (PR 3.15), so search is exposed there when it is built. (7) Follow-up from PR 2.2 done: `check` builds a `LinkIndex` (with frontmatter aliases) and reads links with `page_links_of`; its own link scanner was removed; ambiguous links stay warnings. Known limit: the engine caps a search at 500 hits before the tag filter runs.
+
 ## PR 2.10: close Phase 2
 
 Follow 00-conventions.md section 6; release v0.2.0.
@@ -261,3 +263,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2026-11-05 | 2 | PR 2.2 built: link resolution, link styles, click to follow, the page picker, and the link index (LK-01 and LK-02 scored D); notes added to the PR section. |
 | 2026-11-05 | 2 | PR 2.5 landed: notes added (note tags, index, gallery, dialog). |
 | 2026-11-05 | 2 | PR 2.7 follow-up (feat/equation-preview): Notes (landed) added to PR 2.7 (live preview while a formula is edited). |
+| 2026-11-05 | 2 | PR 2.11 landed: Notes (landed) added to PR 2.11 (command line search and index). |
