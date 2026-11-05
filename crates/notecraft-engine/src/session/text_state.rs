@@ -66,7 +66,7 @@ impl Session {
 
     /// Whether page `id` is cut short or unreadable, so it must not be edited or saved over.
     pub fn page_is_read_only(&self, id: &str) -> bool {
-        self.page_notices.get(id).is_some_and(|n| n.read_only)
+        self.is_read_only(id)
     }
 
     /// Whether text in page `id` may be edited: it is not read-only, and a page that comes

@@ -8,10 +8,12 @@ use std::path::{Path, PathBuf};
 use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
+mod encoding;
 mod nav;
 mod page_style;
 mod save;
 mod saving;
+pub use encoding::Utf8Outcome;
 pub use save::{ConvertOutcome, CONVERT_WARNING};
 pub use saving::{ReadPurpose, ReadRequest, RecoveryItem, SaveOutcome, SaveState};
 
@@ -273,10 +275,11 @@ impl Session {
         match result {
             Ok(page) => {
                 if let Some(text) = page.warning() {
-                    let read_only = page.truncated;
+                    let read_only = page.read_only();
                     self.page_notices
                         .insert(page_id.to_owned(), PageNotice { text, read_only });
                 }
+                self.note_encoding(page_id, page.encoding);
                 self.saving
                     .disk_hash
                     .insert(page_id.to_owned(), saving::hash_text(&page.text));
@@ -513,16 +516,16 @@ mod page_load_tests {
     }
 
     #[test]
-    fn bad_bytes_show_text_with_a_warning_and_stay_editable() {
+    fn bad_bytes_show_decoded_text_with_a_notice_and_are_read_only() {
         let dir = notebook(&[("Sec/A.md", b"ok \xff")]);
         let mut session = open(&dir);
         session.load_current_page();
         assert_eq!(
             session.current_page_source().expect("text").text,
-            "ok \u{fffd}"
+            "ok \u{ff}"
         );
         let notice = session.current_page_notice().expect("notice");
-        assert!(!notice.read_only);
+        assert!(notice.read_only);
     }
 
     #[test]
@@ -544,3 +547,5 @@ mod saving_tests;
 
 #[cfg(test)]
 mod dirty_follows_tests;
+#[cfg(test)]
+mod encoding_tests;

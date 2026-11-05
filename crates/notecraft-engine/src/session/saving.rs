@@ -16,7 +16,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::path::{Component, Path, PathBuf};
 
-use notecraft_storage::{read_page_file, write_page_text, PageReadError, PageText, WriteOutcome};
+use notecraft_storage::{
+    read_page_file, write_page_text, PageEncoding, PageReadError, PageText, WriteOutcome,
+};
 
 use super::Session;
 
@@ -108,6 +110,9 @@ pub(super) struct SavingState {
     pub recovery: Vec<RecoveryItem>,
     /// Page files whose journal entry is no longer needed.
     pub journal_clean: Vec<PathBuf>,
+    /// Pages whose file is not UTF-8 text: shown decoded, read-only, never written until
+    /// converted (`page.convert_encoding`).
+    pub legacy: BTreeMap<String, PageEncoding>,
 }
 
 impl SavingState {
@@ -144,6 +149,7 @@ impl SavingState {
         keys(&mut self.conflicts, map);
         keys(&mut self.save_seq, map);
         keys(&mut self.inflight, map);
+        keys(&mut self.legacy, map);
         for request in &mut self.read_requests {
             if let Some(new) = map(&request.page_id) {
                 request.page_id = new;
@@ -167,6 +173,7 @@ impl SavingState {
         self.conflicts.retain(|id, _| !drop(id));
         self.save_seq.retain(|id, _| !drop(id));
         self.inflight.retain(|id, _| !drop(id));
+        self.legacy.retain(|id, _| !drop(id));
         self.read_requests.retain(|r| !drop(&r.page_id));
         self.recovery.retain(|r| !drop(&r.page_id));
     }
@@ -351,10 +358,22 @@ impl Session {
         std::mem::take(&mut self.saving.journal_clean)
     }
 
-    fn is_read_only(&self, page_id: &str) -> bool {
-        self.page_notices
-            .get(page_id)
-            .is_some_and(|notice| notice.read_only)
+    /// Note how page `page_id` was encoded when its file was read: anything but UTF-8 keeps the
+    /// page read-only, whatever its notice says.
+    pub(super) fn note_encoding(&mut self, page_id: &str, encoding: PageEncoding) {
+        if encoding == PageEncoding::Utf8 {
+            self.saving.legacy.remove(page_id);
+        } else {
+            self.saving.legacy.insert(page_id.to_owned(), encoding);
+        }
+    }
+
+    pub(super) fn is_read_only(&self, page_id: &str) -> bool {
+        self.saving.legacy.contains_key(page_id)
+            || self
+                .page_notices
+                .get(page_id)
+                .is_some_and(|notice| notice.read_only)
     }
 
     fn note_clean(&mut self, page_id: &str) {
@@ -396,6 +415,14 @@ impl Session {
         let promote = self.needs_promotion(page_id);
         match read_page_file(&path) {
             Ok(disk) => {
+                if disk.read_only() && !disk.truncated {
+                    // The file is not UTF-8 text (it changed since it was read): writing would
+                    // destroy its bytes. Only `page.convert_encoding` rewrites such a file.
+                    tracing::warn!(page = %page_id, "page file is not UTF-8; not saving over it");
+                    return SaveOutcome::Failed(
+                        "the page file is not UTF-8 text, so it was not overwritten".to_owned(),
+                    );
+                }
                 let known = self.saving.disk_hash.get(page_id).copied();
                 if known.is_some_and(|h| h != hash_text(&disk.text)) && disk.text != text {
                     tracing::info!(page = %page_id, "page changed on disk; not saving over it");
@@ -512,7 +539,9 @@ impl Session {
         }
         if self.saving.gone.remove(page_id) {
             // The file is back.
-            self.page_notices.remove(page_id);
+            if !self.saving.legacy.contains_key(page_id) {
+                self.page_notices.remove(page_id);
+            }
             if self
                 .saving
                 .conflicts
@@ -533,6 +562,12 @@ impl Session {
             return;
         }
         let dirty = self.saving.dirty.contains(page_id);
+        if dirty && page.encoding != PageEncoding::Utf8 {
+            // The save path refuses to write over a file that is not UTF-8, so the user's
+            // text stays unsaved (and journaled) rather than replacing the original bytes.
+            tracing::info!(page = %page_id, "page file is no longer UTF-8 text; keeping unsaved text");
+            return;
+        }
         let ours = match self.file_text(page_id) {
             Some(Ok(text)) => text,
             _ => self.page_text(page_id).unwrap_or_default().to_owned(),
@@ -608,13 +643,14 @@ impl Session {
     fn reload_page(&mut self, page_id: &str, page: PageText) {
         tracing::info!(page = %page_id, "page changed outside NoteCraft; reloaded it");
         self.history.clear_page(page_id);
+        self.note_encoding(page_id, page.encoding);
         match page.warning() {
             Some(text) => {
                 self.page_notices.insert(
                     page_id.to_owned(),
                     super::PageNotice {
                         text,
-                        read_only: false,
+                        read_only: page.read_only(),
                     },
                 );
             }
@@ -696,6 +732,11 @@ impl Session {
                     continue;
                 }
             };
+            if disk.encoding != PageEncoding::Utf8 {
+                // Restoring would write over a file that is not UTF-8 text: leave the entry.
+                tracing::warn!(page = %page_id, "recovery entry kept: the page file is not UTF-8");
+                continue;
+            }
             if disk.text == entry.text {
                 stale.push(entry.path);
                 continue;

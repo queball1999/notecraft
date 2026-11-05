@@ -24,6 +24,8 @@ pub enum Bar {
     /// The ink and layout data of the page shown did not parse; the page is read-only until a
     /// fresh block replaces it (`page.repair_canvas`).
     CanvasUnreadable,
+    /// The page file is not UTF-8 text; it is read-only until converted (`page.convert_encoding`).
+    NotUtf8,
 }
 
 /// The bar to show now, if any. Recovery comes first.
@@ -33,6 +35,8 @@ pub fn current(session: &Session) -> Option<Bar> {
         Some(Bar::Recovery(pending))
     } else if session.current_conflict().is_some() {
         Some(Bar::Conflict)
+    } else if session.can_convert_to_utf8() {
+        Some(Bar::NotUtf8)
     } else if session.can_repair_canvas() {
         Some(Bar::CanvasUnreadable)
     } else {
@@ -61,6 +65,7 @@ pub fn message(bar: Bar) -> String {
         Bar::Conflict => {
             "This page was changed outside NoteCraft. Your version is still open.".to_owned()
         }
+        Bar::NotUtf8 => notecraft_engine::NOT_UTF8_NOTICE.to_owned(),
         Bar::CanvasUnreadable => {
             "The ink and layout of this page could not be read, so it is read-only.".to_owned()
         }
@@ -70,6 +75,7 @@ pub fn message(bar: Bar) -> String {
 fn buttons(bar: Bar) -> Vec<(&'static str, CommandId)> {
     match bar {
         Bar::CanvasUnreadable => vec![("Repair", ids::PAGE_REPAIR_CANVAS)],
+        Bar::NotUtf8 => vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)],
         Bar::Recovery(_) => vec![
             ("Restore", ids::FILE_RESTORE_UNSAVED),
             ("Discard", ids::FILE_DISCARD_UNSAVED),
@@ -135,6 +141,7 @@ mod tests {
             Bar::Recovery(3),
             Bar::Conflict,
             Bar::CanvasUnreadable,
+            Bar::NotUtf8,
         ] {
             assert!(message(bar).is_ascii());
         }
@@ -161,5 +168,23 @@ mod tests {
         assert!(height(&session) > 0.0);
         let labels = buttons(Bar::CanvasUnreadable);
         assert_eq!(labels, vec![("Repair", ids::PAGE_REPAIR_CANVAS)]);
+    }
+
+    #[test]
+    fn a_non_utf8_page_shows_the_convert_bar() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join("Sec")).unwrap();
+        std::fs::write(dir.path().join("Sec/A.md"), b"caf\xe9\n").unwrap();
+        let mut session = Session::new();
+        let opened = notecraft_engine::open::open_folder(dir.path()).unwrap();
+        let id = opened.notebook.id.clone();
+        session.open_notebook(opened.notebook);
+        session.set_notebook_root(&id, dir.path());
+        session.load_current_page();
+        assert_eq!(current(&session), Some(Bar::NotUtf8));
+        assert_eq!(
+            buttons(Bar::NotUtf8),
+            vec![("Convert to UTF-8", ids::PAGE_CONVERT_ENCODING)]
+        );
     }
 }

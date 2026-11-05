@@ -26,10 +26,10 @@ pub use ink::{
     MAX_PEN_POINTS, MAX_PEN_TOOLS, MIN_PEN_POINTS,
 };
 pub use notecraft_core::InkTexture;
-pub use notecraft_storage::RecoveryEntry;
+pub use notecraft_storage::{RecoveryEntry, NOT_UTF8_NOTICE};
 pub use session::{
     AttachKind, Attached, ConvertOutcome, InsertError, PageNotice, PageSource, ReadPurpose,
-    ReadRequest, RecoveryItem, SaveOutcome, SaveState, Selection, Session, TextCursor,
+    ReadRequest, RecoveryItem, SaveOutcome, SaveState, Selection, Session, TextCursor, Utf8Outcome,
 };
 pub use view::PageStyle;
 
