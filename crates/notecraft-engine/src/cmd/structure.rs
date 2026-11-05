@@ -361,6 +361,9 @@ pub(super) fn notebook_set_color(
 pub(crate) const UNDO_CASES: &[(&str, &str)] = &[
     ("file.close_notebook", "{}"),
     ("page.new", r#"{ "title": "Fresh" }"#),
+    // A link to a page that does not exist adds it (PR 2.2); a link that resolves is only
+    // navigation.
+    ("link.follow", r#"{ "target": "Nowhere Yet" }"#),
     ("page.rename", r#"{ "name": "Renamed" }"#),
     ("page.delete", "{}"),
     ("page.move", r#"{ "section": "{nb}/Home", "index": 0 }"#),

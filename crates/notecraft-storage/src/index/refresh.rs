@@ -195,6 +195,7 @@ fn apply(
     for (path, old) in gone {
         tx.execute("DELETE FROM pages WHERE path = ?1", [&path])?;
         tx.execute("DELETE FROM links WHERE source_page = ?1", [&old.id])?;
+        tx.execute("DELETE FROM page_aliases WHERE page = ?1", [&old.id])?;
         tx.execute("DELETE FROM tags WHERE page = ?1", [&old.id])?;
         tx.execute("DELETE FROM attachment_refs WHERE page = ?1", [&old.id])?;
         tx.execute("DELETE FROM fts_pages WHERE page = ?1", [&old.id])?;
@@ -331,6 +332,10 @@ impl Walk<'_> {
             Some(old) if old.id != id => {
                 self.tx
                     .execute("DELETE FROM fts_pages WHERE page = ?1", [&old.id])?;
+                self.tx
+                    .execute("DELETE FROM links WHERE source_page = ?1", [&old.id])?;
+                self.tx
+                    .execute("DELETE FROM page_aliases WHERE page = ?1", [&old.id])?;
                 self.stats.removed.push(old.id);
                 self.stats.added.push(id);
             }

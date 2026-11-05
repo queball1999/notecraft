@@ -3,6 +3,7 @@
 //! The index is a cache built from the files. Deleting it is always safe. It is native
 //! only: SQLite compiles from C, so this module is not built for `wasm32`.
 
+mod links;
 mod refresh;
 mod schema;
 mod search;
@@ -14,6 +15,7 @@ use rusqlite::{Connection, OpenFlags};
 
 use crate::notebook_dir::PageKind;
 
+pub use links::{LinkRow, PageLinks, StoredLink};
 pub use refresh::{IndexError, RefreshStats};
 pub use schema::SCHEMA_VERSION;
 pub use search::{

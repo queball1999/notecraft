@@ -15,6 +15,8 @@ pub(crate) use ink::paint_pen_sample;
 #[cfg(test)]
 mod ink_tests;
 mod keymap;
+pub(crate) mod link_picker;
+mod links;
 mod multiply;
 pub(crate) mod paper;
 mod picture_ui;
@@ -70,6 +72,8 @@ pub struct CanvasUi {
     insert_at: Option<(String, Vec2)>,
     /// The find scroll request last followed (`FindState::scroll`).
     seen_find_scroll: u64,
+    /// The pages page links resolve against, with the session fingerprint they were built for.
+    link_index: Option<(u64, std::sync::Arc<notecraft_markdown::LinkIndex>)>,
 }
 
 impl Default for CanvasUi {
@@ -86,6 +90,7 @@ impl Default for CanvasUi {
             last_map: None,
             insert_at: None,
             seen_find_scroll: 0,
+            link_index: None,
         }
     }
 }
@@ -158,6 +163,23 @@ impl CanvasUi {
             )
         });
         self.parsed.insert(entry).2.clone()
+    }
+
+    /// The resolver for page links in the notebook shown. Built again only when the session's
+    /// fingerprint of the notebook's pages changes.
+    fn link_index(
+        &mut self,
+        session: &notecraft_engine::Session,
+    ) -> std::sync::Arc<notecraft_markdown::LinkIndex> {
+        let fingerprint = session.link_fingerprint();
+        if let Some((seen, index)) = &self.link_index {
+            if *seen == fingerprint {
+                return index.clone();
+            }
+        }
+        let index = std::sync::Arc::new(session.link_index());
+        self.link_index = Some((fingerprint, index.clone()));
+        index
     }
 
     /// The plain text of the page shown, for screen readers.

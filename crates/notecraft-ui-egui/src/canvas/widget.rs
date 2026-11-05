@@ -7,7 +7,10 @@ use notecraft_core::Vec2;
 use notecraft_engine::cmd::{ids, Map, Value};
 use notecraft_engine::{mock, DrawTool, Session};
 
-use super::{editing, flow, ink, paper, picture_ui, pictures, title, CanvasUi, PageToScreen};
+use super::{
+    editing, flow, ink, link_picker, links, paper, picture_ui, pictures, title, CanvasUi,
+    PageToScreen,
+};
 use crate::ribbon::Clicked;
 use crate::themes::ThemeTokens;
 
@@ -39,6 +42,15 @@ pub fn show(
     // The page text, laid out in flow layout (read-only). One seam: the page source text.
     let mut cache = std::mem::take(&mut state.pictures);
     cache.begin_frame(session.selection().page.as_deref());
+    // Page links resolve against the pages of the notebook shown.
+    let link_pages = state.link_index(session);
+    let link_from = session.current_page_path().unwrap_or_default();
+    // A notebook that is not a folder of pages (the sample notebooks) has no pages to point
+    // at, and its links are drawn as ordinary links.
+    let link_context = (!link_pages.is_empty()).then_some(flow::LinkContext {
+        index: &link_pages,
+        from: &link_from,
+    });
     let page = session.current_page_source().map(|source| {
         let parsed = state.document(source);
         let geometry = state.edit.geometry(session, source.page_id, &parsed.runs);
@@ -56,6 +68,7 @@ pub fn show(
             cursor,
             preedit: &preedit,
             objects: session.page_objects(source.page_id),
+            links: link_context,
         };
         let mut loader = pictures::PictureLoader {
             cache: &mut cache,
@@ -205,6 +218,7 @@ pub fn show(
                             state.remember_click(page_id, map.page(pos), flow);
                         }
                     }
+                    let link_click = links::interact(ui, &response, session, flow, map, clicked);
                     let frame = editing::Frame {
                         session,
                         parsed,
@@ -214,11 +228,13 @@ pub fn show(
                         map,
                         tokens,
                         panning: space_held(ui),
+                        link_click,
                     };
                     editing::interact(ui, &response, &frame, &mut state.edit, clicked);
                     if response.has_focus() {
                         editing::paint_caret(ui.painter(), map, flow, tokens);
                     }
+                    link_picker::show(ui, session, flow, map, tokens, clicked);
                 }
                 if let Some(text) = &notice {
                     // A read-only or error line under the title (the page could not be read

@@ -212,6 +212,87 @@ fn a_save_that_changes_the_title_is_not_an_echo() {
     assert!(!writes.is_echo(None, &temp, now));
 }
 
+#[test]
+fn a_save_that_changes_links_or_aliases_is_not_an_echo() {
+    let fx = Fixture::new("Body\n");
+    let mut writes = own_writes::OwnWrites::default();
+    let now = Instant::now();
+    writes.record("p", &fx.page_file(), now);
+    writes.record("p", &fx.page_file(), now);
+    assert!(writes.is_echo(Some("p"), &fx.page_file(), now));
+    // A new link must reach the link index even though our own save wrote it.
+    std::fs::write(fx.page_file(), "Body [[Other]]\n").expect("write");
+    writes.record("p", &fx.page_file(), now);
+    assert!(!writes.is_echo(Some("p"), &fx.page_file(), now));
+    // The same links again: an echo.
+    writes.record("p", &fx.page_file(), now);
+    assert!(writes.is_echo(Some("p"), &fx.page_file(), now));
+    // Text before the link moves its byte range, which the index stores.
+    std::fs::write(fx.page_file(), "More Body [[Other]]\n").expect("write");
+    writes.record("p", &fx.page_file(), now);
+    assert!(!writes.is_echo(Some("p"), &fx.page_file(), now));
+    // Aliases count too.
+    writes.record("p", &fx.page_file(), now);
+    std::fs::write(
+        fx.page_file(),
+        "---\naliases: [Nick]\n---\nMore Body [[Other]]\n",
+    )
+    .expect("write");
+    writes.record("p", &fx.page_file(), now);
+    assert!(!writes.is_echo(Some("p"), &fx.page_file(), now));
+}
+
+#[test]
+fn links_typed_and_saved_reach_the_link_index() {
+    let fx = Fixture::new("one\n");
+    std::fs::write(fx.notebook.path().join("Sec/B.md"), "b\n").expect("write");
+    let mut session = fx.session();
+    let mut io = fx.io();
+    loaded(&mut io, &mut session);
+    let id = page_id(&session);
+    settle(&mut io, &mut session, 600);
+    let t = Instant::now();
+    session.edit_page_text(&id, 0, 0, "[[B]] ", false);
+    io.pump(&mut session, t, true);
+    io.pump(&mut session, t + SAVE_AFTER_IDLE, true);
+    assert!(!session.is_page_dirty(&id));
+    let index_file = notecraft_storage::index_path(fx.notebook.path());
+    let stored = |expected: usize| {
+        notecraft_storage::index::Index::open(&index_file)
+            .and_then(|index| index.all_links())
+            .map(|links| links.len() == expected && links.iter().all(|l| l.resolved_page.is_some()))
+            .unwrap_or(false)
+    };
+    let start = Instant::now();
+    while !stored(1) {
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "link not indexed"
+        );
+        io.pump(&mut session, Instant::now(), true);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // The canvas resolves it from the tree right away, with no index at all.
+    assert_eq!(
+        session.resolve_page_link("B").page.as_deref(),
+        Some(id.replace("A.md", "B.md").as_str())
+    );
+    // Taking the link out again removes the row.
+    let t = Instant::now();
+    session.edit_page_text(&id, 0, 6, "", false);
+    io.pump(&mut session, t, true);
+    io.pump(&mut session, t + SAVE_AFTER_IDLE, true);
+    let start = Instant::now();
+    while !stored(0) {
+        assert!(
+            start.elapsed() < Duration::from_secs(10),
+            "link not removed"
+        );
+        io.pump(&mut session, Instant::now(), true);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
 /// Pump with the real clock for `ms` milliseconds so watcher events arrive and are handled.
 fn settle(io: &mut SessionIo, session: &mut Session, ms: u64) {
     let start = Instant::now();

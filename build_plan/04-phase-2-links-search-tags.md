@@ -1,6 +1,6 @@
 # Phase 2: page links, search, and note tags
 
-> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
+> Stage: pre-alpha (Phase 1 on main; v0.0.2 alpha next). Last reviewed: 2026-10-15. Last updated: 2026-11-05. Change: PR 2.2 notes (link resolution and index built); earlier: PR 2.8 notes (highlight colors, date and time stamps); earlier: PR 2.9 notes (find on page built); earlier: entry criteria name v0.0.2, the Phase 1 alpha version; earlier: stage line: Phase 1 merged into main (#55); earlier: reviewed and re-estimated at the Phase 0 close; no change; PR 2.1 landed.
 
 Goal: the OneNote features for finding and connecting notes. Links to other pages (OneNote lets you type `[[Page name]]`), links that keep working when pages are renamed or moved, search across notebooks, note tags with the Find Tags summary, equations, highlight, date and time stamps, and find on page. Ends with v0.2.0.
 
@@ -56,6 +56,8 @@ Commits:
 6. `test(markdown): resolution order and ambiguity`
 
 PR title: `feat(markdown): resolve page links and index them`.
+
+Notes (landed): resolution is a pure type in `notecraft-markdown` (`LinkIndex`, `LinkPage`, `Resolved`); the canvas builds it from the open notebook's tree, so it needs no index and follows typing. `unicode-normalization` (MIT OR Apache-2.0, pure Rust, already in the lockfile through the math stack) does the NFC step. The index gets schema version 6: `pages.links_hash` (like `text_hash`, so a changed page is found by hash) and a `page_aliases` table; the old `links` rows were never written, so the migration drops them. Storage keeps the rows (`index/links.rs`); the engine finds the links and aliases (`link_index.rs`) and resolves them in a second pass over all pages, run when pages were added, removed, or changed. An own save is still not refreshed unless the page's links, their byte positions, or its aliases changed (`own_writes`). Deviations and decisions: (1) step 4 also matches paths ignoring case, not only base names; (2) clicking a link follows it; Shift+click and a click in the block that holds the caret edit instead, since that block shows raw text; (3) a missing page is created from the last part of the target; (4) the picker excludes the page being edited and lists at most 50 pages; it is session state (`Session::link_picker`), opened from `text.insert` (any insert that leaves `[[` before the caret) or `link.picker.open`; (5) `link.follow` is flagged undoable because it can add a page; it has a row in the structure undo cases. Not done: the command line `check` still has its own link check (apps/notecraft-cli/src/check.rs) and should move to `LinkIndex`; `notecraft://` URLs are LK-04.
 
 ## PR 2.3: keep links working through renames and moves
 
@@ -252,3 +254,4 @@ Follow 00-conventions.md section 6; release v0.2.0.
 | 2026-10-24 | 2 | PR 2.9 built: find on page (TX-11 scored D); notes added to the PR section. |
 | 2026-10-24 | 2 | PR 2.1 landed. Decisions: a link run is a `Run` with `page_link: Some(target)` and the shown text in `text`; a link whose display text equals its target is written back as `[[T]]`; a link never spans styled runs or a line break; the reader marks real links in a same-length copy of the source before inline parsing, so an escaped `[[x]]` stays plain text. Follow-up: the escaped pipe separates only in table cells |
 | 2026-11-05 | 2 | PR 2.8 landed: Notes (landed) added to PR 2.8. |
+| 2026-11-05 | 2 | PR 2.2 built: link resolution, link styles, click to follow, the page picker, and the link index (LK-01 and LK-02 scored D); notes added to the PR section. |

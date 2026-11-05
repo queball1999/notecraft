@@ -9,6 +9,7 @@ use notecraft_model::{Notebook, PageRef, Section};
 use notecraft_storage::{read_page_file, PageReadError, PageText};
 
 mod encoding;
+mod links;
 mod loose;
 mod nav;
 mod page_style;
@@ -108,6 +109,10 @@ pub struct Session {
     dirty: std::collections::BTreeSet<String>,
     /// Frontmatter titles from the notebook index, by page id (see `nav`).
     frontmatter_titles: BTreeMap<String, String>,
+    /// Frontmatter aliases from the notebook index, by page id (see `links`).
+    link_aliases: BTreeMap<String, Vec<String>>,
+    /// The page picker opened by typing `[[` (see `links`).
+    link_picker: Option<crate::links::LinkPicker>,
     /// Per notebook, goes up when the tree is read again; guards background index results.
     tree_generations: BTreeMap<String, u64>,
     ink: InkState,

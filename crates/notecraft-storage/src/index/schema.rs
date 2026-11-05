@@ -83,8 +83,23 @@ ALTER TABLE attachments ADD COLUMN modified INTEGER NOT NULL DEFAULT 0;
 DELETE FROM attachments;
 ";
 
+/// Version 6: page links (PR 2.2). `links_hash` is the content hash a page's `links` rows
+/// were built from, so a page whose file changed since is found by `pages_needing_links`
+/// (null means no link rows yet). `page_aliases` holds the frontmatter `aliases` of each page,
+/// which the last step of link resolution needs. The old link rows are dropped: nothing
+/// filled them before.
+const V6: &str = "
+ALTER TABLE pages ADD COLUMN links_hash INTEGER;
+CREATE TABLE page_aliases (
+    page  TEXT NOT NULL,
+    alias TEXT NOT NULL
+);
+CREATE INDEX page_aliases_by_page ON page_aliases (page);
+DELETE FROM links;
+";
+
 /// Migrations in order. Index `n` upgrades version `n` to `n + 1`.
-pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
+pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6];
 
 /// The schema version this build writes.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;

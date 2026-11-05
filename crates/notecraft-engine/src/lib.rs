@@ -14,6 +14,9 @@ pub mod find;
 pub mod ink;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod io;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod link_index;
+pub mod links;
 pub mod mock;
 pub mod open;
 pub mod recent;

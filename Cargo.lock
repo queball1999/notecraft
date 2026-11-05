@@ -2474,6 +2474,7 @@ dependencies = [
  "latex-rust",
  "notecraft-core",
  "notecraft-model",
+ "unicode-normalization",
 ]
 
 [[package]]

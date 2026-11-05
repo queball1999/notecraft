@@ -20,6 +20,9 @@ mod format_tests;
 mod guard;
 pub mod ids;
 mod layout;
+mod links;
+#[cfg(test)]
+mod links_tests;
 mod nav;
 mod page;
 mod registry;

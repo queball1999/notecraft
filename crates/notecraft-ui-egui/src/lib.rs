@@ -24,6 +24,8 @@ pub mod find_bar;
 mod find_tests;
 pub mod font_list;
 pub mod icons;
+#[cfg(test)]
+mod link_tests;
 mod missing_item;
 pub mod nav;
 pub mod picker;
