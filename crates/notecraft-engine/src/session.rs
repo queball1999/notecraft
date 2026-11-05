@@ -118,6 +118,8 @@ pub struct Session {
     ink: InkState,
     /// The search box and its results (see `search`).
     search: crate::search::SearchState,
+    /// The Tags Summary pane (see `tag_summary`).
+    tag_summary: crate::tag_summary::TagSummaryState,
     /// The note tag gallery: the default tags and the custom ones (PR 2.5).
     tags: notecraft_markdown::TagSet,
     /// The caret and selection of text editing, with the page they belong to.
@@ -411,6 +413,15 @@ impl Session {
 
     pub(crate) fn search_mut(&mut self) -> &mut crate::search::SearchState {
         &mut self.search
+    }
+
+    /// The Tags Summary pane: its scope, grouping, and the last results.
+    pub fn tag_summary(&self) -> &crate::tag_summary::TagSummaryState {
+        &self.tag_summary
+    }
+
+    pub(crate) fn tag_summary_mut(&mut self) -> &mut crate::tag_summary::TagSummaryState {
+        &mut self.tag_summary
     }
 
     /// The active draw tool, the pen, and every page's strokes.

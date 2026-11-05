@@ -144,6 +144,20 @@ command_ids! {
     TAG_REMOVE = "tag.remove";
     /// List every tagged note in the Tags Summary pane.
     TAG_FIND = "tag.find";
+    /// Choose where the Tags Summary looks (same scopes as search).
+    TAG_SUMMARY_SET_SCOPE = "tag.summary.set_scope";
+    /// Choose how the Tags Summary groups its items: tag name, section, page title, or date.
+    TAG_SUMMARY_SET_GROUP = "tag.summary.set_group";
+    /// Show only the unchecked items in the Tags Summary.
+    TAG_SUMMARY_SET_UNCHECKED = "tag.summary.set_unchecked";
+    /// Read the tags index again and refresh the Tags Summary.
+    TAG_SUMMARY_REFRESH = "tag.summary.refresh";
+    /// Show the page of a Tags Summary item with the caret at its paragraph.
+    TAG_SUMMARY_OPEN_ITEM = "tag.summary.open_item";
+    /// Write a Tags Summary page listing the items shown.
+    TAG_SUMMARY_CREATE_PAGE = "tag.summary.create_page";
+    /// Hide the Tags Summary pane.
+    TAG_SUMMARY_CLOSE = "tag.summary.close";
     /// Add, change, or reorder the note tags in the gallery.
     TAG_CUSTOMIZE = "tag.customize";
     /// Add a custom note tag to the gallery.

@@ -23,6 +23,7 @@ pub mod recent;
 pub mod search;
 pub mod session;
 pub mod stamp;
+pub mod tag_summary;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod tags_index;
 pub mod undo;
@@ -44,6 +45,7 @@ pub use session::{
     AttachKind, Attached, ConvertOutcome, InsertError, PageNotice, PageSource, ReadPurpose,
     ReadRequest, RecoveryItem, SaveOutcome, SaveState, Selection, Session, TextCursor, Utf8Outcome,
 };
+pub use tag_summary::{ItemGroup, SummaryGroup, SummaryItem, TagSummary, TagSummaryState};
 pub use view::PageStyle;
 
 /// Layer number, read by `cargo xtask layers`.

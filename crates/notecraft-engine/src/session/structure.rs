@@ -603,6 +603,17 @@ impl Session {
     /// Add a page titled `title` (`Untitled Page` when none) at the end of `section`, show it,
     /// and return its id. One undo step.
     pub fn create_page(&mut self, section: &str, title: Option<&str>) -> Result<String, EditError> {
+        self.create_page_with(section, title, &|_| String::new())
+    }
+
+    /// Like [`Self::create_page`], with the page starting with the text `body` makes. `body`
+    /// is given the new page's path from the notebook folder. Still one undo step.
+    pub fn create_page_with(
+        &mut self,
+        section: &str,
+        title: Option<&str>,
+        body: &dyn Fn(&str) -> String,
+    ) -> Result<String, EditError> {
         let mut plan = Plan::owning(self, section)?;
         let Some(target) = plan.notebook.section(section).cloned() else {
             return fail("no section with that id");
@@ -621,7 +632,7 @@ impl Session {
             rule_lines: self.default_rule_lines(),
             ..crate::view::PageStyle::default()
         };
-        let start_text = super::page_style::text_with_style("", &start_style);
+        let start_text = super::page_style::text_with_style(&body(&rel), &start_style);
         plan.create(&rel, Content::Text(start_text));
         let mut pages = listings(&target);
         pages.push(PageListing {

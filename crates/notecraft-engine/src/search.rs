@@ -190,7 +190,7 @@ pub type SearchContext = Selection;
 
 #[cfg(not(target_arch = "wasm32"))]
 /// The folder path of a section id, given its notebook id.
-fn section_path<'a>(notebook: &str, section_id: &'a str) -> Option<&'a str> {
+pub(crate) fn section_path<'a>(notebook: &str, section_id: &'a str) -> Option<&'a str> {
     section_id
         .strip_prefix(notebook)
         .and_then(|rest| rest.strip_prefix('/'))
