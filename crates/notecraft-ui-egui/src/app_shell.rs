@@ -3475,9 +3475,9 @@ pages = [\"Welcome.md\", \"Daily log.md\", { file = \"Monday.md\", level = 1 }, 
             harness.run_steps(3);
         }
         let page = harness.state().session().selection().page.clone().unwrap();
-        // The section folder is replaced by a file, so the page cannot be written.
-        std::fs::remove_dir_all(dir.path().join("Sec")).unwrap();
-        std::fs::write(dir.path().join("Sec"), "in the way").unwrap();
+        // A folder takes the place of the page file, so the page cannot be written.
+        std::fs::remove_file(dir.path().join("Sec/A.md")).unwrap();
+        std::fs::create_dir(dir.path().join("Sec/A.md")).unwrap();
         harness
             .state_mut()
             .session

@@ -9,7 +9,7 @@ use notecraft_engine::open::notebook_from_tree;
 use notecraft_engine::Session;
 use notecraft_markdown::{parse, Block, BlockKind, Run};
 use notecraft_storage::{
-    find_canvas_block, read_canvas, read_page_file, PageReadError, WarningKind,
+    find_canvas_block, read_canvas, read_page_file, PageEncoding, PageReadError, WarningKind,
 };
 
 use crate::notebook::{self, resolve_page, Found, Notebook, PageInfo};
@@ -217,11 +217,8 @@ fn check_page(
             "the page is over the size limit".to_owned(),
         );
     }
-    if read.lossy {
-        problem(
-            "bad_text",
-            "the page has bytes that are not valid text".to_owned(),
-        );
+    if read.encoding != PageEncoding::Utf8 {
+        problem("bad_text", "the page is not saved as UTF-8".to_owned());
     }
     if let Some(issue) = read_canvas(&read.text).problem {
         problem("bad_canvas", issue.message());

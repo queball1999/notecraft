@@ -110,13 +110,11 @@ fn decode_cp1252(bytes: &[u8]) -> String {
 }
 
 fn decode_utf16(bytes: &[u8], big_endian: bool) -> String {
-    let units = bytes.chunks_exact(2).map(|pair| {
-        let a = pair.first().copied().unwrap_or(0);
-        let b = pair.get(1).copied().unwrap_or(0);
+    let units = bytes.as_chunks::<2>().0.iter().map(|pair| {
         if big_endian {
-            u16::from_be_bytes([a, b])
+            u16::from_be_bytes(*pair)
         } else {
-            u16::from_le_bytes([a, b])
+            u16::from_le_bytes(*pair)
         }
     });
     char::decode_utf16(units)
@@ -133,9 +131,9 @@ fn guess_utf16(bytes: &[u8]) -> Option<bool> {
         return None;
     }
     let (mut even, mut odd) = (0usize, 0usize);
-    for pair in bytes.chunks_exact(2) {
-        even += usize::from(pair.first() == Some(&0));
-        odd += usize::from(pair.get(1) == Some(&0));
+    for [first, second] in bytes.as_chunks::<2>().0 {
+        even += usize::from(*first == 0);
+        odd += usize::from(*second == 0);
     }
     // Little endian ASCII has its NULs in the second byte of a pair, big endian in the first.
     if even == 0 && odd * 10 >= pairs * 3 {

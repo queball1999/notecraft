@@ -116,7 +116,9 @@ fn a_crash_leaves_a_journal_that_the_next_run_offers_back_for_a_loose_page() {
     let fx = Fixture::new("saved\n");
     {
         let mut session = fx.session();
-        let mut io = fx.io();
+        let mut io = fx
+            .io()
+            .with_save_delays(Duration::from_secs(3600), Duration::from_secs(3600));
         pump_until(&mut io, &mut session, "load", |s| {
             s.current_page_source().is_some()
         });

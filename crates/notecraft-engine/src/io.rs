@@ -366,9 +366,9 @@ impl SessionIo {
 }
 
 mod index_sync;
-mod own_writes;
 mod loose;
 #[cfg(test)]
 mod loose_tests;
+mod own_writes;
 #[cfg(test)]
 mod tests;

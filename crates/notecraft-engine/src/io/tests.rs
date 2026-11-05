@@ -134,10 +134,11 @@ fn the_pump_reports_when_the_save_falls_due() {
     assert!(wait <= SAVE_AFTER_IDLE, "{wait:?}");
 }
 
-/// Make saving the page fail: a file takes the place of its section folder.
+/// Make saving the page fail: a folder takes the place of its file. (A file that is simply gone
+/// is not a failed save: it raises the "moved or deleted" question.)
 fn break_saving(fx: &Fixture) {
-    std::fs::remove_dir_all(fx.notebook.path().join("Sec")).expect("remove");
-    std::fs::write(fx.notebook.path().join("Sec"), "in the way").expect("write");
+    std::fs::remove_file(fx.page_file()).expect("remove");
+    std::fs::create_dir(fx.page_file()).expect("mkdir");
 }
 
 #[test]
@@ -163,9 +164,8 @@ fn a_failed_save_is_kept_per_page_and_reported_once() {
     assert!(io.save_error(&id).is_some());
     assert!(io.take_new_save_failures().is_empty());
 
-    // Once the folder is back the page saves and the error goes away.
-    std::fs::remove_file(fx.notebook.path().join("Sec")).expect("remove");
-    std::fs::create_dir_all(fx.notebook.path().join("Sec")).expect("mkdir");
+    // Once the file is back the page saves and the error goes away.
+    std::fs::remove_dir(fx.page_file()).expect("remove");
     std::fs::write(fx.page_file(), "one\n").expect("restore file");
     io.pump(&mut session, t0 + SAVE_AFTER_IDLE + SAVE_MAX_WAIT * 2, true);
     assert_eq!(io.save_error(&id), None);
