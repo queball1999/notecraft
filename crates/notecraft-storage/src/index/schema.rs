@@ -83,8 +83,20 @@ ALTER TABLE attachments ADD COLUMN modified INTEGER NOT NULL DEFAULT 0;
 DELETE FROM attachments;
 ";
 
+/// Version 6: what the tags table needs for note tags (docs/markdown.md section 4): the
+/// paragraph that holds a tag, its text, and whether a To Do is checked, plus the content
+/// hash the tags were read from, so the engine finds the pages whose tags are out of date.
+const V6: &str = "
+ALTER TABLE tags ADD COLUMN holder_start INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tags ADD COLUMN holder_end INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tags ADD COLUMN body TEXT NOT NULL DEFAULT '';
+ALTER TABLE tags ADD COLUMN checked INTEGER;
+CREATE INDEX tags_by_tag ON tags (tag);
+ALTER TABLE pages ADD COLUMN tags_hash INTEGER;
+";
+
 /// Migrations in order. Index `n` upgrades version `n` to `n + 1`.
-pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
+pub(super) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6];
 
 /// The schema version this build writes.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
