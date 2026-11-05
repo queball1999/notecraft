@@ -18,9 +18,9 @@ pub mod mock;
 pub mod open;
 pub mod recent;
 pub mod search;
+pub mod session;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod tags_index;
-pub mod session;
 pub mod undo;
 pub mod view;
 pub mod whats_new;

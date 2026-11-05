@@ -99,6 +99,8 @@ impl eframe::App for App {
         self.store.update(|p| p.colors.observe(colors));
         let tools = self.shell.pen_tools();
         self.store.update(|p| p.draw.observe(tools));
+        let tag_set = self.shell.tag_set();
+        self.store.update(|p| p.tags.observe(tag_set));
         let rules = self.shell.default_rule_lines();
         self.store.update(|p| p.draw.observe_rules(rules));
 
@@ -236,6 +238,7 @@ fn main() -> eframe::Result<()> {
     let recents = store.get().recent.recents();
     let recent_colors = store.get().colors.recent.clone();
     let pen_tools = store.get().draw.tools();
+    let tag_set = store.get().tags.tag_set();
     let default_rules = store.get().draw.default_rules().to_owned();
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("NoteCraft")
@@ -290,6 +293,7 @@ fn main() -> eframe::Result<()> {
             shell.set_recents(recents);
             shell.set_recent_colors(recent_colors);
             shell.set_pen_tools(pen_tools);
+            shell.set_tag_set(tag_set);
             shell.set_default_rule_lines(&default_rules);
             // A path on the command line wins; if it cannot open (the shell toasts why), or
             // none was given, reopen what was open last. With nothing recent, the start page
