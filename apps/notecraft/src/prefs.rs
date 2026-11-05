@@ -6,7 +6,7 @@
 use notecraft_engine::recent::{RecentKind, Recents};
 use notecraft_engine::view::{RibbonLayout, RibbonShow};
 use notecraft_engine::{default_pen_tools, PenTool, MAX_PEN_TOOLS};
-use notecraft_markdown::{markup, SavedTag, TagSet};
+use notecraft_markdown::{markup, SavedOverride, SavedTag, SavedTags, TagSet};
 use notecraft_ui_egui::themes::{Mode, Preset};
 use serde::{Deserialize, Serialize};
 
@@ -190,6 +190,12 @@ impl DrawPrefs {
 #[serde(default)]
 pub struct TagPrefs {
     pub custom: Vec<TagPref>,
+    /// Changes to default tags, only the fields that differ from the built-in value.
+    pub overrides: Vec<TagOverridePref>,
+    /// Slugs of the tags in the gallery, in order; empty is the built-in order.
+    pub order: Vec<String>,
+    /// Slugs of default tags taken out of the gallery.
+    pub hidden: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
@@ -204,21 +210,68 @@ pub struct TagPref {
     pub highlight: String,
 }
 
+/// A change to a default tag. An empty field is not changed (the built-in value applies); a
+/// color is `#RRGGBB`, or `none` for no color.
+#[derive(Serialize, Deserialize, Default, Clone, PartialEq, Debug)]
+#[serde(default)]
+pub struct TagOverridePref {
+    pub slug: String,
+    pub name: String,
+    pub icon: String,
+    pub font_color: String,
+    pub highlight: String,
+}
+
+/// An override color: unchanged (empty or damaged), cleared (`none`), or a color.
+fn override_color(text: &str) -> Option<Option<u32>> {
+    if text.trim().eq_ignore_ascii_case("none") {
+        return Some(None);
+    }
+    markup::color_value(text).map(Some)
+}
+
+fn override_color_text(color: Option<Option<u32>>) -> String {
+    match color {
+        None => String::new(),
+        Some(None) => "none".to_owned(),
+        Some(Some(rgb)) => markup::color_text(rgb),
+    }
+}
+
 impl TagPrefs {
-    /// The default tags plus the saved custom tags.
+    fn saved(&self) -> SavedTags {
+        SavedTags {
+            custom: self
+                .custom
+                .iter()
+                .map(|t| SavedTag {
+                    slug: t.slug.clone(),
+                    name: t.name.clone(),
+                    icon: t.icon.clone(),
+                    font_color: markup::color_value(&t.font_color),
+                    highlight: markup::color_value(&t.highlight),
+                })
+                .collect(),
+            overrides: self
+                .overrides
+                .iter()
+                .map(|o| SavedOverride {
+                    slug: o.slug.clone(),
+                    name: (!o.name.trim().is_empty()).then(|| o.name.clone()),
+                    icon: (!o.icon.trim().is_empty()).then(|| o.icon.clone()),
+                    font_color: override_color(&o.font_color),
+                    highlight: override_color(&o.highlight),
+                })
+                .collect(),
+            order: self.order.clone(),
+            hidden: self.hidden.clone(),
+        }
+    }
+
+    /// The gallery: the default tags with the saved changes, hiding, and order, plus the saved
+    /// custom tags. Damaged entries are dropped one by one.
     pub fn tag_set(&self) -> TagSet {
-        let saved: Vec<SavedTag> = self
-            .custom
-            .iter()
-            .map(|t| SavedTag {
-                slug: t.slug.clone(),
-                name: t.name.clone(),
-                icon: t.icon.clone(),
-                font_color: markup::color_value(&t.font_color),
-                highlight: markup::color_value(&t.highlight),
-            })
-            .collect();
-        TagSet::from_saved(&saved)
+        TagSet::restore(&self.saved())
     }
 
     /// Record the session's gallery; leaves the entries alone when nothing changed.
@@ -227,8 +280,9 @@ impl TagPrefs {
             return;
         }
         let color = |c: Option<u32>| c.map(markup::color_text).unwrap_or_default();
-        self.custom = set
-            .to_saved()
+        let saved = set.to_saved_all();
+        self.custom = saved
+            .custom
             .into_iter()
             .map(|t| TagPref {
                 slug: t.slug,
@@ -238,6 +292,19 @@ impl TagPrefs {
                 highlight: color(t.highlight),
             })
             .collect();
+        self.overrides = saved
+            .overrides
+            .into_iter()
+            .map(|o| TagOverridePref {
+                slug: o.slug,
+                name: o.name.unwrap_or_default(),
+                icon: o.icon.unwrap_or_default(),
+                font_color: override_color_text(o.font_color),
+                highlight: override_color_text(o.highlight),
+            })
+            .collect();
+        self.order = saved.order;
+        self.hidden = saved.hidden;
     }
 }
 
@@ -546,6 +613,112 @@ mod tests {
         let tag = set.get("ok").unwrap();
         assert_eq!(tag.icon, notecraft_markdown::TagIcon::Dot);
         assert_eq!(tag.font_color, None);
+    }
+
+    #[test]
+    fn default_tag_changes_hiding_and_order_round_trip_and_store_only_differences() {
+        use notecraft_markdown::{MoveDir, TagIcon};
+        let mut prefs = TagPrefs::default();
+        let mut set = TagSet::default();
+        set.edit(
+            "idea",
+            Some("Thought"),
+            Some(TagIcon::Heart),
+            Some(Some(0x112233)),
+            None,
+        )
+        .unwrap();
+        set.edit("remember", None, None, None, Some(None)).unwrap();
+        set.hide("password").unwrap();
+        set.add_custom("Errand", TagIcon::Pin, None, None).unwrap();
+        for _ in 0..3 {
+            set.move_tag("errand", MoveDir::Up).unwrap();
+        }
+        prefs.observe(&set);
+        // Only the fields that differ are stored.
+        assert_eq!(prefs.overrides.len(), 2);
+        let idea = &prefs.overrides[1];
+        assert_eq!(
+            (idea.slug.as_str(), idea.name.as_str(), idea.icon.as_str()),
+            ("idea", "Thought", "heart")
+        );
+        assert_eq!(
+            (idea.font_color.as_str(), idea.highlight.as_str()),
+            ("#112233", "")
+        );
+        let remember = &prefs.overrides[0];
+        assert_eq!(remember.name, "");
+        assert_eq!(
+            (remember.font_color.as_str(), remember.highlight.as_str()),
+            ("", "none")
+        );
+        assert_eq!(prefs.hidden, ["password"]);
+        assert!(!prefs.order.is_empty());
+        // Through the file and back.
+        let text = toml::to_string(&prefs).unwrap();
+        let back: TagPrefs = toml::from_str(&text).unwrap();
+        assert_eq!(back.tag_set(), set);
+        assert_eq!(
+            back.tag_set().all().iter().position(|t| t.slug == "errand"),
+            Some(25)
+        );
+        // Resetting stores nothing for the defaults.
+        set.reset_all();
+        prefs.observe(&set);
+        assert!(prefs.overrides.is_empty() && prefs.hidden.is_empty() && prefs.order.is_empty());
+        assert_eq!(prefs.custom.len(), 1);
+    }
+
+    #[test]
+    fn damaged_tag_overrides_order_and_hidden_entries_are_dropped_one_by_one() {
+        let text = r##"
+            order = ["idea", "idea", "no-such-tag", "todo"]
+            hidden = ["password", "errand", "nope", "PASSWORD"]
+            [[custom]]
+            slug = "errand"
+            name = "Errand"
+            [[overrides]]
+            slug = "question"
+            name = "  "
+            icon = "no-such-icon"
+            font_color = "red"
+            highlight = "#00FF00"
+            [[overrides]]
+            slug = "important"
+            name = "Idea"
+            [[overrides]]
+            slug = "not-a-default"
+            name = "Whatever"
+            [[overrides]]
+            slug = "contact"
+            name = "People"
+        "##;
+        let loaded: TagPrefs = toml::from_str(text).unwrap_or_default();
+        let set = loaded.tag_set();
+        // A bad field is ignored but the good one applies.
+        assert_eq!(
+            set.get("question").and_then(|t| t.highlight),
+            Some(0x00FF00)
+        );
+        assert_eq!(
+            set.get("question").map(|t| t.name.as_str()),
+            Some("Question")
+        );
+        // A name another tag has is refused.
+        assert_eq!(
+            set.get("important").map(|t| t.name.as_str()),
+            Some("Important")
+        );
+        assert!(set.get("not-a-default").is_none());
+        assert_eq!(set.get("contact").map(|t| t.name.as_str()), Some("People"));
+        // Only default tags can be hidden; the custom one stays.
+        assert_eq!(set.hidden().len(), 1);
+        assert!(set.all().iter().any(|t| t.slug == "errand"));
+        // The order names idea then todo first; unknown and repeated entries are skipped, and
+        // the rest follow in their usual order.
+        let first: Vec<&str> = set.all().iter().take(3).map(|t| t.slug.as_str()).collect();
+        assert_eq!(first, ["idea", "todo", "important"]);
+        assert_eq!(set.all().len(), 29 - 1 + 1);
     }
 
     #[test]
