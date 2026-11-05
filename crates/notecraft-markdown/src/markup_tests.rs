@@ -92,3 +92,33 @@ fn styles_are_written_as_html_and_equals_and_read_back() {
         .iter()
         .any(|r| r.text == "u" && r.underline && r.color == Some(0x00FF_0000)));
 }
+
+#[test]
+fn colored_highlights_round_trip_byte_for_byte() {
+    for source in [
+        "a <mark style=\"background-color: #00FF00\">green</mark> b",
+        "<mark style=\"background-color: #F48FB1\">pink</mark>",
+        "x ==yellow== y",
+    ] {
+        let doc = parse(source);
+        let Some(block) = doc.blocks.first() else {
+            panic!("no block for {source}");
+        };
+        // The canonical writer agrees with what the formatting command writes.
+        assert_eq!(block_to_markdown(block, LineEnding::Lf), source);
+        let runs = runs_of(source);
+        assert!(runs.iter().any(|r| r.highlight.is_some()));
+    }
+    // A foreign spelling reads as the same run.
+    let runs = runs_of("<mark style=\"background:#00ff00 !important\">g</mark>");
+    assert!(runs
+        .iter()
+        .any(|r| r.text == "g" && r.highlight == Some(0x0000_FF00)));
+}
+
+#[test]
+fn a_mark_with_an_unreadable_style_stays_text() {
+    let runs = runs_of("<mark style=\"background-color: green\">g</mark>");
+    assert!(runs.iter().all(|r| r.highlight.is_none()));
+    assert!(runs.iter().any(|r| r.text.contains("<mark")));
+}

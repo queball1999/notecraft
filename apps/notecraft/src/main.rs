@@ -18,6 +18,7 @@
 )]
 
 mod args;
+mod clock;
 mod control;
 mod graphics;
 mod logging;
@@ -291,6 +292,7 @@ fn main() -> eframe::Result<()> {
             shell.set_recent_colors(recent_colors);
             shell.set_pen_tools(pen_tools);
             shell.set_default_rule_lines(&default_rules);
+            shell.set_clock(clock::local());
             // A path on the command line wins; if it cannot open (the shell toasts why), or
             // none was given, reopen what was open last. With nothing recent, the start page
             // shows.

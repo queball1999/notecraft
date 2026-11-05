@@ -133,7 +133,10 @@ fn color_highlight_font_and_size_use_the_format_spec() {
     run(&mut s, "format.highlight", Value::Null);
     assert_eq!(text(&s), "==hi==\n");
     run(&mut s, "format.highlight", json!({ "color": "#00ff00" }));
-    assert_eq!(text(&s), "<mark style=\"background:#00FF00\">hi</mark>\n");
+    assert_eq!(
+        text(&s),
+        "<mark style=\"background-color: #00FF00\">hi</mark>\n"
+    );
     run(&mut s, "format.highlight", json!({ "color": "none" }));
     run(&mut s, "format.font_size", json!({ "points": 14 }));
     assert_eq!(text(&s), "<span style=\"font-size:14pt\">hi</span>\n");
@@ -265,4 +268,33 @@ fn formatting_a_large_page_stays_bounded() {
     run(&mut s, "format.bold", Value::Null);
     run(&mut s, "format.bullets", Value::Null);
     assert!(text(&s).starts_with("- **word"));
+}
+
+#[test]
+fn a_colored_highlight_is_one_undo_step_and_none_removes_it() {
+    let mut s = session("one two three\n");
+    select(&mut s, 4, 7);
+    run(&mut s, "format.highlight", json!({ "color": "#f48fb1" }));
+    assert_eq!(
+        text(&s),
+        "one <mark style=\"background-color: #F48FB1\">two</mark> three\n"
+    );
+    // Another color replaces the first in one step.
+    run(&mut s, "format.highlight", json!({ "color": "#90caf9" }));
+    assert_eq!(
+        text(&s),
+        "one <mark style=\"background-color: #90CAF9\">two</mark> three\n"
+    );
+    run(&mut s, "edit.undo", Value::Null);
+    assert_eq!(
+        text(&s),
+        "one <mark style=\"background-color: #F48FB1\">two</mark> three\n"
+    );
+    run(&mut s, "edit.undo", Value::Null);
+    assert_eq!(text(&s), "one two three\n");
+    // Yellow is the `==` form, and No Color takes either form off.
+    run(&mut s, "format.highlight", json!({ "color": "#fff176" }));
+    assert_eq!(text(&s), "one ==two== three\n");
+    run(&mut s, "format.highlight", json!({ "color": "none" }));
+    assert_eq!(text(&s), "one two three\n");
 }

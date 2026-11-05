@@ -254,6 +254,11 @@ impl AppShell {
         self.session.set_pen_tools(tools);
     }
 
+    /// Use `clock` for Insert > Date and Time (the app passes a local-time clock).
+    pub fn set_clock(&mut self, clock: notecraft_engine::stamp::Clock) {
+        self.session.set_clock(clock);
+    }
+
     /// Set the rule style new pages start with, by its `view.rule_lines` id (restoring saved
     /// settings). An unknown id means none.
     pub fn set_default_rule_lines(&mut self, id: &str) {

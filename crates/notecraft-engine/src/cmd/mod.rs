@@ -25,6 +25,7 @@ mod page;
 mod registry;
 mod search;
 pub mod shortcuts;
+mod stamp;
 pub(crate) mod structure;
 #[cfg(test)]
 mod tests;

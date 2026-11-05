@@ -2,7 +2,7 @@
 //! one place so reading, writing, and the formatting commands agree.
 //!
 //! Markdown has syntax for bold, italic, and strikethrough. For the rest the format spec
-//! chooses: highlight is `==text==` (yellow) or `<mark style="background:#RRGGBB">`; underline,
+//! chooses: highlight is `==text==` (yellow) or `<mark style="background-color: #RRGGBB">`; underline,
 //! subscript, and superscript are `<u>`, `<sub>`, and `<sup>`; text color, font size, and font
 //! family are `<span style="color:#RRGGBB">`, `<span style="font-size:12pt">`, and
 //! `<span style="font-family:Name">`. Paragraph alignment is a comment line above the
@@ -138,7 +138,7 @@ pub fn delimiters(mark: Mark, value: Option<&str>) -> (String, String) {
         Mark::Superscript => pair("<sup>", "</sup>"),
         Mark::Highlight => match value {
             Some(color) if color_value(color) != Some(DEFAULT_HIGHLIGHT) => (
-                format!("<mark style=\"background:{color}\">"),
+                format!("<mark style=\"background-color: {color}\">"),
                 "</mark>".to_owned(),
             ),
             _ => pair("==", "=="),
@@ -171,6 +171,37 @@ fn style_property<'a>(style: &'a str, names: &[&str]) -> Option<&'a str> {
             .any(|n| key.eq_ignore_ascii_case(n))
             .then_some(value.trim())
     })
+}
+
+/// The color of a highlight style value. Lenient: `!important` is ignored, a CSS shorthand
+/// such as `#ff0 none` yields its first color, and `rgb(r, g, b)` is read. Anything else is
+/// `None`, so the tag stays plain text.
+fn highlight_color(value: &str) -> Option<String> {
+    let value = value.trim();
+    let value = value
+        .strip_suffix("!important")
+        .map_or(value, |rest| rest.trim_end());
+    if let Some(color) = normalize_color(value) {
+        return Some(color);
+    }
+    if let Some(color) = rgb_function(value) {
+        return Some(color);
+    }
+    value.split_whitespace().find_map(normalize_color)
+}
+
+/// `rgb(r, g, b)` with whole numbers 0 to 255 as `#RRGGBB`.
+fn rgb_function(value: &str) -> Option<String> {
+    let inner = value
+        .strip_prefix("rgb(")
+        .or_else(|| value.strip_prefix("RGB("))?
+        .strip_suffix(')')?;
+    let mut parts = inner.split(',').map(|p| p.trim().parse::<u8>().ok());
+    let (r, g, b) = (parts.next()??, parts.next()??, parts.next()??);
+    parts
+        .next()
+        .is_none()
+        .then(|| format!("#{r:02X}{g:02X}{b:02X}"))
 }
 
 /// The `style` attribute of a tag's attribute text.
@@ -222,8 +253,8 @@ pub fn parse_tag(text: &str) -> Option<(Tag, usize)> {
         "mark" if attrs.is_empty() => Tag::Open(Mark::Highlight, None),
         "mark" => {
             let style = style_attribute(attrs)?;
-            let color = style_property(style, &["background", "background-color"])?;
-            Tag::Open(Mark::Highlight, Some(normalize_color(color)?))
+            let color = style_property(style, &["background-color", "background"])?;
+            Tag::Open(Mark::Highlight, Some(highlight_color(color)?))
         }
         "span" => {
             let style = style_attribute(attrs)?;
@@ -322,6 +353,39 @@ mod tests {
             ("==".to_owned(), "==".to_owned())
         );
         assert_eq!(delimiters(Mark::Highlight, None).0, "==");
+    }
+
+    #[test]
+    fn highlight_styles_are_read_leniently() {
+        let c = |style: &str| match parse_tag(&format!("<mark style=\"{style}\">")) {
+            Some((Tag::Open(Mark::Highlight, Some(c)), _)) => Some(c),
+            _ => None,
+        };
+        assert_eq!(c("background-color: #00ff00").as_deref(), Some("#00FF00"));
+        assert_eq!(c("background:#0f0").as_deref(), Some("#00FF00"));
+        assert_eq!(
+            c("BACKGROUND-COLOR:#00FF00 !important").as_deref(),
+            Some("#00FF00")
+        );
+        assert_eq!(c("background: #00ff00 none").as_deref(), Some("#00FF00"));
+        assert_eq!(
+            c("background-color: rgb(0, 255, 0)").as_deref(),
+            Some("#00FF00")
+        );
+        assert_eq!(
+            c("color:red; background-color:#112233").as_deref(),
+            Some("#112233")
+        );
+        assert_eq!(c("background-color: rgb(0, 255, 256)"), None);
+        assert_eq!(c("background-color: rgb(0, 255)"), None);
+        assert_eq!(c("background-color: green"), None);
+        assert_eq!(c("color:#112233"), None);
+        // A tag over the size bound stays text.
+        let long = format!(
+            "<mark style=\"background-color:#112233;{}\">",
+            "x".repeat(300)
+        );
+        assert_eq!(parse_tag(&long), None);
     }
 
     #[test]
