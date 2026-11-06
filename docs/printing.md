@@ -1,6 +1,6 @@
 # Printing and PDF
 
-> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: project renamed to NoteCraft; earlier changes are in the revision history.
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: project renamed to NoteCraft; earlier changes are in the revision history.
 
 NoteCraft prints the same way the other craft apps do: render to PDF, then hand the PDF to `craft-print`, which talks to the operating system. One renderer serves Print, Export to PDF, and `notecraft-cli render --format pdf`.
 

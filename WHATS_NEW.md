@@ -12,7 +12,7 @@ How to edit it at release time (docs/releasing.md section 2):
 - Plain ASCII and US English only (AGENTS.md section 2). Keep each line under 300
   characters, at most 40 lines per version, and at most 50 versions.
 
-## 0.2.0
+## 0.0.3
 
 Link your pages, search everything, and tag your notes.
 

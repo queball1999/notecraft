@@ -1,6 +1,6 @@
 # MCP server
 
-> Stage: pre-alpha (Phase 2 closed; v0.2.0 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: the headless server joins the build plan (PR 3.15).
+> Stage: pre-alpha (Phase 2 closed; v0.0.3 next). Last reviewed: 2026-11-05. Last updated: 2026-11-05. Change: Phase 2 close review (stage line, review date); earlier: stage line: Phase 1 merged into main (#55); earlier: the headless server joins the build plan (PR 3.15).
 
 NoteCraft includes a Model Context Protocol (MCP) server so AI agents can read and edit notebooks. It is a thin layer over the command registry: every tool either reads the model or runs commands by id, so anything a user can do from the ribbon, an agent can do too.
 
