@@ -8,10 +8,12 @@
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{RecursiveMode, Watcher};
 
 /// How long a folder must be quiet before changes are reported.
 pub const DEBOUNCE: Duration = Duration::from_millis(300);
@@ -19,11 +21,30 @@ pub const DEBOUNCE: Duration = Duration::from_millis(300);
 /// Most paths held in one batch; more are dropped (the next event reports them again).
 const MAX_BATCH: usize = 4096;
 
+/// How often a single file is polled where the native watcher cannot see edits to one file
+/// (the kqueue systems: a kqueue watch on a folder only reports entries added or removed).
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "openbsd",
+    target_os = "netbsd",
+    target_os = "dragonfly"
+))]
+const FILE_POLL: Duration = Duration::from_millis(500);
+
 /// A running watcher. Dropping it stops the thread.
 pub struct FolderWatcher {
     root: PathBuf,
-    _watcher: RecommendedWatcher,
+    /// The `notify` watcher, when a native one is used.
+    _watcher: Option<Box<dyn Watcher + Send>>,
+    /// Set on drop to end a polling thread.
+    stop: Arc<AtomicBool>,
     changes: Receiver<Vec<PathBuf>>,
+}
+
+impl Drop for FolderWatcher {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
 }
 
 impl FolderWatcher {
@@ -34,12 +55,22 @@ impl FolderWatcher {
         debounce: Duration,
         wake: impl Fn() + Send + 'static,
     ) -> notify::Result<Self> {
-        Self::start_with(root, RecursiveMode::Recursive, None, debounce, wake)
+        Self::start_with(
+            root,
+            RecursiveMode::Recursive,
+            None,
+            debounce,
+            WatcherKind::Native,
+            wake,
+        )
     }
 
     /// Watch the one file `file` (a loose page). Only its folder is watched, without
     /// descending into subfolders, and only events for that file name are reported, so a
-    /// busy folder such as Downloads costs next to nothing.
+    /// busy folder such as Downloads costs next to nothing. On the kqueue systems (FreeBSD,
+    /// OpenBSD, NetBSD, DragonFly), where a folder watch never reports edits to a file in
+    /// it, the file itself is polled instead ([`FILE_POLL`]), which also follows a save that
+    /// replaces the file.
     pub fn start_file(
         file: &Path,
         debounce: Duration,
@@ -48,13 +79,30 @@ impl FolderWatcher {
         let (Some(folder), Some(name)) = (file.parent(), file.file_name()) else {
             return Err(notify::Error::generic("the file has no folder"));
         };
-        Self::start_with(
-            folder,
+        #[cfg(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        ))]
+        let (target, kind) = (file, WatcherKind::Poll(FILE_POLL));
+        #[cfg(not(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        )))]
+        let (target, kind) = (folder, WatcherKind::Native);
+        let mut started = Self::start_with(
+            target,
             RecursiveMode::NonRecursive,
             Some(name.to_owned()),
             debounce,
+            kind,
             wake,
-        )
+        )?;
+        started.root = folder.to_path_buf();
+        Ok(started)
     }
 
     fn start_with(
@@ -62,29 +110,45 @@ impl FolderWatcher {
         mode: RecursiveMode,
         only: Option<std::ffi::OsString>,
         debounce: Duration,
+        kind: WatcherKind,
         wake: impl Fn() + Send + 'static,
     ) -> notify::Result<Self> {
         let (raw_tx, raw_rx) = mpsc::channel::<PathBuf>();
         let (batch_tx, batch_rx) = mpsc::channel::<Vec<PathBuf>>();
-        let mut watcher =
-            notify::recommended_watcher(move |event: notify::Result<notify::Event>| match event {
-                Ok(event) => {
-                    if event.kind.is_access() {
-                        return;
-                    }
-                    for path in event.paths {
-                        if only
-                            .as_ref()
-                            .is_some_and(|name| path.file_name() != Some(name.as_os_str()))
-                        {
-                            continue;
+        let stop = Arc::new(AtomicBool::new(false));
+        let watcher: Option<Box<dyn Watcher + Send>> = match kind {
+            WatcherKind::Native => {
+                let handler = move |event: notify::Result<notify::Event>| match event {
+                    Ok(event) => {
+                        if event.kind.is_access() {
+                            return;
                         }
-                        let _ = raw_tx.send(path);
+                        for path in event.paths {
+                            if only
+                                .as_ref()
+                                .is_some_and(|name| path.file_name() != Some(name.as_os_str()))
+                            {
+                                continue;
+                            }
+                            let _ = raw_tx.send(path);
+                        }
                     }
-                }
-                Err(err) => tracing::warn!("file watcher error: {err}"),
-            })?;
-        watcher.watch(root, mode)?;
+                    Err(err) => tracing::warn!("file watcher error: {err}"),
+                };
+                let mut watcher = notify::recommended_watcher(handler)?;
+                watcher.watch(root, mode)?;
+                Some(Box::new(watcher))
+            }
+            WatcherKind::Poll(every) => {
+                let file = root.to_path_buf();
+                let stop = Arc::clone(&stop);
+                std::thread::Builder::new()
+                    .name("notecraft-poll".to_owned())
+                    .spawn(move || poll_loop(&file, every, &stop, &raw_tx))
+                    .map_err(notify::Error::io)?;
+                None
+            }
+        };
         std::thread::Builder::new()
             .name("notecraft-watch".to_owned())
             .spawn(move || debounce_loop(&raw_rx, &batch_tx, debounce, &wake))
@@ -92,6 +156,7 @@ impl FolderWatcher {
         Ok(Self {
             root: root.to_path_buf(),
             _watcher: watcher,
+            stop,
             changes: batch_rx,
         })
     }
@@ -107,6 +172,52 @@ impl FolderWatcher {
             all.extend(batch);
         }
         all.into_iter().collect()
+    }
+}
+
+/// How a watcher learns about changes.
+enum WatcherKind {
+    /// The platform's own `notify` backend (inotify, FSEvents, ReadDirectoryChanges, kqueue).
+    Native,
+    /// Polling one file's metadata at this interval (a small thread of our own: `notify`'s
+    /// poller compares modified times in whole seconds, so it misses quick edits).
+    #[cfg_attr(
+        not(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        )),
+        allow(dead_code)
+    )]
+    Poll(Duration),
+}
+
+/// What a poll compares: size, modified time at full precision, and (on Unix) the file's
+/// inode, so an edit in place and a save that replaces the file are both seen. `None` when
+/// the file cannot be read (gone, or not allowed).
+fn file_stamp(file: &Path) -> Option<(u64, Option<SystemTime>, u64)> {
+    let meta = std::fs::metadata(file).ok()?;
+    #[cfg(unix)]
+    let inode = std::os::unix::fs::MetadataExt::ino(&meta);
+    #[cfg(not(unix))]
+    let inode = 0;
+    Some((meta.len(), meta.modified().ok(), inode))
+}
+
+/// Polls `file` every `every` until `stop` is set, sending its path when its stamp changes
+/// (including when it appears or disappears).
+fn poll_loop(file: &Path, every: Duration, stop: &AtomicBool, out: &Sender<PathBuf>) {
+    let mut last = file_stamp(file);
+    while !stop.load(Ordering::Relaxed) {
+        std::thread::sleep(every);
+        let now = file_stamp(file);
+        if now != last {
+            last = now;
+            if out.send(file.to_path_buf()).is_err() {
+                return;
+            }
+        }
     }
 }
 
@@ -182,6 +293,48 @@ mod tests {
             seen.iter().all(|p| p.file_name() == file.file_name()),
             "{seen:?}"
         );
+    }
+
+    /// The polling backend the kqueue systems use for one file, run on every system: an edit
+    /// in place and a save that replaces the file are both reported.
+    #[test]
+    fn a_polled_file_reports_edits_in_place_and_replacements() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        let file = root.join("page.md");
+        std::fs::write(&file, "x").unwrap();
+        let watcher = FolderWatcher::start_with(
+            &file,
+            RecursiveMode::NonRecursive,
+            file.file_name().map(std::ffi::OsStr::to_os_string),
+            Duration::from_millis(100),
+            WatcherKind::Poll(Duration::from_millis(100)),
+            || {},
+        )
+        .unwrap();
+        let wait = |what: &str| {
+            let start = Instant::now();
+            loop {
+                let seen = watcher.poll();
+                if !seen.is_empty() {
+                    assert!(seen.iter().all(|p| p == &file), "{what}: {seen:?}");
+                    return;
+                }
+                assert!(
+                    start.elapsed() < Duration::from_secs(10),
+                    "timed out: {what}"
+                );
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        };
+        // Poll times are coarse on some file systems: change the size, not only the time.
+        std::thread::sleep(Duration::from_millis(250));
+        std::fs::write(&file, "edited in place").unwrap();
+        wait("edit in place");
+        let temp = root.join("page.md.tmp");
+        std::fs::write(&temp, "replaced by a rename, longer").unwrap();
+        std::fs::rename(&temp, &file).unwrap();
+        wait("replacement");
     }
 
     #[test]
