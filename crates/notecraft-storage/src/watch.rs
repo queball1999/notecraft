@@ -6,7 +6,7 @@
 //! changed paths. NoteCraft's own writes also arrive here; the caller tells them apart by
 //! comparing file contents.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -21,15 +21,24 @@ pub const DEBOUNCE: Duration = Duration::from_millis(300);
 /// Most paths held in one batch; more are dropped (the next event reports them again).
 const MAX_BATCH: usize = 4096;
 
-/// How often a single file is polled where the native watcher cannot see edits to one file
-/// (the kqueue systems: a kqueue watch on a folder only reports entries added or removed).
+/// How often a file or a notebook folder is polled on the kqueue systems (FreeBSD, OpenBSD,
+/// NetBSD, DragonFly). There `notify` is not used: a kqueue watch on a folder only reports
+/// entries added or removed, never edits to a file in it, and its watch on a file can be
+/// lost when a save replaces the file (temp file renamed over it), depending on the order
+/// it handles the delete and the folder change.
 #[cfg(any(
     target_os = "freebsd",
     target_os = "openbsd",
     target_os = "netbsd",
     target_os = "dragonfly"
 ))]
-const FILE_POLL: Duration = Duration::from_millis(500);
+const POLL_EVERY: Duration = Duration::from_millis(500);
+
+/// Most entries one poll of a folder tree records; the rest are not watched.
+const MAX_POLL_ENTRIES: usize = 100_000;
+
+/// Deepest folder level one poll descends to.
+const MAX_POLL_DEPTH: usize = 64;
 
 /// A running watcher. Dropping it stops the thread.
 pub struct FolderWatcher {
@@ -50,26 +59,35 @@ impl Drop for FolderWatcher {
 impl FolderWatcher {
     /// Watch `root` and everything under it. `wake` is called (from the watcher thread)
     /// whenever a batch is ready, so a UI can repaint. `debounce` is normally [`DEBOUNCE`].
+    /// On the kqueue systems the folder tree is polled instead ([`POLL_EVERY`]; the notebook's
+    /// own `.notecraft` folder is skipped, as callers ignore it).
     pub fn start(
         root: &Path,
         debounce: Duration,
         wake: impl Fn() + Send + 'static,
     ) -> notify::Result<Self> {
-        Self::start_with(
-            root,
-            RecursiveMode::Recursive,
-            None,
-            debounce,
-            WatcherKind::Native,
-            wake,
-        )
+        #[cfg(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        ))]
+        let kind = WatcherKind::Poll(POLL_EVERY);
+        #[cfg(not(any(
+            target_os = "freebsd",
+            target_os = "openbsd",
+            target_os = "netbsd",
+            target_os = "dragonfly"
+        )))]
+        let kind = WatcherKind::Native;
+        Self::start_with(root, RecursiveMode::Recursive, None, debounce, kind, wake)
     }
 
     /// Watch the one file `file` (a loose page). Only its folder is watched, without
     /// descending into subfolders, and only events for that file name are reported, so a
     /// busy folder such as Downloads costs next to nothing. On the kqueue systems (FreeBSD,
     /// OpenBSD, NetBSD, DragonFly), where a folder watch never reports edits to a file in
-    /// it, the file itself is polled instead ([`FILE_POLL`]), which also follows a save that
+    /// it, the file itself is polled instead ([`POLL_EVERY`]), which also follows a save that
     /// replaces the file.
     pub fn start_file(
         file: &Path,
@@ -85,7 +103,7 @@ impl FolderWatcher {
             target_os = "netbsd",
             target_os = "dragonfly"
         ))]
-        let (target, kind) = (file, WatcherKind::Poll(FILE_POLL));
+        let (target, kind) = (file, WatcherKind::Poll(POLL_EVERY));
         #[cfg(not(any(
             target_os = "freebsd",
             target_os = "openbsd",
@@ -140,11 +158,15 @@ impl FolderWatcher {
                 Some(Box::new(watcher))
             }
             WatcherKind::Poll(every) => {
-                let file = root.to_path_buf();
+                let target = root.to_path_buf();
+                let recursive = mode == RecursiveMode::Recursive;
+                // The first snapshot is taken before returning, so a change made right after
+                // `start` is seen.
+                let first = snapshot(&target, recursive);
                 let stop = Arc::clone(&stop);
                 std::thread::Builder::new()
                     .name("notecraft-poll".to_owned())
-                    .spawn(move || poll_loop(&file, every, &stop, &raw_tx))
+                    .spawn(move || poll_loop(&target, recursive, first, every, &stop, &raw_tx))
                     .map_err(notify::Error::io)?;
                 None
             }
@@ -179,8 +201,9 @@ impl FolderWatcher {
 enum WatcherKind {
     /// The platform's own `notify` backend (inotify, FSEvents, ReadDirectoryChanges, kqueue).
     Native,
-    /// Polling one file's metadata at this interval (a small thread of our own: `notify`'s
-    /// poller compares modified times in whole seconds, so it misses quick edits).
+    /// Polling metadata (one file, or a folder tree) at this interval, on a small thread of
+    /// our own: `notify`'s poller compares modified times in whole seconds, so it misses
+    /// quick edits.
     #[cfg_attr(
         not(any(
             target_os = "freebsd",
@@ -193,11 +216,14 @@ enum WatcherKind {
     Poll(Duration),
 }
 
+/// Size, modified time, and inode of one path.
+type Stamp = (u64, Option<SystemTime>, u64);
+
 /// What a poll compares: size, modified time at full precision, and (on Unix) the file's
 /// inode, so an edit in place and a save that replaces the file are both seen. `None` when
 /// the file cannot be read (gone, or not allowed).
-fn file_stamp(file: &Path) -> Option<(u64, Option<SystemTime>, u64)> {
-    let meta = std::fs::metadata(file).ok()?;
+fn file_stamp(file: &Path) -> Option<Stamp> {
+    let meta = std::fs::symlink_metadata(file).ok()?;
     #[cfg(unix)]
     let inode = std::os::unix::fs::MetadataExt::ino(&meta);
     #[cfg(not(unix))]
@@ -205,19 +231,69 @@ fn file_stamp(file: &Path) -> Option<(u64, Option<SystemTime>, u64)> {
     Some((meta.len(), meta.modified().ok(), inode))
 }
 
-/// Polls `file` every `every` until `stop` is set, sending its path when its stamp changes
-/// (including when it appears or disappears).
-fn poll_loop(file: &Path, every: Duration, stop: &AtomicBool, out: &Sender<PathBuf>) {
-    let mut last = file_stamp(file);
+/// The stamps of `target`: just the path itself, or, with `recursive`, every file and folder
+/// under it (symbolic links are not followed; the notebook's own `.notecraft` folder at the
+/// top is skipped; at most [`MAX_POLL_ENTRIES`] entries and [`MAX_POLL_DEPTH`] levels).
+fn snapshot(target: &Path, recursive: bool) -> BTreeMap<PathBuf, Stamp> {
+    let mut out = BTreeMap::new();
+    if let Some(stamp) = file_stamp(target) {
+        out.insert(target.to_path_buf(), stamp);
+    }
+    if !recursive {
+        return out;
+    }
+    let mut folders = vec![(target.to_path_buf(), 0usize)];
+    while let Some((folder, depth)) = folders.pop() {
+        let Ok(entries) = std::fs::read_dir(&folder) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if out.len() >= MAX_POLL_ENTRIES {
+                return out;
+            }
+            let path = entry.path();
+            if depth == 0 && entry.file_name() == crate::notebook_dir::NOTEBOOK_DIR_NAME {
+                continue;
+            }
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if let Some(stamp) = file_stamp(&path) {
+                out.insert(path.clone(), stamp);
+            }
+            if kind.is_dir() && depth + 1 < MAX_POLL_DEPTH {
+                folders.push((path, depth + 1));
+            }
+        }
+    }
+    out
+}
+
+/// Polls `target` every `every` until `stop` is set, sending each path whose stamp changed,
+/// appeared, or disappeared since the last poll.
+fn poll_loop(
+    target: &Path,
+    recursive: bool,
+    first: BTreeMap<PathBuf, Stamp>,
+    every: Duration,
+    stop: &AtomicBool,
+    out: &Sender<PathBuf>,
+) {
+    let mut last = first;
     while !stop.load(Ordering::Relaxed) {
         std::thread::sleep(every);
-        let now = file_stamp(file);
-        if now != last {
-            last = now;
-            if out.send(file.to_path_buf()).is_err() {
+        let now = snapshot(target, recursive);
+        let changed = now
+            .iter()
+            .filter(|(path, stamp)| last.get(*path) != Some(*stamp))
+            .map(|(path, _)| path)
+            .chain(last.keys().filter(|path| !now.contains_key(*path)));
+        for path in changed {
+            if out.send(path.clone()).is_err() {
                 return;
             }
         }
+        last = now;
     }
 }
 
@@ -335,6 +411,58 @@ mod tests {
         std::fs::write(&temp, "replaced by a rename, longer").unwrap();
         std::fs::rename(&temp, &file).unwrap();
         wait("replacement");
+    }
+
+    /// The polling backend the kqueue systems use for a notebook folder, run on every system.
+    #[test]
+    fn a_polled_folder_reports_new_edited_replaced_nested_and_removed_files() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        std::fs::create_dir_all(root.join("Sec/Group")).unwrap();
+        std::fs::create_dir_all(root.join(".notecraft")).unwrap();
+        let page = root.join("Sec/page.md");
+        std::fs::write(&page, "x").unwrap();
+        let watcher = FolderWatcher::start_with(
+            &root,
+            RecursiveMode::Recursive,
+            None,
+            Duration::from_millis(100),
+            WatcherKind::Poll(Duration::from_millis(100)),
+            || {},
+        )
+        .unwrap();
+        let wait_for = |what: &str, want: &Path| {
+            let start = Instant::now();
+            let mut seen = Vec::new();
+            while !seen.iter().any(|p: &PathBuf| p == want) {
+                assert!(
+                    start.elapsed() < Duration::from_secs(10),
+                    "timed out: {what}: {seen:?}"
+                );
+                std::thread::sleep(Duration::from_millis(50));
+                seen.extend(watcher.poll());
+            }
+            assert!(
+                seen.iter().all(|p| !p.starts_with(root.join(".notecraft"))),
+                "{what}: .notecraft is not reported: {seen:?}"
+            );
+        };
+        // Written right after start: the first snapshot was taken before `start` returned.
+        let new = root.join("Sec/new.md");
+        std::fs::write(&new, "new").unwrap();
+        std::fs::write(root.join(".notecraft/index.sqlite"), "ignored").unwrap();
+        wait_for("new file", &new);
+        std::fs::write(&page, "edited in place").unwrap();
+        wait_for("edit in place", &page);
+        let temp = root.join("Sec/page.md.tmp");
+        std::fs::write(&temp, "replaced by a rename").unwrap();
+        std::fs::rename(&temp, &page).unwrap();
+        wait_for("replacement", &page);
+        let nested = root.join("Sec/Group/deep.md");
+        std::fs::write(&nested, "deep").unwrap();
+        wait_for("nested file", &nested);
+        std::fs::remove_file(&new).unwrap();
+        wait_for("removed file", &new);
     }
 
     #[test]
