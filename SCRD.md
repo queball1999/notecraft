@@ -1,7 +1,7 @@
 # SCRD: System Combined Resource Document
 
 Target: NoteCraft, a one-to-one remake of OneNote with a markdown-first, folder-based file format
-Prepared: 2026-10-13. Revised: 2026-10-15 (command line and MCP server added to the build plan; estimates updated)
+Prepared: 2026-10-13. Revised: 2026-11-05 (release numbering stays on 0.0.x until the plan is complete, v0.1.0; earlier, 2026-10-15: command line and MCP server added to the build plan; estimates updated)
 Stack: Rust + egui (ArtCraft pattern)
 Platforms: Windows, macOS, Linux (FreeBSD built by CI; browser in Phase 4)
 
@@ -47,7 +47,7 @@ Scope rule: the build plan covers OneNote features only. The one exception is th
 | Printing | craft-print (wraps winprint on Windows, CUPS on macOS and Linux) |
 | CLI | `notecraft-cli` (commands and run in Phase 0; the rest through Phase 3, see docs/cli.md) |
 | License | MIT OR Apache-2.0 |
-| First version | 0.1.0 (alpha) |
+| First version | 0.0.1 (internal); the alpha line is 0.0.x, and 0.1.0 marks the plan complete (maintainer decision, 2026-11-05) |
 
 ---
 
@@ -223,7 +223,7 @@ Every action is a command with a stable id, used by the ribbon, shortcuts, and a
 
 ---
 
-## 5. Alpha gate (v0.1.0)
+## 5. Alpha gate (v0.0.2)
 
 | Area | Must work |
 |---|---|
@@ -250,13 +250,13 @@ Hours are summed bottom-up from every PR in [build_plan/](build_plan/README.md);
 |---|---|---|---|---|
 | -1 | Scaffolding and CI/CD | 55-98 | 2-4 weeks | CI green, release pipeline proven |
 | 0 | UI shell | 284-474 | 9-16 weeks | internal 0.0.1 |
-| 1 | Core engine | 456-776 | 15-26 weeks | v0.1.0 alpha |
-| 2 | Page links, search, note tags | 134-230 | 4-8 weeks | v0.2.0 |
-| 3 | Polish and parity | 664-1,126 | 22-38 weeks | v0.9.0 beta |
-| Hardening | Beta to 1.0 | 80-160 | 3-6 weeks | v1.0.0 |
-| 4 | Remaining parity | 508-952 | 17-32 weeks | full OneNote parity |
-| Total to 1.0 | | 1,673-2,864 | 56-95 weeks | |
-| Total to full parity | | 2,181-3,816 | 73-127 weeks | |
+| 1 | Core engine | 456-776 | 15-26 weeks | v0.0.2 alpha |
+| 2 | Page links, search, note tags | 134-230 | 4-8 weeks | v0.0.3 |
+| 3 | Polish and parity | 664-1,126 | 22-38 weeks | v0.0.4 beta |
+| Hardening | Beta hardening | 80-160 | 3-6 weeks | v0.0.5 |
+| 4 | Remaining parity | 508-952 | 17-32 weeks | full OneNote parity, v0.1.0 (plan complete) |
+| Total to hardening (v0.0.5) | | 1,673-2,864 | 56-95 weeks | |
+| Total to full parity (v0.1.0) | | 2,181-3,816 | 73-127 weeks | |
 
 ### Phase -1: scaffolding and CI/CD
 
@@ -276,7 +276,7 @@ Notebook folder reader and index; markdown read and minimal-diff write; live tex
 
 ### Phase 3: polish and parity
 
-Shapes and ruler; ink to shape; selection, arrange, snap, Insert Space; table tools and spell check; recycle bin, page versions, templates; PDF export; printing through craft-print; HTML and zip export, file printouts; copy link to page, new window, Quick Access Toolbar; touch; string table; performance; import of OneNote files (`.one`, `.onex`, `.onetoc2`, `.onepkg`). Ends with the beta, then hardening to 1.0.
+Shapes and ruler; ink to shape; selection, arrange, snap, Insert Space; table tools and spell check; recycle bin, page versions, templates; PDF export; printing through craft-print; HTML and zip export, file printouts; copy link to page, new window, Quick Access Toolbar; touch; string table; performance; import of OneNote files (`.one`, `.onex`, `.onetoc2`, `.onepkg`). Ends with the beta, then hardening to v0.0.5.
 
 ### Phase 4: remaining parity (post-1.0)
 
@@ -369,10 +369,10 @@ Phase 4 takes each area to full parity.
 
 | Tag | Meaning |
 |---|---|
-| P0 | must work for v0.1.0 alpha |
-| P1 | must work for v0.9.0 beta |
-| P2 | should work for v1.0.0 |
-| P3 | Phase 4, completes full parity |
+| P0 | must work for v0.0.2 alpha |
+| P1 | must work for v0.0.4 beta |
+| P2 | should work for v0.0.5 (hardening) |
+| P3 | Phase 4, completes full parity (v0.1.0) |
 
 | Feature | Priority | Phase |
 |---|---|---|

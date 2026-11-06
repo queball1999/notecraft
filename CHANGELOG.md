@@ -2,6 +2,42 @@
 
 All notable changes to NoteCraft are listed here. Versions follow [Semantic Versioning](https://semver.org/). Pre-1.0 releases may change anything.
 
+## 0.0.3 - 2026-11-05
+
+Release at the end of Phase 2: page links, search, and note tags, plus file safety work.
+
+### Added
+
+- Page links: type `[[` to pick a page, or write `[[Page]]`, `[[Page|shown text]]`, or `[[Section/Page]]`. Links resolve in OneNote's order, show as ambiguous (dotted) or missing (dashed), follow on click, and create a missing page on click.
+- Links keep working when a page or section is renamed or moved in NoteCraft (one undo step, setting `links.update_on_rename`), and NoteCraft offers to fix links after a page is renamed outside it.
+- `.notecraft` pages get a stable `notecraft.id`, `created`, and `modified` in their frontmatter on first save.
+- Search across notebooks (Ctrl+E) with OneNote's scopes (page, section, section group, notebook, all notebooks), snippets, sorting, and attachment search by name and `type:`.
+- Note tags: the full default gallery with original icons, Home > Tags, Ctrl+1 to Ctrl+9 and Ctrl+0, and Customize Tags (edit, add, hide, reset, and reorder tags).
+- Find Tags: the Tags Summary pane, grouped by tag, section, title, or date, with the search scopes, and Create Summary Page.
+- Equations (Insert > Equation, Alt+=) stored as LaTeX math, with a live preview while you edit a formula.
+- Text highlight colors (yellow is `==text==`, other colors are `<mark>`), and Insert Date, Time, and Date and Time (Alt+Shift+D, T, F).
+- Find on page (Ctrl+F, F3, Shift+F3).
+- `notecraft-cli search` (with `--tag`, `--limit`, `--scope`, `--json`) and `notecraft-cli index [--rebuild]`.
+
+### Changed
+
+- Saving follows typing: 1.5 seconds after the last edit, at most 30 seconds while typing goes on.
+- `notecraft-cli check` resolves links the same way the app does.
+
+### Fixed
+
+- A page that is not UTF-8 text (UTF-16 or Windows-1252) opens read-only and correctly decoded, instead of with replacement characters; Convert to UTF-8 keeps a copy of the original first. Edits to read-only pages are refused instead of being lost.
+- A failed save is shown (toast and status bar) instead of being silent.
+- Unsaved edits follow a page through rename, move, and delete; a page deleted or moved outside NoteCraft is never recreated silently.
+- The crash recovery journal keeps its entries across updates and different spellings of a path.
+
+### Known limitations
+
+- Builds are not code signed (Windows) or notarized (macOS); see issue #5.
+- Equations, links through renames, Customize Tags, and Find Tags have not yet had the maintainer's hands-on check; see steps 21 to 27 of the hands-on checklist in docs/roadmap.md.
+- Find Tags groups by the page's modified date, not the day each tag was added.
+- Date and time stamps use US format.
+
 ## 0.0.2 - 2026-10-19
 
 Alpha release at the end of Phase 1. NoteCraft now opens, edits, and saves real notebooks on disk in its markdown-first format.
